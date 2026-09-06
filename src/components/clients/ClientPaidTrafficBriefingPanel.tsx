@@ -89,9 +89,12 @@ export function ClientPaidTrafficBriefingPanel({ client }: { client: Client }) {
   const [form, setForm] = useState<PaidTrafficBriefing>(client.paidTrafficBriefing ?? EMPTY_PAID_TRAFFIC_BRIEFING)
   const [saving, setSaving] = useState(false)
 
+  // Resync only on client switch — see ClientBriefingPanel: depending on the
+  // sub-object identity would wipe unsaved edits on every `clients` snapshot.
   useEffect(() => {
     setForm(client.paidTrafficBriefing ?? EMPTY_PAID_TRAFFIC_BRIEFING)
-  }, [client.id, client.paidTrafficBriefing])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.id])
 
   const set = <K extends keyof PaidTrafficBriefing>(key: K, value: PaidTrafficBriefing[K]) =>
     setForm((f) => ({ ...f, [key]: value }))

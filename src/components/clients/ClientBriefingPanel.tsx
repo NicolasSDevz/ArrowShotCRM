@@ -31,9 +31,16 @@ export function ClientBriefingPanel({ client }: { client: Client }) {
   const [form, setForm] = useState<ClientBriefing>(client.briefing ?? EMPTY)
   const [saving, setSaving] = useState(false)
 
+  // Resync only when switching to another client — NOT on every `clients`
+  // snapshot. `useClients` re-emits fresh objects on any client-collection
+  // write anywhere in the app, and depending on `client.briefing` identity
+  // here would wipe the user's unsaved edits mid-typing. This form is
+  // manual-save by design, so a same-client server change is picked up on the
+  // next mount, not live.
   useEffect(() => {
     setForm(client.briefing ?? EMPTY)
-  }, [client.id, client.briefing])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.id])
 
   const set = <K extends keyof ClientBriefing>(key: K, value: ClientBriefing[K]) =>
     setForm((f) => ({ ...f, [key]: value }))

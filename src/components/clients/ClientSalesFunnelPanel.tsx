@@ -194,9 +194,12 @@ export function ClientSalesFunnelPanel({ client }: { client: Client }) {
   const [form, setForm] = useState<FormState>(buildInitialForm(client))
   const [saving, setSaving] = useState(false)
 
+  // Resync only on client switch — see ClientBriefingPanel: depending on the
+  // sub-object identity would wipe unsaved edits on every `clients` snapshot.
   useEffect(() => {
     setForm(buildInitialForm(client))
-  }, [client.id, client.salesFunnel])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.id])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }))
 

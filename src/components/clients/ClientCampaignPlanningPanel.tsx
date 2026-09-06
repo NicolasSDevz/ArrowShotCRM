@@ -117,9 +117,12 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
 
+  // Resync only on client switch — see ClientBriefingPanel: depending on the
+  // sub-object identity would wipe unsaved edits on every `clients` snapshot.
   useEffect(() => {
     setForm(mergeCampaignPlanning(client.campaignPlanning))
-  }, [client.id, client.campaignPlanning])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.id])
 
   const set = <K extends keyof CampaignPlanning>(key: K, value: CampaignPlanning[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
