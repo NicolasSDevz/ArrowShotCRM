@@ -5,7 +5,7 @@ import type { ReportMetaSnapshot } from '../types'
 const fmtInt = (v?: number) => (v == null ? '—' : Math.round(v).toLocaleString('pt-BR'))
 const fmtBRL = (v?: number) =>
   v == null || Number.isNaN(v) ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const fmtDate = (d: Date) => format(d, 'dd/MM/yyyy', { locale: ptBR })
+const fmtDate = (d: Date) => (Number.isNaN(d?.getTime?.()) ? '—' : format(d, 'dd/MM/yyyy', { locale: ptBR }))
 
 /** % de variação de `curr` sobre `prev`. `undefined` se não dá para calcular. */
 export function pctChange(curr?: number, prev?: number): number | undefined {

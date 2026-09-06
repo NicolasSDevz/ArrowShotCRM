@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { useReports } from '../hooks/useReports'
 import { useClients } from '../hooks/useClients'
-import { Spinner } from '../components/ui/FullPageSpinner'
+import { FullPageSpinner } from '../components/ui/FullPageSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
 import { ReportLineChart, type ChartSeries } from '../components/reports/ReportLineChart'
@@ -32,7 +32,7 @@ const fmtInt = (v?: number) => (v == null || Number.isNaN(v) ? '—' : Math.roun
 const fmtBRL = (v?: number) =>
   v == null || Number.isNaN(v) ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const fmtPct = (v?: number) => (v == null || Number.isNaN(v) ? '—' : `${v.toFixed(2).replace('.', ',')}%`)
-const fmtDate = (d: Date) => format(d, 'dd/MM/yyyy', { locale: ptBR })
+const fmtDate = (d: Date) => (Number.isNaN(d?.getTime?.()) ? '—' : format(d, 'dd/MM/yyyy', { locale: ptBR }))
 
 /** Variação vs período anterior. A seta reflete a direção real; a cor reflete
  *  se a mudança é BOA para o negócio (`goodWhen`): para métricas de volume
@@ -210,13 +210,20 @@ function EvolutionSection({ meta, periodStart, periodEnd }: { meta: ReportMetaSn
 
   const daily = meta.dailySeries
   const chart = useMemo(() => {
-    if (!daily || daily.length === 0 || periodEnd < periodStart) return null
-    const days = eachDayOfInterval({ start: periodStart, end: periodEnd })
-    const byDate = new Map(daily.map((d) => [d.date, d]))
-    const labels = days.map((d) => format(d, 'dd/MM'))
-    const valuesFor = (key: ChartMetricKey) =>
-      days.map((d) => byDate.get(format(d, 'yyyy-MM-dd'))?.[key])
-    return { labels, valuesFor }
+    try {
+      if (!daily || daily.length === 0) return null
+      if (Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd < periodStart) return null
+      const spanDays = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86_400_000)
+      if (spanDays > 400) return null
+      const days = eachDayOfInterval({ start: periodStart, end: periodEnd })
+      const byDate = new Map(daily.map((d) => [d.date, d]))
+      const labels = days.map((d) => format(d, 'dd/MM'))
+      const valuesFor = (key: ChartMetricKey) => days.map((d) => byDate.get(format(d, 'yyyy-MM-dd'))?.[key])
+      return { labels, valuesFor }
+    } catch (err) {
+      console.error('EvolutionSection chart', err)
+      return null
+    }
   }, [daily, periodStart, periodEnd])
 
   const seriesA: ChartSeries = { label: CHART_METRICS[a].label, color: CHART_METRICS[a].color, values: chart?.valuesFor(a) ?? [], format: CHART_METRICS[a].fmt }
@@ -413,15 +420,32 @@ function PlatformSection({ meta }: { meta: ReportMetaSnapshot }) {
 }
 
 /* ---------- Page ---------- */
+function toValidDate(ts: unknown): Date {
+  try {
+    const d = ts && typeof (ts as { toDate?: () => Date }).toDate === 'function' ? (ts as { toDate: () => Date }).toDate() : new Date(NaN)
+    return Number.isNaN(d.getTime()) ? new Date() : d
+  } catch {
+    return new Date()
+  }
+}
+
 export function MonthlyReportPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: reports, loading } = useReports()
   const { data: clients } = useClients()
   const [presenting, setPresenting] = useState(false)
+  // Um relatório recém-criado pode levar um instante para aparecer no snapshot
+  // — dá uma janela de tolerância antes de mostrar "não encontrado".
+  const [graceOver, setGraceOver] = useState(false)
 
   const report = reports.find((r) => r.id === id)
   const clientName = report ? (clients.find((c) => c.id === report.clientId)?.companyName ?? 'Cliente') : ''
+
+  useEffect(() => {
+    const t = setTimeout(() => setGraceOver(true), 2500)
+    return () => clearTimeout(t)
+  }, [id])
 
   useEffect(() => {
     if (!presenting) return
@@ -436,7 +460,7 @@ export function MonthlyReportPage() {
     }
   }, [presenting])
 
-  if (loading) return <Spinner />
+  if (loading || (!report && !graceOver)) return <FullPageSpinner label="Carregando relatório…" />
   if (!report || report.type !== 'monthly') {
     return (
       <EmptyState
@@ -447,8 +471,8 @@ export function MonthlyReportPage() {
     )
   }
 
-  const periodStart = report.periodStart.toDate()
-  const periodEnd = report.periodEnd.toDate()
+  const periodStart = toValidDate(report.periodStart)
+  const periodEnd = toValidDate(report.periodEnd)
   const prev = previousPeriod(periodStart, periodEnd)
   const meta = report.meta
 

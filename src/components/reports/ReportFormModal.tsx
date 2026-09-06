@@ -33,6 +33,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
   const [endStr, setEndStr] = useState(toDateStr(new Date()))
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [savedOk, setSavedOk] = useState(false)
   const [metaSnapshot, setMetaSnapshot] = useState<ReportMetaSnapshot | null>(null)
   const [weeklyText, setWeeklyText] = useState('')
   const [generated, setGenerated] = useState(false)
@@ -48,6 +49,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
     setMetaSnapshot(null)
     setWeeklyText('')
     setGenerated(false)
+    setSavedOk(false)
   }
 
   const handleClose = () => {
@@ -133,13 +135,29 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
         profile.id,
         profile.name
       )
-      toast.success('Relatório salvo')
-      handleClose()
-      if (type === 'monthly') navigate(`/relatorios/${reportId}`)
+
+      if (type === 'weekly') {
+        toast.success('Relatório salvo')
+        setSaving(false)
+        handleClose()
+        return
+      }
+
+      // Mensal: mostra a confirmação por 1,5s e então abre o painel visual.
+      setSavedOk(true)
+      setSaving(false)
+      setTimeout(() => {
+        handleClose()
+        try {
+          navigate(`/relatorios/${reportId}`)
+        } catch (err) {
+          console.error('navegação para o relatório falhou', err)
+          toast.error('Relatório salvo, mas não consegui abrir o painel. Abra pela lista de Relatórios.')
+        }
+      }, 1500)
     } catch (err) {
       console.error(err)
       toast.error('Erro ao salvar relatório')
-    } finally {
       setSaving(false)
     }
   }
@@ -230,17 +248,29 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
           </div>
         )}
 
-        {generated && type === 'monthly' && (
+        {generated && type === 'monthly' && !savedOk && !saving && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
             Dados carregados. Clique em "Salvar relatório" para abrir o painel visual.
           </div>
         )}
 
+        {saving && type === 'monthly' && (
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <Loader2 size={14} className="animate-spin" /> Gerando relatório…
+          </div>
+        )}
+
+        {savedOk && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+            ✅ Relatório gerado com sucesso! Abrindo painel…
+          </div>
+        )}
+
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={handleClose}>
+          <Button variant="secondary" onClick={handleClose} disabled={saving || savedOk}>
             Cancelar
           </Button>
-          {generated && (
+          {generated && !savedOk && (
             <Button icon={<Save size={14} />} onClick={handleSave} loading={saving}>
               Salvar relatório
             </Button>
