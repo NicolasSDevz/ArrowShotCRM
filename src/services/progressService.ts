@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   setDoc,
   onSnapshot,
   query,
@@ -26,14 +27,21 @@ export async function completeModule(params: {
   checklistDone: boolean
 }) {
   const { userId, trailId, moduleId, quizScore, checklistDone } = params
-  await setDoc(doc(db, COLLECTION, progressId(userId, moduleId)), {
+  const ref = doc(db, COLLECTION, progressId(userId, moduleId))
+
+  // Redoing a module must never lower the recorded quiz score or reset the
+  // original completion date (setDoc replaces the whole doc).
+  const snap = await getDoc(ref)
+  const prev = snap.exists() ? (snap.data() as Partial<ModuleProgress>) : null
+
+  await setDoc(ref, {
     userId,
     trailId,
     moduleId,
     completed: true,
-    quizScore,
-    checklistDone,
-    completedAt: serverTimestamp(),
+    quizScore: prev?.completed ? Math.max(prev.quizScore ?? 0, quizScore) : quizScore,
+    checklistDone: checklistDone || !!prev?.checklistDone,
+    completedAt: prev?.completedAt ?? serverTimestamp(),
   })
 }
 

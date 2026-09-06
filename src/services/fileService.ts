@@ -1,5 +1,5 @@
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
-import { collection, addDoc, where, orderBy, serverTimestamp, deleteDoc, doc, type FirestoreError } from 'firebase/firestore'
+import { collection, addDoc, where, orderBy, serverTimestamp, deleteDoc, doc, getDocs, query, type FirestoreError } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { storage } from '../firebase/config'
 import type { FileMeta, FileCategory, EntityType } from '../types'
@@ -86,6 +86,13 @@ export async function deleteFile(file: FileMeta) {
     // object may already be gone from storage; still clean up the metadata doc
   }
   await deleteDoc(doc(db, COLLECTION, file.id))
+}
+
+/** One-shot fetch — used by the client-deletion cascade to also drop the
+ *  Storage binaries (subscribe* variants are for live views). */
+export async function getClientFiles(clientId: string): Promise<FileMeta[]> {
+  const snap = await getDocs(query(base.colRef, where('clientId', '==', clientId)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as FileMeta)
 }
 
 export function subscribeFilesByClient(

@@ -1,4 +1,4 @@
-import { orderBy, type FirestoreError } from 'firebase/firestore'
+import { orderBy, where, getDocs, query, type FirestoreError } from 'firebase/firestore'
 import type { Report, ReportInput } from '../types'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
@@ -39,4 +39,11 @@ export function getReport(id: string) {
 
 export function subscribeReports(onData: (items: Report[]) => void, onError?: (err: FirestoreError) => void) {
   return base.subscribe([orderBy('createdAt', 'desc')], onData, onError)
+}
+
+/** One-shot fetch — used by the client-deletion cascade so a deleted client's
+ *  reports don't linger in the Relatórios list showing "—" as the client. */
+export async function getClientReports(clientId: string): Promise<Report[]> {
+  const snap = await getDocs(query(base.colRef, where('clientId', '==', clientId)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as Report)
 }
