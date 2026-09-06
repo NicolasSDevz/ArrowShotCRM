@@ -45,15 +45,27 @@ export function TeamMemberDrawer({
   const linkedUser = member.userId ? users.find((u) => u.id === member.userId) : undefined
   const routine = member.routineKey ? ROLE_ROUTINES[member.routineKey] : undefined
   const isSelf = linkedUser?.id === profile?.id
+  const otherActiveAdmins = users.filter((u) => u.id !== linkedUser?.id && u.role === 'admin' && u.active).length
 
   const handleDelete = async () => {
     if (!confirm(`Remover "${member.name}" da equipe?`)) return
-    await deleteTeamMember(member.id)
-    onClose()
+    try {
+      await deleteTeamMember(member.id)
+      toast.success('Membro removido')
+      onClose()
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao remover o membro')
+    }
   }
 
   const handleRoleChange = async (role: UserRole) => {
-    if (!linkedUser || !profile) return
+    if (!linkedUser || !profile || role === linkedUser.role) return
+    if (linkedUser.role === 'admin' && role !== 'admin' && otherActiveAdmins === 0) {
+      toast.error('Não é possível rebaixar o último administrador ativo.')
+      return
+    }
+    if (!confirm(`Alterar o papel de ${member.name} para "${USER_ROLE_LABEL[role]}"?`)) return
     try {
       await updateUserRole(linkedUser.id, role, profile.id)
       toast.success('Papel atualizado')
@@ -65,6 +77,10 @@ export function TeamMemberDrawer({
 
   const handleToggleActive = async () => {
     if (!linkedUser || !profile) return
+    if (linkedUser.active && linkedUser.role === 'admin' && otherActiveAdmins === 0) {
+      toast.error('Não é possível desativar o último administrador ativo.')
+      return
+    }
     try {
       await updateUserActive(linkedUser.id, !linkedUser.active, profile.id)
       toast.success(linkedUser.active ? 'Acesso desativado' : 'Acesso reativado')

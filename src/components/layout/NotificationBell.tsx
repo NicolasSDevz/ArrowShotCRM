@@ -57,7 +57,7 @@ export function NotificationBell() {
                 <p className="px-3 py-6 text-center text-sm text-slate-400">Nenhuma notificação ainda.</p>
               ) : (
                 notifications.slice(0, 30).map((n) => {
-                  const Icon = NOTIFICATION_ICON[n.type]
+                  const Icon = NOTIFICATION_ICON[n.type] ?? Bell
                   const unreadForMe = !n.read && n.userId === profile?.id
                   return (
                     <button
@@ -67,7 +67,7 @@ export function NotificationBell() {
                         unreadForMe ? 'bg-brand-50' : 'bg-white'
                       }`}
                     >
-                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${NOTIFICATION_ICON_STYLE[n.type]}`}>
+                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${NOTIFICATION_ICON_STYLE[n.type] ?? 'bg-slate-100 text-slate-500'}`}>
                         <Icon size={14} />
                       </span>
                       <div className="min-w-0 flex-1">

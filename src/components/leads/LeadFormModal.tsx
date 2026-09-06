@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
@@ -18,12 +18,19 @@ export function LeadFormModal({ open, onClose }: { open: boolean; onClose: () =>
 
   const reset = () => setForm(buildDefaultLeadForm(findUserIdByName(users, 'Bruno')))
 
-  // Seeds "Bruno" as the default responsável once the users list has
-  // loaded (it's still empty on the very first render).
+  // Seeds "Bruno" as the default responsável once the users list has loaded
+  // (it's still empty on the very first render). Runs at most once per open —
+  // otherwise clearing "Responsável" would snap back to Bruno on the next
+  // `users` snapshot.
+  const seededRef = useRef(false)
   useEffect(() => {
-    if (open && users.length > 0) {
-      setForm((f) => (f.assignedTo ? f : { ...f, assignedTo: findUserIdByName(users, 'Bruno') ?? '' }))
+    if (!open) {
+      seededRef.current = false
+      return
     }
+    if (seededRef.current || users.length === 0) return
+    seededRef.current = true
+    setForm((f) => (f.assignedTo ? f : { ...f, assignedTo: findUserIdByName(users, 'Bruno') ?? '' }))
   }, [open, users])
 
   const handleClose = () => {

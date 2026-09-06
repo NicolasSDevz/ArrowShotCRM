@@ -25,7 +25,10 @@ export function NotificationsPage() {
   // Only offer types that actually occur, so the dropdown doesn't list 15
   // options when this account has only ever seen 3 of them.
   const typesPresent = useMemo(
-    () => Array.from(new Set(notifications.map((n) => n.type))).sort((a, b) => NOTIFICATION_TYPE_LABEL[a].localeCompare(NOTIFICATION_TYPE_LABEL[b])),
+    () =>
+      Array.from(new Set(notifications.map((n) => n.type))).sort((a, b) =>
+        (NOTIFICATION_TYPE_LABEL[a] ?? a).localeCompare(NOTIFICATION_TYPE_LABEL[b] ?? b)
+      ),
     [notifications]
   )
 
@@ -93,7 +96,7 @@ export function NotificationsPage() {
         >
           <option value="">Todos os tipos</option>
           {typesPresent.map((t) => (
-            <option key={t} value={t}>{NOTIFICATION_TYPE_LABEL[t]}</option>
+            <option key={t} value={t}>{NOTIFICATION_TYPE_LABEL[t] ?? t}</option>
           ))}
         </select>
       </div>
@@ -103,7 +106,7 @@ export function NotificationsPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
           {pageItems.map((n) => {
-            const Icon = NOTIFICATION_ICON[n.type]
+            const Icon = NOTIFICATION_ICON[n.type] ?? Bell
             const unreadForMe = !n.read && n.userId === profile?.id
             return (
               <button
@@ -113,7 +116,7 @@ export function NotificationsPage() {
                   unreadForMe ? 'bg-brand-50' : 'bg-white'
                 }`}
               >
-                <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${NOTIFICATION_ICON_STYLE[n.type]}`}>
+                <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${NOTIFICATION_ICON_STYLE[n.type] ?? 'bg-slate-100 text-slate-500'}`}>
                   <Icon size={15} />
                 </span>
                 <div className="min-w-0 flex-1">

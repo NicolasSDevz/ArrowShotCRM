@@ -8,7 +8,7 @@ import { useClients } from '../../hooks/useClients'
 import { createMeeting } from '../../services/meetingService'
 import { MeetingForm } from './MeetingForm'
 import { buildDefaultMeetingForm, formStateToMeetingInput, type MeetingFormState } from './meetingFormState'
-import type { MeetingType } from '../../types'
+import { isClientMeetingType, type MeetingType } from '../../types'
 
 export function MeetingFormModal({
   open,
@@ -39,6 +39,10 @@ export function MeetingFormModal({
 
   const handleSave = async () => {
     if (!profile) return
+    if (isClientMeetingType(form.type) && !form.clientId) {
+      toast.error('Selecione o cliente vinculado a esta reunião.')
+      return
+    }
     setSaving(true)
     try {
       await createMeeting(formStateToMeetingInput(form), profile.id, profile.name)

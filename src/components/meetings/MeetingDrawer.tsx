@@ -14,7 +14,7 @@ import { useAllTasks } from '../../hooks/useTasks'
 import { updateMeeting, deleteMeeting } from '../../services/meetingService'
 import { MeetingForm } from './MeetingForm'
 import { meetingToFormState, formStateToMeetingInput, type MeetingFormState } from './meetingFormState'
-import { MEETING_TYPE_LABEL, MEETING_TYPE_BADGE, type Meeting } from '../../types'
+import { MEETING_TYPE_LABEL, MEETING_TYPE_BADGE, isClientMeetingType, type Meeting } from '../../types'
 
 export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; onClose: () => void }) {
   const { profile } = useAuth()
@@ -50,6 +50,10 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
 
   const handleSave = async () => {
     if (!form) return
+    if (isClientMeetingType(form.type) && !form.clientId) {
+      toast.error('Selecione o cliente vinculado a esta reunião.')
+      return
+    }
     setSaving(true)
     try {
       await updateMeeting(meeting.id, formStateToMeetingInput(form), profile.id, profile.name)

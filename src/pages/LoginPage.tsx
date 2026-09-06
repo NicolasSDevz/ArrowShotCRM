@@ -37,7 +37,16 @@ export function LoginPage() {
       setMode('signin')
     } catch (err) {
       console.error(err)
-      toast.error('Não foi possível enviar o e-mail. Confira o endereço digitado.')
+      const code = (err as { code?: string })?.code
+      if (code === 'auth/user-not-found') {
+        // Mesma mensagem do sucesso — não revela se o e-mail existe.
+        toast.success('Se esse e-mail tiver uma conta, enviamos um link para redefinir a senha.')
+        setMode('signin')
+      } else if (code === 'auth/invalid-email') {
+        toast.error('E-mail inválido. Confira o endereço digitado.')
+      } else {
+        toast.error('Não foi possível enviar o e-mail. Tente de novo em instantes.')
+      }
     } finally {
       setResetSubmitting(false)
     }

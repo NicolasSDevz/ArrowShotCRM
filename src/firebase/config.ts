@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 
 const firebaseConfig = {
@@ -27,9 +27,20 @@ export const auth = getAuth(app)
 // ignoreUndefinedProperties: forms across the app send `undefined` for empty
 // optional fields (e.g. a client with no Instagram) — Firestore rejects that
 // by default, so this tells the SDK to just drop those keys instead of throwing.
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-  ignoreUndefinedProperties: true,
-})
+// Falls back to memory cache where persistence can't init (private browsing,
+// storage disabled) so the app still boots.
+function initDb(): Firestore {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      ignoreUndefinedProperties: true,
+    })
+  } catch (err) {
+    console.warn('Persistência offline indisponível — usando cache em memória.', err)
+    return initializeFirestore(app, { ignoreUndefinedProperties: true })
+  }
+}
+
+export const db = initDb()
 
 export const storage = getStorage(app)
