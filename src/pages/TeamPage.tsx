@@ -155,6 +155,7 @@ export function TeamPage() {
         onOpenEmergency={() => setEmergencyMemberId(openMemberId)}
       />
       <EmergencyInfoModal
+        key={`emergency-${emergencyMemberId ?? 'closed'}`}
         open={!!emergencyMember}
         onClose={() => setEmergencyMemberId(null)}
         memberId={emergencyMemberId}

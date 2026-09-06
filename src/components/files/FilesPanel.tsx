@@ -114,6 +114,22 @@ export function FilesPanel({
 function FileRow({ file }: { file: FileMeta }) {
   const isImage = file.mimeType.startsWith('image/')
   const isVideo = file.mimeType.startsWith('video/')
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (deleting) return
+    if (!confirm(`Excluir "${file.fileName}"? Esta ação não pode ser desfeita.`)) return
+    setDeleting(true)
+    try {
+      await deleteFile(file)
+      toast.success('Arquivo excluído')
+      // row unmounts when the snapshot drops the file — no setDeleting(false)
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao excluir o arquivo')
+      setDeleting(false)
+    }
+  }
 
   return (
     <li className="flex items-center gap-2.5 rounded-lg border border-slate-100 px-2.5 py-2">
@@ -143,8 +159,9 @@ function FileRow({ file }: { file: FileMeta }) {
         <Download size={14} />
       </a>
       <button
-        onClick={() => deleteFile(file)}
-        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+        onClick={handleDelete}
+        disabled={deleting}
+        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
       >
         <Trash2 size={14} />
       </button>
