@@ -172,6 +172,8 @@ export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date,
   const platformFields = 'impressions,clicks,spend,reach,publisher_platform'
   const dailyFields = 'spend,impressions,clicks,reach,actions'
 
+  console.log('[metaReport] buscando snapshot:', { accountIdRaw, accountId, timeRange, prevTimeRange })
+
   const [current, previous, campaignsList, campaignLevel, adsetLevel, adLevel, platformLevel, account, daily] =
     await Promise.allSettled([
       getMetaInsightsRange(accountId, { timeRange, fields: accountFields }),
@@ -184,6 +186,17 @@ export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date,
       getMetaAccountInfo(accountId),
       getMetaInsightsRange(accountId, { timeRange, fields: dailyFields, timeIncrement: 1, limit: 400 }),
     ])
+
+  // DEBUG — mostra o resultado de cada chamada à API do Meta.
+  const settledLabels = ['current', 'previous', 'campaignsList', 'campaignLevel', 'adsetLevel', 'adLevel', 'platformLevel', 'account', 'daily']
+  for (const [i, r] of [current, previous, campaignsList, campaignLevel, adsetLevel, adLevel, platformLevel, account, daily].entries()) {
+    if (r.status === 'rejected') {
+      console.error(`[metaReport] ${settledLabels[i]} FALHOU:`, r.reason instanceof Error ? r.reason.message : r.reason)
+    } else {
+      const rows = Array.isArray(r.value?.data) ? r.value.data.length : undefined
+      console.log(`[metaReport] ${settledLabels[i]} OK — linhas: ${rows ?? '(sem data[])'}`, r.value)
+    }
+  }
 
   const currentRow: RawInsightsRow | undefined = current.status === 'fulfilled' ? current.value?.data?.[0] : undefined
   const previousRow: RawInsightsRow | undefined = previous.status === 'fulfilled' ? previous.value?.data?.[0] : undefined
@@ -230,7 +243,7 @@ export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date,
   const accountData = account.status === 'fulfilled' ? account.value : undefined
   const balance = accountData?.balance != null ? Number(accountData.balance) / 100 : undefined
 
-  return {
+  const snapshot: ReportMetaSnapshot = {
     accountId,
     metrics: { current: parseMetricSet(currentRow), previous: previousRow ? parseMetricSet(previousRow) : undefined },
     balance,
@@ -242,4 +255,6 @@ export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date,
     actionsSummary,
     dailySeries: dailySeries.length > 0 ? dailySeries : undefined,
   }
+  console.log('[metaReport] snapshot final:', snapshot)
+  return snapshot
 }

@@ -476,6 +476,28 @@ export function MonthlyReportPage() {
   const prev = previousPeriod(periodStart, periodEnd)
   const meta = report.meta
 
+  // DEBUG — por que os dados do Meta Ads não aparecem no painel mensal.
+  console.log('[MonthlyReport] relatório carregado:', {
+    id: report.id,
+    type: report.type,
+    clientId: report.clientId,
+    temMeta: !!meta,
+    accountId: meta?.accountId,
+    metricasCurrent: meta?.metrics?.current,
+    metricasPrevious: meta?.metrics?.previous,
+    qtdCampanhas: meta?.topCampaigns?.length ?? 0,
+    qtdAds: meta?.topAds?.length ?? 0,
+    qtdPlataformas: meta?.platformBreakdown?.length ?? 0,
+    temSerieDiaria: !!meta?.dailySeries?.length,
+    meta,
+  })
+  if (meta && (!meta.metrics?.current || Object.keys(meta.metrics.current).length === 0)) {
+    console.warn('[MonthlyReport] meta.metrics.current está vazio — a API do Meta não retornou métricas para o período.')
+  }
+  if (!meta) {
+    console.warn('[MonthlyReport] report.meta ausente — o snapshot não foi salvo na geração do relatório.')
+  }
+
   const body = (
     <div className={`mx-auto flex max-w-6xl flex-col gap-8 ${presenting ? 'p-6 pb-16' : ''}`}>
       {!meta ? (

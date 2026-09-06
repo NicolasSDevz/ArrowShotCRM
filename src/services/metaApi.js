@@ -43,12 +43,17 @@ export async function getMetaInsightsRange(accountId, { timeRange, fields, level
   if (limit) params.set('limit', String(limit))
   if (timeIncrement) params.set('time_increment', String(timeIncrement))
 
-  const response = await fetch(`/api/meta/insights?${params.toString()}`)
+  const requestUrl = `/api/meta/insights?${params.toString()}`
+  console.log('[metaApi] GET', requestUrl)
+  const response = await fetch(requestUrl)
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
+    console.error('[metaApi] insights ERRO', response.status, body)
     throw new Error(body.error || 'Erro ao buscar dados do Meta')
   }
-  return response.json()
+  const json = await response.json()
+  console.log('[metaApi] insights OK', requestUrl, '— linhas:', Array.isArray(json?.data) ? json.data.length : '(sem data[])', json)
+  return json
 }
 
 /** Nome, moeda e saldo da conta de anúncios — usado no campo "Saldo Atual"

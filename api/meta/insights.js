@@ -45,17 +45,26 @@ export default async function handler(req, res) {
     if (time_increment) params.set('time_increment', time_increment)
 
     const url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${account_id}/insights?${params.toString()}`
+    // DEBUG — nunca logar o access_token: mostra a URL com o token mascarado.
+    const safeUrl = url.replace(/access_token=[^&]+/, 'access_token=***')
+    console.log('[meta/insights] account_id recebido:', account_id)
+    console.log('[meta/insights] URL chamada:', safeUrl)
+
     const metaResponse = await fetch(url)
     const data = await metaResponse.json()
+
+    console.log('[meta/insights] status da resposta:', metaResponse.status)
+    console.log('[meta/insights] body da resposta:', JSON.stringify(data))
 
     if (!metaResponse.ok) {
       const status = metaResponse.status >= 400 && metaResponse.status < 600 ? metaResponse.status : 502
       return res.status(status).json({ error: data?.error?.message || 'Erro ao buscar insights do Meta Ads' })
     }
 
+    console.log('[meta/insights] linhas retornadas:', Array.isArray(data?.data) ? data.data.length : '(sem data[])')
     return res.status(200).json(data)
   } catch (err) {
-    console.error('Erro em /api/meta/insights:', err)
+    console.error('[meta/insights] erro interno:', err)
     return res.status(500).json({ error: 'Erro interno ao buscar insights do Meta Ads' })
   }
 }
