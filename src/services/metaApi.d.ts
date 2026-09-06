@@ -18,6 +18,8 @@ export interface MetaInsightsRangeOptions {
   level?: 'account' | 'campaign' | 'adset' | 'ad'
   breakdowns?: string
   limit?: number
+  /** `1` = uma linha por dia (série diária para o gráfico de evolução). */
+  timeIncrement?: number
 }
 
 export function getMetaInsightsRange(accountId: string, options?: MetaInsightsRangeOptions): Promise<any>

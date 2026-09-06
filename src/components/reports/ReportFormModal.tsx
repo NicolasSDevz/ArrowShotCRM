@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Timestamp } from 'firebase/firestore'
 import { format, subDays, startOfMonth } from 'date-fns'
 import toast from 'react-hot-toast'
-import { Copy, FileDown, Loader2 } from 'lucide-react'
+import { Copy, Save, Loader2 } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Field, Input, Select } from '../ui/Field'
 import { Button } from '../ui/Button'
@@ -11,8 +12,7 @@ import { useClients } from '../../hooks/useClients'
 import { createReport } from '../../services/reportService'
 import { fetchMetaReportSnapshot } from '../../utils/metaReportData'
 import { buildWeeklyReportText } from '../../utils/metaWeeklyReportText'
-import { generateMonthlyReportPdf } from '../../utils/monthlyReportPdf'
-import type { Report, ReportMetaSnapshot, ReportPlatform, ReportType } from '../../types'
+import type { ReportMetaSnapshot, ReportPlatform, ReportType } from '../../types'
 
 function toDateStr(d: Date) {
   return format(d, 'yyyy-MM-dd')
@@ -20,6 +20,7 @@ function toDateStr(d: Date) {
 
 export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   // Todos os clientes cadastrados — sem filtrar por status nem por já ter o
   // ID da conta Meta Ads preenchido (essa checagem acontece só ao clicar em
   // "Buscar dados", com um aviso específico — ver handleGenerate).
@@ -99,25 +100,9 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
           google: platforms.includes('google') ? { available: false } : null,
         })
         setWeeklyText(text)
-      } else {
-        const draftReport: Report = {
-          id: '',
-          clientId: client.id,
-          type,
-          platforms,
-          periodStart: Timestamp.fromDate(start),
-          periodEnd: Timestamp.fromDate(end),
-          meta: meta ?? undefined,
-          google: platforms.includes('google') ? { available: false } : undefined,
-          generatedBy: profile?.id ?? '',
-          generatedByName: profile?.name ?? '',
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-          createdBy: profile?.id ?? '',
-          updatedBy: profile?.id ?? '',
-        }
-        await generateMonthlyReportPdf(client.companyName, draftReport)
       }
+      // Mensal: só busca o snapshot — o painel visual é montado em
+      // /relatorios/:id depois de salvar.
 
       setGenerated(true)
     } catch (err) {
@@ -132,7 +117,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
     if (!client || !profile) return
     setSaving(true)
     try {
-      await createReport(
+      const reportId = await createReport(
         {
           clientId: client.id,
           type,
@@ -150,6 +135,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
       )
       toast.success('Relatório salvo')
       handleClose()
+      if (type === 'monthly') navigate(`/relatorios/${reportId}`)
     } catch (err) {
       console.error(err)
       toast.error('Erro ao salvar relatório')
@@ -246,7 +232,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
 
         {generated && type === 'monthly' && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-            PDF gerado e baixado. Clique em "Salvar relatório" para deixá-lo registrado na lista.
+            Dados carregados. Clique em "Salvar relatório" para abrir o painel visual.
           </div>
         )}
 
@@ -255,7 +241,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
             Cancelar
           </Button>
           {generated && (
-            <Button icon={<FileDown size={14} />} onClick={handleSave} loading={saving}>
+            <Button icon={<Save size={14} />} onClick={handleSave} loading={saving}>
               Salvar relatório
             </Button>
           )}

@@ -1,6 +1,13 @@
 import { format, subDays, differenceInCalendarDays } from 'date-fns'
 import { getMetaCampaigns, getMetaInsightsRange, getMetaAccountInfo } from '../services/metaApi'
-import type { ReportActionSummary, ReportEntitySummary, ReportMetaSnapshot, ReportMetricSet, ReportPlatformBreakdownRow } from '../types'
+import type {
+  ReportActionSummary,
+  ReportDailyPoint,
+  ReportEntitySummary,
+  ReportMetaSnapshot,
+  ReportMetricSet,
+  ReportPlatformBreakdownRow,
+} from '../types'
 
 /** "act_123456789" ou "123456789" — a API sempre espera o id sem prefixo
  *  (as Vercel Functions montam "act_" + account_id sozinhas). */
@@ -67,6 +74,8 @@ interface RawInsightsRow {
   ad_id?: string
   ad_name?: string
   publisher_platform?: string
+  /** "yyyy-MM-dd" — presente quando a chamada usa time_increment=1. */
+  date_start?: string
 }
 
 function num(v?: string): number | undefined {
@@ -117,6 +126,20 @@ function toEntitySummary(row: RawInsightsRow, idKey: 'campaign_id' | 'adset_id' 
     impressions: num(row.impressions),
     clicks: num(row.clicks),
     ctr: num(row.ctr),
+    cpc: num(row.cpc),
+    reach: num(row.reach),
+    conversations: findAction(row.actions, CONVERSATION_ACTION_TYPES),
+  }
+}
+
+function toDailyPoint(row: RawInsightsRow): ReportDailyPoint {
+  return {
+    date: row.date_start ?? '',
+    spend: num(row.spend),
+    impressions: num(row.impressions),
+    clicks: num(row.clicks),
+    reach: num(row.reach),
+    conversations: findAction(row.actions, CONVERSATION_ACTION_TYPES),
   }
 }
 
@@ -135,21 +158,24 @@ export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date,
   const prevTimeRange = { since: toDateParam(prev.start), until: toDateParam(prev.end) }
 
   const accountFields = 'impressions,clicks,spend,cpc,ctr,cpm,reach,actions'
-  const campaignFields = 'campaign_id,campaign_name,impressions,clicks,spend,ctr,actions'
+  const campaignFields = 'campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,reach,actions'
   const adsetFields = 'adset_id,adset_name,impressions,clicks,spend,ctr'
-  const adFields = 'ad_id,ad_name,impressions,clicks,spend,ctr'
+  const adFields = 'ad_id,ad_name,impressions,clicks,spend,ctr,cpc,reach,actions'
   const platformFields = 'impressions,clicks,spend,reach,publisher_platform'
+  const dailyFields = 'spend,impressions,clicks,reach,actions'
 
-  const [current, previous, campaignsList, campaignLevel, adsetLevel, adLevel, platformLevel, account] = await Promise.allSettled([
-    getMetaInsightsRange(accountId, { timeRange, fields: accountFields }),
-    getMetaInsightsRange(accountId, { timeRange: prevTimeRange, fields: accountFields }),
-    getMetaCampaigns(accountId),
-    getMetaInsightsRange(accountId, { timeRange, fields: campaignFields, level: 'campaign', limit: 50 }),
-    getMetaInsightsRange(accountId, { timeRange, fields: adsetFields, level: 'adset', limit: 50 }),
-    getMetaInsightsRange(accountId, { timeRange, fields: adFields, level: 'ad', limit: 50 }),
-    getMetaInsightsRange(accountId, { timeRange, fields: platformFields, breakdowns: 'publisher_platform' }),
-    getMetaAccountInfo(accountId),
-  ])
+  const [current, previous, campaignsList, campaignLevel, adsetLevel, adLevel, platformLevel, account, daily] =
+    await Promise.allSettled([
+      getMetaInsightsRange(accountId, { timeRange, fields: accountFields }),
+      getMetaInsightsRange(accountId, { timeRange: prevTimeRange, fields: accountFields }),
+      getMetaCampaigns(accountId),
+      getMetaInsightsRange(accountId, { timeRange, fields: campaignFields, level: 'campaign', limit: 50 }),
+      getMetaInsightsRange(accountId, { timeRange, fields: adsetFields, level: 'adset', limit: 50 }),
+      getMetaInsightsRange(accountId, { timeRange, fields: adFields, level: 'ad', limit: 50 }),
+      getMetaInsightsRange(accountId, { timeRange, fields: platformFields, breakdowns: 'publisher_platform' }),
+      getMetaAccountInfo(accountId),
+      getMetaInsightsRange(accountId, { timeRange, fields: dailyFields, timeIncrement: 1, limit: 400 }),
+    ])
 
   const currentRow: RawInsightsRow | undefined = current.status === 'fulfilled' ? current.value?.data?.[0] : undefined
   const previousRow: RawInsightsRow | undefined = previous.status === 'fulfilled' ? previous.value?.data?.[0] : undefined
@@ -157,6 +183,7 @@ export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date,
   const adsetRows: RawInsightsRow[] = adsetLevel.status === 'fulfilled' ? (adsetLevel.value?.data ?? []) : []
   const adRows: RawInsightsRow[] = adLevel.status === 'fulfilled' ? (adLevel.value?.data ?? []) : []
   const platformRows: RawInsightsRow[] = platformLevel.status === 'fulfilled' ? (platformLevel.value?.data ?? []) : []
+  const dailyRows: RawInsightsRow[] = daily.status === 'fulfilled' ? (daily.value?.data ?? []) : []
 
   // campaigns.js só traz status/objetivo (não métricas) — cruza pelo id com
   // as linhas de insights por campanha para completar o "em destaque".
@@ -186,6 +213,11 @@ export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date,
 
   const actionsSummary = sumActions(currentRow ? [currentRow] : [])
 
+  const dailySeries: ReportDailyPoint[] = dailyRows
+    .map(toDailyPoint)
+    .filter((p) => p.date)
+    .sort((a, b) => a.date.localeCompare(b.date))
+
   // balance/amount_spent vêm em centavos da menor unidade da moeda.
   const accountData = account.status === 'fulfilled' ? account.value : undefined
   const balance = accountData?.balance != null ? Number(accountData.balance) / 100 : undefined
@@ -200,5 +232,6 @@ export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date,
     topAds,
     platformBreakdown,
     actionsSummary,
+    dailySeries: dailySeries.length > 0 ? dailySeries : undefined,
   }
 }

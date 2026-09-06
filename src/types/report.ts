@@ -45,6 +45,10 @@ export interface ReportEntitySummary {
   impressions?: number
   clicks?: number
   ctr?: number
+  cpc?: number
+  reach?: number
+  /** "Conversas iniciadas" atribuídas a esta campanha/anúncio. */
+  conversations?: number
 }
 
 export interface ReportPlatformBreakdownRow {
@@ -61,6 +65,19 @@ export interface ReportActionSummary {
   value: number
 }
 
+/** Um dia do período — para o gráfico "Desempenho ao longo do período".
+ *  Só existe em relatórios gerados a partir da v2 do painel; relatórios
+ *  antigos não têm série diária e a seção mostra um aviso. */
+export interface ReportDailyPoint {
+  /** "yyyy-MM-dd" */
+  date: string
+  spend?: number
+  impressions?: number
+  clicks?: number
+  reach?: number
+  conversations?: number
+}
+
 /** Snapshot completo do Meta Ads no momento em que o relatório foi gerado —
  *  guardado no Firestore para que "Ver"/"Exportar PDF" nunca precisem
  *  rebater na API do Meta (o histórico fica estável mesmo se as campanhas
@@ -75,6 +92,8 @@ export interface ReportMetaSnapshot {
   topAds: ReportEntitySummary[]
   platformBreakdown: ReportPlatformBreakdownRow[]
   actionsSummary: ReportActionSummary[]
+  /** Série diária para o gráfico de evolução (ver ReportDailyPoint). */
+  dailySeries?: ReportDailyPoint[]
 }
 
 /** Placeholder até a integração com Google Ads existir (ver

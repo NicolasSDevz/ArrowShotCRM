@@ -1,23 +1,14 @@
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
-import { Copy, FileDown } from 'lucide-react'
+import { Copy } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
-import { generateMonthlyReportPdf } from '../../utils/monthlyReportPdf'
-import { REPORT_TYPE_LABEL, REPORT_PLATFORM_LABEL, type Report } from '../../types'
+import { REPORT_PLATFORM_LABEL, type Report } from '../../types'
 
-function fmtInt(v?: number): string {
-  if (v == null) return '—'
-  return Math.round(v).toLocaleString('pt-BR')
-}
-
-function fmtBRL(v?: number): string {
-  if (v == null) return '—'
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
+/** Só para relatórios semanais (texto para WhatsApp). O mensal abre a página
+ *  dedicada /relatorios/:id (ver ReportsPage.openReport). */
 export function ReportViewModal({
   report,
   clientName,
@@ -41,17 +32,8 @@ export function ReportViewModal({
     }
   }
 
-  const handleDownloadPdf = async () => {
-    try {
-      await generateMonthlyReportPdf(clientName, report)
-    } catch (err) {
-      console.error(err)
-      toast.error('Erro ao gerar PDF')
-    }
-  }
-
   return (
-    <Modal open={!!report} onClose={onClose} title={`Relatório ${REPORT_TYPE_LABEL[report.type]} — ${clientName}`} width="max-w-2xl">
+    <Modal open={!!report} onClose={onClose} title={`Relatório Semanal — ${clientName}`} width="max-w-2xl">
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <Badge className="bg-slate-100 text-slate-600">{periodLabel}</Badge>
@@ -63,41 +45,15 @@ export function ReportViewModal({
           </span>
         </div>
 
-        {report.type === 'weekly' ? (
-          <>
-            <textarea
-              rows={14}
-              readOnly
-              value={report.weeklyText ?? ''}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-[13px] leading-relaxed text-slate-700 outline-none"
-            />
-            <Button variant="secondary" icon={<Copy size={14} />} onClick={handleCopy} className="self-start">
-              Copiar texto
-            </Button>
-          </>
-        ) : (
-          <>
-            {report.meta && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-slate-100 p-3">
-                  <p className="text-xs text-slate-400">Investido</p>
-                  <p className="text-lg font-bold text-slate-800">{fmtBRL(report.meta.metrics.current.spend)}</p>
-                </div>
-                <div className="rounded-lg border border-slate-100 p-3">
-                  <p className="text-xs text-slate-400">Impressões</p>
-                  <p className="text-lg font-bold text-slate-800">{fmtInt(report.meta.metrics.current.impressions)}</p>
-                </div>
-                <div className="rounded-lg border border-slate-100 p-3">
-                  <p className="text-xs text-slate-400">Cliques</p>
-                  <p className="text-lg font-bold text-slate-800">{fmtInt(report.meta.metrics.current.clicks)}</p>
-                </div>
-              </div>
-            )}
-            <Button icon={<FileDown size={14} />} onClick={handleDownloadPdf} className="self-start">
-              Baixar PDF
-            </Button>
-          </>
-        )}
+        <textarea
+          rows={14}
+          readOnly
+          value={report.weeklyText ?? ''}
+          className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-[13px] leading-relaxed text-slate-700 outline-none"
+        />
+        <Button variant="secondary" icon={<Copy size={14} />} onClick={handleCopy} className="self-start">
+          Copiar texto
+        </Button>
       </div>
     </Modal>
   )

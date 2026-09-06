@@ -34,13 +34,14 @@ export async function getMetaAds(accountId, adSetId) {
 /** Insights com controle total dos parâmetros — usado pelo módulo de
  *  Relatórios (período customizado, nível de detalhe, breakdown por
  *  plataforma). `timeRange` é um objeto { since, until } ("yyyy-MM-dd"). */
-export async function getMetaInsightsRange(accountId, { timeRange, fields, level, breakdowns, limit } = {}) {
+export async function getMetaInsightsRange(accountId, { timeRange, fields, level, breakdowns, limit, timeIncrement } = {}) {
   const params = new URLSearchParams({ account_id: accountId })
   if (timeRange) params.set('time_range', JSON.stringify(timeRange))
   if (fields) params.set('fields', fields)
   if (level) params.set('level', level)
   if (breakdowns) params.set('breakdowns', breakdowns)
   if (limit) params.set('limit', String(limit))
+  if (timeIncrement) params.set('time_increment', String(timeIncrement))
 
   const response = await fetch(`/api/meta/insights?${params.toString()}`)
   if (!response.ok) {

@@ -19,7 +19,7 @@ const DEFAULT_FIELDS = 'campaign_name,impressions,clicks,spend,cpc,ctr,reach,act
 
 export default async function handler(req, res) {
   try {
-    const { account_id, date_preset, time_range, fields, level, breakdowns, limit } = req.query
+    const { account_id, date_preset, time_range, fields, level, breakdowns, limit, time_increment } = req.query
 
     if (!account_id) {
       return res.status(400).json({ error: 'Parâmetro obrigatório ausente: account_id' })
@@ -42,6 +42,7 @@ export default async function handler(req, res) {
     if (level) params.set('level', level)
     if (breakdowns) params.set('breakdowns', breakdowns)
     if (limit) params.set('limit', limit)
+    if (time_increment) params.set('time_increment', time_increment)
 
     const url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${account_id}/insights?${params.toString()}`
     const metaResponse = await fetch(url)

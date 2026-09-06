@@ -14,6 +14,7 @@ import { NotificationsPage } from './pages/NotificationsPage'
 import { MeetingsPage } from './pages/MeetingsPage'
 import { LeadsPage } from './pages/LeadsPage'
 import { ReportsPage } from './pages/ReportsPage'
+import { MonthlyReportPage } from './pages/MonthlyReportPage'
 import { TeamPage } from './pages/TeamPage'
 import { PublicApprovalPage } from './pages/PublicApprovalPage'
 import { UniversityPage } from './pages/UniversityPage'
@@ -46,6 +47,7 @@ function App() {
             <Route path="/reunioes" element={<MeetingsPage />} />
             <Route path="/leads" element={<LeadsPage />} />
             <Route path="/relatorios" element={<ReportsPage />} />
+            <Route path="/relatorios/:id" element={<MonthlyReportPage />} />
             <Route path="/notificacoes" element={<NotificationsPage />} />
             <Route
               path="/equipe"

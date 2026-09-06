@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Plus, FileDown, Eye, FileBarChart } from 'lucide-react'
@@ -10,27 +11,28 @@ import { Badge } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ReportFormModal } from '../components/reports/ReportFormModal'
 import { ReportViewModal } from '../components/reports/ReportViewModal'
-import { generateMonthlyReportPdf } from '../utils/monthlyReportPdf'
 import { generateWeeklyReportPdf } from '../utils/weeklyReportPdf'
 import { REPORT_TYPE_LABEL, type Report } from '../types'
 
 export function ReportsPage() {
+  const navigate = useNavigate()
   const { data: reports } = useReports()
   const { data: clients } = useClients()
   const [creating, setCreating] = useState(false)
-  const [viewingId, setViewingId] = useState<string | null>(null)
+  const [viewingWeeklyId, setViewingWeeklyId] = useState<string | null>(null)
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
-  const viewing = reports.find((r) => r.id === viewingId) ?? null
+  const viewingWeekly = reports.find((r) => r.id === viewingWeeklyId) ?? null
 
-  const handleExport = async (report: Report) => {
+  const openReport = (report: Report) => {
+    if (report.type === 'monthly') navigate(`/relatorios/${report.id}`)
+    else setViewingWeeklyId(report.id)
+  }
+
+  const handleExportWeekly = (report: Report) => {
     const clientName = clientMap[report.clientId]?.companyName ?? 'Cliente'
     try {
-      if (report.type === 'monthly') {
-        await generateMonthlyReportPdf(clientName, report)
-      } else {
-        generateWeeklyReportPdf(clientName, report.weeklyText ?? '')
-      }
+      generateWeeklyReportPdf(clientName, report.weeklyText ?? '')
     } catch (err) {
       console.error(err)
       toast.error('Erro ao exportar PDF')
@@ -89,12 +91,14 @@ export function ReportsPage() {
                     <td className="px-4 py-2.5 text-slate-500">{r.generatedByName}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button variant="ghost" size="sm" icon={<Eye size={13} />} onClick={() => setViewingId(r.id)}>
+                        <Button variant="ghost" size="sm" icon={<Eye size={13} />} onClick={() => openReport(r)}>
                           Ver
                         </Button>
-                        <Button variant="secondary" size="sm" icon={<FileDown size={13} />} onClick={() => handleExport(r)}>
-                          Exportar PDF
-                        </Button>
+                        {r.type === 'weekly' && (
+                          <Button variant="secondary" size="sm" icon={<FileDown size={13} />} onClick={() => handleExportWeekly(r)}>
+                            Exportar PDF
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -107,9 +111,9 @@ export function ReportsPage() {
 
       <ReportFormModal open={creating} onClose={() => setCreating(false)} />
       <ReportViewModal
-        report={viewing}
-        clientName={viewing ? clientMap[viewing.clientId]?.companyName ?? 'Cliente' : ''}
-        onClose={() => setViewingId(null)}
+        report={viewingWeekly}
+        clientName={viewingWeekly ? clientMap[viewingWeekly.clientId]?.companyName ?? 'Cliente' : ''}
+        onClose={() => setViewingWeeklyId(null)}
       />
     </div>
   )
