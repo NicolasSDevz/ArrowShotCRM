@@ -6,6 +6,7 @@ import { Drawer } from '../ui/Drawer'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Tabs } from '../ui/Tabs'
 import { Button } from '../ui/Button'
+import { Avatar } from '../ui/Avatar'
 import { ChecklistEditor } from './ChecklistEditor'
 import { CommentsPanel } from '../comments/CommentsPanel'
 import { ActivityPanel } from '../activity/ActivityPanel'
@@ -39,6 +40,8 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
   const [briefingTimeInput, setBriefingTimeInput] = useState(task?.briefingMeetingTime ?? '')
 
   if (!task || !profile) return null
+
+  const taskClient = task.clientId ? clients.find((c) => c.id === task.clientId) : undefined
 
   const save = async (data: Partial<Task>) => {
     await updateTask(task.id, data, profile.id, profile.name)
@@ -135,6 +138,11 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
                 </option>
               ))}
             </Select>
+            {taskClient && (
+              <span className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                <Avatar name={taskClient.companyName} photoURL={taskClient.logoUrl} size="xs" /> {taskClient.companyName}
+              </span>
+            )}
           </Field>
 
           <Field label="Responsável">

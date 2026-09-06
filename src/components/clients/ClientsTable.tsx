@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Building2, MapPin, MoreVertical, Trash2 } from 'lucide-react'
+import { MapPin, MoreVertical, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Badge } from '../ui/Badge'
@@ -66,13 +66,7 @@ export function ClientsTable({
                 className="cursor-pointer border-t border-slate-50 text-slate-700 transition-colors duration-150 ease-in-out hover:bg-slate-50"
               >
                 <td className="py-2.5 pl-4">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-50 text-brand-500">
-                    {client.logoUrl ? (
-                      <img src={client.logoUrl} alt={client.companyName} className="h-full w-full object-cover" />
-                    ) : (
-                      <Building2 size={14} />
-                    )}
-                  </div>
+                  <Avatar name={client.companyName} photoURL={client.logoUrl} size="lg" />
                 </td>
                 <td className="max-w-[240px] py-2.5 pr-3">
                   <div className="flex items-center gap-1.5">

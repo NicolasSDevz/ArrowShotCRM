@@ -8,6 +8,8 @@ import { useUsers } from '../../hooks/useUsers'
 import { createClient, updateClient } from '../../services/clientService'
 import { createInitialWorkflowTasks } from '../../services/clientWorkflowTemplates'
 import { notifyAdminsOfAction } from '../../services/notificationService'
+import { uploadClientLogo, removeClientLogo } from '../../services/clientLogoService'
+import { ClientLogoField } from './ClientLogoField'
 import { maskPhone, isPhoneComplete, maskDocument, maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import {
@@ -60,6 +62,8 @@ export function ClientFormModal({
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [createTasks, setCreateTasks] = useState(true)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoRemoved, setLogoRemoved] = useState(false)
 
   useEffect(() => {
     if (client) {
@@ -86,6 +90,8 @@ export function ClientFormModal({
       setForm(EMPTY)
       setCreateTasks(true)
     }
+    setLogoFile(null)
+    setLogoRemoved(false)
   }, [client, open])
 
   const set = <K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) =>
@@ -133,8 +139,10 @@ export function ClientFormModal({
           googleAds: form.paidTraffic && form.googleAds,
         },
       }
+      let targetId: string
       if (client) {
         await updateClient(client.id, { ...basePayload, status: form.status }, profile.id, profile.name)
+        targetId = client.id
         if (form.status !== client.status) {
           await notifyAdminsOfAction({
             type: 'client_status_changed',
@@ -148,12 +156,23 @@ export function ClientFormModal({
         toast.success('Cliente atualizado')
       } else {
         const newClientId = await createClient({ ...basePayload, status: 'prospect' }, profile.id, profile.name, users)
+        targetId = newClientId
         if (createTasks) {
           const newClient = { id: newClientId, companyName: basePayload.companyName, modules: basePayload.modules }
           await createInitialWorkflowTasks(newClient, profile.id, profile.name, users)
         }
         toast.success('Cliente cadastrado com sucesso')
       }
+
+      // Logo — best-effort, não bloqueia o cadastro se o Storage falhar.
+      try {
+        if (logoFile) await uploadClientLogo(targetId, logoFile, profile.id, profile.name)
+        else if (client && logoRemoved && client.logoUrl) await removeClientLogo(targetId, profile.id, profile.name)
+      } catch (logoErr) {
+        console.error(logoErr)
+        toast.error(logoErr instanceof Error ? logoErr.message : 'Cliente salvo, mas a logo não subiu.')
+      }
+
       onClose()
     } catch (err) {
       console.error(err)
@@ -165,6 +184,22 @@ export function ClientFormModal({
 
   return (
     <Modal open={open} onClose={onClose} title={client ? 'Editar cliente' : 'Novo cliente'} width="max-w-2xl">
+      <div className="mb-3">
+        <ClientLogoField
+          companyName={form.companyName}
+          logoUrl={logoRemoved ? null : client?.logoUrl}
+          pendingFile={logoFile}
+          onPick={(f) => {
+            setLogoFile(f)
+            setLogoRemoved(false)
+          }}
+          onRemove={() => {
+            setLogoFile(null)
+            setLogoRemoved(true)
+          }}
+          busy={saving}
+        />
+      </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nome da empresa" required>
           <Input autoFocus value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />

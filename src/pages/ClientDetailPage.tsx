@@ -71,11 +71,11 @@ export function ClientDetailPage() {
 
       <div className="rounded-xl border border-slate-100 bg-white p-5">
         <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
+          <div className="flex items-center gap-4">
             <ClientLogoUpload client={client} />
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-semibold text-slate-800">{client.companyName}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-semibold text-slate-800">{client.companyName}</h1>
                 <Badge className="bg-slate-100 text-slate-500">{CLIENT_STATUS_LABEL[client.status]}</Badge>
                 {client.categoria && (
                   <Badge className={CLIENT_CATEGORY_BADGE[client.categoria]}>{CLIENT_CATEGORY_LABEL[client.categoria]}</Badge>

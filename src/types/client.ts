@@ -77,7 +77,9 @@ export interface Client extends BaseDoc {
   monthlyValue?: number
   contractStartDate?: Timestamp | null
   notes?: string
-  logoUrl?: string
+  /** URL pública da logo no Firebase Storage (clients/{id}/logo/logo).
+   *  `null` = removida explicitamente. */
+  logoUrl?: string | null
   /** Briefing de Social Media. */
   briefing?: ClientBriefing
   /** Briefing de Tráfego Pago — separate schema, shown as a sub-tab of

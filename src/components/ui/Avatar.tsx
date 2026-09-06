@@ -18,13 +18,19 @@ export function Avatar({
 }: {
   name: string
   photoURL?: string | null
-  size?: 'xs' | 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 }) {
   // Tracks which URL failed to load, so a broken photo falls back to initials
   // — but a later change to a working URL is retried (failedUrl !== photoURL).
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
 
-  const dims = { xs: 'h-5 w-5 text-[9px]', sm: 'h-7 w-7 text-xs', md: 'h-9 w-9 text-sm' }[size]
+  const dims = {
+    xs: 'h-5 w-5 text-[9px]',
+    sm: 'h-7 w-7 text-xs',
+    md: 'h-9 w-9 text-sm',
+    lg: 'h-10 w-10 text-sm',
+    xl: 'h-20 w-20 text-xl',
+  }[size]
   const initials = name
     .split(' ')
     .slice(0, 2)

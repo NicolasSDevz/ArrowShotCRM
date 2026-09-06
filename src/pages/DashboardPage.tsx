@@ -640,7 +640,12 @@ export function DashboardPage() {
                         <td className="py-2 pl-2 align-middle">
                           <span title={HEALTH_LABEL[health]} className={`block h-2.5 w-2.5 rounded-full ${HEALTH_DOT[health]}`} />
                         </td>
-                        <td className="max-w-[140px] truncate py-2 pr-2 align-middle font-medium text-slate-900">{client.companyName}</td>
+                        <td className="max-w-[160px] py-2 pr-2 align-middle font-medium text-slate-900">
+                          <div className="flex items-center gap-2">
+                            <Avatar name={client.companyName} photoURL={client.logoUrl} size="xs" />
+                            <span className="truncate">{client.companyName}</span>
+                          </div>
+                        </td>
                         <td className="py-2 pr-2 align-middle">
                           <ServicePill service={service} />
                         </td>
