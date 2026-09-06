@@ -11,6 +11,7 @@ import { updateClient } from '../../services/clientService'
 import { notifyAdminsOfAction } from '../../services/notificationService'
 import { maskPhone } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
+import { ensureActPrefix } from '../../utils/metaReportData'
 import {
   EMPTY_CAMPAIGN_PLANNING,
   EMPTY_CAMPAIGN_PLANNING_ACCESS,
@@ -103,10 +104,13 @@ function composeIcpB2B(b: PaidTrafficBriefing): string {
 }
 
 function mergeCampaignPlanning(saved?: CampaignPlanning): CampaignPlanning {
+  const acessos = { ...EMPTY_CAMPAIGN_PLANNING_ACCESS, ...saved?.acessos }
+  // Sempre exibe o id da conta Meta Ads com o prefixo "act_".
+  if (acessos.metaAdsAccountId) acessos.metaAdsAccountId = ensureActPrefix(acessos.metaAdsAccountId)
   return {
     ...EMPTY_CAMPAIGN_PLANNING,
     ...saved,
-    acessos: { ...EMPTY_CAMPAIGN_PLANNING_ACCESS, ...saved?.acessos },
+    acessos,
     metaAds: { ...EMPTY_META_ADS_PLANNING, ...saved?.metaAds, campanhas: saved?.metaAds?.campanhas ?? [] },
     googleAds: { ...EMPTY_GOOGLE_ADS_PLANNING, ...saved?.googleAds, campanhas: saved?.googleAds?.campanhas ?? [] },
   }
@@ -175,7 +179,16 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
     }
     setSaving(true)
     try {
-      const payload: CampaignPlanning = { ...form, preenchidoPor: profile.name, filledAt: Timestamp.now() }
+      const payload: CampaignPlanning = {
+        ...form,
+        acessos: {
+          ...form.acessos,
+          // Sempre grava o id da conta Meta Ads com o prefixo "act_".
+          metaAdsAccountId: ensureActPrefix(form.acessos.metaAdsAccountId) || undefined,
+        },
+        preenchidoPor: profile.name,
+        filledAt: Timestamp.now(),
+      }
       const first = !client.campaignPlanning?.filledAt
       await updateClient(client.id, { campaignPlanning: payload }, profile.id, profile.name)
       await notifyAdminsOfAction({
@@ -303,7 +316,8 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
               <Input
                 value={form.acessos.metaAdsAccountId ?? ''}
                 onChange={(e) => setAccess('metaAdsAccountId', e.target.value)}
-                placeholder="Ex: act_123456789"
+                onBlur={(e) => setAccess('metaAdsAccountId', ensureActPrefix(e.target.value) || undefined)}
+                placeholder="Ex: 27994847453538948 (o act_ é adicionado automaticamente)"
               />
             </Field>
             <p className="mt-1 text-xs text-slate-400">

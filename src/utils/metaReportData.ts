@@ -15,6 +15,14 @@ export function normalizeMetaAccountId(raw: string): string {
   return raw.trim().replace(/^act_/i, '')
 }
 
+/** Garante o prefixo "act_" para ARMAZENAR/EXIBIR o id da conta Meta Ads.
+ *  Retorna '' se a entrada for vazia. */
+export function ensureActPrefix(raw?: string | null): string {
+  const v = (raw ?? '').trim()
+  if (!v) return ''
+  return /^act_/i.test(v) ? v.replace(/^act_/i, 'act_') : `act_${v}`
+}
+
 function toDateParam(d: Date): string {
   return format(d, 'yyyy-MM-dd')
 }
