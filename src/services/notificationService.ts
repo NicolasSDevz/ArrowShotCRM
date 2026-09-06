@@ -14,16 +14,23 @@ export async function createNotification(params: {
   entityType?: EntityType
   entityId?: string
 }) {
-  await addDoc(collection(db, COLLECTION), {
-    userId: params.userId,
-    type: params.type,
-    message: params.message,
-    actorName: params.actorName ?? null,
-    entityType: params.entityType ?? null,
-    entityId: params.entityId ?? null,
-    read: false,
-    createdAt: serverTimestamp(),
-  })
+  // Secondary side-effect: a failure here (rules, rede) must never reject the
+  // user action that triggered it — callers `await` this inline, sometimes
+  // inside a Promise.all over several recipients.
+  try {
+    await addDoc(collection(db, COLLECTION), {
+      userId: params.userId,
+      type: params.type,
+      message: params.message,
+      actorName: params.actorName ?? null,
+      entityType: params.entityType ?? null,
+      entityId: params.entityId ?? null,
+      read: false,
+      createdAt: serverTimestamp(),
+    })
+  } catch (err) {
+    console.error('createNotification falhou (ação principal não afetada)', err)
+  }
 }
 
 /** No orderBy on purpose — a single equality filter needs no composite

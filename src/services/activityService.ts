@@ -15,16 +15,22 @@ export async function logActivity(params: {
   userId: string
   userName: string
 }) {
-  await addDoc(collection(db, COLLECTION), {
-    entityType: params.entityType,
-    entityId: params.entityId,
-    clientId: params.clientId ?? null,
-    action: params.action,
-    message: params.message,
-    userId: params.userId,
-    userName: params.userName,
-    createdAt: serverTimestamp(),
-  })
+  // Best-effort audit trail: a failure here (rules, rede) must never reject
+  // the user action that triggered it — callers `await` this inline.
+  try {
+    await addDoc(collection(db, COLLECTION), {
+      entityType: params.entityType,
+      entityId: params.entityId,
+      clientId: params.clientId ?? null,
+      action: params.action,
+      message: params.message,
+      userId: params.userId,
+      userName: params.userName,
+      createdAt: serverTimestamp(),
+    })
+  } catch (err) {
+    console.error('logActivity falhou (ação principal não afetada)', err)
+  }
 }
 
 export function subscribeActivities(
