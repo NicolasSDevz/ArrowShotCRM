@@ -7,7 +7,7 @@ import { getShareableContent, submitPublicApproval, submitPublicChangeRequest } 
 import { CONTENT_PLATFORM_LABEL, CONTENT_TYPE_LABEL, type Content } from '../types/content'
 import { Spinner } from '../components/ui/FullPageSpinner'
 
-type Phase = 'loading' | 'invalid' | 'ready' | 'requesting' | 'done_approved' | 'done_changes'
+type Phase = 'loading' | 'invalid' | 'ready' | 'requesting' | 'done_approved' | 'done_changes' | 'already_handled'
 
 export function PublicApprovalPage() {
   const { contentId, token } = useParams<{ contentId: string; token: string }>()
@@ -28,7 +28,12 @@ export function PublicApprovalPage() {
           return
         }
         setContent(c)
-        setPhase(c.status === 'approved' ? 'done_approved' : 'ready')
+        // Only actionable while the piece is actually awaiting the client.
+        // Anything past that (approved / production / scheduled / published…)
+        // means an older link — show a read-only state, never the buttons.
+        if (c.status === 'approved') setPhase('done_approved')
+        else if (c.status === 'waiting_client') setPhase('ready')
+        else setPhase('already_handled')
       })
       .catch(() => setPhase('invalid'))
   }, [contentId, token])
@@ -83,6 +88,13 @@ export function PublicApprovalPage() {
         {phase === 'done_approved' && (
           <p className="rounded-lg bg-emerald-500/10 px-4 py-6 text-center text-sm text-emerald-300">
             Conteúdo aprovado! Obrigado — nossa equipe já vai agendar a publicação.
+          </p>
+        )}
+
+        {phase === 'already_handled' && (
+          <p className="rounded-lg bg-slate-500/10 px-4 py-6 text-center text-sm text-slate-300">
+            Este conteúdo já foi processado e não está mais aguardando aprovação. Se precisar de
+            ajustes, fale com a equipe da Arrow Shot.
           </p>
         )}
 

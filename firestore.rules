@@ -64,8 +64,14 @@ service cloud.firestore {
     // The link itself (content id + token) is the credential, same trust
     // model as e.g. a Stripe payment link — there's no Cloud Functions on
     // this project's plan to validate the token server-side instead.
+    // Only actionable while the content is actually awaiting the client
+    // ('waiting_client') — so a stale link can't revert a piece that's already
+    // approved / scheduled / published. If the team sends it back for another
+    // review the status returns to 'waiting_client' and the same link works
+    // again.
     function isPublicApprovalUpdate() {
       return resource.data.approvalToken != null
+        && resource.data.status == 'waiting_client'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy'])
         && request.resource.data.status in ['approved', 'production']
         && request.resource.data.updatedBy == 'client-portal';
@@ -82,6 +88,25 @@ service cloud.firestore {
       return request.resource.data.type in ['content_approved', 'change_requested']
         && request.resource.data.entityType == 'content'
         && get(/databases/$(database)/documents/contents/$(request.resource.data.entityId)).data.approvalToken != null;
+    }
+
+    // Shape check for a notification being created. Doesn't (can't, in rules)
+    // prove the notification maps to a real triggering action — it just stops
+    // any signed-in user from writing arbitrary rows: known type, sane
+    // message, unread, server timestamp, no extra fields.
+    function isValidNotificationCreate() {
+      return request.resource.data.userId is string
+        && request.resource.data.userId.size() > 0
+        && request.resource.data.type in ['task_assigned', 'mention', 'approval_requested', 'content_approved',
+                      'change_requested', 'due_soon', 'briefing_scheduled', 'task_completed',
+                      'task_overdue', 'new_client', 'briefing_filled', 'content_review_requested',
+                      'content_ready_to_schedule', 'funnel_saved', 'task_reminder']
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 5000
+        && request.resource.data.read == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly(['userId', 'type', 'message', 'actorName', 'entityType', 'entityId', 'read', 'createdAt']);
     }
 
     // ---------- users ----------
@@ -196,7 +221,7 @@ service cloud.firestore {
       // Admin (Bruno) sees every notification, not just their own — see the
       // in-app notification system's role-visibility rules.
       allow read: if isOwnUser(resource.data.userId) || isAdmin();
-      allow create: if isSignedIn() || isPublicApprovalNotification();
+      allow create: if isValidNotificationCreate() && (isInternal() || isPublicApprovalNotification());
       allow update: if isOwnUser(resource.data.userId) || isAdmin();
       allow delete: if isOwnUser(resource.data.userId) || isAdmin();
     }
