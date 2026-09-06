@@ -12,7 +12,7 @@ import { QuizBlock } from '../components/university/QuizBlock'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/FullPageSpinner'
 import { toYoutubeEmbedUrl } from '../utils/youtubeEmbed'
-import type { ChecklistItem } from '../types'
+import { QUIZ_PASS_THRESHOLD, type ChecklistItem } from '../types'
 
 export function UniversityModulePage() {
   const { trailId, moduleId } = useParams<{ trailId: string; moduleId: string }>()
@@ -37,7 +37,8 @@ export function UniversityModulePage() {
   const embedUrl = useMemo(() => (module?.videoUrl ? toYoutubeEmbedUrl(module.videoUrl) : null), [module?.videoUrl])
 
   const checklistDone = checklist.length === 0 || checklist.every((i) => i.done)
-  const quizDone = (module?.quiz.length ?? 0) === 0 || quizScore !== null
+  const hasQuiz = (module?.quiz?.length ?? 0) > 0
+  const quizDone = !hasQuiz || (quizScore !== null && quizScore >= QUIZ_PASS_THRESHOLD)
   const canComplete = checklistDone && quizDone
 
   const handleComplete = async () => {
@@ -119,7 +120,7 @@ export function UniversityModulePage() {
         disabled={!!existingProgress?.completed}
       />
 
-      {module.quiz.length > 0 && !existingProgress?.completed && (
+      {hasQuiz && !existingProgress?.completed && (
         <QuizBlock quiz={module.quiz} onSubmit={setQuizScore} />
       )}
 

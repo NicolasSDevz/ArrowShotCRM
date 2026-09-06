@@ -15,6 +15,9 @@ export interface QuizQuestion {
   correctIndex: number
 }
 
+/** Minimum quiz score (%) required to mark a module as concluded. */
+export const QUIZ_PASS_THRESHOLD = 70
+
 export interface Module extends BaseDoc {
   trailId: string
   title: string
