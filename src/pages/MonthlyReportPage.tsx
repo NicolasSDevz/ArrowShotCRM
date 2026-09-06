@@ -33,13 +33,19 @@ const fmtBRL = (v?: number) =>
 const fmtPct = (v?: number) => (v == null || Number.isNaN(v) ? '—' : `${v.toFixed(2).replace('.', ',')}%`)
 const fmtDate = (d: Date) => format(d, 'dd/MM/yyyy', { locale: ptBR })
 
-function Delta({ curr, prev }: { curr?: number; prev?: number }) {
+/** Variação vs período anterior. A seta reflete a direção real; a cor reflete
+ *  se a mudança é BOA para o negócio (`goodWhen`): para métricas de volume
+ *  (impressões, cliques, conversas…) subir é bom; para métricas de custo
+ *  (CPC, CPM, custo por conversa, investimento) cair é bom. */
+function Delta({ curr, prev, goodWhen = 'up' }: { curr?: number; prev?: number; goodWhen?: 'up' | 'down' }) {
   const d = pctChange(curr, prev)
   if (d == null) return null
-  const up = d >= 0
+  if (Math.round(d) === 0) return <span className="text-xs font-medium text-slate-400">≈ 0%</span>
+  const rising = d > 0
+  const good = goodWhen === 'up' ? rising : !rising
   return (
-    <span className={`text-xs font-semibold ${up ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-      {up ? '▲' : '▼'} {up ? '+' : ''}
+    <span className={`text-xs font-semibold ${good ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+      {rising ? '▲' : '▼'} {rising ? '+' : ''}
       {d.toFixed(0)}%
     </span>
   )
@@ -83,6 +89,7 @@ function MetricCard({
   explanation,
   curr,
   prev,
+  goodWhen = 'up',
 }: {
   icon: ReactNode
   name: string
@@ -90,6 +97,7 @@ function MetricCard({
   explanation: string
   curr?: number
   prev?: number
+  goodWhen?: 'up' | 'down'
 }) {
   return (
     <Card>
@@ -97,7 +105,7 @@ function MetricCard({
       <p className="text-[12px] font-medium text-[#64748B]">{name}</p>
       <div className="mt-0.5 flex flex-wrap items-baseline gap-2">
         <p className="text-[28px] font-bold leading-tight text-[#0F172A]">{value}</p>
-        <Delta curr={curr} prev={prev} />
+        <Delta curr={curr} prev={prev} goodWhen={goodWhen} />
       </div>
       <p className="mt-1 text-[11px] leading-snug text-[#94A3B8]">{explanation}</p>
     </Card>
@@ -113,14 +121,14 @@ function OverviewSection({ meta }: { meta: ReportMetaSnapshot }) {
   return (
     <Section title="Meta Ads — Visão Geral">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.spend)} curr={c.spend} prev={p?.spend} explanation="Total gasto em anúncios no período" />
+        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.spend)} curr={c.spend} prev={p?.spend} goodWhen="down" explanation="Total gasto em anúncios no período" />
         <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
         <MetricCard icon={<Users size={18} />} name="Alcance" value={fmtInt(c.reach)} curr={c.reach} prev={p?.reach} explanation="Pessoas únicas que viram seus anúncios" />
         <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
         <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
-        <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.cpc)} curr={c.cpc} prev={p?.cpc} explanation="Custo médio por cada clique" />
+        <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.cpc)} curr={c.cpc} prev={p?.cpc} goodWhen="down" explanation="Custo médio por cada clique" />
         <MetricCard icon={<MessageCircle size={18} />} name="Conversas iniciadas" value={fmtInt(c.conversations)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que mandaram mensagem pelo anúncio" />
-        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c))} curr={costPerConv(c)} prev={costPerConv(p)} explanation="Quanto custou cada nova conversa" />
+        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c))} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada nova conversa" />
       </div>
     </Section>
   )
