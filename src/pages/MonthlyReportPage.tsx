@@ -12,6 +12,7 @@ import {
   MousePointerClick,
   Percent,
   Coins,
+  Gauge,
   MessageCircle,
   DollarSign,
   Trophy,
@@ -120,13 +121,14 @@ function OverviewSection({ meta }: { meta: ReportMetaSnapshot }) {
 
   return (
     <Section title="Meta Ads — Visão Geral">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.spend)} curr={c.spend} prev={p?.spend} goodWhen="down" explanation="Total gasto em anúncios no período" />
         <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
         <MetricCard icon={<Users size={18} />} name="Alcance" value={fmtInt(c.reach)} curr={c.reach} prev={p?.reach} explanation="Pessoas únicas que viram seus anúncios" />
         <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
         <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
         <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.cpc)} curr={c.cpc} prev={p?.cpc} goodWhen="down" explanation="Custo médio por cada clique" />
+        <MetricCard icon={<Gauge size={18} />} name="CPM médio" value={fmtBRL(c.cpm)} curr={c.cpm} prev={p?.cpm} goodWhen="down" explanation="Custo a cada mil vezes que o anúncio aparece" />
         <MetricCard icon={<MessageCircle size={18} />} name="Conversas iniciadas" value={fmtInt(c.conversations)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que mandaram mensagem pelo anúncio" />
         <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c))} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada nova conversa" />
       </div>
