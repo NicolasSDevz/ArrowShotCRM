@@ -88,12 +88,20 @@ export async function requestContentChange(
 /** Turns on the public approval link for this content. The link itself
  *  (unguessable content id + token) is the access control — see the "public
  *  shareable read" branch in firestore.rules. */
-export async function generateApprovalLink(content: Content, userId: string, userName: string) {
+export async function generateApprovalLink(
+  content: Content,
+  userId: string,
+  userName: string,
+  /** Internal ids to notify when the client acts on the link — owner/admin +
+   *  assignee. Captured here because the public page can't read `users`. */
+  notifyUserIds: string[] = []
+) {
   const token = crypto.randomUUID()
   const client = await getClient(content.clientId)
+  const ids = Array.from(new Set([...notifyUserIds, ...(content.assignedTo ? [content.assignedTo] : [])]))
   await updateContent(
     content.id,
-    { approvalToken: token, clientNameSnapshot: client?.companyName ?? '' },
+    { approvalToken: token, clientNameSnapshot: client?.companyName ?? '', approvalNotifyUserIds: ids },
     userId,
     userName
   )

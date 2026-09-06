@@ -3,9 +3,12 @@ import { addDays, startOfDay, isBefore, isSameDay, format } from 'date-fns'
 import type { Client, Task, TaskStatus } from '../types'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
-import { createNotification } from './notificationService'
+import { createNotification, notifyAdminsOfAction } from './notificationService'
+import { getClientName } from './clientLookup'
 import { getClientOwnerIds } from '../types/client'
 import { nextRecurrenceDate } from '../types/task'
+
+const HIGH_PRIORITIES: Task['priority'][] = ['high', 'urgent']
 
 const COLLECTION = 'tasks'
 const base = collectionService<Task>(COLLECTION)
@@ -13,7 +16,8 @@ const base = collectionService<Task>(COLLECTION)
 export async function createTask(
   data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'>,
   userId: string,
-  userName: string
+  userName: string,
+  opts?: { skipAdminCc?: boolean }
 ) {
   const id = await base.create(data, userId)
   await logActivity({
@@ -32,6 +36,22 @@ export async function createTask(
       message: `${userName} atribuiu a tarefa "${data.title}" a você`,
       entityType: 'task',
       entityId: id,
+    })
+  }
+  // `skipAdminCc` for the bulk/auto paths (onboarding workflow, meeting action
+  // items) — those already produce their own summary notification.
+  if (!opts?.skipAdminCc) {
+    const clientName = await getClientName(data.clientId)
+    const suffix = clientName ? ` — ${clientName}` : ''
+    const high = HIGH_PRIORITIES.includes(data.priority) ? ' (prioridade Alta)' : ''
+    await notifyAdminsOfAction({
+      type: 'task_created',
+      message: `${userName} criou a tarefa "${data.title}"${high}${suffix}`,
+      actorId: userId,
+      actorName: userName,
+      entityType: 'task',
+      entityId: id,
+      alreadyNotified: data.assignedTo ? [data.assignedTo] : [],
     })
   }
   return id
@@ -57,6 +77,22 @@ export async function updateTask(id: string, data: Partial<Task>, userId: string
         : `${userName} atribuiu uma tarefa a você`,
       entityType: 'task',
       entityId: id,
+    })
+  }
+  // Owner CC: only for the changes the spec calls out — priority raised to
+  // Alta/Urgente. "Concluída" is covered by notifyTaskCompleted.
+  if (data.priority && HIGH_PRIORITIES.includes(data.priority)) {
+    const full = await getTask(id)
+    const clientName = await getClientName(full?.clientId)
+    const suffix = clientName ? ` — ${clientName}` : ''
+    await notifyAdminsOfAction({
+      type: 'task_updated',
+      message: `${userName} definiu prioridade Alta na tarefa "${full?.title ?? data.title ?? ''}"${suffix}`,
+      actorId: userId,
+      actorName: userName,
+      entityType: 'task',
+      entityId: id,
+      alreadyNotified: data.assignedTo ? [data.assignedTo] : [],
     })
   }
 }
@@ -163,23 +199,33 @@ export async function markBriefingChecklistDone(clientId: string, userId: string
  *  it if they're one of them. */
 export async function notifyTaskCompleted(
   task: Pick<Task, 'id' | 'title'>,
-  client: Pick<Client, 'companyName' | 'ownerIds' | 'ownerId'>,
+  client: Pick<Client, 'companyName' | 'ownerIds' | 'ownerId'> | undefined,
   userId: string,
   userName: string
 ) {
-  const recipientIds = getClientOwnerIds(client).filter((id) => id !== userId)
+  const recipientIds = client ? getClientOwnerIds(client).filter((id) => id !== userId) : []
+  const message = `✅ ${userName} concluiu "${task.title}"${client?.companyName ? ` — ${client.companyName}` : ''}`
   await Promise.all(
     recipientIds.map((recipientId) =>
       createNotification({
         userId: recipientId,
         type: 'task_completed',
-        message: `✅ ${userName} concluiu "${task.title}" — ${client.companyName}`,
+        message,
         actorName: userName,
         entityType: 'task',
         entityId: task.id,
       })
     )
   )
+  await notifyAdminsOfAction({
+    type: 'task_completed',
+    message,
+    actorId: userId,
+    actorName: userName,
+    entityType: 'task',
+    entityId: task.id,
+    alreadyNotified: recipientIds,
+  })
 }
 
 /** Client-side stand-in for a backend cron (see overdueNotifiedAt/
@@ -204,22 +250,42 @@ export async function runTaskDueDateSweep(
 
     if (isBefore(due, today)) {
       if (task.overdueNotifiedAt) continue
+      const message = `⚠️ Tarefa atrasada: "${task.title}"${clientSuffix}\nVenceu em ${format(due, 'dd/MM/yyyy')}`
       await createNotification({
         userId: task.assignedTo,
         type: 'task_overdue',
-        message: `⚠️ Tarefa atrasada: "${task.title}"${clientSuffix}\nVenceu em ${format(due, 'dd/MM/yyyy')}`,
+        message,
         entityType: 'task',
         entityId: task.id,
+      })
+      await notifyAdminsOfAction({
+        type: 'task_overdue',
+        message,
+        actorId: '',
+        actorName: '',
+        entityType: 'task',
+        entityId: task.id,
+        alreadyNotified: [task.assignedTo],
       })
       await base.update(task.id, { overdueNotifiedAt: Timestamp.now() }, currentUserId)
       continue
     }
 
     if (isSameDay(due, tomorrow) && !task.reminderNotifiedAt) {
+      const reminderMsg = `🔔 Lembrete: "${task.title}" vence amanhã${clientSuffix}`
+      await notifyAdminsOfAction({
+        type: 'task_reminder',
+        message: reminderMsg,
+        actorId: '',
+        actorName: '',
+        entityType: 'task',
+        entityId: task.id,
+        alreadyNotified: [task.assignedTo],
+      })
       await createNotification({
         userId: task.assignedTo,
         type: 'task_reminder',
-        message: `🔔 Lembrete: "${task.title}" vence amanhã${clientSuffix}`,
+        message: reminderMsg,
         entityType: 'task',
         entityId: task.id,
       })

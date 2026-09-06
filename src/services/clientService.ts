@@ -3,7 +3,7 @@ import type { AppUser, Client } from '../types'
 import { db } from '../firebase/config'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
-import { createNotification } from './notificationService'
+import { createNotification, notifyAdminsOfAction } from './notificationService'
 import { getClientTasks } from './taskService'
 import { getClientContents } from './contentService'
 import { getClientCalendarEvents } from './calendarService'
@@ -132,6 +132,13 @@ export async function deleteClient(client: Client, userId: string, userName: str
     message: `excluiu o cliente "${client.companyName}" (${tasks.length} tarefa(s), ${contents.length} conteúdo(s), ${calendarEvents.length} evento(s), ${meetings.length} reunião(ões), ${reports.length} relatório(s) e ${files.length} arquivo(s) removidos junto)`,
     userId,
     userName,
+  })
+  await notifyAdminsOfAction({
+    type: 'client_deleted',
+    message: `${userName} excluiu o cliente "${client.companyName}"`,
+    actorId: userId,
+    actorName: userName,
+    entityType: 'client',
   })
 }
 

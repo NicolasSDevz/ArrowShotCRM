@@ -21,17 +21,28 @@ export async function getShareableContent(contentId: string, token: string): Pro
  *  record authored by the fixed "client-portal" actor. No activity log entry
  *  — that collection requires auth, and the `approvals` record is itself the
  *  audit trail for this action. */
-async function notifyAssignee(content: Content, message: string, type: 'content_approved' | 'change_requested') {
-  if (!content.assignedTo) return
-  await addDoc(collection(db, 'notifications'), {
-    userId: content.assignedTo,
-    type,
-    message,
-    entityType: 'content',
-    entityId: content.id,
-    read: false,
-    createdAt: serverTimestamp(),
-  })
+/** Anonymous writes are scoped tightly in firestore.rules
+ *  (isPublicApprovalNotification): only content_approved / change_requested,
+ *  for content that has an approvalToken. `approvalNotifyUserIds` was captured
+ *  by generateApprovalLink (owner/admin + assignee) since this page can't read
+ *  the users collection. */
+async function notifyInternal(content: Content, message: string, type: 'content_approved' | 'change_requested') {
+  const ids = Array.from(
+    new Set([...(content.approvalNotifyUserIds ?? []), ...(content.assignedTo ? [content.assignedTo] : [])])
+  )
+  await Promise.all(
+    ids.map((userId) =>
+      addDoc(collection(db, 'notifications'), {
+        userId,
+        type,
+        message,
+        entityType: 'content',
+        entityId: content.id,
+        read: false,
+        createdAt: serverTimestamp(),
+      }).catch((err) => console.error('notifyInternal (public approval) falhou', err))
+    )
+  )
 }
 
 export async function submitPublicApproval(content: Content, comment?: string) {
@@ -46,7 +57,7 @@ export async function submitPublicApproval(content: Content, comment?: string) {
     createdBy: PORTAL_ACTOR,
     updatedBy: PORTAL_ACTOR,
   })
-  await notifyAssignee(
+  await notifyInternal(
     content,
     `${content.clientNameSnapshot || 'O cliente'} aprovou o conteúdo "${content.title}"`,
     'content_approved'
@@ -65,7 +76,7 @@ export async function submitPublicChangeRequest(content: Content, comment: strin
     createdBy: PORTAL_ACTOR,
     updatedBy: PORTAL_ACTOR,
   })
-  await notifyAssignee(
+  await notifyInternal(
     content,
     `${content.clientNameSnapshot || 'O cliente'} pediu alteração em "${content.title}"`,
     'change_requested'

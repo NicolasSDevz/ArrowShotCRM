@@ -1,6 +1,8 @@
 import { addDays } from 'date-fns'
 import { Timestamp } from 'firebase/firestore'
 import { createContent } from './contentService'
+import { notifyAdminsOfAction } from './notificationService'
+import { getClientName } from './clientLookup'
 import type { ContentPillar, ContentType } from '../types/content'
 
 interface TemplateEntry {
@@ -121,11 +123,24 @@ export async function generateWeeklyPauta(
         hashtags: [],
       },
       userId,
-      userName
+      userName,
+      { skipAdminCc: true }
     )
     created += 1
   }
+  await notifyPautaGenerated(clientId, created, 'semanal', userId, userName)
   return created
+}
+
+async function notifyPautaGenerated(clientId: string, count: number, kind: string, userId: string, userName: string) {
+  const clientName = await getClientName(clientId)
+  await notifyAdminsOfAction({
+    type: 'content_created',
+    message: `${userName} gerou a pauta ${kind} (${count} conteúdos)${clientName ? ` — ${clientName}` : ''}`,
+    actorId: userId,
+    actorName: userName,
+    entityType: 'content',
+  })
 }
 
 export async function generateMonthlyPauta(
@@ -149,9 +164,11 @@ export async function generateMonthlyPauta(
         hashtags: [],
       },
       userId,
-      userName
+      userName,
+      { skipAdminCc: true }
     )
     created += 1
   }
+  await notifyPautaGenerated(clientId, created, 'mensal', userId, userName)
   return created
 }

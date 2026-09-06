@@ -7,6 +7,7 @@ import { Spinner } from '../ui/FullPageSpinner'
 import { useAuth } from '../../context/AuthContext'
 import { useMemberHealth } from '../../hooks/useMemberHealth'
 import { saveMemberHealth } from '../../services/memberHealthService'
+import { notifyAdminsOfAction } from '../../services/notificationService'
 import { maskPhone } from '../../utils/masks'
 import { BLOOD_TYPES, type BloodType, type MemberHealth } from '../../types'
 
@@ -50,7 +51,7 @@ const trimmed = (s: string) => {
   return t === '' ? undefined : t
 }
 
-export function MemberHealthTab({ memberId }: { memberId: string }) {
+export function MemberHealthTab({ memberId, memberName }: { memberId: string; memberName: string }) {
   const { profile } = useAuth()
   const { data, loading, denied } = useMemberHealth(memberId)
   const [form, setForm] = useState(EMPTY)
@@ -93,7 +94,14 @@ export function MemberHealthTab({ memberId }: { memberId: string }) {
         healthPlanCardNumber: hasPlan ? trimmed(form.healthPlanCardNumber) : undefined,
         medicalNotes: trimmed(form.medicalNotes),
       }
+      const first = !data
       await saveMemberHealth(memberId, payload, profile.id)
+      await notifyAdminsOfAction({
+        type: 'member_health_updated',
+        message: `${profile.name} ${first ? 'preencheu' : 'atualizou'} as informações de saúde de ${memberName}`,
+        actorId: profile.id,
+        actorName: profile.name,
+      })
       toast.success('Informações de saúde salvas')
     } catch (err) {
       console.error(err)

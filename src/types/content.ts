@@ -47,6 +47,10 @@ export interface Content extends BaseDoc {
    *  purely for display on the public page, never used as a relational key
    *  (the public page has no read access to the clients collection). */
   clientNameSnapshot?: string
+  /** Internal user ids to notify when the client acts on the public approval
+   *  link (owner/admin + the assignee) — captured at link-generation time
+   *  because the public page can't read the users collection. */
+  approvalNotifyUserIds?: string[]
 }
 
 export const CONTENT_STATUS_LABEL: Record<ContentStatus, string> = {

@@ -7,6 +7,8 @@ import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { createContent } from '../../services/contentService'
+import { notifyAdminsOfAction } from '../../services/notificationService'
+import { getClientName } from '../../services/clientLookup'
 import {
   parseEditorialCalendarCsv,
   downloadEditorialCalendarTemplate,
@@ -93,12 +95,23 @@ export function ImportEditorialCalendarModal({
             hashtags: [],
           },
           profile.id,
-          profile.name
+          profile.name,
+          { skipAdminCc: true }
         )
         created++
       } catch (err) {
         console.error('Falha ao importar linha do calendário editorial', row.line, err)
       }
+    }
+    if (created > 0) {
+      const clientName = await getClientName(clientId)
+      await notifyAdminsOfAction({
+        type: 'content_imported',
+        message: `${profile.name} importou ${created} ${pluralize(created, 'conteúdo', 'conteúdos')} do calendário editorial${clientName ? ` — ${clientName}` : ''}`,
+        actorId: profile.id,
+        actorName: profile.name,
+        entityType: 'content',
+      })
     }
     const skipped = errors.length + (rows.length - created)
     toast.success(

@@ -2,6 +2,8 @@ import { orderBy, where, getDocs, query, type FirestoreError } from 'firebase/fi
 import type { Report, ReportInput } from '../types'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
+import { notifyAdminsOfAction } from './notificationService'
+import { getClientName } from './clientLookup'
 
 const COLLECTION = 'reports'
 const base = collectionService<Report>(COLLECTION)
@@ -16,6 +18,15 @@ export async function createReport(data: ReportInput, userId: string, userName: 
     message: `gerou o relatório ${data.type === 'weekly' ? 'semanal' : 'mensal'}`,
     userId,
     userName,
+  })
+  const clientName = await getClientName(data.clientId)
+  await notifyAdminsOfAction({
+    type: 'report_created',
+    message: `${userName} gerou o relatório ${data.type === 'weekly' ? 'semanal' : 'mensal'}${clientName ? ` — ${clientName}` : ''}`,
+    actorId: userId,
+    actorName: userName,
+    entityType: 'report',
+    entityId: id,
   })
   return id
 }

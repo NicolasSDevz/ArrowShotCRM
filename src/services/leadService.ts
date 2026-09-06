@@ -5,6 +5,7 @@ import { collectionService } from './firestore'
 import { logActivity } from './activityService'
 import { createClient } from './clientService'
 import { createInitialWorkflowTasks } from './clientWorkflowTemplates'
+import { notifyAdminsOfAction } from './notificationService'
 
 const COLLECTION = 'leads'
 const base = collectionService<Lead>(COLLECTION)
@@ -18,6 +19,15 @@ export async function createLead(data: LeadInput, userId: string, userName: stri
     message: `criou o lead "${data.contactName}"`,
     userId,
     userName,
+  })
+  const label = data.companyName?.trim() ? `${data.contactName} (${data.companyName.trim()})` : data.contactName
+  await notifyAdminsOfAction({
+    type: 'lead_created',
+    message: `${userName} cadastrou o lead ${label}`,
+    actorId: userId,
+    actorName: userName,
+    entityType: 'lead',
+    entityId: id,
   })
   return id
 }
@@ -45,6 +55,18 @@ export async function moveLeadStatus(lead: Lead, newStatus: LeadStatus, newOrder
       message: `moveu de "${LEAD_STATUS_LABEL[lead.status]}" para "${LEAD_STATUS_LABEL[newStatus]}"`,
       userId,
       userName,
+    })
+    const name = lead.companyName?.trim() || lead.contactName
+    const lost = newStatus === 'lost'
+    await notifyAdminsOfAction({
+      type: 'lead_stage_changed',
+      message: lost
+        ? `${userName} marcou o lead ${name} como Perdido`
+        : `${userName} moveu o lead ${name} de "${LEAD_STATUS_LABEL[lead.status]}" para "${LEAD_STATUS_LABEL[newStatus]}"`,
+      actorId: userId,
+      actorName: userName,
+      entityType: 'lead',
+      entityId: lead.id,
     })
   }
 }
@@ -127,6 +149,14 @@ export async function convertLeadToClient(lead: Lead, userId: string, userName: 
     message: 'converteu o lead em cliente',
     userId,
     userName,
+  })
+  await notifyAdminsOfAction({
+    type: 'lead_converted',
+    message: `${userName} converteu o lead ${lead.contactName} em cliente: ${companyName}`,
+    actorId: userId,
+    actorName: userName,
+    entityType: 'client',
+    entityId: clientId,
   })
 
   return clientId

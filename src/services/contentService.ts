@@ -3,9 +3,13 @@ import { format } from 'date-fns'
 import type { AppUser, Content, ContentStatus } from '../types'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
-import { createNotification } from './notificationService'
+import { createNotification, notifyAdminsOfAction } from './notificationService'
+import { getClientName } from './clientLookup'
 import { findUserIdByName } from '../utils/userLookup'
 import { CONTENT_STATUS_LABEL, CONTENT_FORMAT_LABEL, CONTENT_TYPE_LABEL } from '../types/content'
+
+/** Content statuses the platform owner is CC'd on (see spec / notifyAdminsOfAction). */
+const NOTABLE_CONTENT_STATUSES: ContentStatus[] = ['waiting_client', 'approved', 'published']
 
 const COLLECTION = 'contents'
 const base = collectionService<Content>(COLLECTION)
@@ -13,7 +17,8 @@ const base = collectionService<Content>(COLLECTION)
 export async function createContent(
   data: Omit<Content, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'>,
   userId: string,
-  userName: string
+  userName: string,
+  opts?: { skipAdminCc?: boolean }
 ) {
   const id = await base.create(data, userId)
   await logActivity({
@@ -25,6 +30,19 @@ export async function createContent(
     userId,
     userName,
   })
+  // `skipAdminCc` for the bulk paths (gerar pauta, importar calendário) —
+  // those fire one summary notification instead of one per card.
+  if (!opts?.skipAdminCc) {
+    const clientName = await getClientName(data.clientId)
+    await notifyAdminsOfAction({
+      type: 'content_created',
+      message: `${userName} criou o conteúdo "${data.title}"${clientName ? ` — ${clientName}` : ''}`,
+      actorId: userId,
+      actorName: userName,
+      entityType: 'content',
+      entityId: id,
+    })
+  }
   return id
 }
 
@@ -39,6 +57,18 @@ export async function updateContent(id: string, data: Partial<Content>, userId: 
     userId,
     userName,
   })
+  if (data.status && NOTABLE_CONTENT_STATUSES.includes(data.status)) {
+    const full = await getContent(id)
+    const clientName = await getClientName(full?.clientId ?? data.clientId)
+    await notifyAdminsOfAction({
+      type: data.status === 'published' ? 'content_published' : data.status === 'approved' ? 'content_approved' : 'content_review_requested',
+      message: `${userName} moveu o conteúdo "${full?.title ?? ''}" para "${CONTENT_STATUS_LABEL[data.status]}"${clientName ? ` — ${clientName}` : ''}`,
+      actorId: userId,
+      actorName: userName,
+      entityType: 'content',
+      entityId: id,
+    })
+  }
 }
 
 /** `notify`, when given, fires the internal review notifications (6 e 7 do
@@ -95,6 +125,18 @@ export async function moveContentStatus(
           })
         }
       }
+    }
+
+    if (NOTABLE_CONTENT_STATUSES.includes(newStatus)) {
+      const clientName = notify?.clientName ?? (await getClientName(content.clientId))
+      await notifyAdminsOfAction({
+        type: newStatus === 'published' ? 'content_published' : newStatus === 'approved' ? 'content_approved' : 'content_review_requested',
+        message: `${userName} moveu o conteúdo "${content.title}" para "${CONTENT_STATUS_LABEL[newStatus]}"${clientName ? ` — ${clientName}` : ''}`,
+        actorId: userId,
+        actorName: userName,
+        entityType: 'content',
+        entityId: content.id,
+      })
     }
   }
 }

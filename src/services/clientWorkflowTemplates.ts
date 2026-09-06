@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { createTask, getClientTasks } from './taskService'
 import { createCalendarEvent } from './calendarService'
-import { createNotification } from './notificationService'
+import { createNotification, notifyAdminsOfAction } from './notificationService'
 import { findUserIdByName } from '../utils/userLookup'
 import type { Client } from '../types/client'
 import type { AppUser } from '../types/user'
@@ -299,7 +299,8 @@ async function createWorkflowStepTask(
       workflowStep: key,
     },
     userId,
-    userName
+    userName,
+    { skipAdminCc: true } // onboarding tasks are auto-generated; the owner already gets "novo cliente"
   )
 }
 
@@ -415,4 +416,13 @@ export async function notifyBriefingFilled(
       })
     )
   )
+  await notifyAdminsOfAction({
+    type: 'briefing_filled',
+    message: `${userName} preencheu o Briefing de Tráfego Pago — ${client.companyName}`,
+    actorId: userId,
+    actorName: userName,
+    entityType: 'client',
+    entityId: client.id,
+    alreadyNotified: Array.from(recipientIds),
+  })
 }

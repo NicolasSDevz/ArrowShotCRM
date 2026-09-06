@@ -13,6 +13,7 @@ import { useClients } from '../../hooks/useClients'
 import { useUsers } from '../../hooks/useUsers'
 import { updateContent, deleteContent } from '../../services/contentService'
 import { approveContent, requestContentChange, generateApprovalLink, revokeApprovalLink } from '../../services/approvalService'
+import { resolveAdminIds } from '../../utils/userLookup'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import {
   CONTENT_PILLAR_LABEL,
@@ -42,7 +43,7 @@ export function ContentDrawer({ content, onClose }: { content: Content | null; o
   const handleGenerateLink = async () => {
     setLinkLoading(true)
     try {
-      const url = await generateApprovalLink(content, profile.id, profile.name)
+      const url = await generateApprovalLink(content, profile.id, profile.name, resolveAdminIds(users))
       await navigator.clipboard.writeText(url)
       toast.success('Link gerado e copiado')
     } catch (err) {

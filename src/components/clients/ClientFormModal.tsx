@@ -7,15 +7,18 @@ import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { createClient, updateClient } from '../../services/clientService'
 import { createInitialWorkflowTasks } from '../../services/clientWorkflowTemplates'
+import { notifyAdminsOfAction } from '../../services/notificationService'
 import { maskPhone, isPhoneComplete, maskDocument, maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import {
   CLIENT_PACKAGE_LABEL,
+  CLIENT_STATUS_LABEL,
   STYLE_CATALOG_DESCRIPTION,
   STYLE_CATALOG_LABEL,
   getClientOwnerIds,
   type Client,
   type ClientPackage,
+  type ClientStatus,
   type StyleCatalog,
 } from '../../types/client'
 
@@ -31,6 +34,7 @@ const EMPTY = {
   monthlyValue: '',
   contractStartDate: '',
   notes: '',
+  status: 'prospect' as ClientStatus,
   socialMedia: false,
   paidTraffic: false,
   metaAds: false,
@@ -68,6 +72,7 @@ export function ClientFormModal({
         monthlyValue: client.monthlyValue != null ? maskCurrencyInput(String(Math.round(client.monthlyValue * 100))) : '',
         contractStartDate: toDateInputValue(client.contractStartDate),
         notes: client.notes ?? '',
+        status: client.status,
         socialMedia: client.modules?.socialMedia ?? false,
         paidTraffic: client.modules?.paidTraffic ?? false,
         metaAds: client.modules?.metaAds ?? false,
@@ -124,7 +129,17 @@ export function ClientFormModal({
         },
       }
       if (client) {
-        await updateClient(client.id, basePayload, profile.id, profile.name)
+        await updateClient(client.id, { ...basePayload, status: form.status }, profile.id, profile.name)
+        if (form.status !== client.status) {
+          await notifyAdminsOfAction({
+            type: 'client_status_changed',
+            message: `${profile.name} alterou o status de ${basePayload.companyName}: "${CLIENT_STATUS_LABEL[client.status]}" → "${CLIENT_STATUS_LABEL[form.status]}"`,
+            actorId: profile.id,
+            actorName: profile.name,
+            entityType: 'client',
+            entityId: client.id,
+          })
+        }
         toast.success('Cliente atualizado')
       } else {
         const newClientId = await createClient({ ...basePayload, status: 'prospect' }, profile.id, profile.name, users)
@@ -163,6 +178,15 @@ export function ClientFormModal({
         <Field label="Segmento">
           <Input value={form.segment} onChange={(e) => set('segment', e.target.value)} placeholder="Ex: Limpeza, Estética" />
         </Field>
+        {client && (
+          <Field label="Status">
+            <Select value={form.status} onChange={(e) => set('status', e.target.value as ClientStatus)}>
+              {(Object.entries(CLIENT_STATUS_LABEL) as [ClientStatus, string][]).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
         <div className="sm:col-span-2">
           <Field label="CNPJ ou CPF">
             <Input

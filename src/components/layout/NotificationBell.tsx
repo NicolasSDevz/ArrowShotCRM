@@ -9,15 +9,12 @@ import type { AppNotification } from '../../types'
 
 export function NotificationBell() {
   const { profile } = useAuth()
-  const { notifications, ownNotifications, unreadCount } = useNotifications(profile?.id, profile?.role === 'admin')
+  const { notifications, ownNotifications, unreadCount } = useNotifications(profile?.id)
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
 
   const handleClick = async (n: AppNotification) => {
-    // `read` lives on the doc itself, not per-viewer — an admin browsing
-    // someone else's notification (see useNotifications) must never mark it
-    // read on their behalf.
-    if (!n.read && n.userId === profile?.id) await markNotificationRead(n.id)
+    if (!n.read) await markNotificationRead(n.id)
     setOpen(false)
     const route = resolveNotificationRoute(n)
     if (route) navigate(route)
@@ -58,7 +55,7 @@ export function NotificationBell() {
               ) : (
                 notifications.slice(0, 30).map((n) => {
                   const Icon = NOTIFICATION_ICON[n.type] ?? Bell
-                  const unreadForMe = !n.read && n.userId === profile?.id
+                  const unreadForMe = !n.read
                   return (
                     <button
                       key={n.id}

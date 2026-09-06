@@ -100,7 +100,11 @@ service cloud.firestore {
         && request.resource.data.type in ['task_assigned', 'mention', 'approval_requested', 'content_approved',
                       'change_requested', 'due_soon', 'briefing_scheduled', 'task_completed',
                       'task_overdue', 'new_client', 'briefing_filled', 'content_review_requested',
-                      'content_ready_to_schedule', 'funnel_saved', 'task_reminder']
+                      'content_ready_to_schedule', 'funnel_saved', 'task_reminder',
+                      'task_created', 'task_updated', 'client_status_changed', 'client_deleted',
+                      'planning_saved', 'content_created', 'content_published', 'content_imported',
+                      'lead_created', 'lead_stage_changed', 'lead_converted', 'meeting_created',
+                      'report_created', 'team_member_added', 'member_health_updated']
         && request.resource.data.message is string
         && request.resource.data.message.size() > 0
         && request.resource.data.message.size() <= 5000

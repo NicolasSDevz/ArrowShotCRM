@@ -4,16 +4,14 @@ import type { AppNotification } from '../types'
 import { isNotificationStale } from '../types/notification'
 import { useCollectionSubscription } from './useCollectionSubscription'
 
-/** `isAdmin` widens the underlying query to every notification in the
- *  platform (Bruno sees all — see firestore.rules), not just this user's
- *  own. `read` is a single field on the document, not per-viewer, so an
- *  admin browsing someone else's notification must never mark it read —
- *  `unreadCount` and the "unread" styling both stay scoped to `ownedByMe`,
- *  regardless of how wide the underlying list is. */
-export function useNotifications(userId: string | undefined, isAdmin = false) {
+/** The viewer's own notifications. The platform owner isn't special here —
+ *  they receive their own copy of every platform action (see
+ *  notifyAdminsOfAction), so the badge count and mark-as-read stay meaningful
+ *  per person. */
+export function useNotifications(userId: string | undefined) {
   const { data, loading } = useCollectionSubscription<AppNotification>(
-    (onData, onError) => subscribeMyNotifications(userId ?? '__none__', isAdmin, onData, onError),
-    [userId, isAdmin]
+    (onData, onError) => subscribeMyNotifications(userId ?? '__none__', onData, onError),
+    [userId]
   )
 
   const sorted = useMemo(
@@ -23,8 +21,7 @@ export function useNotifications(userId: string | undefined, isAdmin = false) {
         .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0)),
     [data]
   )
-  const own = useMemo(() => sorted.filter((n) => n.userId === userId), [sorted, userId])
-  const unreadCount = useMemo(() => own.filter((n) => !n.read).length, [own])
+  const unreadCount = useMemo(() => sorted.filter((n) => !n.read).length, [sorted])
 
   // 30-day retention has no backend job to enforce it — whichever client
   // loads a stale row just deletes it. Cheap and safe: same effect, run by
@@ -34,5 +31,5 @@ export function useNotifications(userId: string | undefined, isAdmin = false) {
     if (stale.length > 0) deleteNotifications(stale).catch(() => {})
   }, [data])
 
-  return { notifications: sorted, ownNotifications: own, unreadCount, loading }
+  return { notifications: sorted, ownNotifications: sorted, unreadCount, loading }
 }

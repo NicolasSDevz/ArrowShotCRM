@@ -15,7 +15,7 @@ const PAGE_SIZE = 20
 
 export function NotificationsPage() {
   const { profile } = useAuth()
-  const { notifications, ownNotifications, unreadCount } = useNotifications(profile?.id, profile?.role === 'admin')
+  const { notifications, ownNotifications, unreadCount } = useNotifications(profile?.id)
   const navigate = useNavigate()
 
   const [readFilter, setReadFilter] = useState<ReadFilter>('all')
@@ -34,14 +34,11 @@ export function NotificationsPage() {
 
   const filtered = useMemo(() => {
     return notifications.filter((n) => {
-      // "Não lidas" only makes sense for the viewer's own notifications —
-      // `read` isn't per-viewer, so someone else's notification is neither
-      // "mine to mark" nor meaningfully "unread for me".
-      if (readFilter === 'unread' && (n.read || n.userId !== profile?.id)) return false
+      if (readFilter === 'unread' && n.read) return false
       if (typeFilter && n.type !== typeFilter) return false
       return true
     })
-  }, [notifications, readFilter, typeFilter, profile?.id])
+  }, [notifications, readFilter, typeFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageSafe = Math.min(page, totalPages - 1)
@@ -53,7 +50,7 @@ export function NotificationsPage() {
   }
 
   const handleClick = async (n: AppNotification) => {
-    if (!n.read && n.userId === profile?.id) await markNotificationRead(n.id)
+    if (!n.read) await markNotificationRead(n.id)
     const route = resolveNotificationRoute(n)
     if (route) navigate(route)
   }
@@ -107,7 +104,7 @@ export function NotificationsPage() {
         <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
           {pageItems.map((n) => {
             const Icon = NOTIFICATION_ICON[n.type] ?? Bell
-            const unreadForMe = !n.read && n.userId === profile?.id
+            const unreadForMe = !n.read
             return (
               <button
                 key={n.id}

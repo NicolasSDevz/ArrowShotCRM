@@ -119,7 +119,7 @@ export function TeamMemberDrawer({
 
       {isAdmin && tab === 'health' ? (
         <div className="px-5 py-4">
-          <MemberHealthTab memberId={member.id} />
+          <MemberHealthTab memberId={member.id} memberName={member.name} />
         </div>
       ) : (
         <div className="flex flex-col gap-4 px-5 py-4">

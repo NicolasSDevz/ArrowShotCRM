@@ -16,3 +16,13 @@ export function findUserIdByName(users: AppUser[], name: string): string | undef
 export function getInternalStaffIds(users: AppUser[]): string[] {
   return users.filter((u) => u.role !== 'client' && u.active).map((u) => u.id)
 }
+
+const OWNER_EMAIL = 'gestorarrowshotmkt@gmail.com'
+
+/** Platform owner/admin ids from an already-loaded users list — the `admin`
+ *  role, plus the owner by e-mail as a fallback. */
+export function resolveAdminIds(users: AppUser[]): string[] {
+  return users
+    .filter((u) => u.active && (u.role === 'admin' || u.email === OWNER_EMAIL))
+    .map((u) => u.id)
+}

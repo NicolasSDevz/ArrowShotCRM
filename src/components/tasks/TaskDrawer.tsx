@@ -44,10 +44,8 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
     await updateTask(task.id, data, profile.id, profile.name)
     if (data.status === 'done' && task.status !== 'done') {
       const client = clients.find((c) => c.id === task.clientId)
-      if (client) {
-        if (task.workflowStep) await advanceClientWorkflow(task, client, profile.id, profile.name, users)
-        await notifyTaskCompleted(task, client, profile.id, profile.name)
-      }
+      if (client && task.workflowStep) await advanceClientWorkflow(task, client, profile.id, profile.name, users)
+      await notifyTaskCompleted(task, client, profile.id, profile.name)
     }
   }
 

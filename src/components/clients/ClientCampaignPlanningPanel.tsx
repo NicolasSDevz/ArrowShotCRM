@@ -8,6 +8,7 @@ import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { updateClient } from '../../services/clientService'
+import { notifyAdminsOfAction } from '../../services/notificationService'
 import { maskPhone } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import {
@@ -175,7 +176,16 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
     setSaving(true)
     try {
       const payload: CampaignPlanning = { ...form, preenchidoPor: profile.name, filledAt: Timestamp.now() }
+      const first = !client.campaignPlanning?.filledAt
       await updateClient(client.id, { campaignPlanning: payload }, profile.id, profile.name)
+      await notifyAdminsOfAction({
+        type: 'planning_saved',
+        message: `${profile.name} ${first ? 'salvou' : 'atualizou'} o planejamento de campanha — ${client.companyName}`,
+        actorId: profile.id,
+        actorName: profile.name,
+        entityType: 'client',
+        entityId: client.id,
+      })
       toast.success('Planejamento salvo')
     } catch (err) {
       console.error(err)

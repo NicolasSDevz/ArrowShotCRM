@@ -9,6 +9,7 @@ import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { updateClient } from '../../services/clientService'
 import { markBriefingChecklistDone } from '../../services/taskService'
+import { notifyAdminsOfAction } from '../../services/notificationService'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import {
   APPROVAL_CHANNEL_LABEL,
@@ -50,8 +51,17 @@ export function ClientBriefingPanel({ client }: { client: Client }) {
     setSaving(true)
     try {
       const payload: ClientBriefing = { ...form, filledAt: Timestamp.now() }
+      const first = !client.briefing?.filledAt
       await updateClient(client.id, { briefing: payload }, profile.id, profile.name)
       await markBriefingChecklistDone(client.id, profile.id, profile.name)
+      await notifyAdminsOfAction({
+        type: 'briefing_filled',
+        message: `${profile.name} ${first ? 'preencheu' : 'atualizou'} o briefing de Social Mídia — ${client.companyName}`,
+        actorId: profile.id,
+        actorName: profile.name,
+        entityType: 'client',
+        entityId: client.id,
+      })
       toast.success('Briefing salvo')
     } catch (err) {
       console.error(err)

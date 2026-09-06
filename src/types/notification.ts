@@ -19,6 +19,22 @@ export type NotificationType =
   | 'content_ready_to_schedule' // 7. Conteúdo aprovado (interna)
   | 'funnel_saved' // 8. Funil comercial salvo
   | 'task_reminder' // 9. Lembrete de tarefa (vence amanhã)
+  // Cobertura ampla para o dono da plataforma (ver notifyAdminsOfAction).
+  | 'task_created'
+  | 'task_updated'
+  | 'client_status_changed'
+  | 'client_deleted'
+  | 'planning_saved'
+  | 'content_created'
+  | 'content_published'
+  | 'content_imported'
+  | 'lead_created'
+  | 'lead_stage_changed'
+  | 'lead_converted'
+  | 'meeting_created'
+  | 'report_created'
+  | 'team_member_added'
+  | 'member_health_updated'
 
 export interface AppNotification {
   id: string
@@ -50,6 +66,21 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   content_ready_to_schedule: 'Conteúdo aprovado',
   funnel_saved: 'Funil comercial salvo',
   task_reminder: 'Lembrete de tarefa',
+  task_created: 'Tarefa criada',
+  task_updated: 'Tarefa atualizada',
+  client_status_changed: 'Status do cliente alterado',
+  client_deleted: 'Cliente excluído',
+  planning_saved: 'Planejamento de campanha salvo',
+  content_created: 'Conteúdo criado',
+  content_published: 'Conteúdo publicado',
+  content_imported: 'Calendário editorial importado',
+  lead_created: 'Novo lead',
+  lead_stage_changed: 'Lead mudou de etapa',
+  lead_converted: 'Lead convertido em cliente',
+  meeting_created: 'Reunião registrada',
+  report_created: 'Relatório gerado',
+  team_member_added: 'Novo membro da equipe',
+  member_health_updated: 'Informações de saúde atualizadas',
 }
 
 /** Notifications older than this are pruned client-side (no backend

@@ -5,6 +5,9 @@ import { MEETING_TYPE_LABEL } from '../types/meeting'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
 import { createTask } from './taskService'
+import { notifyAdminsOfAction } from './notificationService'
+import { getClientName } from './clientLookup'
+import { isClientMeetingType } from '../types/meeting'
 
 const COLLECTION = 'meetings'
 const base = collectionService<Meeting>(COLLECTION)
@@ -43,7 +46,8 @@ async function materializeActionItems(
         order: Date.now(),
       },
       userId,
-      userName
+      userName,
+      { skipAdminCc: true } // covered by the meeting_created notification below
     )
     result.push({ ...item, taskId })
   }
@@ -61,6 +65,17 @@ export async function createMeeting(data: MeetingInput, userId: string, userName
     message: `registrou a reunião "${MEETING_TYPE_LABEL[data.type]}"`,
     userId,
     userName,
+  })
+  const clientName = data.clientId ? await getClientName(data.clientId) : ''
+  const suffix = clientName ? ` — ${clientName}` : ''
+  const verb = isClientMeetingType(data.type) ? 'agendou a reunião com cliente' : 'registrou a reunião'
+  await notifyAdminsOfAction({
+    type: 'meeting_created',
+    message: `${userName} ${verb}: ${MEETING_TYPE_LABEL[data.type]}${suffix}`,
+    actorId: userId,
+    actorName: userName,
+    entityType: 'meeting',
+    entityId: id,
   })
   return id
 }

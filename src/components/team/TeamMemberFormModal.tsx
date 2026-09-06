@@ -6,6 +6,7 @@ import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { createTeamMember, updateTeamMember } from '../../services/teamMemberService'
+import { notifyAdminsOfAction } from '../../services/notificationService'
 import {
   TEAM_PERMISSION_LABEL,
   ROLE_ROUTINES,
@@ -82,6 +83,12 @@ export function TeamMemberFormModal({
         toast.success('Perfil atualizado')
       } else {
         await createTeamMember(payload, profile.id)
+        await notifyAdminsOfAction({
+          type: 'team_member_added',
+          message: `${profile.name} adicionou ${payload.name} à equipe${payload.jobTitle ? ` (${payload.jobTitle})` : ''}`,
+          actorId: profile.id,
+          actorName: profile.name,
+        })
         toast.success('Membro adicionado')
       }
       onClose()
