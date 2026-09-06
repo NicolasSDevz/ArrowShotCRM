@@ -13,10 +13,12 @@ import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInpu
 import {
   CLIENT_PACKAGE_LABEL,
   CLIENT_STATUS_LABEL,
+  CLIENT_CATEGORY_LABEL,
   STYLE_CATALOG_DESCRIPTION,
   STYLE_CATALOG_LABEL,
   getClientOwnerIds,
   type Client,
+  type ClientCategory,
   type ClientPackage,
   type ClientStatus,
   type StyleCatalog,
@@ -35,6 +37,7 @@ const EMPTY = {
   contractStartDate: '',
   notes: '',
   status: 'prospect' as ClientStatus,
+  categoria: '' as ClientCategory | '',
   socialMedia: false,
   paidTraffic: false,
   metaAds: false,
@@ -73,6 +76,7 @@ export function ClientFormModal({
         contractStartDate: toDateInputValue(client.contractStartDate),
         notes: client.notes ?? '',
         status: client.status,
+        categoria: client.categoria ?? '',
         socialMedia: client.modules?.socialMedia ?? false,
         paidTraffic: client.modules?.paidTraffic ?? false,
         metaAds: client.modules?.metaAds ?? false,
@@ -117,6 +121,7 @@ export function ClientFormModal({
         package: form.socialMedia ? form.package || undefined : undefined,
         styleCatalog: form.socialMedia ? form.styleCatalog || undefined : undefined,
         ownerIds: form.ownerIds.length > 0 ? form.ownerIds : undefined,
+        categoria: form.categoria || undefined,
         monthlyValue: parseCurrencyToNumber(form.monthlyValue),
         contractStartDate: dateInputToTimestamp(form.contractStartDate),
         notes: form.notes || undefined,
@@ -187,6 +192,14 @@ export function ClientFormModal({
             </Select>
           </Field>
         )}
+        <Field label="Categoria">
+          <Select value={form.categoria} onChange={(e) => set('categoria', e.target.value as ClientCategory | '')}>
+            <option value="">Não classificado</option>
+            {(Object.entries(CLIENT_CATEGORY_LABEL) as [ClientCategory, string][]).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </Select>
+        </Field>
         <div className="sm:col-span-2">
           <Field label="CNPJ ou CPF">
             <Input

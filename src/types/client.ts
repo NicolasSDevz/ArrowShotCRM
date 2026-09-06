@@ -6,6 +6,10 @@ import type { SalesFunnel } from './salesFunnel'
 
 export type ClientStatus = 'active' | 'paused' | 'churned' | 'prospect'
 
+/** Classificação interna do cliente (herdada do ClickUp: "Clientes A" /
+ *  "Clientes B"). Só visual/organizacional — não muda regra de negócio. */
+export type ClientCategory = 'A' | 'B'
+
 /** Social Media service tier — drives which content cadence template applies. */
 export type ClientPackage = 'weekly' | 'monthly'
 
@@ -59,6 +63,8 @@ export interface Client extends BaseDoc {
   /** CNPJ ou CPF, digits or formatted — free text, no mask enforced. */
   document?: string
   status: ClientStatus
+  /** Classificação A/B (ver ClientCategory). */
+  categoria?: ClientCategory
   package?: ClientPackage
   styleCatalog?: StyleCatalog
   /** @deprecated superseded by `ownerIds` (multi-owner). Kept so older docs
@@ -102,6 +108,17 @@ export const CLIENT_STATUS_LABEL: Record<ClientStatus, string> = {
   paused: 'Pausado',
   churned: 'Encerrado',
   prospect: 'Onboarding',
+}
+
+export const CLIENT_CATEGORY_LABEL: Record<ClientCategory, string> = {
+  A: 'Cliente A',
+  B: 'Cliente B',
+}
+
+/** Classes de badge por categoria — A dourado, B cinza. */
+export const CLIENT_CATEGORY_BADGE: Record<ClientCategory, string> = {
+  A: 'bg-amber-100 text-amber-700',
+  B: 'bg-slate-100 text-slate-600',
 }
 
 export const CLIENT_PACKAGE_LABEL: Record<ClientPackage, string> = {

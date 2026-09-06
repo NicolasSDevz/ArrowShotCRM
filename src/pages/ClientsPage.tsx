@@ -8,7 +8,7 @@ import { ClientFormModal } from '../components/clients/ClientFormModal'
 import { DeleteClientModal } from '../components/clients/DeleteClientModal'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
-import { CLIENT_STATUS_LABEL, getClientOwnerIds, type Client } from '../types/client'
+import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, getClientOwnerIds, type Client } from '../types/client'
 
 export function ClientsPage() {
   const navigate = useNavigate()
@@ -16,6 +16,7 @@ export function ClientsPage() {
   const { data: users } = useUsers()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [creating, setCreating] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
 
@@ -25,9 +26,10 @@ export function ClientsPage() {
     return clients.filter((c) => {
       if (search && !c.companyName.toLowerCase().includes(search.toLowerCase())) return false
       if (statusFilter && c.status !== statusFilter) return false
+      if (categoryFilter && c.categoria !== categoryFilter) return false
       return true
     })
-  }, [clients, search, statusFilter])
+  }, [clients, search, statusFilter, categoryFilter])
 
   const ownersByClientId = useMemo(() => {
     return Object.fromEntries(
@@ -60,6 +62,12 @@ export function ClientsPage() {
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
           <option value="">Todos os status</option>
           {Object.entries(CLIENT_STATUS_LABEL).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
+          <option value="">Todas as categorias</option>
+          {Object.entries(CLIENT_CATEGORY_LABEL).map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
           ))}
         </select>

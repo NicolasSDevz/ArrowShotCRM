@@ -4,7 +4,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
-import { CLIENT_STATUS_LABEL, type Client } from '../../types/client'
+import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, type Client } from '../../types/client'
 import type { AppUser } from '../../types'
 
 const STATUS_COLOR: Record<Client['status'], string> = {
@@ -74,8 +74,15 @@ export function ClientsTable({
                     )}
                   </div>
                 </td>
-                <td className="max-w-[220px] py-2.5 pr-3">
-                  <p className="truncate font-medium text-slate-800">{client.companyName}</p>
+                <td className="max-w-[240px] py-2.5 pr-3">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate font-medium text-slate-800">{client.companyName}</p>
+                    {client.categoria && (
+                      <Badge className={`shrink-0 ${CLIENT_CATEGORY_BADGE[client.categoria]}`}>
+                        {CLIENT_CATEGORY_LABEL[client.categoria]}
+                      </Badge>
+                    )}
+                  </div>
                   {client.contactName && <p className="truncate text-xs text-slate-400">{client.contactName}</p>}
                 </td>
                 <td className="max-w-[140px] truncate py-2.5 pr-3 text-slate-500">{client.segment || '—'}</td>

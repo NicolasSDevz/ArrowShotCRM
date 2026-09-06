@@ -27,7 +27,7 @@ import { ContentDrawer } from '../components/content/ContentDrawer'
 import { ContentFormModal } from '../components/content/ContentFormModal'
 import { ImportEditorialCalendarModal } from '../components/content/ImportEditorialCalendarModal'
 import { ClientMeetingsTab } from '../components/clients/ClientMeetingsTab'
-import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
+import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
 import { TASK_STATUS_LABEL } from '../types/task'
 import { CONTENT_STATUS_LABEL } from '../types/content'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
@@ -76,6 +76,9 @@ export function ClientDetailPage() {
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold text-slate-800">{client.companyName}</h1>
                 <Badge className="bg-slate-100 text-slate-500">{CLIENT_STATUS_LABEL[client.status]}</Badge>
+                {client.categoria && (
+                  <Badge className={CLIENT_CATEGORY_BADGE[client.categoria]}>{CLIENT_CATEGORY_LABEL[client.categoria]}</Badge>
+                )}
                 {client.package && <Badge className="bg-brand-50 text-brand-600">{CLIENT_PACKAGE_LABEL[client.package]}</Badge>}
                 {client.styleCatalog && (
                   <Badge className="bg-slate-100 text-slate-500">{STYLE_CATALOG_LABEL[client.styleCatalog]}</Badge>
