@@ -40,20 +40,42 @@ body {
 
 * {
   box-sizing: border-box;
+  /* Firefox scrollbars (não suporta ::-webkit-scrollbar) */
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
 }
 
-/* Thin scrollbars, ClickUp-ish */
+/* ---------- Scrollbars ----------
+   Mais grossas e visíveis em toda a plataforma. A trilha usa o mesmo cinza
+   claro do fundo dos cards; o thumb tem uma borda da cor da trilha pra dar
+   respiro. `.sidebar` = variante escura para a navegação lateral. */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #f1f5f9;
   border-radius: 4px;
 }
-::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb {
   background: #94a3b8;
+  border-radius: 4px;
+  border: 2px solid #f1f5f9;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: #475569;
+  border: 2px solid #1e293b;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+.sidebar {
+  scrollbar-color: #475569 #1e293b;
 }
