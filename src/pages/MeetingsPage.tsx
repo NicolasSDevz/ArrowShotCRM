@@ -45,7 +45,7 @@ export function MeetingsPage() {
 
       if (needle) {
         const clientName = m.clientId ? clientMap[m.clientId]?.companyName : ''
-        const participantNames = m.participantIds.map((id) => userMap[id]?.name).join(' ')
+        const participantNames = (m.participantIds ?? []).map((id) => userMap[id]?.name).join(' ')
         const haystack = [
           MEETING_TYPE_LABEL[m.type],
           m.agenda,
@@ -139,7 +139,7 @@ export function MeetingsPage() {
               key={m.id}
               meeting={m}
               clientName={m.clientId ? clientMap[m.clientId]?.companyName : undefined}
-              participants={m.participantIds.map((id) => userMap[id]).filter((u): u is NonNullable<typeof u> => !!u)}
+              participants={(m.participantIds ?? []).map((id) => userMap[id]).filter((u): u is NonNullable<typeof u> => !!u)}
               onClick={() => setOpenMeetingId(m.id)}
             />
           ))}

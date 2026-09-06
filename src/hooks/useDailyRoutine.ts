@@ -39,7 +39,7 @@ export function useDailyRoutine() {
   const toggle = (itemId: string) => {
     if (!profile) return
     const done = !completedIds.includes(itemId)
-    setDailyRoutineItemDone(profile.id, dateKey, itemId, done, completedIds).catch(console.error)
+    setDailyRoutineItemDone(profile.id, dateKey, itemId, done).catch(console.error)
   }
 
   return { personKey, items, completedIds, toggle }

@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 const COLORS = [
   'bg-brand-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500',
   'bg-rose-500', 'bg-cyan-500', 'bg-fuchsia-500', 'bg-lime-600',
@@ -18,6 +20,10 @@ export function Avatar({
   photoURL?: string | null
   size?: 'xs' | 'sm' | 'md'
 }) {
+  // Tracks which URL failed to load, so a broken photo falls back to initials
+  // — but a later change to a working URL is retried (failedUrl !== photoURL).
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+
   const dims = { xs: 'h-5 w-5 text-[9px]', sm: 'h-7 w-7 text-xs', md: 'h-9 w-9 text-sm' }[size]
   const initials = name
     .split(' ')
@@ -25,8 +31,15 @@ export function Avatar({
     .map((p) => p[0]?.toUpperCase())
     .join('')
 
-  if (photoURL) {
-    return <img src={photoURL} alt={name} className={`${dims} shrink-0 rounded-full object-cover`} />
+  if (photoURL && failedUrl !== photoURL) {
+    return (
+      <img
+        src={photoURL}
+        alt={name}
+        onError={() => setFailedUrl(photoURL)}
+        className={`${dims} shrink-0 rounded-full object-cover`}
+      />
+    )
   }
 
   return (

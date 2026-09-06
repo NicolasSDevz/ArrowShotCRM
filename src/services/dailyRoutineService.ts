@@ -1,4 +1,4 @@
-import { doc, onSnapshot, setDoc, serverTimestamp, type Unsubscribe } from 'firebase/firestore'
+import { doc, onSnapshot, setDoc, serverTimestamp, arrayUnion, arrayRemove, type Unsubscribe } from 'firebase/firestore'
 import { db } from '../firebase/config'
 
 const COLLECTION = 'dailyRoutineProgress'
@@ -26,11 +26,17 @@ export function subscribeDailyRoutineProgress(
   )
 }
 
-export async function setDailyRoutineItemDone(userId: string, date: string, itemId: string, done: boolean, currentIds: string[]) {
-  const next = done ? Array.from(new Set([...currentIds, itemId])) : currentIds.filter((id) => id !== itemId)
+export async function setDailyRoutineItemDone(userId: string, date: string, itemId: string, done: boolean) {
+  // Atomic array op instead of rewriting the whole list from a client-side
+  // snapshot — marking two items in quick succession can't clobber each other.
   await setDoc(
     doc(db, COLLECTION, docId(userId, date)),
-    { userId, date, completedItemIds: next, updatedAt: serverTimestamp() },
+    {
+      userId,
+      date,
+      completedItemIds: done ? arrayUnion(itemId) : arrayRemove(itemId),
+      updatedAt: serverTimestamp(),
+    },
     { merge: true }
   )
 }

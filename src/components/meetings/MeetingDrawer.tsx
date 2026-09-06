@@ -117,9 +117,9 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
               </div>
             </div>
 
-            {meeting.participantIds.length > 0 && (
+            {(meeting.participantIds?.length ?? 0) > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                {meeting.participantIds.map((uid) => {
+                {(meeting.participantIds ?? []).map((uid) => {
                   const u = userMap[uid]
                   if (!u) return null
                   return (
@@ -145,11 +145,11 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
               </div>
             )}
 
-            {meeting.actionItems.length > 0 && (
+            {(meeting.actionItems?.length ?? 0) > 0 && (
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Próximos passos</p>
                 <div className="flex flex-col gap-1.5">
-                  {meeting.actionItems.map((item) => {
+                  {(meeting.actionItems ?? []).map((item) => {
                     const task = item.taskId ? taskMap[item.taskId] : undefined
                     const done = task?.status === 'done'
                     const assignee = item.assignedTo ? userMap[item.assignedTo] : undefined

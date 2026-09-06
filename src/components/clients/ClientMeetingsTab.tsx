@@ -34,7 +34,7 @@ export function ClientMeetingsTab({ client }: { client: Client }) {
             <MeetingRow
               key={m.id}
               meeting={m}
-              participants={m.participantIds.map((id) => userMap[id]).filter((u): u is NonNullable<typeof u> => !!u)}
+              participants={(m.participantIds ?? []).map((id) => userMap[id]).filter((u): u is NonNullable<typeof u> => !!u)}
               onClick={() => setOpenMeetingId(m.id)}
             />
           ))}
