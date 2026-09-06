@@ -2,11 +2,14 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   onSnapshot,
   query,
   where,
+  writeBatch,
   serverTimestamp,
+  type DocumentReference,
   type FirestoreError,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
@@ -14,6 +17,16 @@ import type { ModuleProgress } from '../types'
 
 const COLLECTION = 'moduleProgress'
 const colRef = collection(db, COLLECTION)
+
+const BATCH_LIMIT = 400
+
+async function deleteRefsInChunks(refs: DocumentReference[]) {
+  for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
+    const batch = writeBatch(db)
+    for (const ref of refs.slice(i, i + BATCH_LIMIT)) batch.delete(ref)
+    await batch.commit()
+  }
+}
 
 function progressId(userId: string, moduleId: string) {
   return `${userId}_${moduleId}`
@@ -58,6 +71,21 @@ export function subscribeUserProgress(
     (snap) => onData(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as ModuleProgress)),
     onError
   )
+}
+
+/** Admin cascade — drops every learner's progress for a module. Without this,
+ *  a deleted module's completed-progress docs keep inflating the "módulos
+ *  concluídos" counter (can exceed the total) and skew the average score. */
+export async function deleteProgressForModule(moduleId: string) {
+  const snap = await getDocs(query(colRef, where('moduleId', '==', moduleId)))
+  await deleteRefsInChunks(snap.docs.map((d) => d.ref))
+}
+
+/** Same, for a whole trail — catches progress whose module wasn't in the
+ *  caller's (possibly stale) module list. */
+export async function deleteProgressForTrail(trailId: string) {
+  const snap = await getDocs(query(colRef, where('trailId', '==', trailId)))
+  await deleteRefsInChunks(snap.docs.map((d) => d.ref))
 }
 
 /** Admin-only: progress across every employee, for the "progresso por funcionário" view. */

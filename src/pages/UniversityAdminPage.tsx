@@ -71,16 +71,26 @@ export function UniversityAdminPage() {
 
   const handleDeleteTrail = async (trail: Trail) => {
     if (!confirm(`Excluir a trilha "${trail.title}" e todos os seus módulos?`)) return
-    const trailModules = modules.filter((m) => m.trailId === trail.id)
-    await Promise.all(trailModules.map((m) => deleteModule(m.id)))
-    await deleteTrail(trail.id)
-    toast.success('Trilha excluída')
+    try {
+      const trailModules = modules.filter((m) => m.trailId === trail.id)
+      await Promise.all(trailModules.map((m) => deleteModule(m.id)))
+      await deleteTrail(trail.id)
+      toast.success('Trilha excluída')
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao excluir a trilha')
+    }
   }
 
   const handleDeleteModule = async (module: Module) => {
     if (!confirm(`Excluir o módulo "${module.title}"?`)) return
-    await deleteModule(module.id)
-    toast.success('Módulo excluído')
+    try {
+      await deleteModule(module.id)
+      toast.success('Módulo excluído')
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao excluir o módulo')
+    }
   }
 
   const handleInvite = async () => {

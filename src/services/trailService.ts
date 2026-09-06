@@ -1,6 +1,7 @@
 import { orderBy, type FirestoreError } from 'firebase/firestore'
 import type { Trail } from '../types'
 import { collectionService } from './firestore'
+import { deleteProgressForTrail } from './progressService'
 
 const COLLECTION = 'trails'
 const base = collectionService<Trail>(COLLECTION)
@@ -18,6 +19,9 @@ export async function updateTrail(id: string, data: Partial<Trail>, userId: stri
 
 export async function deleteTrail(id: string) {
   await base.remove(id)
+  // Belt-and-suspenders: deleteModule already clears per-module progress, but
+  // this catches any progress whose module wasn't in the caller's list.
+  await deleteProgressForTrail(id)
 }
 
 export function getTrail(id: string) {

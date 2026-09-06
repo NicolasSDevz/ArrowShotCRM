@@ -1,6 +1,7 @@
 import { orderBy, where, type QueryConstraint, type FirestoreError } from 'firebase/firestore'
 import type { Module } from '../types'
 import { collectionService } from './firestore'
+import { deleteProgressForModule } from './progressService'
 
 const COLLECTION = 'modules'
 const base = collectionService<Module>(COLLECTION)
@@ -18,6 +19,7 @@ export async function updateModule(id: string, data: Partial<Module>, userId: st
 
 export async function deleteModule(id: string) {
   await base.remove(id)
+  await deleteProgressForModule(id)
 }
 
 export function getModule(id: string) {
