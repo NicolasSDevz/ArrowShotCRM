@@ -193,6 +193,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- optimizations (registro de otimizações de campanhas) ----------
+    match /optimizations/{optId} {
+      allow read: if canReadClientScoped(resource.data.clientId);
+      allow create: if isInternal() && createdBySelf() && updatedBySelf();
+      allow update: if isInternal() && updatedBySelf();
+      allow delete: if isInternal();
+    }
+
+    // ---------- settings (config global da plataforma: calendário de
+    // otimizações, etc). Um doc por chave, editável por qualquer interno. ----------
+    match /settings/{key} {
+      allow read: if isInternal();
+      allow write: if isInternal();
+    }
+
     // ---------- calendarEvents (custom one-off events) ----------
     match /calendarEvents/{eventId} {
       allow read: if isInternal();

@@ -10,6 +10,7 @@ import { getClientCalendarEvents } from './calendarService'
 import { getClientMeetings } from './meetingService'
 import { getClientReports } from './reportService'
 import { getClientFiles, deleteFile } from './fileService'
+import { getClientOptimizations } from './optimizationService'
 import { getInternalStaffIds } from '../utils/userLookup'
 
 const COLLECTION = 'clients'
@@ -100,13 +101,14 @@ async function commitDeletesInChunks(refs: DocumentReference[]) {
  *  their delete rules are admin-only and with the client gone they're already
  *  unreachable in the UI). */
 export async function deleteClient(client: Client, userId: string, userName: string) {
-  const [tasks, contents, calendarEvents, meetings, reports, files] = await Promise.all([
+  const [tasks, contents, calendarEvents, meetings, reports, files, optimizations] = await Promise.all([
     getClientTasks(client.id),
     getClientContents(client.id),
     getClientCalendarEvents(client.id),
     getClientMeetings(client.id),
     getClientReports(client.id),
     getClientFiles(client.id),
+    getClientOptimizations(client.id),
   ])
 
   // Files carry a binary in Storage — remove those individually (Storage +
@@ -121,6 +123,7 @@ export async function deleteClient(client: Client, userId: string, userName: str
     ...calendarEvents.map((e) => doc(db, 'calendarEvents', e.id)),
     ...meetings.map((m) => doc(db, 'meetings', m.id)),
     ...reports.map((r) => doc(db, 'reports', r.id)),
+    ...optimizations.map((o) => doc(db, 'optimizations', o.id)),
     doc(db, 'clients', client.id),
   ])
 
@@ -129,7 +132,7 @@ export async function deleteClient(client: Client, userId: string, userName: str
     entityId: client.id,
     clientId: client.id,
     action: 'deleted',
-    message: `excluiu o cliente "${client.companyName}" (${tasks.length} tarefa(s), ${contents.length} conteúdo(s), ${calendarEvents.length} evento(s), ${meetings.length} reunião(ões), ${reports.length} relatório(s) e ${files.length} arquivo(s) removidos junto)`,
+    message: `excluiu o cliente "${client.companyName}" (${tasks.length} tarefa(s), ${contents.length} conteúdo(s), ${calendarEvents.length} evento(s), ${meetings.length} reunião(ões), ${reports.length} relatório(s), ${files.length} arquivo(s) e ${optimizations.length} otimização(ões) removidos junto)`,
     userId,
     userName,
   })

@@ -27,6 +27,7 @@ import { ContentDrawer } from '../components/content/ContentDrawer'
 import { ContentFormModal } from '../components/content/ContentFormModal'
 import { ImportEditorialCalendarModal } from '../components/content/ImportEditorialCalendarModal'
 import { ClientMeetingsTab } from '../components/clients/ClientMeetingsTab'
+import { ClientOptimizationsTab } from '../components/clients/ClientOptimizationsTab'
 import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
 import { TASK_STATUS_LABEL } from '../types/task'
 import { CONTENT_STATUS_LABEL } from '../types/content'
@@ -171,6 +172,7 @@ export function ClientDetailPage() {
                 </div>
               ),
             },
+            { label: 'Otimizações', content: <ClientOptimizationsTab client={client} /> },
             {
               label: 'Conteúdos',
               content: (

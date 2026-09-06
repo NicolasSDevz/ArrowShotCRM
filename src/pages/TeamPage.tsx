@@ -4,6 +4,7 @@ import { useTeamMembers } from '../hooks/useTeamMembers'
 import { TeamMemberFormModal } from '../components/team/TeamMemberFormModal'
 import { TeamMemberDrawer } from '../components/team/TeamMemberDrawer'
 import { EmergencyInfoModal } from '../components/team/EmergencyInfoModal'
+import { OptimizationScheduleSection } from '../components/team/OptimizationScheduleSection'
 import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -115,6 +116,8 @@ export function TeamPage() {
           ))}
         </div>
       </section>
+
+      <OptimizationScheduleSection />
 
       <section className="flex flex-col gap-3">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">

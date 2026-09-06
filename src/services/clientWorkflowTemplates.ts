@@ -62,12 +62,11 @@ const PLANEJAMENTO_CAMPANHAS_ITEMS = [
 ]
 
 const TRAFEGO_SEMANAL_ITEMS = [
-  'Verificar desempenho das campanhas Meta Ads',
-  'Verificar desempenho das campanhas Google Ads',
-  'Identificar anúncios com baixo desempenho e pausar se necessário',
-  'Ajustar orçamentos se necessário',
-  'Verificar se há leads chegando corretamente',
-  'Registrar observações relevantes da semana',
+  'Registrar otimização Meta Ads (ver aba Otimizações)',
+  'Registrar otimização Google Ads (ver aba Otimizações)',
+  'Verificar saldo nas plataformas',
+  'Enviar relatório semanal (toda segunda)',
+  'Solicitar novos criativos se necessário',
 ]
 
 const TRAFEGO_MENSAL_ITEMS = [
