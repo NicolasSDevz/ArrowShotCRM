@@ -11,7 +11,7 @@ import { updateClient } from '../../services/clientService'
 import { notifyAdminsOfAction } from '../../services/notificationService'
 import { maskPhone } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
-import { ensureActPrefix } from '../../utils/metaReportData'
+import { ensureActPrefix, normalizeMetaAccountId } from '../../utils/metaReportData'
 import {
   EMPTY_CAMPAIGN_PLANNING,
   EMPTY_CAMPAIGN_PLANNING_ACCESS,
@@ -121,13 +121,39 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
   const [form, setForm] = useState<CampaignPlanning>(mergeCampaignPlanning(client.campaignPlanning))
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   // Resync only on client switch — see ClientBriefingPanel: depending on the
   // sub-object identity would wipe unsaved edits on every `clients` snapshot.
   useEffect(() => {
     setForm(mergeCampaignPlanning(client.campaignPlanning))
+    setTestResult(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id])
+
+  const handleTestConnection = async () => {
+    const accountId = normalizeMetaAccountId(form.acessos.metaAdsAccountId ?? '')
+    if (!accountId) {
+      setTestResult({ ok: false, message: 'Preencha o ID da conta Meta Ads antes de testar.' })
+      return
+    }
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const res = await fetch(`/api/meta/insights?account_id=${encodeURIComponent(accountId)}&date_preset=last_7d`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setTestResult({ ok: false, message: body?.error || `Erro ${res.status} ao consultar a API do Meta` })
+        return
+      }
+      setTestResult({ ok: true, message: '✅ Conexão OK — conta encontrada' })
+    } catch (err) {
+      setTestResult({ ok: false, message: err instanceof Error ? err.message : 'Falha de rede ao consultar a API do Meta' })
+    } finally {
+      setTesting(false)
+    }
+  }
 
   const set = <K extends keyof CampaignPlanning>(key: K, value: CampaignPlanning[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -313,13 +339,35 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
 
           <div>
             <Field label="ID da conta Meta Ads">
-              <Input
-                value={form.acessos.metaAdsAccountId ?? ''}
-                onChange={(e) => setAccess('metaAdsAccountId', e.target.value)}
-                onBlur={(e) => setAccess('metaAdsAccountId', ensureActPrefix(e.target.value) || undefined)}
-                placeholder="Ex: 27994847453538948 (o act_ é adicionado automaticamente)"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  className="flex-1"
+                  value={form.acessos.metaAdsAccountId ?? ''}
+                  onChange={(e) => setAccess('metaAdsAccountId', e.target.value)}
+                  onBlur={(e) => setAccess('metaAdsAccountId', ensureActPrefix(e.target.value) || undefined)}
+                  placeholder="Ex: 27994847453538948 (o act_ é adicionado automaticamente)"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleTestConnection}
+                  loading={testing}
+                  className="shrink-0"
+                >
+                  {testing ? 'Testando…' : 'Testar conexão'}
+                </Button>
+              </div>
             </Field>
+            {testResult && (
+              <p
+                className={`mt-1 whitespace-pre-wrap text-xs font-medium ${
+                  testResult.ok ? 'text-emerald-600' : 'text-red-600'
+                }`}
+              >
+                {testResult.ok ? testResult.message : `❌ ${testResult.message}`}
+              </p>
+            )}
             <p className="mt-1 text-xs text-slate-400">
               Encontre em Meta Business Suite → Gerenciador de Anúncios → ID da conta
             </p>
