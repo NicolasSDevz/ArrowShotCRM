@@ -1,6 +1,7 @@
 import { orderBy, type FirestoreError } from 'firebase/firestore'
 import type { TeamMember } from '../types'
 import { collectionService } from './firestore'
+import { deleteMemberHealthRecord } from './memberHealthService'
 
 const COLLECTION = 'teamMembers'
 const base = collectionService<TeamMember>(COLLECTION)
@@ -18,6 +19,9 @@ export async function updateTeamMember(id: string, data: Partial<TeamMember>, us
 
 export async function deleteTeamMember(id: string) {
   await base.remove(id)
+  // memberHealth/{id} + memberEmergency/{id} share the member's id — drop the
+  // confidential record so it doesn't linger after the roster entry is gone.
+  await deleteMemberHealthRecord(id)
 }
 
 export function subscribeTeamMembers(

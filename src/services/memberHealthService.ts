@@ -1,4 +1,4 @@
-import { doc, onSnapshot, serverTimestamp, writeBatch, type Unsubscribe } from 'firebase/firestore'
+import { doc, onSnapshot, serverTimestamp, writeBatch, deleteDoc, type Unsubscribe } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { EMERGENCY_KEYS, type MemberEmergency, type MemberHealth } from '../types'
 
@@ -63,4 +63,19 @@ export async function saveMemberHealth(memberId: string, data: MemberHealth, use
     updatedAt: serverTimestamp(),
   })
   await batch.commit()
+}
+
+/** Cascade for the team-member deletion — the confidential medical record and
+ *  its public mirror must not outlive the roster entry. Admin-only writes
+ *  (Firestore rules); best-effort so a manager-initiated member deletion
+ *  isn't blocked by it (managers can't see this data anyway). */
+export async function deleteMemberHealthRecord(memberId: string) {
+  await Promise.all([
+    deleteDoc(doc(db, HEALTH_COLLECTION, memberId)).catch((err) =>
+      console.error('Falha ao remover ficha de saúde do membro', err)
+    ),
+    deleteDoc(doc(db, EMERGENCY_COLLECTION, memberId)).catch((err) =>
+      console.error('Falha ao remover mirror de emergência do membro', err)
+    ),
+  ])
 }

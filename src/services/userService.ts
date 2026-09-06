@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc, serverTimestamp, orderBy, getCountFromServer, type FirestoreError } from 'firebase/firestore'
+import { doc, setDoc, getDoc, serverTimestamp, orderBy, type FirestoreError } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { AppUser, UserRole } from '../types'
 import { collectionService } from './firestore'
@@ -6,27 +6,21 @@ import { collectionService } from './firestore'
 const COLLECTION = 'users'
 const base = collectionService<AppUser>(COLLECTION)
 
-/** Creates the Firestore profile doc for a freshly authenticated user, if missing.
- *  First user ever created becomes admin; everyone else starts as employee and
- *  waits for an admin to adjust their role. */
+/** Creates the Firestore profile doc for a freshly authenticated user, if
+ *  missing. Always starts as an active 'employee' — the security rules only
+ *  allow self-provisioning at that level; an admin then adjusts the role.
+ *  The very first admin is set by hand in the Firebase Console (accounts are
+ *  created there too — see README). */
 export async function ensureUserProfile(uid: string, email: string, name: string, photoURL?: string) {
   const ref = doc(db, COLLECTION, uid)
   const snap = await getDoc(ref)
   if (snap.exists()) return snap.data() as AppUser
 
-  let role: UserRole = 'employee'
-  try {
-    const countSnap = await getCountFromServer(base.colRef)
-    role = countSnap.data().count === 0 ? 'admin' : 'employee'
-  } catch {
-    role = 'employee'
-  }
-
   const profile = {
     name,
     email,
     photoURL: photoURL ?? null,
-    role,
+    role: 'employee' as UserRole,
     active: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

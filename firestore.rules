@@ -111,11 +111,16 @@ service cloud.firestore {
 
     // ---------- users ----------
     // Any signed-in user can read the team directory (needed for assignee
-    // pickers across the whole app). Writes are restricted to the user's own
-    // doc (role/active excluded — only an admin can change those) or an admin.
+    // pickers across the whole app). A user provisions only their OWN doc, and
+    // only as an inactive-by-nothing 'employee' — never self-assign a role or
+    // status (ensureUserProfile always writes exactly this). Promotion to
+    // admin/manager and (de)activation are admin-only, via update. Bootstrapping
+    // the very first admin is a one-time manual edit in the Firebase Console.
     match /users/{uid} {
       allow read: if isSignedIn();
-      allow create: if isOwnUser(uid);
+      allow create: if isOwnUser(uid)
+        && request.resource.data.role == 'employee'
+        && request.resource.data.active == true;
       allow update: if isAdmin() || (isOwnUser(uid) && request.resource.data.role == resource.data.role && request.resource.data.active == resource.data.active);
       allow delete: if isAdmin();
     }
