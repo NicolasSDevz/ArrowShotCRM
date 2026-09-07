@@ -7,10 +7,10 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export function getMetaInsights(accountId: string, datePreset: string): Promise<any>
-export function getMetaCampaigns(accountId: string): Promise<any>
-export function getMetaAdSets(accountId: string, campaignId?: string): Promise<any>
-export function getMetaAds(accountId: string, adSetId?: string): Promise<any>
+export function getMetaInsights(accountId: string, datePreset: string, clientId?: string): Promise<any>
+export function getMetaCampaigns(accountId: string, clientId?: string): Promise<any>
+export function getMetaAdSets(accountId: string, campaignId?: string, clientId?: string): Promise<any>
+export function getMetaAds(accountId: string, adSetId?: string, clientId?: string): Promise<any>
 
 export interface MetaInsightsRangeOptions {
   timeRange?: { since: string; until: string }
@@ -20,7 +20,20 @@ export interface MetaInsightsRangeOptions {
   limit?: number
   /** `1` = uma linha por dia (série diária para o gráfico de evolução). */
   timeIncrement?: number
+  /** Se o cliente tiver token próprio salvo, é ele que é usado — ver
+   *  api/_lib/metaTokenStore.js. */
+  clientId?: string
 }
 
 export function getMetaInsightsRange(accountId: string, options?: MetaInsightsRangeOptions): Promise<any>
-export function getMetaAccountInfo(accountId: string): Promise<any>
+export function getMetaAccountInfo(accountId: string, clientId?: string): Promise<any>
+
+export interface MetaTokenStatus {
+  hasToken: boolean
+  updatedAt?: string | null
+  updatedBy?: string | null
+}
+
+export function getMetaTokenStatus(clientId: string): Promise<MetaTokenStatus>
+export function saveMetaToken(clientId: string, token: string): Promise<{ ok: true }>
+export function deleteMetaToken(clientId: string): Promise<{ ok: true }>

@@ -3,7 +3,7 @@ import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Save, Plus, Trash2, FileDown } from 'lucide-react'
+import { Save, Plus, Trash2, FileDown, KeyRound, ShieldCheck, Loader2 } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
@@ -12,6 +12,7 @@ import { notifyAdminsOfAction } from '../../services/notificationService'
 import { maskPhone } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import { ensureActPrefix, normalizeMetaAccountId } from '../../utils/metaReportData'
+import { getMetaTokenStatus, saveMetaToken, deleteMetaToken, type MetaTokenStatus } from '../../services/metaApi'
 import {
   EMPTY_CAMPAIGN_PLANNING,
   EMPTY_CAMPAIGN_PLANNING_ACCESS,
@@ -124,11 +125,31 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
 
+  // Token de acesso Meta Ads específico deste cliente — nunca fica no
+  // Firestore/`campaignPlanning` como os demais campos de "Acessos": vive
+  // numa coleção server-only, criptografado (ver api/_lib/metaTokenStore.js).
+  // Aqui só guardamos o STATUS (configurado? por quem? quando?) — o valor em
+  // si nunca volta pro frontend depois de salvo.
+  const [tokenStatus, setTokenStatus] = useState<MetaTokenStatus | null>(null)
+  const [tokenStatusLoading, setTokenStatusLoading] = useState(true)
+  const [tokenInput, setTokenInput] = useState('')
+  const [tokenSaving, setTokenSaving] = useState(false)
+  const [tokenDeleting, setTokenDeleting] = useState(false)
+
   // Resync only on client switch — see ClientBriefingPanel: depending on the
   // sub-object identity would wipe unsaved edits on every `clients` snapshot.
   useEffect(() => {
     setForm(mergeCampaignPlanning(client.campaignPlanning))
     setTestResult(null)
+    setTokenInput('')
+    setTokenStatusLoading(true)
+    getMetaTokenStatus(client.id)
+      .then(setTokenStatus)
+      .catch((err) => {
+        console.error(err)
+        setTokenStatus(null)
+      })
+      .finally(() => setTokenStatusLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id])
 
@@ -141,7 +162,8 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
     setTesting(true)
     setTestResult(null)
     try {
-      const res = await fetch(`/api/meta/insights?account_id=${encodeURIComponent(accountId)}&date_preset=last_7d`)
+      const params = new URLSearchParams({ account_id: accountId, date_preset: 'last_7d', client_id: client.id })
+      const res = await fetch(`/api/meta/insights?${params.toString()}`)
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         setTestResult({ ok: false, message: body?.error || `Erro ${res.status} ao consultar a API do Meta` })
@@ -152,6 +174,38 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
       setTestResult({ ok: false, message: err instanceof Error ? err.message : 'Falha de rede ao consultar a API do Meta' })
     } finally {
       setTesting(false)
+    }
+  }
+
+  const handleSaveToken = async () => {
+    if (!tokenInput.trim()) {
+      toast.error('Cole o token gerado no Explorador da API do Graph.')
+      return
+    }
+    setTokenSaving(true)
+    try {
+      await saveMetaToken(client.id, tokenInput.trim())
+      setTokenInput('')
+      setTokenStatus(await getMetaTokenStatus(client.id))
+      toast.success('Token salvo — relatórios deste cliente já usam esse token.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar token')
+    } finally {
+      setTokenSaving(false)
+    }
+  }
+
+  const handleDeleteToken = async () => {
+    if (!confirm('Remover o token deste cliente? Os relatórios voltam a usar o token padrão da agência (se houver acesso).')) return
+    setTokenDeleting(true)
+    try {
+      await deleteMetaToken(client.id)
+      setTokenStatus(await getMetaTokenStatus(client.id))
+      toast.success('Token removido')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao remover token')
+    } finally {
+      setTokenDeleting(false)
     }
   }
 
@@ -370,6 +424,74 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
             )}
             <p className="mt-1 text-xs text-slate-400">
               Encontre em Meta Business Suite → Gerenciador de Anúncios → ID da conta
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 p-3">
+            <SubTitle>Token de Acesso Meta Ads</SubTitle>
+            <p className="mb-2 text-xs text-slate-400">
+              Necessário quando a conta de anúncios deste cliente fica no Business Manager DELE, fora do alcance do
+              usuário automático da Arrow Shot. Gere um token no{' '}
+              <a
+                href="https://developers.facebook.com/tools/explorer/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-600 underline"
+              >
+                Explorador da API do Graph
+              </a>{' '}
+              do Business Manager do cliente, com as permissões <code className="text-[11px]">ads_read</code>,{' '}
+              <code className="text-[11px]">read_insights</code> e <code className="text-[11px]">ads_management</code>.
+            </p>
+
+            {tokenStatusLoading ? (
+              <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                <Loader2 size={12} className="animate-spin" /> Verificando status do token…
+              </p>
+            ) : tokenStatus?.hasToken ? (
+              <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck size={13} />
+                  Token configurado
+                  {tokenStatus.updatedBy && <> por <strong>{tokenStatus.updatedBy}</strong></>}
+                  {tokenStatus.updatedAt && (
+                    <> em {format(new Date(tokenStatus.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</>
+                  )}
+                </span>
+                <Button variant="ghost" size="sm" onClick={handleDeleteToken} loading={tokenDeleting} className="text-red-500 hover:bg-red-50">
+                  Remover
+                </Button>
+              </div>
+            ) : (
+              <p className="mb-2 text-xs text-slate-400">
+                Nenhum token configurado — os relatórios usam o token padrão da agência (se ele tiver acesso a esta conta).
+              </p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Input
+                className="flex-1"
+                type="password"
+                autoComplete="off"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="Cole o token aqui — nunca é exibido novamente após salvar"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={<KeyRound size={13} />}
+                onClick={handleSaveToken}
+                loading={tokenSaving}
+                className="shrink-0"
+              >
+                {tokenStatus?.hasToken ? 'Substituir' : 'Salvar'}
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">
+              O token é validado com a API do Meta e gravado criptografado no servidor — nunca aparece em logs nem é
+              devolvido ao navegador depois de salvo.
             </p>
           </div>
         </div>

@@ -89,7 +89,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
     try {
       let meta: ReportMetaSnapshot | null = null
       if (platforms.includes('meta') && accountId) {
-        meta = await fetchMetaReportSnapshot(accountId, start, end)
+        meta = await fetchMetaReportSnapshot(accountId, start, end, client.id)
         setMetaSnapshot(meta)
       }
 

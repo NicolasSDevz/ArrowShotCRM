@@ -159,7 +159,12 @@ function topN(rows: ReportEntitySummary[], n: number): ReportEntitySummary[] {
  *  formato pronto para salvar no Firestore (ReportMetaSnapshot). Chamadas
  *  independentes via Promise.allSettled — uma falhar (ex: sem permissão
  *  para ler o saldo da conta) não derruba o relatório inteiro. */
-export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date, end: Date): Promise<ReportMetaSnapshot> {
+export async function fetchMetaReportSnapshot(
+  accountIdRaw: string,
+  start: Date,
+  end: Date,
+  clientId?: string
+): Promise<ReportMetaSnapshot> {
   const accountId = normalizeMetaAccountId(accountIdRaw)
   const timeRange = { since: toDateParam(start), until: toDateParam(end) }
   const prev = previousPeriod(start, end)
@@ -176,15 +181,15 @@ export async function fetchMetaReportSnapshot(accountIdRaw: string, start: Date,
 
   const [current, previous, campaignsList, campaignLevel, adsetLevel, adLevel, platformLevel, account, daily] =
     await Promise.allSettled([
-      getMetaInsightsRange(accountId, { timeRange, fields: accountFields }),
-      getMetaInsightsRange(accountId, { timeRange: prevTimeRange, fields: accountFields }),
-      getMetaCampaigns(accountId),
-      getMetaInsightsRange(accountId, { timeRange, fields: campaignFields, level: 'campaign', limit: 50 }),
-      getMetaInsightsRange(accountId, { timeRange, fields: adsetFields, level: 'adset', limit: 50 }),
-      getMetaInsightsRange(accountId, { timeRange, fields: adFields, level: 'ad', limit: 50 }),
-      getMetaInsightsRange(accountId, { timeRange, fields: platformFields, breakdowns: 'publisher_platform' }),
-      getMetaAccountInfo(accountId),
-      getMetaInsightsRange(accountId, { timeRange, fields: dailyFields, timeIncrement: 1, limit: 400 }),
+      getMetaInsightsRange(accountId, { timeRange, fields: accountFields, clientId }),
+      getMetaInsightsRange(accountId, { timeRange: prevTimeRange, fields: accountFields, clientId }),
+      getMetaCampaigns(accountId, clientId),
+      getMetaInsightsRange(accountId, { timeRange, fields: campaignFields, level: 'campaign', limit: 50, clientId }),
+      getMetaInsightsRange(accountId, { timeRange, fields: adsetFields, level: 'adset', limit: 50, clientId }),
+      getMetaInsightsRange(accountId, { timeRange, fields: adFields, level: 'ad', limit: 50, clientId }),
+      getMetaInsightsRange(accountId, { timeRange, fields: platformFields, breakdowns: 'publisher_platform', clientId }),
+      getMetaAccountInfo(accountId, clientId),
+      getMetaInsightsRange(accountId, { timeRange, fields: dailyFields, timeIncrement: 1, limit: 400, clientId }),
     ])
 
   // DEBUG — mostra o resultado de cada chamada à API do Meta.

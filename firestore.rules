@@ -318,6 +318,15 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Tokens de acesso do Meta Ads por cliente (ver api/_lib/metaTokenStore.js)
+    // — sempre criptografados, mas mesmo assim NUNCA acessíveis pelo SDK do
+    // cliente (nem leitura, nem escrita): só as Vercel Functions, via
+    // Firebase Admin SDK, tocam nesta coleção. Regra explícita aqui só para
+    // deixar a intenção clara — o deny-all no fim do arquivo já cobriria.
+    match /metaClientTokens/{clientId} {
+      allow read, write: if false;
+    }
+
     // ---------- future modules ----------
     // When googleAdsCampaigns, metaAdsCampaigns, leads, reports, finance, etc.
     // are introduced, add a `match /{collection}/{docId}` block here following
