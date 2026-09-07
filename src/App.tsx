@@ -17,6 +17,7 @@ import { ReportsPage } from './pages/ReportsPage'
 import { MonthlyReportPage } from './pages/MonthlyReportPage'
 import { TeamPage } from './pages/TeamPage'
 import { PublicApprovalPage } from './pages/PublicApprovalPage'
+import { PrivacyPolicyPage, TermsOfServicePage } from './pages/LegalPages'
 import { UniversityPage } from './pages/UniversityPage'
 import { UniversityTrailPage } from './pages/UniversityTrailPage'
 import { UniversityModulePage } from './pages/UniversityModulePage'
@@ -31,6 +32,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/aprovar/:contentId/:token" element={<PublicApprovalPage />} />
+          <Route path="/privacidade" element={<PrivacyPolicyPage />} />
+          <Route path="/termos" element={<TermsOfServicePage />} />
           <Route
             element={
               <ProtectedRoute allowedRoles={['admin', 'manager', 'employee']} showDeniedScreen>
