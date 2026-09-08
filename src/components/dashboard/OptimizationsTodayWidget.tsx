@@ -45,7 +45,7 @@ export function OptimizationsTodayWidget() {
   const allDone = items.length > 0 && items.every((i) => i.done)
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #7C3AED' }}>
+    <div className="rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #7C3AED' }} data-dash-accent>
       <div className="flex items-center gap-2">
         <Target size={16} className="text-violet-500" />
         <p className="text-[16px] font-semibold text-slate-900">Otimizações de hoje — {weekdayLabel}</p>

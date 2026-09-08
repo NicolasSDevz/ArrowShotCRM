@@ -35,7 +35,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-all duration-150 ease-in-out disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      className={`btn btn-${variant} inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-all duration-150 ease-in-out disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
       disabled={disabled || loading}
       {...rest}
     >

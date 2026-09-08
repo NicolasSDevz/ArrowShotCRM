@@ -59,15 +59,11 @@ body {
 
 * {
   box-sizing: border-box;
-  /* Firefox scrollbars (não suporta ::-webkit-scrollbar) */
   scrollbar-width: thin;
   scrollbar-color: #94a3b8 #f1f5f9;
 }
 
-/* ---------- Scrollbars ----------
-   Mais grossas e visíveis em toda a plataforma. A trilha usa o mesmo cinza
-   claro do fundo dos cards; o thumb tem uma borda da cor da trilha pra dar
-   respiro. `.sidebar` = variante escura para a navegação lateral. */
+/* ---------- Scrollbars (tema claro) ---------- */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -84,7 +80,6 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
-
 .sidebar::-webkit-scrollbar-track {
   background: #1e293b;
 }
@@ -100,235 +95,248 @@ body {
 }
 
 /* ==========================================================================
-   TEMA ESCURO
-   As classes utilitárias do Tailwind são sobrescritas diretamente (em vez
-   de redefinir as variáveis de cor) para não afetar casos como `text-white`
-   sobre botão colorido. Ativado por [data-theme="dark"] no <html> (ver
-   ThemeContext + o script inline no index.html).
+   TEMA ESCURO — paleta monocromática (estilo Linear / Vercel).
+   Quase sem cor: só cinzas e brancos. Azul (#2563EB) apenas em: links de
+   texto, indicador de progresso de checklist e badge "token configurado".
+   Sobrescreve as classes utilitárias do Tailwind diretamente.
    ========================================================================== */
 :root[data-theme="dark"] {
-  /* Sidebar e superfícies escuras (login) — aqui trocar a variável é seguro. */
-  --color-navy-950: #020617;
-  --color-navy-900: #0b1220;
-  --color-navy-800: #0f172a;
-  --color-navy-700: #1e293b;
-
-  /* Fundo das páginas. */
-  --color-page: #0f172a;
+  --color-navy-950: #0a0a0a;
+  --color-navy-900: #111111;
+  --color-navy-800: #141414;
+  --color-navy-700: #1a1a1a;
+  --color-page: #111111;
 }
 
-/* ---- fundos ---- */
+/* ---- superfícies ---- */
 :root[data-theme="dark"] .bg-white,
 :root[data-theme="dark"] .hover\:bg-white:hover,
-:root[data-theme="dark"] .focus\:bg-white:focus {
-  background-color: #1e293b;
-}
+:root[data-theme="dark"] .focus\:bg-white:focus { background-color: #1a1a1a; }
 :root[data-theme="dark"] .bg-slate-50,
-:root[data-theme="dark"] .hover\:bg-slate-50:hover {
-  background-color: #172033;
-}
+:root[data-theme="dark"] .hover\:bg-slate-50:hover { background-color: #161616; }
 :root[data-theme="dark"] .bg-slate-100,
-:root[data-theme="dark"] .hover\:bg-slate-100:hover {
-  background-color: #334155;
-}
-:root[data-theme="dark"] .bg-slate-200 {
-  background-color: #334155;
-}
-:root[data-theme="dark"] .bg-\[\#F8FAFC\] {
-  background-color: #1e293b;
-}
-:root[data-theme="dark"] .bg-\[\#F1F5F9\] {
-  background-color: #0f172a;
-}
-:root[data-theme="dark"] .bg-\[\#E2E8F0\] {
-  background-color: #334155;
-}
+:root[data-theme="dark"] .hover\:bg-slate-100:hover { background-color: #1a1a1a; }
+:root[data-theme="dark"] .bg-slate-200 { background-color: #222222; }
+:root[data-theme="dark"] .bg-\[\#F8FAFC\] { background-color: #1a1a1a; }
+:root[data-theme="dark"] .bg-\[\#F1F5F9\] { background-color: #111111; }
+:root[data-theme="dark"] .bg-\[\#0F172A\] { background-color: #0a0a0a; }
+:root[data-theme="dark"] .bg-\[\#E2E8F0\] { background-color: #222222; }
+:root[data-theme="dark"] .bg-brand-50,
+:root[data-theme="dark"] .hover\:bg-red-50:hover { background-color: #161616; }
 
 /* ---- textos ---- */
-:root[data-theme="dark"] .text-slate-900 { color: #ffffff; }
-:root[data-theme="dark"] .text-slate-800 { color: #f1f5f9; }
+:root[data-theme="dark"] .text-slate-900,
+:root[data-theme="dark"] .text-slate-800 { color: #ebebeb; }
 :root[data-theme="dark"] .text-slate-700,
-:root[data-theme="dark"] .hover\:text-slate-700:hover { color: #e2e8f0; }
+:root[data-theme="dark"] .hover\:text-slate-700:hover { color: #aaaaaa; }
 :root[data-theme="dark"] .text-slate-600,
-:root[data-theme="dark"] .hover\:text-slate-600:hover { color: #cbd5e1; }
-:root[data-theme="dark"] .text-slate-500 { color: #94a3b8; }
-/* slate-400 (#94a3b8) já serve bem no escuro — mantido */
-:root[data-theme="dark"] .text-slate-300 { color: #475569; }
-:root[data-theme="dark"] .text-\[\#0F172A\] { color: #f1f5f9; }
-:root[data-theme="dark"] .text-\[\#64748B\] { color: #94a3b8; }
+:root[data-theme="dark"] .hover\:text-slate-600:hover { color: #888888; }
+:root[data-theme="dark"] .text-slate-500 { color: #555555; }
+:root[data-theme="dark"] .text-slate-400 { color: #555555; }
+:root[data-theme="dark"] .text-slate-300 { color: #444444; }
+:root[data-theme="dark"] .text-\[\#0F172A\] { color: #ebebeb; }
+:root[data-theme="dark"] .text-\[\#64748B\],
+:root[data-theme="dark"] .text-\[\#94A3B8\] { color: #555555; }
 
 /* ---- bordas ---- */
-:root[data-theme="dark"] .border-slate-100,
-:root[data-theme="dark"] .border-slate-200 { border-color: #334155; }
-:root[data-theme="dark"] .border-slate-300 { border-color: #475569; }
-:root[data-theme="dark"] .border-\[\#E2E8F0\] { border-color: #334155; }
+:root[data-theme="dark"] .border-slate-100 { border-color: #1a1a1a; }
+:root[data-theme="dark"] .border-slate-200 { border-color: #222222; }
+:root[data-theme="dark"] .border-slate-300 { border-color: #2a2a2a; }
+:root[data-theme="dark"] .border-\[\#E2E8F0\] { border-color: #222222; }
 
-/* ---- overlays de modal / menu mobile ---- */
+/* ---- overlays / sombras ---- */
 :root[data-theme="dark"] .bg-black\/30,
-:root[data-theme="dark"] .bg-black\/40 { background-color: rgba(0, 0, 0, 0.7); }
-
-/* ---- sombras ---- */
-/* Cards/painéis: sem sombra no escuro (o contraste vem da borda). */
-:root[data-theme="dark"] .shadow-sm,
-:root[data-theme="dark"] .shadow-md,
-:root[data-theme="dark"] [class*="shadow-\["] {
-  box-shadow: none;
-}
-/* Dropdowns e modais ainda "levantam" da tela. */
+:root[data-theme="dark"] .bg-black\/40 { background-color: rgba(0, 0, 0, 0.8); }
+:root[data-theme="dark"] [class*="shadow"] { box-shadow: none; }
 :root[data-theme="dark"] .shadow-lg,
 :root[data-theme="dark"] .shadow-xl,
-:root[data-theme="dark"] .shadow-2xl {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-}
+:root[data-theme="dark"] .shadow-2xl { box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6); }
 
-/* ---- inputs / selects / textareas ----
-   Muitos <select> de filtro (Clientes, Tarefas, Social Mídia, Relatórios…)
-   e alguns <input> de busca não têm nenhuma classe de cor de texto/fundo —
-   no escuro o texto ficava preto sobre fundo escuro (invisível). Aqui todos
-   ganham fundo #1E293B + texto #F1F5F9, independentemente de terem ou não
-   `bg-white`/`text-slate-*` na className. */
+/* ---- inputs / selects / textareas ---- */
 :root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
 :root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea {
   color-scheme: dark;
-  background-color: #1e293b;
-  color: #f1f5f9;
-  border-color: #334155;
+  background-color: #161616;
+  color: #ebebeb;
+  border-color: #222222;
 }
-:root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):hover,
-:root[data-theme="dark"] select:hover {
-  background-color: #334155;
+:root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):focus,
+:root[data-theme="dark"] select:focus,
+:root[data-theme="dark"] textarea:focus {
+  border-color: #444444 !important;
+  box-shadow: none !important;
+  outline: none;
 }
-/* a lista nativa de opções */
+:root[data-theme="dark"] input[type="checkbox"],
+:root[data-theme="dark"] input[type="radio"] { accent-color: #888888; }
 :root[data-theme="dark"] select option,
-:root[data-theme="dark"] optgroup {
-  background-color: #1e293b;
-  color: #f1f5f9;
+:root[data-theme="dark"] optgroup { background-color: #1a1a1a; color: #aaaaaa; }
+:root[data-theme="dark"] select option:hover { background-color: #222222; color: #ebebeb; }
+:root[data-theme="dark"] select option:checked { background-color: #222222; color: #ffffff; }
+:root[data-theme="dark"] ::placeholder { color: #444444; }
+:root[data-theme="dark"] .lucide-search { color: #444444; }
+:root[data-theme="dark"] [class*="focus:ring"]:focus { box-shadow: none !important; }
+:root[data-theme="dark"] [class*="focus:border-brand"]:focus { border-color: #444444 !important; }
+
+/* ---- botões ---- */
+:root[data-theme="dark"] .btn-primary {
+  background-color: #ffffff;
+  color: #000000;
+  border: none;
 }
-:root[data-theme="dark"] select option:hover,
-:root[data-theme="dark"] select option:focus {
-  background-color: #334155;
-  color: #ffffff;
+:root[data-theme="dark"] .btn-primary:hover:not(:disabled) { background-color: #ebebeb; }
+:root[data-theme="dark"] .btn-primary:disabled { background-color: #2a2a2a; color: #666666; }
+:root[data-theme="dark"] .btn-secondary {
+  background-color: transparent;
+  color: #888888;
+  border-color: #2a2a2a;
 }
-:root[data-theme="dark"] select option:checked {
-  background-color: #1e3a5f;
-  color: #60a5fa;
+:root[data-theme="dark"] .btn-secondary:hover:not(:disabled) { background-color: #1a1a1a; color: #ebebeb; }
+:root[data-theme="dark"] .btn-ghost { color: #888888; }
+:root[data-theme="dark"] .btn-ghost:hover:not(:disabled) { background-color: #1a1a1a; color: #ebebeb; }
+:root[data-theme="dark"] .btn-danger {
+  background-color: transparent;
+  color: #ef4444;
+  border: 1px solid #2a2a2a;
 }
-:root[data-theme="dark"] ::placeholder { color: #475569; }
-/* ícone de lupa dos campos de busca */
-:root[data-theme="dark"] .lucide-search { color: #475569; }
+:root[data-theme="dark"] .btn-danger:hover:not(:disabled) { background-color: #1a1a1a; }
 
 /* ---- sidebar ---- */
+:root[data-theme="dark"] aside { border-right: 1px solid #1a1a1a; }
+:root[data-theme="dark"] aside .border-navy-800,
+:root[data-theme="dark"] nav.sidebar .border-navy-800 { border-color: #1a1a1a; }
 :root[data-theme="dark"] nav.sidebar a[class*="bg-brand"] {
-  background-color: #1e3a5f;
+  background-color: #1a1a1a;
+  color: #ffffff;
+  border-left: 2px solid #ffffff;
+  border-radius: 6px;
 }
-:root[data-theme="dark"] nav.sidebar a:not([class*="bg-brand"]) {
-  color: #64748b;
+:root[data-theme="dark"] nav.sidebar a[class*="bg-brand"] svg { color: #ffffff; }
+:root[data-theme="dark"] nav.sidebar a:not([class*="bg-brand"]) { color: #6b6b6b; }
+:root[data-theme="dark"] nav.sidebar a:not([class*="bg-brand"]) svg { color: #444444; }
+:root[data-theme="dark"] nav.sidebar a:not([class*="bg-brand"]):hover { background-color: #141414; color: #aaaaaa; }
+:root[data-theme="dark"] nav.sidebar p { color: #333333; }
+:root[data-theme="dark"] nav.sidebar .cursor-not-allowed { color: #333333; }
+:root[data-theme="dark"] nav.sidebar .cursor-not-allowed svg { color: #2a2a2a; }
+
+/* ---- badges (monocromático) ---- */
+:root[data-theme="dark"] .badge {
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: #888888;
 }
-:root[data-theme="dark"] nav.sidebar .border-navy-800 {
-  border-color: #1e293b;
+:root[data-theme="dark"] span.badge[class*="bg-"] {
+  background-color: transparent;
+  border-color: #2a2a2a;
 }
-:root[data-theme="dark"] nav.sidebar p {
-  color: #334155;
+
+/* categoria — só texto cinza, sem borda */
+:root[data-theme="dark"] .badge-category-a,
+:root[data-theme="dark"] .badge-category-b {
+  background-color: transparent;
+  color: #555555;
+  border: none;
+  font-size: 11px;
 }
+/* serviço — pill discreta */
+:root[data-theme="dark"] .badge-service-traffic,
+:root[data-theme="dark"] .badge-service-social,
+:root[data-theme="dark"] .badge-service-both {
+  background-color: #1e1e1e;
+  color: #777777;
+  border: 1px solid #2a2a2a;
+  border-radius: 20px;
+  font-size: 11px;
+}
+/* status — ponto colorido + texto cinza */
+:root[data-theme="dark"] .badge-status-active,
+:root[data-theme="dark"] .badge-status-onboarding,
+:root[data-theme="dark"] .badge-status-paused,
+:root[data-theme="dark"] .badge-status-churned {
+  background-color: transparent;
+  border: none;
+  color: #888888;
+  gap: 6px;
+  font-weight: 500;
+}
+:root[data-theme="dark"] .badge-status-active::before,
+:root[data-theme="dark"] .badge-status-onboarding::before,
+:root[data-theme="dark"] .badge-status-paused::before,
+:root[data-theme="dark"] .badge-status-churned::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+:root[data-theme="dark"] .badge-status-active::before { background-color: #4ade80; }
+:root[data-theme="dark"] .badge-status-onboarding::before { background-color: #888888; }
+:root[data-theme="dark"] .badge-status-paused::before { background-color: #888888; }
+:root[data-theme="dark"] .badge-status-churned::before { background-color: #333333; }
+:root[data-theme="dark"] .badge-status-churned { color: #444444; }
+/* prioridade — só texto */
+:root[data-theme="dark"] .badge-priority-high {
+  background-color: transparent;
+  border: none;
+  color: #888888;
+}
+:root[data-theme="dark"] .badge-priority-normal {
+  background-color: transparent;
+  border: none;
+  color: #444444;
+}
+
+/* ---- caixas de alerta (NÃO badges): tinte bem discreto ---- */
+:root[data-theme="dark"] .bg-amber-50, :root[data-theme="dark"] .bg-amber-100,
+:root[data-theme="dark"] .bg-orange-50, :root[data-theme="dark"] .bg-orange-100 { background-color: #1c1710; }
+:root[data-theme="dark"] .bg-emerald-50, :root[data-theme="dark"] .bg-emerald-100 { background-color: #0f1a13; }
+:root[data-theme="dark"] .bg-red-50, :root[data-theme="dark"] .bg-red-100 { background-color: #1c1010; }
+:root[data-theme="dark"] .bg-blue-50, :root[data-theme="dark"] .bg-blue-100 { background-color: #101418; }
+:root[data-theme="dark"] .bg-violet-50, :root[data-theme="dark"] .bg-violet-100,
+:root[data-theme="dark"] .bg-purple-50, :root[data-theme="dark"] .bg-purple-100 { background-color: #16121c; }
+:root[data-theme="dark"] .border-amber-200, :root[data-theme="dark"] .border-amber-400 { border-color: #3a2a12; }
+:root[data-theme="dark"] .border-emerald-400 { border-color: #14532d; }
+:root[data-theme="dark"] .border-red-200, :root[data-theme="dark"] .border-red-500 { border-color: #3a1212; }
+:root[data-theme="dark"] :not(.badge).text-amber-700, :root[data-theme="dark"] :not(.badge).text-amber-800 { color: #d4a04a; }
+:root[data-theme="dark"] :not(.badge).text-emerald-700 { color: #6ee7a8; }
+:root[data-theme="dark"] :not(.badge).text-red-600, :root[data-theme="dark"] :not(.badge).text-red-700 { color: #f87171; }
+
+/* ---- avatares (iniciais) ---- */
+:root[data-theme="dark"] .avatar-initials {
+  background-color: #222222 !important;
+  color: #666666 !important;
+}
+:root[data-theme="dark"] .ring-white { --tw-ring-color: #111111; }
 
 /* ---- tabela de clientes ---- */
 :root[data-theme="dark"] .clients-table {
-  background-color: #0f172a;
-  border-color: #1e293b;
+  background-color: transparent;
+  border: none;
   box-shadow: none;
 }
-:root[data-theme="dark"] .clients-table thead,
-:root[data-theme="dark"] .clients-table tr {
-  border-color: #1e293b;
+:root[data-theme="dark"] .clients-table thead { border-color: #1e1e1e; }
+:root[data-theme="dark"] .clients-table tr { border-color: #1a1a1a; }
+:root[data-theme="dark"] .clients-table tbody tr:hover { background-color: #161616; }
+
+/* ---- widgets do dashboard ---- */
+:root[data-theme="dark"] [data-dash-accent] {
+  border-left: 1px solid #2a2a2a !important;
+  box-shadow: none;
 }
-:root[data-theme="dark"] .clients-table tbody tr:hover {
-  background-color: #1e293b;
-}
 
-/* ---- fundos coloridos sutis (caixas de alerta etc., NÃO badges) ---- */
-:root[data-theme="dark"] .bg-emerald-50, :root[data-theme="dark"] .bg-emerald-100 { background-color: #0c1f13; }
-:root[data-theme="dark"] .bg-amber-50, :root[data-theme="dark"] .bg-amber-100,
-:root[data-theme="dark"] .bg-orange-50, :root[data-theme="dark"] .bg-orange-100 { background-color: #201811; }
-:root[data-theme="dark"] .bg-blue-50, :root[data-theme="dark"] .bg-blue-100, :root[data-theme="dark"] .bg-brand-50 { background-color: #101d33; }
-:root[data-theme="dark"] .bg-red-50, :root[data-theme="dark"] .bg-red-100,
-:root[data-theme="dark"] .hover\:bg-red-50:hover { background-color: #201111; }
-:root[data-theme="dark"] .bg-violet-50, :root[data-theme="dark"] .bg-violet-100,
-:root[data-theme="dark"] .bg-purple-50, :root[data-theme="dark"] .bg-purple-100 { background-color: #1a1330; }
-:root[data-theme="dark"] .bg-indigo-50, :root[data-theme="dark"] .bg-indigo-100 { background-color: #141a30; }
-:root[data-theme="dark"] .bg-teal-50, :root[data-theme="dark"] .bg-teal-100 { background-color: #0c1f1c; }
+/* ---- notificações ---- */
+:root[data-theme="dark"] .notif-count { background-color: #ffffff; color: #000000; }
 
-/* ==========================================================================
-   BADGES no tema escuro — SEM fundo colorido: só texto e borda fina.
-   "Menos cor, mais contraste sutil."
-   ========================================================================== */
-:root[data-theme="dark"] .badge {
-  background-color: transparent;
-  border: 1px solid #334155;
-}
-/* neutraliza qualquer bg-* que venha na className do badge (token, plataforma…) */
-:root[data-theme="dark"] span.badge[class*="bg-"] { background-color: transparent; }
-
-/* texto por família (só a cor essencial) */
-:root[data-theme="dark"] .badge.text-emerald-600, :root[data-theme="dark"] .badge.text-emerald-700 { color: #4ade80; }
-:root[data-theme="dark"] .badge.text-blue-600, :root[data-theme="dark"] .badge.text-blue-700, :root[data-theme="dark"] .badge.text-brand-600 { color: #60a5fa; }
-:root[data-theme="dark"] .badge.text-amber-600, :root[data-theme="dark"] .badge.text-amber-700, :root[data-theme="dark"] .badge.text-amber-800 { color: #fbbf24; }
-:root[data-theme="dark"] .badge.text-orange-600, :root[data-theme="dark"] .badge.text-orange-700 { color: #fb923c; }
-:root[data-theme="dark"] .badge.text-red-600, :root[data-theme="dark"] .badge.text-red-700 { color: #f87171; }
-:root[data-theme="dark"] .badge.text-violet-600, :root[data-theme="dark"] .badge.text-violet-700,
-:root[data-theme="dark"] .badge.text-purple-600, :root[data-theme="dark"] .badge.text-purple-700 { color: #a78bfa; }
-:root[data-theme="dark"] .badge.text-indigo-600, :root[data-theme="dark"] .badge.text-indigo-700 { color: #818cf8; }
-:root[data-theme="dark"] .badge.text-slate-500, :root[data-theme="dark"] .badge.text-slate-600 { color: #94a3b8; }
-
-/* borda por família (fina e discreta) */
-:root[data-theme="dark"] .badge.bg-emerald-50, :root[data-theme="dark"] .badge.bg-emerald-100 { border-color: #166534; }
-:root[data-theme="dark"] .badge.bg-blue-50, :root[data-theme="dark"] .badge.bg-blue-100, :root[data-theme="dark"] .badge.bg-brand-50 { border-color: #1e3a5f; }
-:root[data-theme="dark"] .badge.bg-amber-50, :root[data-theme="dark"] .badge.bg-amber-100 { border-color: #78350f; }
-:root[data-theme="dark"] .badge.bg-orange-50, :root[data-theme="dark"] .badge.bg-orange-100 { border-color: #7c2d12; }
-:root[data-theme="dark"] .badge.bg-red-50, :root[data-theme="dark"] .badge.bg-red-100 { border-color: #7f1d1d; }
-:root[data-theme="dark"] .badge.bg-violet-50, :root[data-theme="dark"] .badge.bg-violet-100,
-:root[data-theme="dark"] .badge.bg-purple-50, :root[data-theme="dark"] .badge.bg-purple-100 { border-color: #2d1f4e; }
-:root[data-theme="dark"] .badge.bg-indigo-50, :root[data-theme="dark"] .badge.bg-indigo-100 { border-color: #1e2a4f; }
-:root[data-theme="dark"] .badge.bg-slate-100 { border-color: #1e293b; }
-
-/* ---- badges semânticos (categoria / serviço / status / prioridade) ----
-   Consumidos pelos mapas em src/types/*. Light = look atual; dark = spec:
-   fundo transparente, cor no texto + borda fina. */
-.badge-category-a { background-color: #fef3c7; color: #b45309; }
-.badge-category-b { background-color: #f1f5f9; color: #475569; }
-.badge-service-traffic { background-color: #dbeafe; color: #1d4ed8; }
-.badge-service-social  { background-color: #ede9fe; color: #6d28d9; }
-.badge-service-both    { background-color: #e0e7ff; color: #4338ca; }
-.badge-status-active     { background-color: #d1fae5; color: #047857; }
-.badge-status-onboarding { background-color: #dbeafe; color: #1d4ed8; }
-.badge-status-paused     { background-color: #fef3c7; color: #b45309; }
-.badge-status-churned    { background-color: #fee2e2; color: #b91c1c; }
-.badge-priority-high   { background-color: #fef3c7; color: #92400e; border: 1px solid #f59e0b; }
-.badge-priority-normal { background-color: #f1f5f9; color: #475569; }
-
-:root[data-theme="dark"] .badge-category-a { background-color: transparent; color: #94a3b8; border: 1px solid #334155; }
-:root[data-theme="dark"] .badge-category-b { background-color: transparent; color: #64748b; border: 1px solid #1e293b; }
-:root[data-theme="dark"] .badge-service-traffic { background-color: transparent; color: #60a5fa; border: 1px solid #1e3a5f; }
-:root[data-theme="dark"] .badge-service-social  { background-color: transparent; color: #a78bfa; border: 1px solid #2d1f4e; }
-:root[data-theme="dark"] .badge-service-both    { background-color: transparent; color: #818cf8; border: 1px solid #1e2a4f; }
-:root[data-theme="dark"] .badge-status-active     { background-color: transparent; color: #4ade80; border: 1px solid #166534; font-weight: 500; }
-:root[data-theme="dark"] .badge-status-onboarding { background-color: transparent; color: #60a5fa; border: 1px solid #1e3a5f; font-weight: 500; }
-:root[data-theme="dark"] .badge-status-paused     { background-color: transparent; color: #fb923c; border: 1px solid #7c2d12; font-weight: 500; }
-:root[data-theme="dark"] .badge-status-churned    { background-color: transparent; color: #64748b; border: 1px solid #334155; font-weight: 500; }
-:root[data-theme="dark"] .badge-priority-high   { background-color: transparent; color: #fbbf24; border: 1px solid #78350f; }
-:root[data-theme="dark"] .badge-priority-normal { background-color: transparent; color: #64748b; border: 1px solid #1e293b; }
-
-/* ---- scrollbar no escuro ---- */
-:root[data-theme="dark"] ::-webkit-scrollbar-track { background: #1e293b; }
-:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-color: #1e293b;
-}
-:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #475569; }
-:root[data-theme="dark"] * { scrollbar-color: #334155 #1e293b; }
+/* ---- scrollbar (4px, monocromática) ---- */
+:root[data-theme="dark"] ::-webkit-scrollbar { width: 4px; height: 4px; }
+:root[data-theme="dark"] ::-webkit-scrollbar-track { background: #111111; }
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #222222; border: none; }
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #2a2a2a; }
+:root[data-theme="dark"] * { scrollbar-color: #222222 #111111; }
 
 /* ---- toasts ---- */
-:root[data-theme="dark"] .go2072408551 { /* react-hot-toast default class */
-  background: #1e293b !important;
-  color: #f1f5f9 !important;
+:root[data-theme="dark"] .go2072408551 {
+  background: #1a1a1a !important;
+  color: #ebebeb !important;
 }

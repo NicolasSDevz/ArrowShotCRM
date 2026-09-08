@@ -51,7 +51,7 @@ export function Avatar({
   return (
     <div
       title={name}
-      className={`${dims} ${colorFor(name)} flex shrink-0 items-center justify-center rounded-full font-medium text-white`}
+      className={`avatar-initials ${dims} ${colorFor(name)} flex shrink-0 items-center justify-center rounded-full font-medium text-white`}
     >
       {initials || '?'}
     </div>
