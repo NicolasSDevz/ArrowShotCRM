@@ -188,23 +188,48 @@ body {
 }
 :root[data-theme="dark"] ::placeholder { color: #64748b; }
 
-/* ---- badges de status/prioridade (tints -50/-100 + texto -600/-700) ---- */
-:root[data-theme="dark"] .bg-emerald-50, :root[data-theme="dark"] .bg-emerald-100 { background-color: #052e16; }
-:root[data-theme="dark"] .text-emerald-600, :root[data-theme="dark"] .text-emerald-700 { color: #4ade80; }
-:root[data-theme="dark"] .bg-amber-50, :root[data-theme="dark"] .bg-amber-100 { background-color: #451a03; }
-:root[data-theme="dark"] .text-amber-600, :root[data-theme="dark"] .text-amber-700 { color: #fbbf24; }
-:root[data-theme="dark"] .bg-blue-50, :root[data-theme="dark"] .bg-blue-100 { background-color: #1e3a5f; }
-:root[data-theme="dark"] .text-blue-600, :root[data-theme="dark"] .text-blue-700 { color: #60a5fa; }
-:root[data-theme="dark"] .bg-red-50, :root[data-theme="dark"] .bg-red-100 { background-color: #450a0a; }
-:root[data-theme="dark"] .text-red-600, :root[data-theme="dark"] .text-red-700 { color: #f87171; }
-:root[data-theme="dark"] .hover\:bg-red-50:hover { background-color: #450a0a; }
+/* ---- badges e labels no tema escuro ----
+   Tons suaves e dessaturados (fundos quase pretos com leve matiz). O fundo
+   das tints -50/-100 vale para qualquer uso; borda (50%) e texto (90%) só
+   nos badges (.badge). */
+:root[data-theme="dark"] .bg-emerald-50, :root[data-theme="dark"] .bg-emerald-100 { background-color: #0a1f0f; }
+:root[data-theme="dark"] .bg-amber-50, :root[data-theme="dark"] .bg-amber-100 { background-color: #1f150a; }
+:root[data-theme="dark"] .bg-orange-50, :root[data-theme="dark"] .bg-orange-100 { background-color: #1f150a; }
+:root[data-theme="dark"] .bg-blue-50, :root[data-theme="dark"] .bg-blue-100 { background-color: #0f1f3d; }
+:root[data-theme="dark"] .bg-brand-50 { background-color: #0f1f3d; }
+:root[data-theme="dark"] .bg-red-50, :root[data-theme="dark"] .bg-red-100,
+:root[data-theme="dark"] .hover\:bg-red-50:hover { background-color: #1f0a0a; }
 :root[data-theme="dark"] .bg-violet-50, :root[data-theme="dark"] .bg-violet-100,
-:root[data-theme="dark"] .bg-purple-50, :root[data-theme="dark"] .bg-purple-100 { background-color: #2e1065; }
-:root[data-theme="dark"] .text-violet-600, :root[data-theme="dark"] .text-violet-700,
-:root[data-theme="dark"] .text-purple-600, :root[data-theme="dark"] .text-purple-700 { color: #a78bfa; }
-:root[data-theme="dark"] .bg-indigo-50, :root[data-theme="dark"] .bg-indigo-100 { background-color: #1e1b4b; }
-:root[data-theme="dark"] .text-indigo-600, :root[data-theme="dark"] .text-indigo-700 { color: #818cf8; }
-:root[data-theme="dark"] .bg-brand-50 { background-color: #172554; }
+:root[data-theme="dark"] .bg-purple-50, :root[data-theme="dark"] .bg-purple-100 { background-color: #1a0a2e; }
+:root[data-theme="dark"] .bg-indigo-50, :root[data-theme="dark"] .bg-indigo-100 { background-color: #0f1a2e; }
+:root[data-theme="dark"] .bg-teal-50, :root[data-theme="dark"] .bg-teal-100 { background-color: #0a1f1c; }
+
+/* badge: base + fundo do slate (só quando é badge; fora dele slate-100 é
+   borda/hover) */
+:root[data-theme="dark"] .badge { border: 1px solid transparent; }
+:root[data-theme="dark"] .badge.bg-slate-100 { background-color: #1a1f2e; }
+
+/* texto dos badges — 90% de opacidade (mais elegante) */
+:root[data-theme="dark"] .badge.text-emerald-600, :root[data-theme="dark"] .badge.text-emerald-700 { color: rgb(74 222 128 / 0.9); }
+:root[data-theme="dark"] .badge.text-amber-600, :root[data-theme="dark"] .badge.text-amber-700, :root[data-theme="dark"] .badge.text-amber-800 { color: rgb(251 191 36 / 0.9); }
+:root[data-theme="dark"] .badge.text-orange-600, :root[data-theme="dark"] .badge.text-orange-700 { color: rgb(251 146 60 / 0.9); }
+:root[data-theme="dark"] .badge.text-blue-600, :root[data-theme="dark"] .badge.text-blue-700, :root[data-theme="dark"] .badge.text-brand-600 { color: rgb(96 165 250 / 0.9); }
+:root[data-theme="dark"] .badge.text-red-600, :root[data-theme="dark"] .badge.text-red-700 { color: rgb(248 113 113 / 0.9); }
+:root[data-theme="dark"] .badge.text-violet-600, :root[data-theme="dark"] .badge.text-violet-700,
+:root[data-theme="dark"] .badge.text-purple-600, :root[data-theme="dark"] .badge.text-purple-700 { color: rgb(167 139 250 / 0.9); }
+:root[data-theme="dark"] .badge.text-indigo-600, :root[data-theme="dark"] .badge.text-indigo-700 { color: rgb(129 140 248 / 0.9); }
+:root[data-theme="dark"] .badge.text-slate-500, :root[data-theme="dark"] .badge.text-slate-600 { color: rgb(148 163 184 / 0.9); }
+
+/* borda dos badges — matiz da família a 50% */
+:root[data-theme="dark"] .badge.bg-emerald-50, :root[data-theme="dark"] .badge.bg-emerald-100 { border-color: rgb(20 83 45 / 0.5); }
+:root[data-theme="dark"] .badge.bg-amber-50, :root[data-theme="dark"] .badge.bg-amber-100,
+:root[data-theme="dark"] .badge.bg-orange-50, :root[data-theme="dark"] .badge.bg-orange-100 { border-color: rgb(120 53 15 / 0.5); }
+:root[data-theme="dark"] .badge.bg-blue-50, :root[data-theme="dark"] .badge.bg-blue-100, :root[data-theme="dark"] .badge.bg-brand-50 { border-color: rgb(30 58 95 / 0.5); }
+:root[data-theme="dark"] .badge.bg-red-50, :root[data-theme="dark"] .badge.bg-red-100 { border-color: rgb(127 29 29 / 0.5); }
+:root[data-theme="dark"] .badge.bg-violet-50, :root[data-theme="dark"] .badge.bg-violet-100,
+:root[data-theme="dark"] .badge.bg-purple-50, :root[data-theme="dark"] .badge.bg-purple-100 { border-color: rgb(59 31 110 / 0.5); }
+:root[data-theme="dark"] .badge.bg-indigo-50, :root[data-theme="dark"] .badge.bg-indigo-100 { border-color: rgb(30 42 79 / 0.5); }
+:root[data-theme="dark"] .badge.bg-slate-100 { border-color: rgb(51 65 85 / 0.5); }
 
 /* ---- scrollbar no escuro ---- */
 :root[data-theme="dark"] ::-webkit-scrollbar-track { background: #1e293b; }

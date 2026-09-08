@@ -61,7 +61,7 @@ export const PLATFORM_BADGE: Record<OptimizationPlatform, string> = {
 export function platformBadgeLabel(platforms: OptimizationPlatform[]): { label: string; className: string } {
   const hasMeta = platforms.includes('meta')
   const hasGoogle = platforms.includes('google')
-  if (hasMeta && hasGoogle) return { label: '🟣 Meta + Google', className: 'bg-violet-100 text-violet-700' }
-  if (hasGoogle) return { label: '🔴 Google Ads', className: PLATFORM_BADGE.google }
-  return { label: '🔵 Meta Ads', className: PLATFORM_BADGE.meta }
+  if (hasMeta && hasGoogle) return { label: '🟣 Meta + Google', className: 'badge bg-violet-100 text-violet-700' }
+  if (hasGoogle) return { label: '🔴 Google Ads', className: `badge ${PLATFORM_BADGE.google}` }
+  return { label: '🔵 Meta Ads', className: `badge ${PLATFORM_BADGE.meta}` }
 }

@@ -18,9 +18,7 @@ function ServiceBadge({ client }: { client: Client }) {
   const paidTraffic = !!client.modules?.paidTraffic
   const socialMedia = !!client.modules?.socialMedia
   if (paidTraffic && socialMedia) {
-    return (
-      <Badge className="bg-gradient-to-r from-blue-100 to-violet-100 text-blue-700">Ambos</Badge>
-    )
+    return <Badge className="bg-indigo-100 text-indigo-700">Ambos</Badge>
   }
   if (paidTraffic) return <Badge className="bg-blue-100 text-blue-700">Tráfego</Badge>
   if (socialMedia) return <Badge className="bg-violet-100 text-violet-700">Social Mídia</Badge>
