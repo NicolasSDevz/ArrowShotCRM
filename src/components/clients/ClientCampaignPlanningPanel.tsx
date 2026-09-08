@@ -15,6 +15,7 @@ import { ensureActPrefix, normalizeMetaAccountId } from '../../utils/metaReportD
 import { getMetaTokenStatus, saveMetaToken, deleteMetaToken, type MetaTokenStatus } from '../../services/metaApi'
 import { tokenValidity, fmtExpiry } from '../../utils/metaTokenValidity'
 import { trafficServices } from '../../utils/clientServices'
+import { metaTotals, googleTotals } from '../../utils/campaignPlanningStats'
 import { MetaTokenRenewModal } from './MetaTokenRenewModal'
 import {
   EMPTY_CAMPAIGN_PLANNING,
@@ -55,6 +56,46 @@ function SectionTitle({ children }: { children: string }) {
 
 function SubTitle({ children }: { children: string }) {
   return <p className="mb-1.5 text-sm font-semibold text-slate-700">{children}</p>
+}
+
+/** Cabeçalho de plataforma (Google/Meta) com barra de cor e contagem de
+ *  estrutura ao vivo — campanhas / conjuntos-grupos / anúncios — pra dar a
+ *  visão geral que hoje só aparecia depois de gerar o PDF. */
+function PlatformHeader({
+  accent,
+  title,
+  totals,
+  unitLabel,
+}: {
+  accent: 'blue' | 'violet'
+  title: string
+  totals: { campanhas: number; conjuntos: number; anuncios: number }
+  unitLabel: string
+}) {
+  const bar = accent === 'blue' ? 'bg-blue-500' : 'bg-violet-500'
+  const chip = accent === 'blue' ? 'bg-blue-50 text-blue-700' : 'bg-violet-50 text-violet-700'
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <span className={`h-5 w-1.5 rounded-full ${bar}`} />
+        <SectionTitle>{title}</SectionTitle>
+      </div>
+      {totals.campanhas > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${chip}`}>
+            {totals.campanhas} {totals.campanhas === 1 ? 'campanha' : 'campanhas'}
+          </span>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${chip}`}>
+            {totals.conjuntos} {unitLabel}
+            {totals.conjuntos === 1 ? '' : 's'}
+          </span>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${chip}`}>
+            {totals.anuncios} {totals.anuncios === 1 ? 'anúncio' : 'anúncios'}
+          </span>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function CalculatedField({ label, value }: { label: string; value?: number }) {
@@ -257,6 +298,9 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
     form.metaAds.verbaMensal && form.metaAds.diasDoMes ? form.metaAds.verbaMensal / form.metaAds.diasDoMes : undefined
   const googleVerbaDiaria =
     form.googleAds.verbaMensal && form.googleAds.diasDoMes ? form.googleAds.verbaMensal / form.googleAds.diasDoMes : undefined
+
+  const metaStats = metaTotals(form.metaAds)
+  const googleStats = googleTotals(form.googleAds)
 
   const funnelPercents = [
     form.metaAds.distribuicaoTopoPercent,
@@ -576,7 +620,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
       {/* SEÇÃO 2 — PLANEJAMENTO META ADS */}
       {svc.meta && (
       <div>
-        <SectionTitle>{`${secMeta}. Planejamento Meta Ads`}</SectionTitle>
+        <PlatformHeader accent="violet" title={`${secMeta}. Planejamento Meta Ads`} totals={metaStats} unitLabel="conjunto" />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Verba mensal Meta Ads (R$)">
             <Input
@@ -656,6 +700,18 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
                       ))}
                     </Select>
                   </Field>
+                  <Field label="Nome da campanha">
+                    <Input
+                      value={c.nomeCampanha ?? ''}
+                      onChange={(e) => updateMetaCampaign(c.id, { nomeCampanha: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Nome do conjunto de anúncios">
+                    <Input
+                      value={c.nomeConjunto ?? ''}
+                      onChange={(e) => updateMetaCampaign(c.id, { nomeConjunto: e.target.value })}
+                    />
+                  </Field>
                   <div className="sm:col-span-2">
                     <Field label="Descrição da campanha">
                       <Input value={c.descricao ?? ''} onChange={(e) => updateMetaCampaign(c.id, { descricao: e.target.value })} />
@@ -671,6 +727,24 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
                       step="0.01"
                       value={c.verbaDiaria ?? ''}
                       onChange={(e) => updateMetaCampaign(c.id, { verbaDiaria: toNumberOrUndefined(e.target.value) })}
+                    />
+                  </Field>
+                  <Field label="Qtd. conjuntos de anúncios">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={c.qtdConjuntos ?? ''}
+                      onChange={(e) => updateMetaCampaign(c.id, { qtdConjuntos: toNumberOrUndefined(e.target.value) })}
+                      placeholder="1"
+                    />
+                  </Field>
+                  <Field label="Qtd. anúncios">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={c.qtdAnuncios ?? ''}
+                      onChange={(e) => updateMetaCampaign(c.id, { qtdAnuncios: toNumberOrUndefined(e.target.value) })}
+                      placeholder="1"
                     />
                   </Field>
                   <Field label="Data de criação">
@@ -715,6 +789,47 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
             />
           </Field>
         </div>
+
+        <div className="mt-4">
+          <SubTitle>Segmentação geográfica</SubTitle>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Cidades desejadas (bairro entre parênteses, se houver)">
+              <Textarea
+                rows={4}
+                value={form.metaAds.cidadesDesejadas ?? ''}
+                onChange={(e) => setMeta('cidadesDesejadas', e.target.value)}
+                placeholder={'Uma por linha. Ex: São Paulo (Moema)'}
+              />
+            </Field>
+            <Field label="Cidades excluídas">
+              <Textarea
+                rows={4}
+                value={form.metaAds.cidadesExcluidas ?? ''}
+                onChange={(e) => setMeta('cidadesExcluidas', e.target.value)}
+                placeholder="Uma por linha"
+              />
+            </Field>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Palavras-chave / interesses positivos">
+            <Textarea
+              rows={4}
+              value={form.metaAds.palavrasChavePositivas ?? ''}
+              onChange={(e) => setMeta('palavrasChavePositivas', e.target.value)}
+              placeholder="Uma por linha"
+            />
+          </Field>
+          <Field label="Palavras-chave / interesses negativos">
+            <Textarea
+              rows={4}
+              value={form.metaAds.palavrasChaveNegativas ?? ''}
+              onChange={(e) => setMeta('palavrasChaveNegativas', e.target.value)}
+              placeholder="Uma por linha"
+            />
+          </Field>
+        </div>
       </div>
 
       )}
@@ -722,7 +837,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
       {/* SEÇÃO 3 — PLANEJAMENTO GOOGLE ADS */}
       {svc.google && (
       <div>
-        <SectionTitle>{`${secGoogle}. Planejamento Google Ads`}</SectionTitle>
+        <PlatformHeader accent="blue" title={`${secGoogle}. Planejamento Google Ads`} totals={googleStats} unitLabel="grupo" />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Verba mensal Google Ads (R$)">
             <Input
@@ -793,6 +908,24 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
                       onChange={(e) => updateGoogleCampaign(c.id, { verbaDiaria: toNumberOrUndefined(e.target.value) })}
                     />
                   </Field>
+                  <Field label="Qtd. grupos de anúncios">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={c.qtdGrupos ?? ''}
+                      onChange={(e) => updateGoogleCampaign(c.id, { qtdGrupos: toNumberOrUndefined(e.target.value) })}
+                      placeholder="1"
+                    />
+                  </Field>
+                  <Field label="Qtd. anúncios">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={c.qtdAnuncios ?? ''}
+                      onChange={(e) => updateGoogleCampaign(c.id, { qtdAnuncios: toNumberOrUndefined(e.target.value) })}
+                      placeholder="1"
+                    />
+                  </Field>
                   <div className="sm:col-span-2">
                     <Field label="Observações">
                       <Input
@@ -816,6 +949,28 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
             <Button variant="secondary" size="sm" icon={<Plus size={13} />} onClick={addGoogleCampaign} className="self-start">
               Adicionar campanha
             </Button>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <SubTitle>Segmentação geográfica</SubTitle>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Cidades desejadas (bairro entre parênteses, se houver)">
+              <Textarea
+                rows={4}
+                value={form.googleAds.cidadesDesejadas ?? ''}
+                onChange={(e) => setGoogle('cidadesDesejadas', e.target.value)}
+                placeholder={'Uma por linha. Ex: São Paulo (Moema)'}
+              />
+            </Field>
+            <Field label="Cidades excluídas">
+              <Textarea
+                rows={4}
+                value={form.googleAds.cidadesExcluidas ?? ''}
+                onChange={(e) => setGoogle('cidadesExcluidas', e.target.value)}
+                placeholder="Uma por linha"
+              />
+            </Field>
           </div>
         </div>
 
