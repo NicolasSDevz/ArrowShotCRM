@@ -321,7 +321,7 @@ export function ClientFormModal({
           )}
         </div>
 
-        <Field label="Investimento mensal na plataforma (R$)">
+        <Field label="Valor mensal do contrato (R$)">
           <Input
             value={form.monthlyValue}
             onChange={(e) => set('monthlyValue', maskCurrencyInput(e.target.value))}

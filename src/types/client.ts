@@ -25,7 +25,17 @@ export type ApprovalChannel = 'whatsapp' | 'email' | 'drive' | 'outro'
  *  7). Deliberately kept off the quick client-create form and off the base
  *  Client fields it would otherwise duplicate (empresa/responsável/whatsapp/
  *  cidade/pacote/catálogo already exist on Client). */
+/** Tom de voz do briefing de Social Mídia (dropdown). */
+export type BriefingToneOfVoice = 'profissional_sobrio' | 'moderno_descontraido' | 'premium_aspiracional'
+
+export const BRIEFING_TONE_OF_VOICE_LABEL: Record<BriefingToneOfVoice, string> = {
+  profissional_sobrio: 'Profissional e sóbrio',
+  moderno_descontraido: 'Moderno e descontraído',
+  premium_aspiracional: 'Premium e aspiracional',
+}
+
 export interface ClientBriefing {
+  // Seção 1 — Informações da empresa
   tempoMercado?: string
   numeroObras?: string
   servicos?: string
@@ -33,17 +43,43 @@ export interface ClientBriefing {
   ticketMedio?: string
   diferencial?: string
   naoAssociar?: string
+
+  // Seção 2 — Público-alvo
   clienteIdeal?: string
   atendeB2B?: boolean
+  /** Setor B2B — só faz sentido quando atendeB2B === true. */
+  setorB2B?: string
   dorPrincipal?: string
   objecaoComum?: string
+
+  // Seção 3 — Identidade e tom de voz
+  /** Guarda a chave de BriefingToneOfVoice (dropdown). */
   tomVoz?: string
   coresMarca?: string
   referenciaPerfil?: string
   naoQuerVer?: string
-  dataInicio?: Timestamp | null
+  observacoesIdentidade?: string
+
+  // Seção 4 — Materiais disponíveis
+  logoEnviada?: boolean
+  fotosAntesDepois?: boolean
+  fotosAntesDepoisQtd?: string
+  videosDisponiveis?: boolean
+  depoimentosClientes?: boolean
+  fotoEquipe?: boolean
+  linkDriveMateriais?: string
+
+  // Seção 5 — Processo de aprovação
   canalAprovacao?: ApprovalChannel
   prazoAprovacao?: string
+  responsavelAprovacao?: string
+
+  // Seção 6 — Observações gerais
+  observacoesGerais?: string
+
+  /** @deprecated não é mais exibido no formulário reformulado; mantido para
+   *  não perder o valor de briefings antigos. */
+  dataInicio?: Timestamp | null
   preenchidoPor?: string
   filledAt?: Timestamp | null
 }

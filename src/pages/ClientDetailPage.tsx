@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ArrowLeft, Pencil, Plus, Globe, Camera, ThumbsUp, Phone, Mail, MapPin, Sparkles, CheckSquare, MoreVertical, Trash2, Upload } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Globe, Camera, ThumbsUp, Phone, Mail, MapPin, Sparkles, CheckSquare, MoreVertical, Trash2 } from 'lucide-react'
 import { useClients } from '../hooks/useClients'
 import { useTasks } from '../hooks/useTasks'
 import { useContents } from '../hooks/useContents'
@@ -27,9 +27,9 @@ import { ContentFormModal } from '../components/content/ContentFormModal'
 import { ImportEditorialCalendarModal } from '../components/content/ImportEditorialCalendarModal'
 import { ClientMeetingsTab } from '../components/clients/ClientMeetingsTab'
 import { ClientOptimizationsTab } from '../components/clients/ClientOptimizationsTab'
+import { ClientContentsTab } from '../components/clients/ClientContentsTab'
 import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
 import { TASK_STATUS_LABEL } from '../types/task'
-import { CONTENT_STATUS_LABEL } from '../types/content'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 
 export function ClientDetailPage() {
@@ -61,6 +61,61 @@ export function ClientDetailPage() {
     .filter((u): u is (typeof users)[number] => !!u)
   const openTask = tasks.find((t) => t.id === openTaskId) ?? null
   const openContent = contents.find((c) => c.id === openContentId) ?? null
+
+  // Abas dependem dos serviços contratados: só Social Mídia esconde
+  // Planejamento de Campanha, Otimizações e Tarefas (o fluxo do conteúdo é
+  // gerido pela aba Conteúdos). Tráfego Pago + Social Mídia mostra tudo.
+  const hasPT = !!client.modules?.paidTraffic
+  const hasSM = !!client.modules?.socialMedia
+
+  const trafficTabs = hasPT
+    ? [
+        { label: 'Planejamento de Campanha', content: <ClientCampaignPlanningPanel client={client} /> },
+        {
+          label: 'Tarefas',
+          content: (
+            <div className="flex flex-col gap-2">
+              <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreatingTask(true)} className="self-end">
+                Nova tarefa
+              </Button>
+              {tasks.length === 0 ? (
+                <EmptyState title="Nenhuma tarefa para este cliente" />
+              ) : (
+                tasks.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setOpenTaskId(t.id)}
+                    className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                  >
+                    <CheckSquare size={14} className="text-slate-300" />
+                    <span className="flex-1 truncate text-slate-700">{t.title}</span>
+                    <span className="text-xs text-slate-400">{TASK_STATUS_LABEL[t.status]}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          ),
+        },
+        { label: 'Otimizações', content: <ClientOptimizationsTab client={client} /> },
+      ]
+    : []
+
+  const contentTab = hasSM
+    ? [
+        {
+          label: 'Conteúdos',
+          content: (
+            <ClientContentsTab
+              client={client}
+              contents={contents}
+              onOpenContent={setOpenContentId}
+              onNewContent={() => setCreatingContent(true)}
+              onImportCalendar={() => setImportingCalendar(true)}
+            />
+          ),
+        },
+      ]
+    : []
 
   return (
     <div className="flex flex-col gap-4">
@@ -144,68 +199,8 @@ export function ClientDetailPage() {
         <Tabs
           tabs={[
             { label: 'Briefing', content: <ClientBriefingTab client={client} /> },
-            { label: 'Planejamento de Campanha', content: <ClientCampaignPlanningPanel client={client} /> },
-            {
-              label: 'Tarefas',
-              content: (
-                <div className="flex flex-col gap-2">
-                  <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreatingTask(true)} className="self-end">
-                    Nova tarefa
-                  </Button>
-                  {tasks.length === 0 ? (
-                    <EmptyState title="Nenhuma tarefa para este cliente" />
-                  ) : (
-                    tasks.map((t) => (
-                      <button
-                        key={t.id}
-                        onClick={() => setOpenTaskId(t.id)}
-                        className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                      >
-                        <CheckSquare size={14} className="text-slate-300" />
-                        <span className="flex-1 truncate text-slate-700">{t.title}</span>
-                        <span className="text-xs text-slate-400">{TASK_STATUS_LABEL[t.status]}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              ),
-            },
-            { label: 'Otimizações', content: <ClientOptimizationsTab client={client} /> },
-            {
-              label: 'Conteúdos',
-              content: (
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreatingContent(true)}>
-                      Novo conteúdo
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      icon={<Upload size={13} />}
-                      onClick={() => setImportingCalendar(true)}
-                    >
-                      Importar calendário
-                    </Button>
-                  </div>
-                  {contents.length === 0 ? (
-                    <EmptyState title="Nenhum conteúdo para este cliente" />
-                  ) : (
-                    contents.map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => setOpenContentId(c.id)}
-                        className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                      >
-                        <Sparkles size={14} className="text-slate-300" />
-                        <span className="flex-1 truncate text-slate-700">{c.title}</span>
-                        <span className="text-xs text-slate-400">{CONTENT_STATUS_LABEL[c.status]}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              ),
-            },
+            ...trafficTabs,
+            ...contentTab,
             {
               label: 'Calendário',
               content: (
