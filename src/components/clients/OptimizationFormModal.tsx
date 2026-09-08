@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { createOptimization, updateOptimization } from '../../services/optimizationService'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
-import { OPTIMIZATION_SUGGESTIONS, type Optimization, type OptimizationPlatform } from '../../types'
+import { OPTIMIZATION_SUGGESTIONS_BY_PLATFORM, type Optimization, type OptimizationPlatform } from '../../types'
 
 function todayInput() {
   const d = new Date()
@@ -163,7 +163,7 @@ export function OptimizationFormModal({
             />
           </Field>
           <div className="flex flex-wrap gap-1.5">
-            {OPTIMIZATION_SUGGESTIONS.map((s) => (
+            {OPTIMIZATION_SUGGESTIONS_BY_PLATFORM[which].map((s) => (
               <button
                 key={s}
                 type="button"

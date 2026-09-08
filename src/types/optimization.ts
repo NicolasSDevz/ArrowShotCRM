@@ -33,15 +33,49 @@ export interface Optimization extends BaseDoc {
 
 export type OptimizationInput = Omit<Optimization, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'>
 
-/** Chips de sugestão rápida no formulário. */
-export const OPTIMIZATION_SUGGESTIONS = [
-  'Pausei anúncios com baixo desempenho',
-  'Aumentei orçamento das campanhas ativas',
-  'Criei novos públicos',
-  'Ajustei lances',
-  'Atualizei criativos',
+/** Chips de sugestão rápida no formulário — específicos por plataforma. */
+export const OPTIMIZATION_SUGGESTIONS_META = [
   'Sem otimização necessária',
+  'Pausei anúncios com baixo desempenho',
+  'Ativei novos anúncios',
+  'Ajustei orçamento das campanhas',
+  'Atualizei criativos (imagem/vídeo)',
+  'Criei novos públicos personalizados',
+  'Atualizei públicos lookalike',
+  'Ajustei segmentação de público',
+  'Testei novo formato de anúncio',
+  'Dupliquei conjunto de anúncios com melhor performance',
+  'Pausei público com alto CPL',
+  'Ativei campanha de remarketing',
+  'Ajustei lances da campanha',
+  'Atualizei texto/copy dos anúncios',
+  'Verifiquei pixel e eventos de conversão',
+  'Ajustei posicionamentos dos anúncios',
 ]
+
+export const OPTIMIZATION_SUGGESTIONS_GOOGLE = [
+  'Sem otimização necessária',
+  'Pausei palavras-chave com baixo desempenho',
+  'Adicionei novas palavras-chave',
+  'Adicionei palavras-chave negativas',
+  'Ajustei lances por palavra-chave',
+  'Ajustei orçamento diário da campanha',
+  'Atualizei anúncios responsivos (RSA)',
+  'Pausei anúncios com baixo CTR',
+  'Ajustei extensões de anúncio',
+  'Revisei correspondência de palavras-chave',
+  'Ajustei segmentação geográfica',
+  'Ajustei programação de anúncios (horários)',
+  'Ativei ajuste de lance por dispositivo',
+  'Verifiquei tag de conversão no GTM',
+  'Analisei termos de pesquisa e negativei irrelevantes',
+  'Ajustei estratégia de lances (CPC manual/tROAS/tCPA)',
+]
+
+export const OPTIMIZATION_SUGGESTIONS_BY_PLATFORM: Record<OptimizationPlatform, string[]> = {
+  meta: OPTIMIZATION_SUGGESTIONS_META,
+  google: OPTIMIZATION_SUGGESTIONS_GOOGLE,
+}
 
 /** Uma linha do calendário global de otimizações: qual gestor otimiza qual
  *  cliente e em quais dias da semana (0=domingo … 6=sábado). Guardado num
