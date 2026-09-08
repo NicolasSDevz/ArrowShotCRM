@@ -361,8 +361,9 @@ export function ReportFunnelSection({ report, editable = true }: { report: Repor
 
       {/* DIAGNÓSTICO */}
       <div
-        className="rounded-2xl border p-4"
-        style={alerts.length > 0 ? { backgroundColor: '#FEF9EC', borderColor: '#F59E0B' } : { backgroundColor: '#ECFDF5', borderColor: '#10B981' }}
+        className={`rounded-2xl border p-4 ${
+          alerts.length > 0 ? 'border-amber-400 bg-amber-50' : 'border-emerald-400 bg-emerald-50'
+        }`}
       >
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Diagnóstico automático</p>
         {alerts.length > 0 ? (

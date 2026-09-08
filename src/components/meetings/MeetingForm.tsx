@@ -127,8 +127,7 @@ export function MeetingForm({
           value={value.decisions}
           onChange={(e) => set('decisions', e.target.value)}
           placeholder="Liste as decisões e encaminhamentos definidos..."
-          style={{ backgroundColor: '#FFFBEB' }}
-          className="w-full resize-none rounded-lg border border-amber-200 px-3 py-2 text-sm text-slate-800 outline-none transition-all duration-150 ease-in-out placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+          className="w-full resize-none rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-slate-800 outline-none transition-all duration-150 ease-in-out placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
         />
       </div>
 

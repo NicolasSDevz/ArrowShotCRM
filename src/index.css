@@ -22,10 +22,29 @@
   --color-navy-900: #16213a;
   --color-navy-800: #1e293b;
   --color-navy-700: #334155;
+
+  /* Fundo das páginas (área de conteúdo). Trocado no tema escuro. */
+  --color-page: #f1f5f9;
 }
 
 :root {
   color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* ---------- Transição suave claro <-> escuro ----------
+   Só as 3 propriedades de cor; imagens/avatares ficam de fora pra não
+   "piscar". */
+*,
+*::before,
+*::after {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+img,
+[data-no-theme-transition] {
+  transition: none;
 }
 
 html, body, #root {
@@ -78,4 +97,126 @@ body {
 }
 .sidebar {
   scrollbar-color: #475569 #1e293b;
+}
+
+/* ==========================================================================
+   TEMA ESCURO
+   As classes utilitárias do Tailwind são sobrescritas diretamente (em vez
+   de redefinir as variáveis de cor) para não afetar casos como `text-white`
+   sobre botão colorido. Ativado por [data-theme="dark"] no <html> (ver
+   ThemeContext + o script inline no index.html).
+   ========================================================================== */
+:root[data-theme="dark"] {
+  /* Sidebar e superfícies escuras (login) — aqui trocar a variável é seguro. */
+  --color-navy-950: #020617;
+  --color-navy-900: #0b1220;
+  --color-navy-800: #0f172a;
+  --color-navy-700: #1e293b;
+
+  /* Fundo das páginas. */
+  --color-page: #0f172a;
+}
+
+/* ---- fundos ---- */
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .hover\:bg-white:hover,
+:root[data-theme="dark"] .focus\:bg-white:focus {
+  background-color: #1e293b;
+}
+:root[data-theme="dark"] .bg-slate-50,
+:root[data-theme="dark"] .hover\:bg-slate-50:hover {
+  background-color: #172033;
+}
+:root[data-theme="dark"] .bg-slate-100,
+:root[data-theme="dark"] .hover\:bg-slate-100:hover {
+  background-color: #334155;
+}
+:root[data-theme="dark"] .bg-slate-200 {
+  background-color: #334155;
+}
+:root[data-theme="dark"] .bg-\[\#F8FAFC\] {
+  background-color: #1e293b;
+}
+:root[data-theme="dark"] .bg-\[\#F1F5F9\] {
+  background-color: #0f172a;
+}
+:root[data-theme="dark"] .bg-\[\#E2E8F0\] {
+  background-color: #334155;
+}
+
+/* ---- textos ---- */
+:root[data-theme="dark"] .text-slate-900 { color: #ffffff; }
+:root[data-theme="dark"] .text-slate-800 { color: #f1f5f9; }
+:root[data-theme="dark"] .text-slate-700,
+:root[data-theme="dark"] .hover\:text-slate-700:hover { color: #e2e8f0; }
+:root[data-theme="dark"] .text-slate-600,
+:root[data-theme="dark"] .hover\:text-slate-600:hover { color: #cbd5e1; }
+:root[data-theme="dark"] .text-slate-500 { color: #94a3b8; }
+/* slate-400 (#94a3b8) já serve bem no escuro — mantido */
+:root[data-theme="dark"] .text-slate-300 { color: #475569; }
+:root[data-theme="dark"] .text-\[\#0F172A\] { color: #f1f5f9; }
+:root[data-theme="dark"] .text-\[\#64748B\] { color: #94a3b8; }
+
+/* ---- bordas ---- */
+:root[data-theme="dark"] .border-slate-100,
+:root[data-theme="dark"] .border-slate-200 { border-color: #334155; }
+:root[data-theme="dark"] .border-slate-300 { border-color: #475569; }
+:root[data-theme="dark"] .border-\[\#E2E8F0\] { border-color: #334155; }
+
+/* ---- overlays de modal / menu mobile ---- */
+:root[data-theme="dark"] .bg-black\/30,
+:root[data-theme="dark"] .bg-black\/40 { background-color: rgba(0, 0, 0, 0.7); }
+
+/* ---- sombras mais fortes ---- */
+:root[data-theme="dark"] .shadow-sm {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+:root[data-theme="dark"] .shadow-lg,
+:root[data-theme="dark"] .shadow-xl,
+:root[data-theme="dark"] .shadow-2xl {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+:root[data-theme="dark"] [class*="shadow-["] {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* ---- inputs / selects (placeholder + esquema nativo) ---- */
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  color-scheme: dark;
+}
+:root[data-theme="dark"] ::placeholder { color: #64748b; }
+
+/* ---- badges de status/prioridade (tints -50/-100 + texto -600/-700) ---- */
+:root[data-theme="dark"] .bg-emerald-50, :root[data-theme="dark"] .bg-emerald-100 { background-color: #052e16; }
+:root[data-theme="dark"] .text-emerald-600, :root[data-theme="dark"] .text-emerald-700 { color: #4ade80; }
+:root[data-theme="dark"] .bg-amber-50, :root[data-theme="dark"] .bg-amber-100 { background-color: #451a03; }
+:root[data-theme="dark"] .text-amber-600, :root[data-theme="dark"] .text-amber-700 { color: #fbbf24; }
+:root[data-theme="dark"] .bg-blue-50, :root[data-theme="dark"] .bg-blue-100 { background-color: #1e3a5f; }
+:root[data-theme="dark"] .text-blue-600, :root[data-theme="dark"] .text-blue-700 { color: #60a5fa; }
+:root[data-theme="dark"] .bg-red-50, :root[data-theme="dark"] .bg-red-100 { background-color: #450a0a; }
+:root[data-theme="dark"] .text-red-600, :root[data-theme="dark"] .text-red-700 { color: #f87171; }
+:root[data-theme="dark"] .hover\:bg-red-50:hover { background-color: #450a0a; }
+:root[data-theme="dark"] .bg-violet-50, :root[data-theme="dark"] .bg-violet-100,
+:root[data-theme="dark"] .bg-purple-50, :root[data-theme="dark"] .bg-purple-100 { background-color: #2e1065; }
+:root[data-theme="dark"] .text-violet-600, :root[data-theme="dark"] .text-violet-700,
+:root[data-theme="dark"] .text-purple-600, :root[data-theme="dark"] .text-purple-700 { color: #a78bfa; }
+:root[data-theme="dark"] .bg-indigo-50, :root[data-theme="dark"] .bg-indigo-100 { background-color: #1e1b4b; }
+:root[data-theme="dark"] .text-indigo-600, :root[data-theme="dark"] .text-indigo-700 { color: #818cf8; }
+:root[data-theme="dark"] .bg-brand-50 { background-color: #172554; }
+
+/* ---- scrollbar no escuro ---- */
+:root[data-theme="dark"] ::-webkit-scrollbar-track { background: #1e293b; }
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-color: #1e293b;
+}
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #475569; }
+:root[data-theme="dark"] * { scrollbar-color: #334155 #1e293b; }
+
+/* ---- toasts ---- */
+:root[data-theme="dark"] .go2072408551 { /* react-hot-toast default class */
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
 }

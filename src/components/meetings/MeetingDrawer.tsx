@@ -143,7 +143,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
             )}
 
             {meeting.decisions && (
-              <div className="rounded-[10px] border p-4" style={{ backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }}>
+              <div className="rounded-[10px] border border-amber-400 bg-amber-50 p-4">
                 <p className="mb-1 text-sm font-semibold text-slate-700">📌 Decisões e encaminhamentos</p>
                 <p className="whitespace-pre-wrap text-sm text-slate-700">{meeting.decisions}</p>
               </div>

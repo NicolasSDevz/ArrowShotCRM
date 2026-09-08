@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { LogOut, Search, Camera, Menu } from 'lucide-react'
+import { LogOut, Search, Camera, Menu, Moon, Sun } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../../context/ThemeContext'
 import { Avatar } from '../ui/Avatar'
 import { NotificationBell } from './NotificationBell'
 import { compressImageToDataUrl } from '../../utils/imageToDataUrl'
@@ -17,6 +18,7 @@ export function Topbar({
   onOpenMobileNav?: () => void
 }) {
   const { profile, signOut } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -60,6 +62,15 @@ export function Topbar({
       )}
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <button
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+          aria-label={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
         <NotificationBell />
 
         <div className="relative">

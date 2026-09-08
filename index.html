@@ -11,6 +11,14 @@
       rel="stylesheet"
     />
     <title>Arrow Shot CRM</title>
+    <script>
+      // Aplica o tema salvo antes do 1º paint (evita flash claro→escuro).
+      try {
+        if (localStorage.getItem('arrowshot-theme') === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark')
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
