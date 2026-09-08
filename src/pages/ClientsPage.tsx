@@ -17,19 +17,27 @@ export function ClientsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [managerFilter, setManagerFilter] = useState('')
   const [creating, setCreating] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
 
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
+
+  // Gestores = usuários com papel "manager" (Ciane, Nicolas). Ordenados por nome.
+  const managers = useMemo(
+    () => users.filter((u) => u.role === 'manager' && u.active !== false).sort((a, b) => a.name.localeCompare(b.name)),
+    [users],
+  )
 
   const filtered = useMemo(() => {
     return clients.filter((c) => {
       if (search && !c.companyName.toLowerCase().includes(search.toLowerCase())) return false
       if (statusFilter && c.status !== statusFilter) return false
       if (categoryFilter && c.categoria !== categoryFilter) return false
+      if (managerFilter && !getClientOwnerIds(c).includes(managerFilter)) return false
       return true
     })
-  }, [clients, search, statusFilter, categoryFilter])
+  }, [clients, search, statusFilter, categoryFilter, managerFilter])
 
   const ownersByClientId = useMemo(() => {
     return Object.fromEntries(
@@ -69,6 +77,12 @@ export function ClientsPage() {
           <option value="">Todas as categorias</option>
           {Object.entries(CLIENT_CATEGORY_LABEL).map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+        <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
+          <option value="">Todos os gestores</option>
+          {managers.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
           ))}
         </select>
       </div>
