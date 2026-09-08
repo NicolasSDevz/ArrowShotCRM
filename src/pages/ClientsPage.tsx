@@ -3,28 +3,52 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Search } from 'lucide-react'
 import { useClients } from '../hooks/useClients'
 import { useUsers } from '../hooks/useUsers'
+import { useAuth } from '../context/AuthContext'
 import { ClientsTable } from '../components/clients/ClientsTable'
 import { ClientFormModal } from '../components/clients/ClientFormModal'
 import { DeleteClientModal } from '../components/clients/DeleteClientModal'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
-import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, getClientOwnerIds, type Client } from '../types/client'
+import { CLIENT_CATEGORY_LABEL, getClientOwnerIds, type Client, type ClientStatus } from '../types/client'
 
 /** Gestores para o filtro. Os responsáveis são gravados no cliente como
  *  `ownerIds` (ids de usuário), então o filtro resolve id → nome via userMap
  *  e compara pelo nome. */
 const MANAGER_FILTER_NAMES = ['Ciane', 'Nicolas']
 
+/** Opções do filtro de status. "ativos" = tudo menos Encerrado (padrão);
+ *  "all" = inclui Encerrado. */
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'ativos', label: 'Ativos' },
+  { value: 'active', label: 'Ativo' },
+  { value: 'prospect', label: 'Onboarding' },
+  { value: 'paused', label: 'Pausado' },
+  { value: 'churned', label: 'Encerrado' },
+  { value: 'all', label: 'Todos' },
+]
+
+function statusMatches(filter: string, status: ClientStatus): boolean {
+  if (filter === 'all') return true
+  if (filter === 'ativos') return status !== 'churned'
+  return status === filter
+}
+
 export function ClientsPage() {
   const navigate = useNavigate()
   const { data: clients, loading } = useClients()
   const { data: users } = useUsers()
+  const { profile } = useAuth()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ativos')
   const [categoryFilter, setCategoryFilter] = useState('')
-  const [managerFilter, setManagerFilter] = useState('')
+  // null = ainda não interagido → deriva do usuário logado (Ciane/Nicolas
+  // começam vendo só os deles). Qualquer escolha do usuário passa a mandar.
+  const [managerFilterChoice, setManagerFilterChoice] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
+
+  const managerFilter =
+    managerFilterChoice ?? (MANAGER_FILTER_NAMES.includes(profile?.name ?? '') ? (profile?.name ?? '') : '')
 
   const userMap = useMemo(() => Object.fromEntries(users.map((u) => [u.id, u])), [users])
 
@@ -37,7 +61,7 @@ export function ClientsPage() {
   const filtered = useMemo(() => {
     return clients.filter((c) => {
       if (search && !c.companyName.toLowerCase().includes(search.toLowerCase())) return false
-      if (statusFilter && c.status !== statusFilter) return false
+      if (!statusMatches(statusFilter, c.status)) return false
       if (categoryFilter && c.categoria !== categoryFilter) return false
       if (managerFilter && !ownerNames(c).includes(managerFilter)) return false
       return true
@@ -74,9 +98,8 @@ export function ClientsPage() {
           />
         </div>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
-          <option value="">Todos os status</option>
-          {Object.entries(CLIENT_STATUS_LABEL).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
@@ -85,7 +108,7 @@ export function ClientsPage() {
             <option key={v} value={v}>{l}</option>
           ))}
         </select>
-        <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
+        <select value={managerFilter} onChange={(e) => setManagerFilterChoice(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
           <option value="">Todos os gestores</option>
           {MANAGER_FILTER_NAMES.map((name) => (
             <option key={name} value={name}>{name}</option>
