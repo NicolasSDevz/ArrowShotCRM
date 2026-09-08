@@ -14,6 +14,7 @@ import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInpu
 import { ensureActPrefix, normalizeMetaAccountId } from '../../utils/metaReportData'
 import { getMetaTokenStatus, saveMetaToken, deleteMetaToken, type MetaTokenStatus } from '../../services/metaApi'
 import { tokenValidity, fmtExpiry } from '../../utils/metaTokenValidity'
+import { trafficServices } from '../../utils/clientServices'
 import { MetaTokenRenewModal } from './MetaTokenRenewModal'
 import {
   EMPTY_CAMPAIGN_PLANNING,
@@ -121,6 +122,12 @@ function mergeCampaignPlanning(saved?: CampaignPlanning): CampaignPlanning {
 
 export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
   const { profile } = useAuth()
+  const svc = trafficServices(client)
+  // Numeração das seções depende de quais planejamentos aparecem.
+  const secMeta = 2
+  const secGoogle = svc.meta ? 3 : 2
+  const secPublico = 2 + (svc.meta ? 1 : 0) + (svc.google ? 1 : 0)
+  const secObs = secPublico + 1
   const [form, setForm] = useState<CampaignPlanning>(mergeCampaignPlanning(client.campaignPlanning))
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -347,6 +354,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
             <Input value={form.acessos.instagramLink ?? ''} onChange={(e) => setAccess('instagramLink', e.target.value)} />
           </Field>
 
+          {svc.google && (
           <div>
             <SubTitle>Google Tag Manager</SubTitle>
             <div className="flex flex-col gap-1.5">
@@ -379,7 +387,9 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
               </label>
             </div>
           </div>
+          )}
 
+          {svc.google && (
           <label className="flex items-center gap-2 text-sm text-slate-600">
             <input
               type="checkbox"
@@ -389,6 +399,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
             />
             Google Meu Negócio configurado
           </label>
+          )}
 
           <Field label="WhatsApp para campanhas — número com DDD">
             <Input
@@ -402,6 +413,8 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
             <Input value={form.acessos.linkDrive ?? ''} onChange={(e) => setAccess('linkDrive', e.target.value)} />
           </Field>
 
+          {svc.meta && (
+          <>
           <div>
             <Field label="ID da conta Meta Ads">
               <div className="flex items-center gap-2">
@@ -547,6 +560,8 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
               </p>
             </details>
           </div>
+          </>
+          )}
         </div>
       </div>
 
@@ -559,8 +574,9 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
       />
 
       {/* SEÇÃO 2 — PLANEJAMENTO META ADS */}
+      {svc.meta && (
       <div>
-        <SectionTitle>2. Planejamento Meta Ads</SectionTitle>
+        <SectionTitle>{`${secMeta}. Planejamento Meta Ads`}</SectionTitle>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Verba mensal Meta Ads (R$)">
             <Input
@@ -701,9 +717,12 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
         </div>
       </div>
 
+      )}
+
       {/* SEÇÃO 3 — PLANEJAMENTO GOOGLE ADS */}
+      {svc.google && (
       <div>
-        <SectionTitle>3. Planejamento Google Ads</SectionTitle>
+        <SectionTitle>{`${secGoogle}. Planejamento Google Ads`}</SectionTitle>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Verba mensal Google Ads (R$)">
             <Input
@@ -819,10 +838,11 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
           </Field>
         </div>
       </div>
+      )}
 
       {/* SEÇÃO 4 — PÚBLICO-ALVO (somente leitura, do Briefing de Tráfego Pago) */}
       <div>
-        <SectionTitle>4. Público-alvo</SectionTitle>
+        <SectionTitle>{`${secPublico}. Público-alvo`}</SectionTitle>
         {!briefingFilled ? (
           <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-sm text-slate-400">
             Preencha o Briefing de Tráfego Pago para ver os dados de público-alvo aqui.
@@ -839,7 +859,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
 
       {/* SEÇÃO 5 — OBSERVAÇÕES GERAIS */}
       <div>
-        <SectionTitle>5. Observações gerais</SectionTitle>
+        <SectionTitle>{`${secObs}. Observações gerais`}</SectionTitle>
         <Textarea rows={3} value={form.observacoesGerais ?? ''} onChange={(e) => set('observacoesGerais', e.target.value)} />
       </div>
 

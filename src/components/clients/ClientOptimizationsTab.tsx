@@ -14,6 +14,7 @@ import { EmptyState } from '../ui/EmptyState'
 import { Spinner } from '../ui/FullPageSpinner'
 import { OptimizationFormModal } from './OptimizationFormModal'
 import { OptimizationBalanceChart } from './OptimizationBalanceChart'
+import { trafficServices, PLATFORM_BADGE } from '../../utils/clientServices'
 import {
   OPTIMIZATION_PLATFORM_LABEL,
   OPTIMIZATION_WEEKDAYS,
@@ -28,6 +29,7 @@ const fmtBRL = (v?: number) =>
 
 export function ClientOptimizationsTab({ client }: { client: Client }) {
   const { profile } = useAuth()
+  const svc = trafficServices(client)
   const assigneeMap = useAssigneeMap()
   const { data: optimizations, loading } = useClientOptimizations(client.id)
   const { rows, loading: scheduleLoading } = useOptimizationSchedule()
@@ -156,7 +158,7 @@ export function ClientOptimizationsTab({ client }: { client: Client }) {
                       {format(o.date.toDate(), 'dd/MM/yyyy', { locale: ptBR })}
                     </span>
                     {o.platforms.map((p) => (
-                      <Badge key={p} className="bg-slate-100 text-slate-500">{OPTIMIZATION_PLATFORM_LABEL[p]}</Badge>
+                      <Badge key={p} className={PLATFORM_BADGE[p]}>{OPTIMIZATION_PLATFORM_LABEL[p]}</Badge>
                     ))}
                   </div>
                   <div className="flex items-center gap-1">
@@ -169,15 +171,40 @@ export function ClientOptimizationsTab({ client }: { client: Client }) {
                   </div>
                 </div>
 
-                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{o.optimizationsText}</p>
-                {o.notes && <p className="mt-1.5 whitespace-pre-wrap text-xs text-slate-500">Obs.: {o.notes}</p>}
+                {o.metaOptimizationsText || o.googleOptimizationsText ? (
+                  <div className="mt-2 flex flex-col gap-2">
+                    {o.metaOptimizationsText && (
+                      <div>
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${PLATFORM_BADGE.meta}`}>
+                          Meta Ads
+                        </span>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{o.metaOptimizationsText}</p>
+                        {o.metaNotes && <p className="mt-1 whitespace-pre-wrap text-xs text-slate-500">Obs.: {o.metaNotes}</p>}
+                      </div>
+                    )}
+                    {o.googleOptimizationsText && (
+                      <div>
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${PLATFORM_BADGE.google}`}>
+                          Google Ads
+                        </span>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{o.googleOptimizationsText}</p>
+                        {o.googleNotes && <p className="mt-1 whitespace-pre-wrap text-xs text-slate-500">Obs.: {o.googleNotes}</p>}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{o.optimizationsText}</p>
+                    {o.notes && <p className="mt-1.5 whitespace-pre-wrap text-xs text-slate-500">Obs.: {o.notes}</p>}
+                  </>
+                )}
 
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span className="flex items-center gap-1.5">
                     <Avatar name={who?.name ?? o.responsavelName} photoURL={who?.photoURL} size="xs" /> {who?.name ?? o.responsavelName}
                   </span>
-                  {o.metaBalance != null && <span>Saldo Meta: <span className="font-medium text-slate-700">{fmtBRL(o.metaBalance)}</span></span>}
-                  {o.googleBalance != null && <span>Saldo Google: <span className="font-medium text-slate-700">{fmtBRL(o.googleBalance)}</span></span>}
+                  {o.metaBalance != null && <span>Saldo Meta Ads: <span className="font-medium text-slate-700">{fmtBRL(o.metaBalance)}</span></span>}
+                  {o.googleBalance != null && <span>Saldo Google Ads: <span className="font-medium text-slate-700">{fmtBRL(o.googleBalance)}</span></span>}
                 </div>
               </div>
             )
@@ -191,17 +218,23 @@ export function ClientOptimizationsTab({ client }: { client: Client }) {
           <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
             <Check size={13} /> Evolução do saldo (últimas 8 semanas)
           </p>
-          <OptimizationBalanceChart optimizations={sorted} />
+          <OptimizationBalanceChart optimizations={sorted} platforms={svc.platforms} />
         </div>
       )}
 
-      <OptimizationFormModal open={creating} onClose={() => setCreating(false)} clientId={client.id} />
+      <OptimizationFormModal
+        open={creating}
+        onClose={() => setCreating(false)}
+        clientId={client.id}
+        availablePlatforms={svc.platforms}
+      />
       <OptimizationFormModal
         key={editing?.id ?? 'none'}
         open={!!editing}
         onClose={() => setEditing(null)}
         clientId={client.id}
         optimization={editing}
+        availablePlatforms={svc.platforms}
       />
     </div>
   )

@@ -13,9 +13,17 @@ export interface Optimization extends BaseDoc {
   clientId: string
   date: Timestamp
   platforms: OptimizationPlatform[]
-  /** "Otimizações realizadas" — texto livre. */
+  /** "Otimizações realizadas" — texto livre. Registros de plataforma única
+   *  usam este campo; registros com Meta+Google preenchem os campos
+   *  específicos abaixo e mantêm aqui uma versão combinada (fallback). */
   optimizationsText: string
   notes?: string
+  /** Campos por plataforma — usados quando o cliente tem Meta E Google.
+   *  Ausentes em registros antigos (leia `optimizationsText`/`notes`). */
+  metaOptimizationsText?: string
+  googleOptimizationsText?: string
+  metaNotes?: string
+  googleNotes?: string
   /** Saldo atual da conta no dia, por plataforma (BRL). */
   metaBalance?: number
   googleBalance?: number

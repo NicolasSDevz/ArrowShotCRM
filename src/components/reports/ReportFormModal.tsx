@@ -12,6 +12,7 @@ import { useClients } from '../../hooks/useClients'
 import { createReport } from '../../services/reportService'
 import { fetchMetaReportSnapshot } from '../../utils/metaReportData'
 import { buildWeeklyReportText } from '../../utils/metaWeeklyReportText'
+import { trafficServices } from '../../utils/clientServices'
 import type { ReportMetaSnapshot, ReportPlatform, ReportType } from '../../types'
 
 function toDateStr(d: Date) {
@@ -51,6 +52,19 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
   const [generated, setGenerated] = useState(false)
 
   const client = clients.find((c) => c.id === clientId)
+  const svc = trafficServices(client)
+
+  /** Ao escolher um cliente, ajusta as plataformas conforme os serviços
+   *  contratados: só Meta / só Google trava na plataforma contratada;
+   *  ambos mantém o comportamento atual (Meta por padrão, editável). */
+  const handleClientChange = (id: string) => {
+    setClientId(id)
+    const next = clients.find((c) => c.id === id)
+    const s = trafficServices(next)
+    if (s.onlyMeta) setPlatforms(['meta'])
+    else if (s.onlyGoogle) setPlatforms(['google'])
+    else setPlatforms((prev) => (prev.length ? prev : ['meta']))
+  }
 
   const reset = () => {
     setClientId('')
@@ -210,7 +224,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Cliente" required>
-            <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+            <Select value={clientId} onChange={(e) => handleClientChange(e.target.value)}>
               <option value="">Selecione...</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.companyName}</option>
@@ -228,25 +242,37 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
         <div>
           <span className="mb-1.5 block text-xs font-medium text-slate-500">Plataformas</span>
           <div className="flex gap-4">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={platforms.includes('meta')}
-                onChange={() => togglePlatform('meta')}
-                className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-              />
-              Meta Ads
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={platforms.includes('google')}
-                onChange={() => togglePlatform('google')}
-                className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-              />
-              Google Ads
-            </label>
+            {svc.meta && (
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={platforms.includes('meta')}
+                  onChange={() => togglePlatform('meta')}
+                  disabled={svc.onlyMeta}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400 disabled:opacity-60"
+                />
+                Meta Ads
+              </label>
+            )}
+            {svc.google && (
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={platforms.includes('google')}
+                  onChange={() => togglePlatform('google')}
+                  disabled={svc.onlyGoogle}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400 disabled:opacity-60"
+                />
+                Google Ads
+              </label>
+            )}
           </div>
+          {(svc.onlyMeta || svc.onlyGoogle) && (
+            <p className="mt-1 text-[11px] text-slate-400">
+              Este cliente contratou apenas {svc.onlyMeta ? 'Meta Ads' : 'Google Ads'}.
+            </p>
+          )}
+          {!clientId && <p className="mt-1 text-[11px] text-slate-400">Selecione o cliente para ver as plataformas.</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-3">

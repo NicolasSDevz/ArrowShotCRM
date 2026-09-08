@@ -5,6 +5,7 @@ import { createTask, getClientTasks } from './taskService'
 import { createCalendarEvent } from './calendarService'
 import { createNotification, notifyAdminsOfAction } from './notificationService'
 import { findUserIdByName } from '../utils/userLookup'
+import { trafficServices } from '../utils/clientServices'
 import type { Client } from '../types/client'
 import type { AppUser } from '../types/user'
 import type { ChecklistItem, TaskPriority, TaskRecurrence, WorkflowStepKey } from '../types/task'
@@ -14,7 +15,7 @@ function toChecklist(items: string[]): ChecklistItem[] {
 }
 
 /** Contrato, Drive e grupo de WhatsApp — responsabilidade de Bruno. */
-function onboardingBrunoItems(companyName: string): string[] {
+function onboardingBrunoItems({ companyName }: Pick<Client, 'companyName' | 'modules'>): string[] {
   return [
     'Coletar dados para contrato (nome completo, CNPJ, endereço)',
     'Elaborar contrato usando modelo padrão',
@@ -61,22 +62,33 @@ const PLANEJAMENTO_CAMPANHAS_ITEMS = [
   'Confirmar que campanhas estão no ar',
 ]
 
-const TRAFEGO_SEMANAL_ITEMS = [
-  'Registrar otimização Meta Ads (ver aba Otimizações)',
-  'Registrar otimização Google Ads (ver aba Otimizações)',
-  'Verificar saldo nas plataformas',
-  'Enviar relatório semanal (toda segunda)',
-  'Solicitar novos criativos se necessário',
-]
+/** Checklist do Gestor Semanal — só as linhas das plataformas que o cliente
+ *  contratou (Serviços contratados no cadastro). */
+function trafegoSemanalItems(client: Pick<Client, 'modules'>): string[] {
+  const svc = trafficServices(client)
+  const items: string[] = []
+  if (svc.meta) {
+    items.push('Registrar otimização Meta Ads (ver aba Otimizações)', 'Verificar saldo Meta Ads')
+  }
+  if (svc.google) {
+    items.push('Registrar otimização Google Ads (ver aba Otimizações)', 'Verificar saldo Google Ads')
+  }
+  items.push('Enviar relatório semanal (toda segunda)', 'Solicitar novos criativos se necessário')
+  return items
+}
 
-const TRAFEGO_MENSAL_ITEMS = [
-  'Análise completa de resultados do mês (Meta + Google)',
-  'Identificar melhores e piores anúncios do mês',
-  'Definir estratégia e ajustes para o próximo mês',
-  'Atualizar planejamento de campanhas na plataforma',
-  'Renovar ou criar novos criativos se necessário',
-  'Registrar conclusões do mês na ficha do cliente',
-]
+function trafegoMensalItems(client: Pick<Client, 'modules'>): string[] {
+  const svc = trafficServices(client)
+  const plat = svc.both ? 'Meta + Google' : svc.onlyGoogle ? 'Google Ads' : 'Meta Ads'
+  return [
+    `Análise completa de resultados do mês (${plat})`,
+    'Identificar melhores e piores anúncios do mês',
+    'Definir estratégia e ajustes para o próximo mês',
+    'Atualizar planejamento de campanhas na plataforma',
+    'Renovar ou criar novos criativos se necessário',
+    'Registrar conclusões do mês na ficha do cliente',
+  ]
+}
 
 const CS_SEMANAL_ITEMS = [
   'Verificar se há mensagens sem resposta no grupo do WhatsApp do cliente',
@@ -132,7 +144,7 @@ const APROVACAO_CONTEUDO_ITEMS = [
 interface StepDef {
   title: (companyName: string) => string
   description: string
-  checklist: string[] | ((companyName: string) => string[])
+  checklist: string[] | ((client: Pick<Client, 'companyName' | 'modules'>) => string[])
   priority: TaskPriority
   /** 'creator' assigns to whoever triggered the step; a name assigns via
    *  findUserIdByName (falls back to unassigned if nobody matches yet). */
@@ -180,7 +192,7 @@ const STEP_DEFS: Record<WorkflowStepKey, StepDef> = {
   pt_trafego_semanal: {
     title: (name) => `Gestor de Tráfego — Semanal — ${name}`,
     description: 'Tarefa recorrente. Ao concluir, use "Duplicar próxima ocorrência" no card para recriá-la.',
-    checklist: TRAFEGO_SEMANAL_ITEMS,
+    checklist: trafegoSemanalItems,
     priority: 'normal',
     assignee: 'Ciane',
     recurrence: { frequency: 'weekly', weekday: 1 },
@@ -188,7 +200,7 @@ const STEP_DEFS: Record<WorkflowStepKey, StepDef> = {
   pt_trafego_mensal: {
     title: (name) => `Gestor de Tráfego — Mensal — ${name}`,
     description: 'Tarefa recorrente. Ao concluir, use "Duplicar próxima ocorrência" no card para recriá-la.',
-    checklist: TRAFEGO_MENSAL_ITEMS,
+    checklist: trafegoMensalItems,
     priority: 'normal',
     assignee: 'Ciane',
     recurrence: { frequency: 'monthly', dayOfMonth: 1 },
@@ -273,7 +285,7 @@ function getNextSteps(key: WorkflowStepKey, client: Pick<Client, 'modules'>): Wo
 
 async function createWorkflowStepTask(
   key: WorkflowStepKey,
-  client: Pick<Client, 'id' | 'companyName'>,
+  client: Pick<Client, 'id' | 'companyName' | 'modules'>,
   userId: string,
   userName: string,
   users: AppUser[],
@@ -281,7 +293,7 @@ async function createWorkflowStepTask(
 ) {
   const def = STEP_DEFS[key]
   const assignedTo = def.assignee === 'creator' ? userId : findUserIdByName(users, def.assignee)
-  const items = typeof def.checklist === 'function' ? def.checklist(client.companyName) : def.checklist
+  const items = typeof def.checklist === 'function' ? def.checklist(client) : def.checklist
 
   await createTask(
     {

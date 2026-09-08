@@ -6,17 +6,11 @@ import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
 import { useOptimizationSchedule, useTodayOptimizations } from '../../hooks/useOptimizations'
 import { OptimizationFormModal } from '../clients/OptimizationFormModal'
-import { OPTIMIZATION_PLATFORM_LABEL, type OptimizationPlatform } from '../../types'
+import { type OptimizationPlatform } from '../../types'
+import { trafficServices, platformBadgeLabel } from '../../utils/clientServices'
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function clientPlatforms(modules?: { metaAds?: boolean; googleAds?: boolean }): OptimizationPlatform[] {
-  const p: OptimizationPlatform[] = []
-  if (modules?.metaAds ?? true) p.push('meta')
-  if (modules?.googleAds ?? true) p.push('google')
-  return p.length ? p : ['meta', 'google']
 }
 
 export function OptimizationsTodayWidget() {
@@ -39,7 +33,7 @@ export function OptimizationsTodayWidget() {
       .map((r) => {
         const client = clients.find((c) => c.id === r.clientId)
         return client
-          ? { id: client.id, name: client.companyName, platforms: clientPlatforms(client.modules), done: doneIds.has(client.id) }
+          ? { id: client.id, name: client.companyName, platforms: trafficServices(client).platforms, done: doneIds.has(client.id) }
           : null
       })
       .filter((x): x is NonNullable<typeof x> => !!x)
@@ -83,11 +77,14 @@ export function OptimizationsTodayWidget() {
               >
                 {item.done && <Check size={12} className="text-white" strokeWidth={3} />}
               </span>
-              <span className={`text-[14px] ${item.done ? 'text-[#94A3B8] line-through' : 'text-[#0F172A]'}`}>
+              <span className={`flex items-center gap-1.5 text-[14px] ${item.done ? 'text-[#94A3B8] line-through' : 'text-[#0F172A]'}`}>
                 {item.name}
-                <span className="ml-1.5 text-xs text-slate-400">
-                  {item.platforms.map((p) => OPTIMIZATION_PLATFORM_LABEL[p].replace(' Ads', '')).join(' · ')}
-                </span>
+                {(() => {
+                  const b = platformBadgeLabel(item.platforms)
+                  return (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${b.className}`}>{b.label}</span>
+                  )
+                })()}
               </span>
             </button>
           ))}
@@ -99,7 +96,7 @@ export function OptimizationsTodayWidget() {
         open={!!modalClient}
         onClose={() => setModalClient(null)}
         clientId={modalClient?.id ?? ''}
-        defaultPlatforms={modalClient?.platforms}
+        availablePlatforms={modalClient?.platforms}
       />
     </div>
   )

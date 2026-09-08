@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { format, subWeeks } from 'date-fns'
-import type { Optimization } from '../../types'
+import type { Optimization, OptimizationPlatform } from '../../types'
 
 const META_COLOR = '#2563EB'
 const GOOGLE_COLOR = '#EF4444'
@@ -9,7 +9,16 @@ const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', cur
 
 /** Mini gráfico SVG da evolução do saldo (últimas 8 semanas). Linha azul =
  *  Meta Ads, linha vermelha = Google Ads. Sem dependência externa. */
-export function OptimizationBalanceChart({ optimizations }: { optimizations: Optimization[] }) {
+export function OptimizationBalanceChart({
+  optimizations,
+  platforms = ['meta', 'google'],
+}: {
+  optimizations: Optimization[]
+  /** Plataformas contratadas — controla quais linhas/legendas aparecem. */
+  platforms?: OptimizationPlatform[]
+}) {
+  const showMeta = platforms.includes('meta')
+  const showGoogle = platforms.includes('google')
   const data = useMemo(() => {
     const cutoff = subWeeks(new Date(), 8).getTime()
     const inWindow = optimizations
@@ -65,14 +74,14 @@ export function OptimizationBalanceChart({ optimizations }: { optimizations: Opt
         <text x={padL} y={H - 8} textAnchor="start" fontSize={10} fill="#64748B">{format(data.minT, 'dd/MM')}</text>
         <text x={W - padR} y={H - 8} textAnchor="end" fontSize={10} fill="#64748B">{format(data.maxT, 'dd/MM')}</text>
 
-        {data.meta.length > 1 && <polyline points={line(data.meta)} fill="none" stroke={META_COLOR} strokeWidth={2.5} strokeLinejoin="round" />}
-        {data.meta.map((p, i) => <circle key={`m${i}`} cx={x(p.t)} cy={y(p.v)} r={3} fill={META_COLOR} />)}
-        {data.google.length > 1 && <polyline points={line(data.google)} fill="none" stroke={GOOGLE_COLOR} strokeWidth={2.5} strokeLinejoin="round" />}
-        {data.google.map((p, i) => <circle key={`g${i}`} cx={x(p.t)} cy={y(p.v)} r={3} fill={GOOGLE_COLOR} />)}
+        {showMeta && data.meta.length > 1 && <polyline points={line(data.meta)} fill="none" stroke={META_COLOR} strokeWidth={2.5} strokeLinejoin="round" />}
+        {showMeta && data.meta.map((p, i) => <circle key={`m${i}`} cx={x(p.t)} cy={y(p.v)} r={3} fill={META_COLOR} />)}
+        {showGoogle && data.google.length > 1 && <polyline points={line(data.google)} fill="none" stroke={GOOGLE_COLOR} strokeWidth={2.5} strokeLinejoin="round" />}
+        {showGoogle && data.google.map((p, i) => <circle key={`g${i}`} cx={x(p.t)} cy={y(p.v)} r={3} fill={GOOGLE_COLOR} />)}
       </svg>
       <div className="mt-1 flex gap-4 text-[11px] text-slate-500">
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: META_COLOR }} /> Meta Ads</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: GOOGLE_COLOR }} /> Google Ads</span>
+        {showMeta && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: META_COLOR }} /> Meta Ads</span>}
+        {showGoogle && <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: GOOGLE_COLOR }} /> Google Ads</span>}
       </div>
     </div>
   )
