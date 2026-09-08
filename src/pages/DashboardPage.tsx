@@ -10,6 +10,7 @@ import { useAssigneeMap, type Assignee } from '../hooks/useAssignees'
 import { EmptyState } from '../components/ui/EmptyState'
 import { DashboardEmptyState } from '../components/dashboard/DashboardEmptyState'
 import { DailyRoutineWidget } from '../components/dashboard/DailyRoutineWidget'
+import { SocialContentWidget } from '../components/dashboard/SocialContentWidget'
 import { OptimizationsTodayWidget } from '../components/dashboard/OptimizationsTodayWidget'
 import { Button } from '../components/ui/Button'
 import { Avatar } from '../components/ui/Avatar'
@@ -432,6 +433,7 @@ export function DashboardPage() {
       </div>
 
       <DailyRoutineWidget />
+      <SocialContentWidget />
       <OptimizationsTodayWidget />
 
       {allZero && !expanded ? (

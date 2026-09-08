@@ -56,10 +56,13 @@ export function SocialMediaPage() {
   // then drop the param so the URL stays clean afterwards.
   useEffect(() => {
     const id = searchParams.get('content')
-    if (id) {
-      setOpenContentId(id)
+    const assignee = searchParams.get('assignee')
+    if (id || assignee) {
+      if (id) setOpenContentId(id)
+      if (assignee) setAssigneeFilter(assignee)
       setSearchParams((params) => {
         params.delete('content')
+        params.delete('assignee')
         return params
       }, { replace: true })
     }
