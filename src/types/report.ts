@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
+import type { SalesFunnelNetwork, SalesFunnelService } from './salesFunnel'
 
 export type ReportType = 'weekly' | 'monthly'
 
@@ -102,6 +103,32 @@ export interface ReportGoogleSnapshot {
   available: false
 }
 
+/** Funil Comercial do relatório mensal — parte puxada da API do Meta
+ *  (investimento/impressões/alcance/cliques/conversas ficam em
+ *  `report.meta.metrics.current`), parte preenchida à mão pelo gestor antes
+ *  da apresentação e persistida aqui. Substitui a antiga aba "Funil
+ *  Comercial" da ficha do cliente. */
+export interface ReportFunnel {
+  /** Rede de anúncios — pré-selecionada como Meta Ads em relatórios de Meta. */
+  rede?: SalesFunnelNetwork
+  /** Tipo de oferta / serviço (afina os benchmarks). */
+  servico?: SalesFunnelService
+
+  // Campos manuais
+  visitasAgendadas?: number
+  visitasRealizadas?: number
+  fechamentos?: number
+  /** R$ */
+  faturamentoTotal?: number
+  custoOperacional?: number
+  metaFaturamento?: number
+  metaFechamentos?: number
+  metaLeads?: number
+
+  preenchidoPor?: string
+  filledAt?: Timestamp | null
+}
+
 export interface Report extends BaseDoc {
   clientId: string
   type: ReportType
@@ -110,6 +137,9 @@ export interface Report extends BaseDoc {
   periodEnd: Timestamp
   meta?: ReportMetaSnapshot
   google?: ReportGoogleSnapshot
+  /** Só para type === 'monthly' — dados manuais do Funil Comercial (ver
+   *  ReportFunnel). Preenchido/salvo no próprio painel do relatório. */
+  funnel?: ReportFunnel
   /** Só para type === 'weekly' — texto pronto para WhatsApp, editável antes
    *  de copiar (ver components/reports). */
   weeklyText?: string

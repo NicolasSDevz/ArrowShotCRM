@@ -16,6 +16,8 @@ import {
   MessageCircle,
   DollarSign,
   Trophy,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { useReports } from '../hooks/useReports'
 import { useClients } from '../hooks/useClients'
@@ -23,6 +25,7 @@ import { FullPageSpinner } from '../components/ui/FullPageSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
 import { ReportLineChart, type ChartSeries } from '../components/reports/ReportLineChart'
+import { ReportFunnelSection } from '../components/reports/ReportFunnelSection'
 import { previousPeriod } from '../utils/metaReportData'
 import { buildExecutiveSummary, buildFunnelSentence, pctChange } from '../utils/reportSummary'
 import type { ReportMetaSnapshot, ReportEntitySummary } from '../types'
@@ -435,6 +438,7 @@ export function MonthlyReportPage() {
   const { data: reports, loading } = useReports()
   const { data: clients } = useClients()
   const [presenting, setPresenting] = useState(false)
+  const [slide, setSlide] = useState(0)
   // Um relatório recém-criado pode levar um instante para aparecer no snapshot
   // — dá uma janela de tolerância antes de mostrar "não encontrado".
   const [graceOver, setGraceOver] = useState(false)
@@ -449,8 +453,11 @@ export function MonthlyReportPage() {
 
   useEffect(() => {
     if (!presenting) return
+    setSlide(0)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setPresenting(false)
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') setSlide((s) => s + 1)
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') setSlide((s) => Math.max(0, s - 1))
     }
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
@@ -498,8 +505,38 @@ export function MonthlyReportPage() {
     console.warn('[MonthlyReport] report.meta ausente — o snapshot não foi salvo na geração do relatório.')
   }
 
-  const body = (
-    <div className={`mx-auto flex max-w-6xl flex-col gap-8 ${presenting ? 'p-6 pb-16' : ''}`}>
+  const resumoNode = meta ? (
+    <div className="rounded-2xl bg-[#F8FAFC] p-6">
+      <p className="whitespace-pre-line text-[15px] leading-relaxed text-slate-700">
+        {buildExecutiveSummary(meta, periodStart, periodEnd)}
+      </p>
+    </div>
+  ) : null
+
+  // Sequência de slides do modo apresentação (uma seção por vez).
+  const slides: { title: string; node: ReactNode }[] = meta
+    ? [
+        { title: 'Meta Ads — Visão Geral', node: <OverviewSection meta={meta} /> },
+        { title: 'Jornada do Cliente', node: <FunnelSection meta={meta} /> },
+        { title: 'Evolução no tempo', node: <EvolutionSection meta={meta} periodStart={periodStart} periodEnd={periodEnd} /> },
+        { title: 'Campanhas em destaque', node: <CampaignsSection campaigns={meta.topCampaigns} /> },
+        { title: 'Funil Comercial', node: <ReportFunnelSection report={report} editable={false} /> },
+        { title: 'Resumo Executivo', node: resumoNode },
+      ]
+    : []
+
+  const clampedSlide = Math.min(slide, Math.max(0, slides.length - 1))
+
+  const body = presenting ? (
+    <div className="mx-auto flex min-h-[70vh] max-w-6xl flex-col gap-8 p-6 pb-28">
+      {!meta ? (
+        <Card><p className="text-sm text-slate-400">Este relatório não tem dados do Meta Ads.</p></Card>
+      ) : (
+        <Section title={slides[clampedSlide].title}>{slides[clampedSlide].node}</Section>
+      )}
+    </div>
+  ) : (
+    <div className="mx-auto flex max-w-6xl flex-col gap-8">
       {!meta ? (
         <Card><p className="text-sm text-slate-400">Este relatório não tem dados do Meta Ads.</p></Card>
       ) : (
@@ -510,15 +547,34 @@ export function MonthlyReportPage() {
           <CampaignsSection campaigns={meta.topCampaigns} />
           <AdsSection ads={meta.topAds} />
           <PlatformSection meta={meta} />
-          <Section title="Resumo do período">
-            <div className="rounded-2xl bg-[#F8FAFC] p-6">
-              <p className="whitespace-pre-line text-[15px] leading-relaxed text-slate-700">
-                {buildExecutiveSummary(meta, periodStart, periodEnd)}
-              </p>
-            </div>
+          <Section title="Resumo do período">{resumoNode}</Section>
+          <Section title="Funil Comercial" subtitle="Do investimento em anúncios ao contrato assinado">
+            <ReportFunnelSection report={report} editable />
           </Section>
         </>
       )}
+    </div>
+  )
+
+  const presentationNav = presenting && meta && (
+    <div className="fixed inset-x-0 bottom-0 z-[110] flex items-center justify-center gap-3 bg-[#0F172A]/95 px-6 py-3 text-white">
+      <button
+        onClick={() => setSlide((s) => Math.max(0, s - 1))}
+        disabled={clampedSlide === 0}
+        className="flex items-center gap-1 rounded-lg bg-white/10 px-3 py-1.5 text-sm font-medium hover:bg-white/20 disabled:opacity-30"
+      >
+        <ChevronLeft size={16} /> Anterior
+      </button>
+      <span className="text-xs text-slate-300">
+        {clampedSlide + 1} / {slides.length} · {slides[clampedSlide].title}
+      </span>
+      <button
+        onClick={() => setSlide((s) => Math.min(slides.length - 1, s + 1))}
+        disabled={clampedSlide >= slides.length - 1}
+        className="flex items-center gap-1 rounded-lg bg-white/10 px-3 py-1.5 text-sm font-medium hover:bg-white/20 disabled:opacity-30"
+      >
+        Próximo <ChevronRight size={16} />
+      </button>
     </div>
   )
 
@@ -555,6 +611,7 @@ export function MonthlyReportPage() {
       <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#F1F5F9]" style={{ zoom: 1.2 }}>
         {header}
         {body}
+        {presentationNav}
       </div>
     )
   }
