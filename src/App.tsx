@@ -18,6 +18,7 @@ import { MonthlyReportPage } from './pages/MonthlyReportPage'
 import { TeamPage } from './pages/TeamPage'
 import { PublicApprovalPage } from './pages/PublicApprovalPage'
 import { PrivacyPolicyPage, TermsOfServicePage } from './pages/LegalPages'
+import { MetaTokensPage } from './pages/MetaTokensPage'
 import { UniversityPage } from './pages/UniversityPage'
 import { UniversityTrailPage } from './pages/UniversityTrailPage'
 import { UniversityModulePage } from './pages/UniversityModulePage'
@@ -57,6 +58,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <TeamPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/configuracoes/tokens"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                  <MetaTokensPage />
                 </ProtectedRoute>
               }
             />

@@ -8,19 +8,22 @@
 //   2. O valor gravado é sempre o resultado de `encryptToken` (ver
 //      tokenCrypto.js) — nunca o token em claro.
 
-import { getDoc, setDoc, deleteDoc } from './firebaseAdmin.js'
+import { getDoc, setDoc, updateDoc, deleteDoc, listDocs } from './firebaseAdmin.js'
 import { encryptToken, decryptToken } from './tokenCrypto.js'
 
 const COLLECTION = 'metaClientTokens'
 
 /** Grava (ou substitui) o token de um cliente. `token` é o valor em claro —
- *  só existe em memória neste request, nunca é persistido assim. */
-export async function setClientToken(clientId, token, updatedBy) {
+ *  só existe em memória neste request, nunca é persistido assim.
+ *  `expiresAt` (ISO string) é opcional — a UI usa pra mostrar validade. */
+export async function setClientToken(clientId, token, updatedBy, expiresAt) {
   const enc = encryptToken(token)
   await setDoc(`${COLLECTION}/${clientId}`, {
     ...enc,
     updatedAt: new Date().toISOString(),
     updatedBy: updatedBy || null,
+    expiresAt: expiresAt || null,
+    expiryNotifiedAt: null,
   })
 }
 
@@ -28,13 +31,41 @@ export async function deleteClientToken(clientId) {
   await deleteDoc(`${COLLECTION}/${clientId}`)
 }
 
-/** Retorna { hasToken, updatedAt, updatedBy } sem nunca decifrar/expor o
- *  token — usado pra UI mostrar "token configurado em X por Y". */
+/** Marca que já avisamos sobre a expiração deste token (evita spam de
+ *  notificação no cron diário). */
+export async function markExpiryNotified(clientId) {
+  await updateDoc(`${COLLECTION}/${clientId}`, { expiryNotifiedAt: new Date().toISOString() }).catch(() => {})
+}
+
+function statusFrom(data) {
+  return {
+    hasToken: true,
+    updatedAt: data.updatedAt ?? null,
+    updatedBy: data.updatedBy ?? null,
+    expiresAt: data.expiresAt ?? null,
+  }
+}
+
+/** Retorna { hasToken, updatedAt, updatedBy, expiresAt } sem nunca
+ *  decifrar/expor o token. */
 export async function getClientTokenStatus(clientId) {
   const doc = await getDoc(`${COLLECTION}/${clientId}`)
   if (!doc.exists) return { hasToken: false }
-  const data = doc.data()
-  return { hasToken: true, updatedAt: data.updatedAt ?? null, updatedBy: data.updatedBy ?? null }
+  return statusFrom(doc.data())
+}
+
+/** Status de TODOS os clientes que têm token salvo. Usado pela página de
+ *  gestão de tokens. Retorna [{ clientId, updatedAt, updatedBy, expiresAt,
+ *  expiryNotifiedAt }]. */
+export async function listAllTokenStatuses() {
+  const docs = await listDocs(COLLECTION)
+  return docs.map((d) => ({
+    clientId: d.id,
+    updatedAt: d.updatedAt ?? null,
+    updatedBy: d.updatedBy ?? null,
+    expiresAt: d.expiresAt ?? null,
+    expiryNotifiedAt: d.expiryNotifiedAt ?? null,
+  }))
 }
 
 /** Resolve o token a usar para uma chamada à Graph API:

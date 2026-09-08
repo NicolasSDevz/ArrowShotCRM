@@ -3,7 +3,7 @@ import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Save, Plus, Trash2, FileDown, KeyRound, ShieldCheck, Loader2 } from 'lucide-react'
+import { Save, Plus, Trash2, FileDown, KeyRound, ShieldCheck, Loader2, RefreshCw } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
@@ -13,6 +13,8 @@ import { maskPhone } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import { ensureActPrefix, normalizeMetaAccountId } from '../../utils/metaReportData'
 import { getMetaTokenStatus, saveMetaToken, deleteMetaToken, type MetaTokenStatus } from '../../services/metaApi'
+import { tokenValidity, fmtExpiry } from '../../utils/metaTokenValidity'
+import { MetaTokenRenewModal } from './MetaTokenRenewModal'
 import {
   EMPTY_CAMPAIGN_PLANNING,
   EMPTY_CAMPAIGN_PLANNING_ACCESS,
@@ -135,6 +137,15 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
   const [tokenInput, setTokenInput] = useState('')
   const [tokenSaving, setTokenSaving] = useState(false)
   const [tokenDeleting, setTokenDeleting] = useState(false)
+  const [renewOpen, setRenewOpen] = useState(false)
+
+  const refreshTokenStatus = () => {
+    getMetaTokenStatus(client.id)
+      .then(setTokenStatus)
+      .catch((err) => {
+        console.error(err)
+      })
+  }
 
   // Resync only on client switch — see ClientBriefingPanel: depending on the
   // sub-object identity would wipe unsaved edits on every `clients` snapshot.
@@ -449,53 +460,103 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
                 <Loader2 size={12} className="animate-spin" /> Verificando status do token…
               </p>
             ) : tokenStatus?.hasToken ? (
-              <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck size={13} />
-                  Token configurado
-                  {tokenStatus.updatedBy && <> por <strong>{tokenStatus.updatedBy}</strong></>}
+              <div className="mb-2 flex flex-col gap-1.5 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      tokenValidity(tokenStatus).badgeClass
+                    }`}
+                  >
+                    {tokenValidity(tokenStatus).label}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDeleteToken}
+                    loading={tokenDeleting}
+                    className="text-red-500 hover:bg-red-50"
+                  >
+                    Remover
+                  </Button>
+                </div>
+                <span className="flex items-center gap-1.5 text-slate-500">
+                  <ShieldCheck size={12} />
+                  {tokenStatus.updatedBy ? (
+                    <>
+                      Configurado por <strong>{tokenStatus.updatedBy}</strong>
+                    </>
+                  ) : (
+                    'Configurado'
+                  )}
                   {tokenStatus.updatedAt && (
                     <> em {format(new Date(tokenStatus.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</>
                   )}
+                  {tokenStatus.expiresAt && <> · expira em {fmtExpiry(tokenStatus.expiresAt)}</>}
                 </span>
-                <Button variant="ghost" size="sm" onClick={handleDeleteToken} loading={tokenDeleting} className="text-red-500 hover:bg-red-50">
-                  Remover
-                </Button>
               </div>
             ) : (
-              <p className="mb-2 text-xs text-slate-400">
-                Nenhum token configurado — os relatórios usam o token padrão da agência (se ele tiver acesso a esta conta).
+              <p className="mb-2 flex items-center gap-1.5 text-xs text-slate-400">
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                  ⚪ Token não configurado
+                </span>
+                — os relatórios usam o token padrão da agência (se ele tiver acesso a esta conta).
               </p>
             )}
 
-            <div className="flex items-center gap-2">
-              <Input
-                className="flex-1"
-                type="password"
-                autoComplete="off"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="Cole o token aqui — nunca é exibido novamente após salvar"
-              />
+            <div className="mb-2 flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                icon={<KeyRound size={13} />}
-                onClick={handleSaveToken}
-                loading={tokenSaving}
-                className="shrink-0"
+                icon={<RefreshCw size={13} />}
+                onClick={() => setRenewOpen(true)}
               >
-                {tokenStatus?.hasToken ? 'Substituir' : 'Salvar'}
+                🔄 Renovar token (60 dias)
               </Button>
             </div>
-            <p className="mt-1 text-xs text-slate-400">
-              O token é validado com a API do Meta e gravado criptografado no servidor — nunca aparece em logs nem é
-              devolvido ao navegador depois de salvo.
-            </p>
+
+            <details className="text-xs">
+              <summary className="cursor-pointer text-slate-500 hover:text-slate-700">
+                Ou colar um token manualmente
+              </summary>
+              <div className="mt-2 flex items-center gap-2">
+                <Input
+                  className="flex-1"
+                  type="password"
+                  autoComplete="off"
+                  value={tokenInput}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  placeholder="Cole o token aqui — nunca é exibido novamente após salvar"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  icon={<KeyRound size={13} />}
+                  onClick={handleSaveToken}
+                  loading={tokenSaving}
+                  className="shrink-0"
+                >
+                  {tokenStatus?.hasToken ? 'Substituir' : 'Salvar'}
+                </Button>
+              </div>
+              <p className="mt-1 text-slate-400">
+                O token é validado com a API do Meta e gravado criptografado no servidor — nunca aparece em logs nem é
+                devolvido ao navegador depois de salvo. Prefira o botão "Renovar" acima: ele gera um token de 60 dias
+                automaticamente.
+              </p>
+            </details>
           </div>
         </div>
       </div>
+
+      <MetaTokenRenewModal
+        open={renewOpen}
+        onClose={() => setRenewOpen(false)}
+        clientId={client.id}
+        clientName={client.companyName}
+        onDone={refreshTokenStatus}
+      />
 
       {/* SEÇÃO 2 — PLANEJAMENTO META ADS */}
       <div>

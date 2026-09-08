@@ -97,7 +97,7 @@ async function authHeaders() {
   return { Authorization: `Bearer ${idToken}` }
 }
 
-/** { hasToken: boolean, updatedAt?: string, updatedBy?: string } */
+/** { hasToken, updatedAt?, updatedBy?, expiresAt? } */
 export async function getMetaTokenStatus(clientId) {
   const headers = await authHeaders()
   const response = await fetch(`/api/meta/token?client_id=${encodeURIComponent(clientId)}`, { headers })
@@ -106,6 +106,29 @@ export async function getMetaTokenStatus(clientId) {
     throw new Error(body.error || 'Erro ao consultar status do token')
   }
   return response.json()
+}
+
+/** Status do token de TODOS os clientes que têm um salvo (página de gestão). */
+export async function listMetaTokenStatuses() {
+  const headers = await authHeaders()
+  const response = await fetch('/api/meta/token', { headers })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.error || 'Erro ao listar tokens')
+  return body.tokens || []
+}
+
+/** Troca um token curto (Explorador da API) por um de longa duração (~60
+ *  dias) e salva na ficha do cliente. O APP_SECRET fica só no backend. */
+export async function exchangeMetaToken(clientId, shortToken) {
+  const headers = await authHeaders()
+  const response = await fetch('/api/meta/exchange-token', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientId, short_token: shortToken }),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.error || 'Erro ao trocar o token')
+  return body
 }
 
 /** Salva (ou substitui) o token de acesso Meta Ads de um cliente. O

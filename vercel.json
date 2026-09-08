@@ -4,5 +4,8 @@
     "api/**/*.js": {
       "maxDuration": 30
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron/check-meta-token-expiry", "schedule": "0 9 * * *" }
+  ]
 }

@@ -14,6 +14,7 @@ import {
   Lock,
   UserCog,
   GraduationCap,
+  KeyRound,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
@@ -51,6 +52,7 @@ export function Sidebar({
   const { profile } = useAuth()
   const { data: teamMembers } = useTeamMembers()
   const canSeeUniversity = profile?.role === 'admin' || profile?.role === 'manager' || profile?.role === 'employee'
+  const canManageTokens = profile?.role === 'admin' || profile?.role === 'manager'
   const myProfileCargo = teamMembers.find((m) => m.userId === profile?.id)?.jobTitle
 
   return (
@@ -120,6 +122,21 @@ export function Sidebar({
             >
               <UserCog size={18} />
               Equipe
+            </NavLink>
+          )}
+
+          {canManageTokens && (
+            <NavLink
+              to="/configuracoes/tokens"
+              onClick={onCloseMobile}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] font-medium transition-all duration-150 ease-in-out ${
+                  isActive ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
+                }`
+              }
+            >
+              <KeyRound size={18} />
+              Tokens Meta Ads
             </NavLink>
           )}
 

@@ -24,6 +24,7 @@ import {
   ArrowRightLeft,
   Video,
   HeartPulse,
+  KeyRound,
 } from 'lucide-react'
 import type { AppNotification, NotificationType } from '../../types'
 
@@ -62,6 +63,7 @@ export const NOTIFICATION_ICON: Record<NotificationType, IconType> = {
   report_created: BarChart3,
   team_member_added: UserPlus,
   member_health_updated: HeartPulse,
+  meta_token_expiring: KeyRound,
 }
 
 /** Icon chip background/text, per the spec's colors (azul, verde, vermelho,
@@ -97,6 +99,7 @@ export const NOTIFICATION_ICON_STYLE: Record<NotificationType, string> = {
   report_created: 'bg-slate-100 text-slate-500',
   team_member_added: 'bg-indigo-50 text-indigo-700',
   member_health_updated: 'bg-purple-50 text-purple-600',
+  meta_token_expiring: 'bg-amber-50 text-amber-600',
 }
 
 /** "há 5 minutos" / "há 2 horas" / "ontem às 14:30" / "dd/MM/yyyy às HH:mm". */

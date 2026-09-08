@@ -32,8 +32,23 @@ export interface MetaTokenStatus {
   hasToken: boolean
   updatedAt?: string | null
   updatedBy?: string | null
+  /** ISO string, quando conhecida (troca de token longo / debug_token).
+   *  `null` = token salvo mas validade desconhecida. */
+  expiresAt?: string | null
+}
+
+export interface MetaClientTokenRow {
+  clientId: string
+  updatedAt: string | null
+  updatedBy: string | null
+  expiresAt: string | null
 }
 
 export function getMetaTokenStatus(clientId: string): Promise<MetaTokenStatus>
-export function saveMetaToken(clientId: string, token: string): Promise<{ ok: true }>
+export function listMetaTokenStatuses(): Promise<MetaClientTokenRow[]>
+export function saveMetaToken(clientId: string, token: string): Promise<{ ok: true; expiresAt: string | null }>
 export function deleteMetaToken(clientId: string): Promise<{ ok: true }>
+export function exchangeMetaToken(
+  clientId: string,
+  shortToken: string
+): Promise<{ ok: true; expires_in: number; expires_at: string }>

@@ -80,6 +80,7 @@ async function getAccessToken() {
 
 function toValue(v) {
   if (v === null || v === undefined) return { nullValue: null }
+  if (v instanceof Date) return { timestampValue: v.toISOString() }
   if (typeof v === 'string') return { stringValue: v }
   if (typeof v === 'boolean') return { booleanValue: v }
   if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v }
@@ -133,6 +134,67 @@ export async function setDoc(path, data) {
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`Firestore PATCH ${path}: ${body?.error?.message || res.status}`)
+}
+
+/** Atualiza SÓ os campos passados (updateMask), preservando o resto do doc. */
+export async function updateDoc(path, data) {
+  const token = await getAccessToken()
+  const url = new URL(`${FS_BASE}/${path}`)
+  for (const k of Object.keys(data)) url.searchParams.append('updateMask.fieldPaths', k)
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: toFields(data) }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(`Firestore PATCH(mask) ${path}: ${body?.error?.message || res.status}`)
+}
+
+/** Lista todos os documentos de uma coleção. Retorna [{ id, ...campos }].
+ *  Pagina sozinho via nextPageToken. */
+export async function listDocs(collectionPath) {
+  const token = await getAccessToken()
+  const out = []
+  let pageToken
+  do {
+    const u = new URL(`${FS_BASE}/${collectionPath}`)
+    u.searchParams.set('pageSize', '300')
+    if (pageToken) u.searchParams.set('pageToken', pageToken)
+    const res = await fetch(u, { headers: { Authorization: `Bearer ${token}` } })
+    const body = await res.json().catch(() => ({}))
+    if (res.status === 404) return out
+    if (!res.ok) throw new Error(`Firestore LIST ${collectionPath}: ${body?.error?.message || res.status}`)
+    for (const d of body.documents || []) {
+      out.push({ id: d.name.split('/').pop(), ...fromFields(d.fields || {}) })
+    }
+    pageToken = body.nextPageToken
+  } while (pageToken)
+  return out
+}
+
+/** Consulta simples: documentos de `collectionPath` onde todos os pares de
+ *  `wheres` ([campo, valor]) batem por igualdade. */
+export async function queryDocs(collectionPath, wheres = []) {
+  const token = await getAccessToken()
+  const filters = wheres.map(([field, value]) => ({
+    fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: toValue(value) },
+  }))
+  const structuredQuery = {
+    from: [{ collectionId: collectionPath.split('/').pop() }],
+    ...(filters.length
+      ? { where: filters.length === 1 ? filters[0] : { compositeFilter: { op: 'AND', filters } } }
+      : {}),
+  }
+  const res = await fetch(`${FS_BASE}:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structuredQuery }),
+  })
+  const rows = await res.json().catch(() => [])
+  if (!res.ok) throw new Error(`Firestore runQuery ${collectionPath}: ${rows?.error?.message || res.status}`)
+  return (Array.isArray(rows) ? rows : [])
+    .filter((r) => r.document)
+    .map((r) => ({ id: r.document.name.split('/').pop(), ...fromFields(r.document.fields || {}) }))
 }
 
 /** Apaga um documento (404 é tratado como sucesso). */

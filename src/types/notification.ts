@@ -35,6 +35,7 @@ export type NotificationType =
   | 'report_created'
   | 'team_member_added'
   | 'member_health_updated'
+  | 'meta_token_expiring'
 
 export interface AppNotification {
   id: string
@@ -81,6 +82,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   report_created: 'Relatório gerado',
   team_member_added: 'Novo membro da equipe',
   member_health_updated: 'Informações de saúde atualizadas',
+  meta_token_expiring: 'Token Meta Ads expirando',
 }
 
 /** Notifications older than this are pruned client-side (no backend
