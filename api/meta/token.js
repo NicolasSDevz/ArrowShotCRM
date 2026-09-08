@@ -50,12 +50,15 @@ async function handler(req, res, user) {
     }
 
     const trimmed = token.trim()
+    console.log(`[meta/token] POST clientId=${clientId} por ${user.name} — validando com o Graph…`)
     const validation = await validateTokenWithGraph(trimmed)
     if (!validation.ok) {
+      console.warn('[meta/token] validação recusada:', validation.message)
       return res.status(400).json({ error: `Token não pôde ser validado: ${validation.message}` })
     }
 
     await setClientToken(clientId, trimmed, user.name)
+    console.log(`[meta/token] token do cliente ${clientId} gravado com sucesso`)
     return res.status(200).json({ ok: true })
   }
 

@@ -7,7 +7,7 @@
 // Firestore Security Rules (isInternal(): active == true && role em
 // admin/manager/employee) — ver firestore.rules.
 
-import { adminAuth, adminDb } from './firebaseAdmin.js'
+import { verifyIdToken, getDoc } from './firebaseAdmin.js'
 
 const INTERNAL_ROLES = new Set(['admin', 'manager', 'employee'])
 
@@ -29,12 +29,13 @@ export async function requireInternalUser(req) {
 
   let decoded
   try {
-    decoded = await adminAuth().verifyIdToken(idToken)
-  } catch {
+    decoded = await verifyIdToken(idToken)
+  } catch (err) {
+    console.error('[auth] verifyIdToken falhou:', err.message)
     throw new AuthError(401, 'Não autenticado — token inválido ou expirado')
   }
 
-  const userDoc = await adminDb().collection('users').doc(decoded.uid).get()
+  const userDoc = await getDoc(`users/${decoded.uid}`)
   const profile = userDoc.exists ? userDoc.data() : null
 
   if (!profile || profile.active !== true || !INTERNAL_ROLES.has(profile.role)) {
@@ -56,7 +57,7 @@ export function withInternalAuth(handler) {
         return res.status(err.status).json({ error: err.message })
       }
       console.error('[auth] erro inesperado:', err)
-      return res.status(500).json({ error: 'Erro interno de autenticação' })
+      return res.status(500).json({ error: `Erro interno: ${err?.message || 'desconhecido'}` })
     }
   }
 }
