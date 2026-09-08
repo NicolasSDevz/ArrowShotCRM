@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Sparkles } from 'lucide-react'
+import { Plus, Sparkles, CalendarPlus } from 'lucide-react'
 import { useAllContents } from '../hooks/useContents'
 import { useClients } from '../hooks/useClients'
 import { useUsers } from '../hooks/useUsers'
@@ -10,6 +10,7 @@ import { ContentCard } from '../components/content/ContentCard'
 import { ContentDrawer } from '../components/content/ContentDrawer'
 import { ContentFormModal } from '../components/content/ContentFormModal'
 import { GeneratePautaModal } from '../components/content/GeneratePautaModal'
+import { GenerateCalendarPromptModal } from '../components/content/GenerateCalendarPromptModal'
 import { Button } from '../components/ui/Button'
 import { moveContentStatus } from '../services/contentService'
 import {
@@ -45,6 +46,7 @@ export function SocialMediaPage() {
   const [openContentId, setOpenContentId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [genCalendar, setGenCalendar] = useState(false)
   const [clientFilter, setClientFilter] = useState('')
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [formatFilter, setFormatFilter] = useState('')
@@ -128,6 +130,9 @@ export function SocialMediaPage() {
           <Button variant="secondary" icon={<Sparkles size={14} />} onClick={() => setGenerating(true)}>
             Gerar pauta
           </Button>
+          <Button variant="secondary" icon={<CalendarPlus size={14} />} onClick={() => setGenCalendar(true)}>
+            Gerar calendário
+          </Button>
           <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
             Novo conteúdo
           </Button>
@@ -160,6 +165,7 @@ export function SocialMediaPage() {
       <ContentDrawer key={`content-${openContentId ?? 'none'}`} content={openContent} onClose={() => setOpenContentId(null)} />
       <ContentFormModal open={creating} onClose={() => setCreating(false)} defaultClientId={clientFilter || undefined} />
       <GeneratePautaModal open={generating} onClose={() => setGenerating(false)} />
+      <GenerateCalendarPromptModal open={genCalendar} onClose={() => setGenCalendar(false)} />
     </div>
   )
 }

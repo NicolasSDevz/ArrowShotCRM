@@ -1,8 +1,10 @@
-import { Plus, Upload } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Upload, CalendarPlus } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { KanbanBoard } from '../kanban/KanbanBoard'
 import { ContentCard } from '../content/ContentCard'
+import { GenerateCalendarPromptModal } from '../content/GenerateCalendarPromptModal'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { moveContentStatus } from '../../services/contentService'
@@ -39,6 +41,7 @@ export function ClientContentsTab({
   const { profile } = useAuth()
   const { data: users } = useUsers()
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
+  const [genOpen, setGenOpen] = useState(false)
 
   const columns = CONTENT_STATUS_ORDER.map((s) => ({ id: s, label: CONTENT_STATUS_LABEL[s], accent: ACCENTS[s] }))
 
@@ -48,10 +51,15 @@ export function ClientContentsTab({
         <Button size="sm" icon={<Plus size={13} />} onClick={onNewContent}>
           Novo conteúdo
         </Button>
+        <Button size="sm" variant="secondary" icon={<CalendarPlus size={13} />} onClick={() => setGenOpen(true)}>
+          Gerar calendário
+        </Button>
         <Button size="sm" variant="secondary" icon={<Upload size={13} />} onClick={onImportCalendar}>
           Importar calendário
         </Button>
       </div>
+
+      <GenerateCalendarPromptModal open={genOpen} onClose={() => setGenOpen(false)} />
 
       {contents.length === 0 ? (
         <EmptyState title="Nenhum conteúdo para este cliente" description='Clique em "Novo conteúdo" para começar o planejamento.' />
