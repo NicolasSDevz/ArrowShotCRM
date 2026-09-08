@@ -153,10 +153,19 @@ export const CLIENT_CATEGORY_LABEL: Record<ClientCategory, string> = {
   B: 'Cliente B',
 }
 
-/** Classes de badge por categoria — A dourado, B cinza. */
+/** Classes de badge por categoria (estilo definido em index.css — light +
+ *  dark). No dark ficam sem fundo, só texto + borda fina. */
 export const CLIENT_CATEGORY_BADGE: Record<ClientCategory, string> = {
-  A: 'bg-amber-100 text-amber-700',
-  B: 'bg-slate-100 text-slate-600',
+  A: 'badge-category-a',
+  B: 'badge-category-b',
+}
+
+/** Classes de badge por status (ver index.css). */
+export const CLIENT_STATUS_BADGE: Record<ClientStatus, string> = {
+  active: 'badge-status-active',
+  prospect: 'badge-status-onboarding',
+  paused: 'badge-status-paused',
+  churned: 'badge-status-churned',
 }
 
 export const CLIENT_PACKAGE_LABEL: Record<ClientPackage, string> = {

@@ -4,24 +4,15 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
-import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, type Client } from '../../types/client'
+import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
 import type { AppUser } from '../../types'
-
-const STATUS_COLOR: Record<Client['status'], string> = {
-  active: 'bg-emerald-100 text-emerald-700',
-  prospect: 'bg-blue-100 text-blue-700',
-  paused: 'bg-amber-100 text-amber-700',
-  churned: 'bg-red-100 text-red-700',
-}
 
 function ServiceBadge({ client }: { client: Client }) {
   const paidTraffic = !!client.modules?.paidTraffic
   const socialMedia = !!client.modules?.socialMedia
-  if (paidTraffic && socialMedia) {
-    return <Badge className="bg-indigo-100 text-indigo-700">Ambos</Badge>
-  }
-  if (paidTraffic) return <Badge className="bg-blue-100 text-blue-700">Tráfego</Badge>
-  if (socialMedia) return <Badge className="bg-violet-100 text-violet-700">Social Mídia</Badge>
+  if (paidTraffic && socialMedia) return <Badge className="badge-service-both">Ambos</Badge>
+  if (paidTraffic) return <Badge className="badge-service-traffic">Tráfego</Badge>
+  if (socialMedia) return <Badge className="badge-service-social">Social Mídia</Badge>
   return <span className="text-xs text-slate-400">—</span>
 }
 
@@ -39,7 +30,7 @@ export function ClientsTable({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="clients-table overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
       <table className="w-full min-w-[820px] text-left text-[15px]">
         <thead className="border-b border-slate-100 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
           <tr>
@@ -82,7 +73,7 @@ export function ClientsTable({
                   <ServiceBadge client={client} />
                 </td>
                 <td className="py-2.5 pr-3">
-                  <Badge className={STATUS_COLOR[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>
+                  <Badge className={CLIENT_STATUS_BADGE[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>
                 </td>
                 <td className="py-2.5 pr-3">
                   {owners.length > 0 ? (

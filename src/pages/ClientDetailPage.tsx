@@ -28,7 +28,7 @@ import { ImportEditorialCalendarModal } from '../components/content/ImportEditor
 import { ClientMeetingsTab } from '../components/clients/ClientMeetingsTab'
 import { ClientOptimizationsTab } from '../components/clients/ClientOptimizationsTab'
 import { ClientContentsTab } from '../components/clients/ClientContentsTab'
-import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
+import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, CLIENT_STATUS_BADGE, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
 import { TASK_STATUS_LABEL } from '../types/task'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 
@@ -130,7 +130,7 @@ export function ClientDetailPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-semibold text-slate-800">{client.companyName}</h1>
-                <Badge className="bg-slate-100 text-slate-500">{CLIENT_STATUS_LABEL[client.status]}</Badge>
+                <Badge className={CLIENT_STATUS_BADGE[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>
                 {client.categoria && (
                   <Badge className={CLIENT_CATEGORY_BADGE[client.categoria]}>{CLIENT_CATEGORY_LABEL[client.categoria]}</Badge>
                 )}

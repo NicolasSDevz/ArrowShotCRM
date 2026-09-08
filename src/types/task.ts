@@ -156,10 +156,10 @@ export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
 }
 
 export const TASK_PRIORITY_COLOR: Record<TaskPriority, string> = {
-  low: 'bg-slate-100 text-slate-600',
-  normal: 'bg-slate-100 text-slate-600',
-  high: 'border border-amber-500 bg-amber-100 text-amber-800',
-  urgent: 'border border-red-500 bg-red-100 text-red-700',
+  low: 'badge-priority-normal',
+  normal: 'badge-priority-normal',
+  high: 'badge-priority-high',
+  urgent: 'badge-priority-high',
 }
 
 const WEEKDAY_LABEL = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
