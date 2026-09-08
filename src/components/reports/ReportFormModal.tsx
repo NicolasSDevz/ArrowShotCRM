@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Timestamp } from 'firebase/firestore'
-import { format, subDays, startOfMonth } from 'date-fns'
+import { format, subDays, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import toast from 'react-hot-toast'
 import { Copy, Save, Loader2 } from 'lucide-react'
 import { Modal } from '../ui/Modal'
@@ -18,6 +18,18 @@ function toDateStr(d: Date) {
   return format(d, 'yyyy-MM-dd')
 }
 
+/** Período padrão do relatório: semanal = últimos 7 dias; mensal = mês
+ *  calendário ANTERIOR completo (é o que se quer reportar no início do mês
+ *  seguinte — pegar "últimos 7 dias" pro mensal trazia janela vazia). */
+function defaultRange(t: ReportType): { start: string; end: string } {
+  const now = new Date()
+  if (t === 'monthly') {
+    const m = subMonths(now, 1)
+    return { start: toDateStr(startOfMonth(m)), end: toDateStr(endOfMonth(m)) }
+  }
+  return { start: toDateStr(subDays(now, 7)), end: toDateStr(now) }
+}
+
 export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { profile } = useAuth()
   const navigate = useNavigate()
@@ -29,8 +41,8 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
   const [clientId, setClientId] = useState('')
   const [type, setType] = useState<ReportType>('weekly')
   const [platforms, setPlatforms] = useState<ReportPlatform[]>(['meta'])
-  const [startStr, setStartStr] = useState(toDateStr(subDays(new Date(), 7)))
-  const [endStr, setEndStr] = useState(toDateStr(new Date()))
+  const [startStr, setStartStr] = useState(defaultRange('weekly').start)
+  const [endStr, setEndStr] = useState(defaultRange('weekly').end)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -44,12 +56,27 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
     setClientId('')
     setType('weekly')
     setPlatforms(['meta'])
-    setStartStr(toDateStr(type === 'weekly' ? subDays(new Date(), 7) : startOfMonth(new Date())))
-    setEndStr(toDateStr(new Date()))
+    const r = defaultRange('weekly')
+    setStartStr(r.start)
+    setEndStr(r.end)
     setMetaSnapshot(null)
     setWeeklyText('')
     setGenerated(false)
     setSavedOk(false)
+  }
+
+  /** Ao trocar semanal/mensal, ajusta as datas pro período padrão do novo
+   *  tipo (só se o usuário ainda não editou manualmente — reconhece isso
+   *  comparando com o padrão do tipo anterior). */
+  const handleTypeChange = (next: ReportType) => {
+    const prevDefault = defaultRange(type)
+    const untouched = startStr === prevDefault.start && endStr === prevDefault.end
+    setType(next)
+    if (untouched) {
+      const r = defaultRange(next)
+      setStartStr(r.start)
+      setEndStr(r.end)
+    }
   }
 
   const handleClose = () => {
@@ -91,6 +118,13 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
       if (platforms.includes('meta') && accountId) {
         meta = await fetchMetaReportSnapshot(accountId, start, end, client.id)
         setMetaSnapshot(meta)
+        const cur = meta.metrics.current
+        if (!cur?.spend && !cur?.impressions) {
+          toast('A conta Meta Ads não retornou investimento nem impressões nesse período. Confira as datas antes de salvar.', {
+            icon: '⚠️',
+            duration: 6000,
+          })
+        }
       }
 
       if (type === 'weekly') {
@@ -184,7 +218,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
             </Select>
           </Field>
           <Field label="Tipo de relatório">
-            <Select value={type} onChange={(e) => setType(e.target.value as ReportType)}>
+            <Select value={type} onChange={(e) => handleTypeChange(e.target.value as ReportType)}>
               <option value="weekly">Semanal (texto para WhatsApp)</option>
               <option value="monthly">Mensal (apresentação completa)</option>
             </Select>

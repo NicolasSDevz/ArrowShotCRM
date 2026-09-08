@@ -41,10 +41,15 @@ export function percentChange(curr?: number, prev?: number): number | undefined 
   return ((curr - prev) / prev) * 100
 }
 
+// Ordem = prioridade: o primeiro tipo desta lista que a conta reportar é o
+// usado como "Conversas iniciadas". messaging_conversation_started_7d é o
+// canônico; total_messaging_connection e messaging_first_reply são fallbacks
+// para contas/objetivos que não emitem o primeiro.
 const CONVERSATION_ACTION_TYPES = [
   'onsite_conversion.messaging_conversation_started_7d',
-  'onsite_conversion.messaging_first_reply',
   'messaging_conversation_started_7d',
+  'onsite_conversion.total_messaging_connection',
+  'onsite_conversion.messaging_first_reply',
 ]
 const LINK_CLICK_ACTION_TYPES = ['link_click']
 
@@ -92,10 +97,15 @@ function num(v?: string): number | undefined {
   return Number.isNaN(n) ? undefined : n
 }
 
+/** Procura na ORDEM de `types` (prioridade), não na ordem do array `actions`:
+ *  o primeiro tipo da lista que existir nas ações vence. */
 function findAction(actions: RawAction[] | undefined, types: string[]): number | undefined {
   if (!actions) return undefined
-  const hit = actions.find((a) => types.includes(a.action_type))
-  return hit ? num(hit.value) : undefined
+  for (const type of types) {
+    const hit = actions.find((a) => a.action_type === type)
+    if (hit) return num(hit.value)
+  }
+  return undefined
 }
 
 function parseMetricSet(row?: RawInsightsRow): ReportMetricSet {
