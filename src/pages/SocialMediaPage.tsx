@@ -16,6 +16,8 @@ import {
   CONTENT_STATUS_LABEL,
   CONTENT_STATUS_ORDER,
   CONTENT_FORMAT_LABEL,
+  CONTENT_PILLAR_LABEL,
+  CONTENT_PILLAR_ORDER,
   type Content,
   type ContentStatus,
   type ContentType,
@@ -46,6 +48,7 @@ export function SocialMediaPage() {
   const [clientFilter, setClientFilter] = useState('')
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [formatFilter, setFormatFilter] = useState('')
+  const [pillarFilter, setPillarFilter] = useState('')
 
   // Deep link from a notification (?content=id) — open the drawer once,
   // then drop the param so the URL stays clean afterwards.
@@ -68,6 +71,7 @@ export function SocialMediaPage() {
     if (clientFilter && c.clientId !== clientFilter) return false
     if (assigneeFilter && c.assignedTo !== assigneeFilter) return false
     if (formatFilter && c.type !== formatFilter) return false
+    if (pillarFilter && c.pillar !== pillarFilter) return false
     return true
   })
 
@@ -109,6 +113,16 @@ export function SocialMediaPage() {
             <option value="">Todos os formatos</option>
             {FORMAT_FILTER_OPTIONS.map((t) => (
               <option key={t} value={t}>{CONTENT_FORMAT_LABEL[t]}</option>
+            ))}
+          </select>
+          <select
+            value={pillarFilter}
+            onChange={(e) => setPillarFilter(e.target.value)}
+            className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100"
+          >
+            <option value="">Todos os pilares</option>
+            {CONTENT_PILLAR_ORDER.map((p) => (
+              <option key={p} value={p}>{CONTENT_PILLAR_LABEL[p]}</option>
             ))}
           </select>
           <Button variant="secondary" icon={<Sparkles size={14} />} onClick={() => setGenerating(true)}>

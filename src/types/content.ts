@@ -18,7 +18,18 @@ export type ContentStatus =
 
 /** Recurring content themes used to plan and balance the weekly/monthly
  *  editorial grade (see the Social Media playbook — Roteiro Semanal/Mensal). */
-export type ContentPillar = 'dor_solucao' | 'autoridade' | 'prova_social' | 'educativo' | 'bastidores'
+export type ContentPillar =
+  | 'dor_solucao'
+  | 'autoridade'
+  | 'prova_social'
+  | 'bastidores'
+  | 'educativo'
+  | 'engajamento'
+  | 'institucional'
+  | 'antes_depois'
+  | 'diferenciais'
+  | 'comercial'
+  | 'cta'
 
 export interface Content extends BaseDoc {
   clientId: string
@@ -107,4 +118,41 @@ export const CONTENT_PILLAR_LABEL: Record<ContentPillar, string> = {
   prova_social: 'Prova Social',
   bastidores: 'Bastidores',
   educativo: 'Educativo',
+  engajamento: 'Engajamento',
+  institucional: 'Institucional',
+  antes_depois: 'Antes e Depois',
+  diferenciais: 'Diferenciais',
+  comercial: 'Comercial',
+  cta: 'CTA',
+}
+
+/** Ordem canônica dos pilares (dropdowns, filtros, legendas). */
+export const CONTENT_PILLAR_ORDER: ContentPillar[] = [
+  'dor_solucao',
+  'autoridade',
+  'prova_social',
+  'bastidores',
+  'educativo',
+  'engajamento',
+  'institucional',
+  'antes_depois',
+  'diferenciais',
+  'comercial',
+  'cta',
+]
+
+/** Cor (hex) de cada pilar — usada nos labels/chips coloridos e na borda
+ *  esquerda dos cards do kanban. */
+export const CONTENT_PILLAR_COLOR: Record<ContentPillar, string> = {
+  dor_solucao: '#dc2626',
+  autoridade: '#2563eb',
+  prova_social: '#059669',
+  bastidores: '#d97706',
+  educativo: '#7c3aed',
+  engajamento: '#ec4899',
+  institucional: '#0ea5e9',
+  antes_depois: '#14b8a6',
+  diferenciais: '#f97316',
+  comercial: '#ef4444',
+  cta: '#eab308',
 }

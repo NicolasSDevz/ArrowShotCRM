@@ -80,12 +80,27 @@ const FORMAT_MAP: Record<string, ContentType> = {
   stories: 'story',
 }
 
+/** Aceita qualquer pilar da lista, pelo rótulo, pelo slug ou por variações
+ *  comuns. Chaves já normalizadas: minúsculas, sem acento, "/" sem espaços
+ *  em volta (ver `normalize` + `parsePillar`). */
 const PILLAR_MAP: Record<string, ContentPillar> = {
   'dor/solucao': 'dor_solucao',
+  'dor solucao': 'dor_solucao',
+  dor_solucao: 'dor_solucao',
   autoridade: 'autoridade',
   'prova social': 'prova_social',
+  prova_social: 'prova_social',
   bastidores: 'bastidores',
   educativo: 'educativo',
+  engajamento: 'engajamento',
+  institucional: 'institucional',
+  'antes e depois': 'antes_depois',
+  'antes/depois': 'antes_depois',
+  antes_depois: 'antes_depois',
+  diferenciais: 'diferenciais',
+  comercial: 'comercial',
+  cta: 'cta',
+  'call to action': 'cta',
 }
 
 // Explicit table instead of a Unicode combining-marks regex range — keeps

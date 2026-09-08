@@ -15,6 +15,7 @@ import {
   type EditorialCalendarRow,
   type EditorialCalendarRowError,
 } from '../../utils/editorialCalendarImport'
+import { CONTENT_PILLAR_LABEL } from '../../types/content'
 
 type Stage = 'select' | 'reviewErrors'
 
@@ -199,6 +200,9 @@ export function ImportEditorialCalendarModal({
 
             <p className="text-xs text-slate-400">
               O arquivo CSV deve conter as colunas: data, titulo, formato, pilar, responsavel, legenda, observacoes
+            </p>
+            <p className="text-xs text-slate-400">
+              Pilares aceitos: {Object.values(CONTENT_PILLAR_LABEL).join(', ')}.
             </p>
 
             <Button

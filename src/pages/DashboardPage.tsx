@@ -18,7 +18,7 @@ import { TaskFormModal } from '../components/tasks/TaskFormModal'
 import { ContentDrawer } from '../components/content/ContentDrawer'
 import { ContentFormModal } from '../components/content/ContentFormModal'
 import { getClientOwnerIds } from '../types/client'
-import { CONTENT_PILLAR_LABEL, CONTENT_FORMAT_LABEL, CONTENT_TYPE_LABEL } from '../types/content'
+import { CONTENT_PILLAR_LABEL, CONTENT_PILLAR_COLOR, CONTENT_FORMAT_LABEL, CONTENT_TYPE_LABEL } from '../types/content'
 import type { Task } from '../types/task'
 import type { Content } from '../types/content'
 import type { Client } from '../types/client'
@@ -240,7 +240,13 @@ function ProductionContentRow({
       <span className="flex items-center gap-1.5 text-xs text-slate-400">
         {content.pillar && (
           <>
-            <span>{CONTENT_PILLAR_LABEL[content.pillar]}</span>
+            <span className="flex items-center gap-1">
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: CONTENT_PILLAR_COLOR[content.pillar] }}
+              />
+              {CONTENT_PILLAR_LABEL[content.pillar]}
+            </span>
             <span>·</span>
           </>
         )}
