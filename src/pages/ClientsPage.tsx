@@ -10,6 +10,11 @@ import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, getClientOwnerIds, type Client } from '../types/client'
 
+/** Gestores para o filtro. Os responsáveis são gravados no cliente como
+ *  `ownerIds` (ids de usuário), então o filtro resolve id → nome via userMap
+ *  e compara pelo nome. */
+const MANAGER_FILTER_NAMES = ['Ciane', 'Nicolas']
+
 export function ClientsPage() {
   const navigate = useNavigate()
   const { data: clients, loading } = useClients()
@@ -21,23 +26,24 @@ export function ClientsPage() {
   const [creating, setCreating] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
 
-  const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
+  const userMap = useMemo(() => Object.fromEntries(users.map((u) => [u.id, u])), [users])
 
-  // Gestores = usuários com papel "manager" (Ciane, Nicolas). Ordenados por nome.
-  const managers = useMemo(
-    () => users.filter((u) => u.role === 'manager' && u.active !== false).sort((a, b) => a.name.localeCompare(b.name)),
-    [users],
-  )
+  /** Nomes dos responsáveis internos de um cliente (resolvidos de ownerIds). */
+  const ownerNames = (c: Client) =>
+    getClientOwnerIds(c)
+      .map((id) => userMap[id]?.name)
+      .filter((n): n is string => !!n)
 
   const filtered = useMemo(() => {
     return clients.filter((c) => {
       if (search && !c.companyName.toLowerCase().includes(search.toLowerCase())) return false
       if (statusFilter && c.status !== statusFilter) return false
       if (categoryFilter && c.categoria !== categoryFilter) return false
-      if (managerFilter && !getClientOwnerIds(c).includes(managerFilter)) return false
+      if (managerFilter && !ownerNames(c).includes(managerFilter)) return false
       return true
     })
-  }, [clients, search, statusFilter, categoryFilter, managerFilter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients, search, statusFilter, categoryFilter, managerFilter, userMap])
 
   const ownersByClientId = useMemo(() => {
     return Object.fromEntries(
@@ -81,8 +87,8 @@ export function ClientsPage() {
         </select>
         <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
           <option value="">Todos os gestores</option>
-          {managers.map((m) => (
-            <option key={m.id} value={m.id}>{m.name}</option>
+          {MANAGER_FILTER_NAMES.map((name) => (
+            <option key={name} value={name}>{name}</option>
           ))}
         </select>
       </div>
