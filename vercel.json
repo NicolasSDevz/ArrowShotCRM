@@ -6,6 +6,7 @@
     }
   },
   "crons": [
-    { "path": "/api/cron/check-meta-token-expiry", "schedule": "0 9 * * *" }
+    { "path": "/api/cron/check-meta-token-expiry", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/update-metrics", "schedule": "1 0 * * *" }
   ]
 }

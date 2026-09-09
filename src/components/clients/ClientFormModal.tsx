@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { createClient, updateClient } from '../../services/clientService'
 import { createInitialWorkflowTasks } from '../../services/clientWorkflowTemplates'
+import { logActivity } from '../../services/activityService'
 import { notifyAdminsOfAction } from '../../services/notificationService'
 import { uploadClientLogo, removeClientLogo } from '../../services/clientLogoService'
 import { ClientLogoField } from './ClientLogoField'
@@ -47,6 +48,35 @@ const EMPTY = {
 }
 
 const toDateInputValue = timestampToDateInput
+
+const MODULE_LABEL: Record<string, string> = {
+  socialMedia: 'Social Mídia',
+  paidTraffic: 'Tráfego Pago',
+  metaAds: 'Meta Ads',
+  googleAds: 'Google Ads',
+}
+
+/** Descreve uma expansão de contrato (novo módulo ou aumento de valor) para
+ *  registrar como atividade `upsell` — alimenta o card Upsell do Dashboard.
+ *  Retorna `null` quando nada foi adicionado. */
+function describeUpsell(
+  before: Pick<Client, 'modules' | 'monthlyValue'>,
+  afterModules: Record<string, boolean | undefined>,
+  afterValue?: number
+): string | null {
+  const added = Object.keys(MODULE_LABEL).filter(
+    (k) => afterModules[k] && !(before.modules as Record<string, boolean | undefined> | undefined)?.[k]
+  )
+  const oldValue = before.monthlyValue ?? 0
+  const parts: string[] = []
+  if (added.length > 0) parts.push(added.map((k) => MODULE_LABEL[k]).join(' + '))
+  if (afterValue != null && afterValue > oldValue && oldValue > 0) {
+    parts.push(
+      `valor ${oldValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} → ${afterValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+    )
+  }
+  return parts.length > 0 ? parts.join(', ') : null
+}
 
 export function ClientFormModal({
   open,
@@ -143,6 +173,20 @@ export function ClientFormModal({
       if (client) {
         await updateClient(client.id, { ...basePayload, status: form.status }, profile.id, profile.name)
         targetId = client.id
+
+        const upsell = describeUpsell(client, basePayload.modules, basePayload.monthlyValue)
+        if (upsell) {
+          await logActivity({
+            entityType: 'client',
+            entityId: client.id,
+            clientId: client.id,
+            action: 'upsell',
+            message: `expandiu o contrato: ${upsell}`,
+            userId: profile.id,
+            userName: profile.name,
+          })
+        }
+
         if (form.status !== client.status) {
           await notifyAdminsOfAction({
             type: 'client_status_changed',

@@ -343,6 +343,15 @@ service cloud.firestore {
       allow delete: if isInternal();
     }
 
+    // ---------- metricsSnapshots (painel "Visão Geral" do Dashboard) ----------
+    // Um doc por dia (id = YYYY-MM-DD) gravado SÓ pelo backend (cron
+    // /api/cron/update-metrics + botão "Atualizar agora"), que usa a service
+    // account e ignora estas regras. O SDK do cliente só lê.
+    match /metricsSnapshots/{day} {
+      allow read: if isInternal();
+      allow write: if false;
+    }
+
     // ---------- future modules ----------
     // When googleAdsCampaigns, metaAdsCampaigns, leads, reports, finance, etc.
     // are introduced, add a `match /{collection}/{docId}` block here following

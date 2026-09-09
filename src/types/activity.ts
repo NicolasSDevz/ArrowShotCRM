@@ -11,6 +11,9 @@ export type ActivityAction =
   | 'approved'
   | 'change_requested'
   | 'deleted'
+  /** Cliente expandiu o contrato (novo serviço/módulo ou aumento de valor) —
+   *  alimenta o card "Upsell" do painel Visão Geral. */
+  | 'upsell'
 
 export interface Activity {
   id: string

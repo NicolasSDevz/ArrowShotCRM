@@ -46,6 +46,15 @@ export function subscribeActivities(
   )
 }
 
+/** Todos os eventos de upsell (ordenados no cliente — filtro de campo único,
+ *  sem índice composto). O card "Upsell" do Dashboard recorta os do mês. */
+export function subscribeUpsellActivities(
+  onData: (items: Activity[]) => void,
+  onError?: (err: FirestoreError) => void
+) {
+  return base.subscribe([where('action', '==', 'upsell')], onData, onError)
+}
+
 export function subscribeClientActivities(
   clientId: string,
   onData: (items: Activity[]) => void,
