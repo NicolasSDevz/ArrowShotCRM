@@ -328,6 +328,21 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ---------- celebrationEvents (comemoração em tempo real quando um lead
+    // vira cliente). Efêmero: o CelebrationOverlay escuta os últimos eventos,
+    // dispara confete+som só nos que têm < 10s e faz prune dos antigos.
+    // Criado via addDoc cru (sem createdBy/updatedBy) — daí o shape estrito. ----------
+    match /celebrationEvents/{eventId} {
+      allow read: if isInternal();
+      allow create: if isInternal()
+        && request.resource.data.keys().hasOnly(['clientName', 'closedBy', 'createdAt'])
+        && request.resource.data.clientName is string
+        && request.resource.data.closedBy is string
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if isInternal();
+    }
+
     // ---------- future modules ----------
     // When googleAdsCampaigns, metaAdsCampaigns, leads, reports, finance, etc.
     // are introduced, add a `match /{collection}/{docId}` block here following

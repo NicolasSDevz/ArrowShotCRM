@@ -6,6 +6,7 @@ import { logActivity } from './activityService'
 import { createClient } from './clientService'
 import { createInitialWorkflowTasks } from './clientWorkflowTemplates'
 import { notifyAdminsOfAction } from './notificationService'
+import { emitCelebration } from './celebrationService'
 
 const COLLECTION = 'leads'
 const base = collectionService<Lead>(COLLECTION)
@@ -58,6 +59,7 @@ export async function moveLeadStatus(lead: Lead, newStatus: LeadStatus, newOrder
     })
     const name = lead.companyName?.trim() || lead.contactName
     const lost = newStatus === 'lost'
+    if (newStatus === 'closed') await emitCelebration(name, userName)
     await notifyAdminsOfAction({
       type: 'lead_stage_changed',
       message: lost
@@ -158,6 +160,7 @@ export async function convertLeadToClient(lead: Lead, userId: string, userName: 
     entityType: 'client',
     entityId: clientId,
   })
+  await emitCelebration(companyName, userName)
 
   return clientId
 }

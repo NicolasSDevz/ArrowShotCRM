@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { ErrorBoundary } from '../ErrorBoundary'
+import { CelebrationOverlay } from '../CelebrationOverlay'
 import { useTaskDueDateSweep } from '../../hooks/useTaskDueDateSweep'
 
 export function AppLayout() {
@@ -21,6 +22,7 @@ export function AppLayout() {
           </ErrorBoundary>
         </main>
       </div>
+      <CelebrationOverlay />
     </div>
   )
 }

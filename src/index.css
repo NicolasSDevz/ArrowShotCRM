@@ -63,6 +63,18 @@ body {
   scrollbar-color: #94a3b8 #f1f5f9;
 }
 
+/* ---------- Toast de comemoração (novo cliente fechado) ---------- */
+@keyframes celebration-in {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.celebration-toast > * {
+  animation: celebration-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .celebration-toast > * { animation: none; }
+}
+
 /* ---------- Scrollbars (tema claro) ---------- */
 ::-webkit-scrollbar {
   width: 8px;
