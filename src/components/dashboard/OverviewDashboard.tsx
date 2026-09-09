@@ -29,8 +29,20 @@ import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
 import { LEAD_STATUS_LABEL, type Activity, type LeadStatus } from '../../types'
 
 const BRL = (v: number) =>
-  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-const BRL2 = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+const BRL2 = (v: number) =>
+  (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+/** `calculatedAt` chega como Timestamp (doc do Firestore) ou string ISO
+ *  (resposta da API). Devolve um label seguro, nunca lança. */
+function formatWhen(v: unknown): string | null {
+  let d: Date | null = null
+  if (v && typeof (v as { toDate?: () => Date }).toDate === 'function') d = (v as { toDate: () => Date }).toDate()
+  else if (typeof v === 'string' && v) d = new Date(v)
+  else if (v instanceof Date) d = v
+  if (!d || Number.isNaN(d.getTime())) return null
+  return format(d, "dd/MM 'às' HH:mm", { locale: ptBR })
+}
 
 const CHART_COLOR = '#2563EB'
 const PIPELINE_STAGES: LeadStatus[] = ['new', 'contacted', 'meeting_scheduled', 'proposal_sent', 'negotiation']
@@ -295,9 +307,9 @@ export function OverviewDashboard() {
       {/* Barra superior */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-400">
-          {usingLive
+          {usingLive || !formatWhen(m.calculatedAt)
             ? 'Cálculo ao vivo — ainda sem snapshot diário.'
-            : `Atualizado ${format(new Date(m.calculatedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}`}
+            : `Atualizado ${formatWhen(m.calculatedAt)}`}
         </p>
         <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />} onClick={handleRefresh} loading={refreshing}>
           Atualizar agora

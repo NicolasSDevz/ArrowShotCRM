@@ -1,3 +1,5 @@
+import type { Timestamp } from 'firebase/firestore'
+
 /** Snapshot diário de métricas da empresa, gravado pelo cron
  *  `/api/cron/update-metrics` (e pelo botão "Atualizar agora"). O painel
  *  "Visão Geral" do Dashboard lê o snapshot mais recente em vez de recalcular
@@ -27,6 +29,7 @@ export interface MetricsSnapshot {
   /** Valores do snapshot de ~30 dias atrás, p/ a variação % dos cards.
    *  `null` quando ainda não há histórico. */
   prevMonth: { mrr: number; activeClients: number } | null
-  /** ISO string — quando o snapshot foi calculado. */
-  calculatedAt: string
+  /** Quando o snapshot foi calculado. Timestamp do Firestore quando vem do
+   *  doc; string ISO quando vem direto da resposta da API. */
+  calculatedAt: Timestamp | string
 }
