@@ -11,7 +11,12 @@ import { emitCelebration } from './celebrationService'
 const COLLECTION = 'leads'
 const base = collectionService<Lead>(COLLECTION)
 
-export async function createLead(data: LeadInput, userId: string, userName: string) {
+export async function createLead(
+  data: LeadInput,
+  userId: string,
+  userName: string,
+  opts?: { skipAdminNotify?: boolean }
+) {
   const id = await base.create({ ...data, stageChangedAt: Timestamp.now() }, userId)
   await logActivity({
     entityType: 'lead',
@@ -21,16 +26,85 @@ export async function createLead(data: LeadInput, userId: string, userName: stri
     userId,
     userName,
   })
-  const label = data.companyName?.trim() ? `${data.contactName} (${data.companyName.trim()})` : data.contactName
-  await notifyAdminsOfAction({
-    type: 'lead_created',
-    message: `${userName} cadastrou o lead ${label}`,
-    actorId: userId,
-    actorName: userName,
-    entityType: 'lead',
-    entityId: id,
-  })
+  if (!opts?.skipAdminNotify) {
+    const label = data.companyName?.trim() ? `${data.contactName} (${data.companyName.trim()})` : data.contactName
+    await notifyAdminsOfAction({
+      type: 'lead_created',
+      message: `${userName} cadastrou o lead ${label}`,
+      actorId: userId,
+      actorName: userName,
+      entityType: 'lead',
+      entityId: id,
+    })
+  }
   return id
+}
+
+/** Importação em massa via CSV (ver utils/leadImport.ts). Cria cada lead na
+ *  coluna "Novo Lead" com o responsável informado (Bruno, por padrão),
+ *  suprime a notificação individual e, ao final, manda UMA notificação-resumo
+ *  aos admins. Devolve o total criado e as linhas que falharam ao gravar. */
+export async function importLeads(
+  rows: {
+    contactName: string
+    companyName?: string
+    whatsapp?: string
+    email?: string
+    cityRegion?: string
+    services: Lead['services']
+    source: Lead['source']
+    estimatedValue?: number
+    notes?: string
+    line: number
+  }[],
+  assignedTo: string | undefined,
+  userId: string,
+  userName: string
+): Promise<{ created: number; failedLines: number[] }> {
+  const failedLines: number[] = []
+  let created = 0
+  const now = Date.now()
+
+  for (const [i, row] of rows.entries()) {
+    try {
+      await createLead(
+        {
+          contactName: row.contactName,
+          companyName: row.companyName,
+          whatsapp: row.whatsapp ?? '',
+          email: row.email,
+          cityRegion: row.cityRegion,
+          services: row.services,
+          source: row.source,
+          estimatedValue: row.estimatedValue,
+          notes: row.notes,
+          assignedTo,
+          status: 'new',
+          order: now + i,
+          contactHistory: [],
+        },
+        userId,
+        userName,
+        { skipAdminNotify: true }
+      )
+      created++
+    } catch (err) {
+      console.error('importLeads: falha ao gravar linha', row.line, err)
+      failedLines.push(row.line)
+    }
+  }
+
+  if (created > 0) {
+    await notifyAdminsOfAction({
+      type: 'lead_created',
+      message: `📥 ${created} ${created === 1 ? 'novo lead importado' : 'novos leads importados'}`,
+      actorId: userId,
+      actorName: userName,
+      entityType: 'lead',
+    })
+  }
+
+  return { created, failedLines }
 }
 
 export async function updateLead(id: string, data: Partial<LeadInput>, userId: string, userName: string) {

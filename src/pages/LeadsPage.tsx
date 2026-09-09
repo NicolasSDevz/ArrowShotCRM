@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { LeadCard } from '../components/leads/LeadCard'
 import { LeadFormModal } from '../components/leads/LeadFormModal'
+import { ImportLeadsModal } from '../components/leads/ImportLeadsModal'
 import { LeadDrawer } from '../components/leads/LeadDrawer'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
@@ -29,6 +30,7 @@ export function LeadsPage() {
   const { data: users } = useUsers()
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
 
   // Fluxos que precisam de confirmação antes de mover no pipeline.
@@ -107,9 +109,14 @@ export function LeadsPage() {
           <h1 className="text-[28px] font-extrabold text-slate-900">Leads</h1>
           <p className="text-[15px] text-[#64748B]">Pipeline de novos clientes</p>
         </div>
-        <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
-          Novo lead
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)}>
+            Importar leads
+          </Button>
+          <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
+            Novo lead
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-hidden">
@@ -125,6 +132,7 @@ export function LeadsPage() {
       </div>
 
       <LeadFormModal open={creating} onClose={() => setCreating(false)} />
+      <ImportLeadsModal open={importing} onClose={() => setImporting(false)} />
       <LeadDrawer key={`lead-${openLeadId ?? 'none'}`} lead={openLead} onClose={() => setOpenLeadId(null)} />
 
       <Modal open={!!lossPrompt} onClose={() => setLossPrompt(null)} title="Motivo da perda">
