@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { format, isPast, isToday, isWithinInterval, addDays, differenceInDays, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CheckCircle2, AlertTriangle, Clock, Pencil, CalendarDays, Plus } from 'lucide-react'
@@ -347,6 +347,23 @@ export function OperationalDashboard() {
   const visibleTasks = useMemo(() => filterVisibleTasks(tasks, canSeeAllTasks, viewerId), [tasks, canSeeAllTasks, viewerId])
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [openContentId, setOpenContentId] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Deep link de uma notificação de tarefa (/?task=id) — abre o drawer e
+  // limpa o parâmetro. Não há mais página de Tarefas dedicada.
+  useEffect(() => {
+    const id = searchParams.get('task')
+    if (!id) return
+    setOpenTaskId(id)
+    setSearchParams(
+      (params) => {
+        params.delete('task')
+        return params
+      },
+      { replace: true }
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const [expanded, setExpanded] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [contentModalOpen, setContentModalOpen] = useState(false)

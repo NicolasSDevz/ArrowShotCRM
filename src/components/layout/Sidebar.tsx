@@ -2,7 +2,6 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
-  CheckSquare,
   Sparkles,
   CalendarDays,
   Video,
@@ -25,7 +24,6 @@ import { USER_ROLE_LABEL } from '../../types/user'
 const mainNav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/clientes', label: 'Clientes', icon: Users },
-  { to: '/tarefas', label: 'Tarefas', icon: CheckSquare },
   { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
   { to: '/calendario', label: 'Calendário', icon: CalendarDays },
   { to: '/reunioes', label: 'Reuniões', icon: Video },

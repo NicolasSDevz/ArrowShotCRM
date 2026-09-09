@@ -118,14 +118,15 @@ export function formatNotificationTime(date: Date): string {
 
 /** Where clicking a notification should navigate to — the task/content
  *  targets carry the id as a query param so the destination page can open
- *  the right drawer directly (see TasksPage/SocialMediaPage). */
+ *  the right drawer directly. Não há mais página de Tarefas: as
+ *  notificações de tarefa abrem o drawer no Dashboard (aba Operacional). */
 export function resolveNotificationRoute(n: Pick<AppNotification, 'entityType' | 'entityId'>): string | null {
   if (!n.entityType) return null
   switch (n.entityType) {
     case 'client':
       return n.entityId ? `/clientes/${n.entityId}` : '/clientes'
     case 'task':
-      return n.entityId ? `/tarefas?task=${n.entityId}` : '/tarefas'
+      return n.entityId ? `/?task=${n.entityId}` : '/'
     case 'content':
       return n.entityId ? `/social-media?content=${n.entityId}` : '/social-media'
     case 'lead':

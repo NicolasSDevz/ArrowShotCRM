@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAuth } from '../context/AuthContext'
@@ -14,8 +15,18 @@ const VIEW_LABEL: Record<DashboardView, string> = {
 
 export function DashboardPage() {
   const { profile } = useAuth()
+  const [searchParams] = useSearchParams()
   // Bruno (admin) abre em "Visão Geral"; o resto da equipe em "Operacional".
-  const [view, setView] = useState<DashboardView>(profile?.role === 'admin' ? 'overview' : 'operational')
+  // Uma notificação de tarefa (/?task=id) sempre cai na aba Operacional, onde
+  // o drawer da tarefa abre.
+  const [view, setView] = useState<DashboardView>(
+    searchParams.get('task') ? 'operational' : profile?.role === 'admin' ? 'overview' : 'operational'
+  )
+
+  // Notificação clicada com o Dashboard já aberto.
+  useEffect(() => {
+    if (searchParams.get('task')) setView('operational')
+  }, [searchParams])
 
   const todayLabel = useMemo(() => {
     const s = format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
