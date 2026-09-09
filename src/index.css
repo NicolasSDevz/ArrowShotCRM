@@ -75,6 +75,16 @@ body {
   .celebration-toast > * { animation: none; }
 }
 
+/* ---------- Tooltip informativo (ℹ️ nos cards do painel Visão Geral) ---------- */
+@keyframes infotip-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.infotip-pop { animation: infotip-in 0.15s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .infotip-pop { animation: none; }
+}
+
 /* ---------- Scrollbars (tema claro) ---------- */
 ::-webkit-scrollbar {
   width: 8px;

@@ -19,12 +19,14 @@ import { useClients } from '../../hooks/useClients'
 import { useLeads } from '../../hooks/useLeads'
 import { useAllTasks } from '../../hooks/useTasks'
 import { useUsers } from '../../hooks/useUsers'
+import { useRecentOptimizations } from '../../hooks/useOptimizations'
 import { useMetricsSnapshot } from '../../hooks/useMetricsSnapshot'
 import { useCollectionSubscription } from '../../hooks/useCollectionSubscription'
 import { subscribeUpsellActivities } from '../../services/activityService'
 import { refreshMetricsNow } from '../../services/metricsService'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
+import { InfoTip } from '../ui/InfoTip'
 import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
 import { LEAD_STATUS_LABEL, type Activity, type LeadStatus } from '../../types'
 
@@ -47,6 +49,39 @@ function formatWhen(v: unknown): string | null {
 const CHART_COLOR = '#2563EB'
 const PIPELINE_STAGES: LeadStatus[] = ['new', 'contacted', 'meeting_scheduled', 'proposal_sent', 'negotiation']
 
+/** Textos explicativos exibidos no tooltip ℹ️ de cada métrica. */
+const TIPS = {
+  mrr: {
+    title: 'MRR — Receita Recorrente Mensal',
+    body: 'É a soma de todos os contratos mensais ativos. Representa o quanto a Arrow Shot fatura de forma previsível todo mês.',
+  },
+  activeClients: {
+    body: 'Total de clientes com contrato ativo no momento. Não inclui clientes em onboarding, pausados ou encerrados.',
+  },
+  churn: {
+    title: 'Churn Rate — Taxa de Cancelamento',
+    body: 'Percentual de clientes que encerraram o contrato este mês.\n✅ Saudável: abaixo de 5%\n⚠️ Atenção: entre 5% e 10%\n🔴 Crítico: acima de 10%',
+  },
+  ltv: {
+    title: 'LTV — Lifetime Value',
+    body: 'Valor médio que cada cliente gera durante todo o tempo que fica com a agência. Calculado pelo ticket médio multiplicado pelo tempo médio de permanência dos clientes.',
+  },
+  upsell: {
+    title: 'Upsell — Expansão de Contrato',
+    body: 'Clientes que adicionaram um novo serviço ao contrato existente. Ex: cliente de tráfego que contratou também Social Mídia.',
+  },
+  risk: {
+    body: 'Clientes que apresentam sinais de insatisfação ou abandono:\n- 2 ou mais tarefas atrasadas\n- Contrato pausado\n- Sem otimização há mais de 2 semanas',
+  },
+  pipeline: {
+    title: 'Pipeline — Funil de Vendas',
+    body: 'Leads em negociação ativa. O MRR potencial é a soma dos valores estimados de todos os leads que ainda podem fechar.',
+  },
+  gestor: {
+    body: 'Soma dos contratos mensais dos clientes de cada gestor. Mostra o peso de cada gestor na receita total da agência.',
+  },
+} as const
+
 function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div
@@ -57,8 +92,13 @@ function Card({ children, className = '' }: { children: ReactNode; className?: s
   )
 }
 
-function CardTitle({ children }: { children: ReactNode }) {
-  return <p className="mb-3 text-[15px] font-semibold text-slate-900">{children}</p>
+function CardTitle({ children, tip }: { children: ReactNode; tip?: { title?: string; body: string } }) {
+  return (
+    <div className="mb-3 flex items-start justify-between gap-2">
+      <p className="text-[15px] font-semibold text-slate-900">{children}</p>
+      {tip && <InfoTip title={tip.title}>{tip.body}</InfoTip>}
+    </div>
+  )
 }
 
 function DeltaChip({ pct }: { pct: number | null }) {
@@ -84,6 +124,7 @@ function MetricCard({
   valueColor,
   subtitle,
   delta,
+  tip,
 }: {
   icon: ReactNode
   iconBg: string
@@ -92,12 +133,16 @@ function MetricCard({
   valueColor?: string
   subtitle: string
   delta?: number | null
+  tip: { title?: string; body: string }
 }) {
   return (
     <Card>
       <div className="flex items-center justify-between">
         <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconBg}`}>{icon}</div>
-        {delta !== undefined && <DeltaChip pct={delta} />}
+        <div className="flex items-center gap-2">
+          {delta !== undefined && <DeltaChip pct={delta} />}
+          <InfoTip title={tip.title}>{tip.body}</InfoTip>
+        </div>
       </div>
       <p className="mt-3 text-[13px] font-medium text-slate-500">{label}</p>
       <p className="mt-0.5 text-[26px] font-extrabold leading-tight" style={valueColor ? { color: valueColor } : undefined}>
@@ -202,6 +247,7 @@ export function OverviewDashboard() {
   const { data: leads } = useLeads()
   const { data: tasks } = useAllTasks()
   const { data: users } = useUsers()
+  const { data: recentOptimizations } = useRecentOptimizations(30)
   const { data: snapshot } = useMetricsSnapshot()
   const { data: upsellActivities } = useCollectionSubscription<Activity>(
     (onData, onError) => subscribeUpsellActivities(onData, onError),
@@ -252,6 +298,13 @@ export function OverviewDashboard() {
 
   // ---- Clientes em risco ----
   const atRisk = useMemo(() => {
+    const twoWeeksAgo = new Date().getTime() - 14 * 24 * 60 * 60 * 1000
+    const lastOptByClient = new Map<string, number>()
+    for (const o of recentOptimizations) {
+      const t = o.date?.toMillis?.() ?? 0
+      if (t > (lastOptByClient.get(o.clientId) ?? 0)) lastOptByClient.set(o.clientId, t)
+    }
+
     return clients
       .filter((c) => c.status === 'active' || c.status === 'paused')
       .map((c) => {
@@ -264,13 +317,16 @@ export function OverviewDashboard() {
             !isToday(t.dueDate.toDate())
         ).length
         const reasons: string[] = []
-        if (c.status === 'paused') reasons.push('Cliente pausado')
+        if (c.status === 'paused') reasons.push('Contrato pausado')
         if (overdue >= 2) reasons.push(`${overdue} tarefas atrasadas`)
+        if (c.modules?.paidTraffic && (lastOptByClient.get(c.id) ?? 0) < twoWeeksAgo) {
+          reasons.push('Sem otimização há 2+ semanas')
+        }
         return { client: c, reasons }
       })
       .filter((r) => r.reasons.length > 0)
       .sort((a, b) => b.reasons.length - a.reasons.length)
-  }, [clients, tasks])
+  }, [clients, tasks, recentOptimizations])
 
   // ---- Novos clientes no mês (+ comparativo) ----
   const newClientsInfo = useMemo(() => {
@@ -304,6 +360,10 @@ export function OverviewDashboard() {
 
   return (
     <div className="flex flex-col gap-4">
+      <p className="text-xs text-slate-400">
+        Métricas atualizadas diariamente às 00:01. Passe o mouse sobre o ℹ️ para entender cada indicador.
+      </p>
+
       {/* Barra superior */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-400">
@@ -335,6 +395,7 @@ export function OverviewDashboard() {
           value={BRL(m.mrr)}
           subtitle="Receita recorrente mensal"
           delta={mrrDelta}
+          tip={TIPS.mrr}
         />
         <MetricCard
           icon={<Users size={17} className="text-white" />}
@@ -343,6 +404,7 @@ export function OverviewDashboard() {
           value={String(m.activeClients)}
           subtitle="Clientes em carteira"
           delta={clientsDelta}
+          tip={TIPS.activeClients}
         />
         <MetricCard
           icon={<ActivityIcon size={17} className="text-white" />}
@@ -351,6 +413,7 @@ export function OverviewDashboard() {
           value={`${m.churnRate.toFixed(1)}%`}
           valueColor={churnColor}
           subtitle="Taxa de cancelamento do mês"
+          tip={TIPS.churn}
         />
         <MetricCard
           icon={<Gem size={17} className="text-white" />}
@@ -358,6 +421,7 @@ export function OverviewDashboard() {
           label="LTV Médio"
           value={BRL(m.ltv)}
           subtitle="Valor médio por cliente"
+          tip={TIPS.ltv}
         />
       </div>
 
@@ -370,7 +434,7 @@ export function OverviewDashboard() {
       {/* LINHA 3 — Receita por gestor + Pipeline */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <CardTitle>Receita por Gestor</CardTitle>
+          <CardTitle tip={TIPS.gestor}>Receita por Gestor</CardTitle>
           {m.revenueByGestor.ciane === 0 && m.revenueByGestor.nicolas === 0 ? (
             <EmptyState title="Sem receita atribuída a gestores" />
           ) : (
@@ -394,7 +458,7 @@ export function OverviewDashboard() {
         </Card>
 
         <Card>
-          <CardTitle>Pipeline de Leads</CardTitle>
+          <CardTitle tip={TIPS.pipeline}>Pipeline de Leads</CardTitle>
           <div className="flex flex-col gap-2">
             {pipeline.byStage.map((s) => (
               <div key={s.status} className="flex items-center justify-between text-sm">
@@ -415,7 +479,7 @@ export function OverviewDashboard() {
       {/* LINHA 4 — Upsell / Risco / Novos */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
-          <CardTitle>
+          <CardTitle tip={TIPS.upsell}>
             <span className="flex items-center gap-2">
               <ArrowUpRight size={16} className="text-emerald-600" /> Upsell
             </span>
@@ -439,7 +503,7 @@ export function OverviewDashboard() {
         </Card>
 
         <Card>
-          <CardTitle>
+          <CardTitle tip={TIPS.risk}>
             <span className="flex items-center gap-2">
               Clientes em Risco
               {atRisk.length > 0 && (

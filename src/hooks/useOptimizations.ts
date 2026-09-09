@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   subscribeClientOptimizations,
   subscribeTodayOptimizations,
+  subscribeOptimizationsSince,
   subscribeOptimizationSchedule,
 } from '../services/optimizationService'
 import type { Optimization, OptimizationSchedule } from '../types'
@@ -22,6 +23,20 @@ export function useTodayOptimizations() {
     (onData, onError) => subscribeTodayOptimizations(ms, onData, onError),
     // recria a subscrição quando o dia vira
     [ms]
+  )
+}
+
+/** Otimizações dos últimos N dias (todos os clientes). Default 30 — cobre a
+ *  janela de "sem otimização há 2 semanas" do card Clientes em Risco. */
+export function useRecentOptimizations(days = 30) {
+  const sinceMs = (() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d.getTime() - days * 24 * 60 * 60 * 1000
+  })()
+  return useCollectionSubscription<Optimization>(
+    (onData, onError) => subscribeOptimizationsSince(sinceMs, onData, onError),
+    [sinceMs]
   )
 }
 

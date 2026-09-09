@@ -80,6 +80,17 @@ export function subscribeTodayOptimizations(
   )
 }
 
+/** Registros a partir de uma data (todos os clientes) — usado pelo painel
+ *  "Visão Geral" p/ detectar clientes sem otimização recente. Range num único
+ *  campo, sem índice composto. */
+export function subscribeOptimizationsSince(
+  sinceMs: number,
+  onData: (items: Optimization[]) => void,
+  onError?: (err: FirestoreError) => void
+) {
+  return base.subscribe([where('date', '>=', new Date(sinceMs)), orderBy('date', 'desc')], onData, onError)
+}
+
 /** One-shot — usado na cascata de exclusão de cliente. */
 export async function getClientOptimizations(clientId: string): Promise<Optimization[]> {
   const snap = await getDocs(query(base.colRef, where('clientId', '==', clientId)))
