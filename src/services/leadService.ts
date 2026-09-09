@@ -1,6 +1,6 @@
 import { orderBy, Timestamp, type FirestoreError } from 'firebase/firestore'
 import type { AppUser, Lead, LeadContactEntry, LeadInput, LeadStatus } from '../types'
-import { LEAD_STATUS_LABEL } from '../types/lead'
+import { LEAD_STATUS_LABEL, LEAD_LOST_REASON_LABEL } from '../types/lead'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
 import { createClient } from './clientService'
@@ -45,9 +45,31 @@ export async function updateLead(id: string, data: Partial<LeadInput>, userId: s
   })
 }
 
-export async function moveLeadStatus(lead: Lead, newStatus: LeadStatus, newOrder: number, userId: string, userName: string) {
+export interface MoveLeadExtra {
+  lostReason?: Lead['lostReason']
+  lostReasonNote?: Lead['lostReasonNote']
+}
+
+export async function moveLeadStatus(
+  lead: Lead,
+  newStatus: LeadStatus,
+  newOrder: number,
+  userId: string,
+  userName: string,
+  extra?: MoveLeadExtra
+) {
   const changed = newStatus !== lead.status
-  await base.update(lead.id, { status: newStatus, order: newOrder, ...(changed ? { stageChangedAt: Timestamp.now() } : {}) }, userId)
+  const lossFields =
+    newStatus === 'lost'
+      ? { lostReason: extra?.lostReason ?? null, lostReasonNote: extra?.lostReasonNote?.trim() || null, lostAt: Timestamp.now() }
+      : changed
+        ? { lostReason: null, lostReasonNote: null, lostAt: null }
+        : {}
+  await base.update(
+    lead.id,
+    { status: newStatus, order: newOrder, ...(changed ? { stageChangedAt: Timestamp.now() } : {}), ...lossFields },
+    userId
+  )
   if (changed) {
     await logActivity({
       entityType: 'lead',
@@ -59,11 +81,12 @@ export async function moveLeadStatus(lead: Lead, newStatus: LeadStatus, newOrder
     })
     const name = lead.companyName?.trim() || lead.contactName
     const lost = newStatus === 'lost'
+    const lostReasonLabel = extra?.lostReason ? LEAD_LOST_REASON_LABEL[extra.lostReason] : null
     if (newStatus === 'closed') await emitCelebration(name, userName)
     await notifyAdminsOfAction({
       type: 'lead_stage_changed',
       message: lost
-        ? `${userName} marcou o lead ${name} como Perdido`
+        ? `${userName} marcou o lead ${name} como Perdido${lostReasonLabel ? ` (motivo: ${lostReasonLabel})` : ''}`
         : `${userName} moveu o lead ${name} de "${LEAD_STATUS_LABEL[lead.status]}" para "${LEAD_STATUS_LABEL[newStatus]}"`,
       actorId: userId,
       actorName: userName,

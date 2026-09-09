@@ -63,6 +63,25 @@ export interface LeadServiceInterest {
   socialMediaPackage?: 'weekly' | 'monthly'
 }
 
+export type LeadLostReason =
+  | 'price'
+  | 'no_response'
+  | 'chose_competitor'
+  | 'no_budget'
+  | 'not_a_fit'
+  | 'bad_timing'
+  | 'other'
+
+export const LEAD_LOST_REASON_LABEL: Record<LeadLostReason, string> = {
+  price: 'Preço / valor',
+  no_response: 'Parou de responder',
+  chose_competitor: 'Escolheu concorrente',
+  no_budget: 'Sem orçamento no momento',
+  not_a_fit: 'Não era perfil de cliente',
+  bad_timing: 'Momento não é adequado',
+  other: 'Outro motivo',
+}
+
 export type LeadContactType = 'call' | 'whatsapp' | 'email' | 'meeting' | 'other'
 
 export const LEAD_CONTACT_TYPE_LABEL: Record<LeadContactType, string> = {
@@ -116,6 +135,10 @@ export interface Lead extends BaseDoc {
    *  criado" em vez do botão de converter. */
   convertedClientId?: string | null
   convertedAt?: Timestamp | null
+  /** Preenchidos ao mover o lead para "Perdido" (dropdown de motivo). */
+  lostReason?: LeadLostReason | null
+  lostReasonNote?: string | null
+  lostAt?: Timestamp | null
 }
 
 export type LeadInput = Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'stageChangedAt'>

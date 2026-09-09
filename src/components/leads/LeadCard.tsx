@@ -1,5 +1,7 @@
 import { differenceInCalendarDays, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
 import { LEAD_SOURCE_LABEL, type AppUser, type Lead } from '../../types'
@@ -18,10 +20,18 @@ function daysInStageLabel(stageChangedAt: Lead['stageChangedAt']): string {
 }
 
 export function LeadCard({ lead, assignee, onClick }: { lead: Lead; assignee?: AppUser; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id })
+
   return (
-    <button
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
       onClick={onClick}
-      className="flex w-full flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors duration-150 ease-in-out hover:bg-slate-50"
+      className={`flex w-full cursor-pointer flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors duration-150 ease-in-out hover:bg-slate-50 ${
+        isDragging ? 'opacity-40' : ''
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -49,6 +59,6 @@ export function LeadCard({ lead, assignee, onClick }: { lead: Lead; assignee?: A
       )}
 
       <p className="text-[11px] text-slate-400">{daysInStageLabel(lead.stageChangedAt)}</p>
-    </button>
+    </div>
   )
 }

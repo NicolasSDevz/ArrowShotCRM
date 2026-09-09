@@ -21,6 +21,7 @@ import {
   LEAD_STATUS_COLOR,
   LEAD_CONTACT_TYPE_LABEL,
   LEAD_CONTACT_OUTCOME_LABEL,
+  LEAD_LOST_REASON_LABEL,
   type Lead,
   type LeadContactType,
   type LeadContactOutcome,
@@ -217,9 +218,17 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
       }
     >
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
-        <Badge style={{ backgroundColor: `${LEAD_STATUS_COLOR[lead.status]}1A`, color: LEAD_STATUS_COLOR[lead.status] }}>
-          {LEAD_STATUS_LABEL[lead.status]}
-        </Badge>
+        <div className="flex min-w-0 flex-col gap-1">
+          <Badge style={{ backgroundColor: `${LEAD_STATUS_COLOR[lead.status]}1A`, color: LEAD_STATUS_COLOR[lead.status] }}>
+            {LEAD_STATUS_LABEL[lead.status]}
+          </Badge>
+          {lead.status === 'lost' && lead.lostReason && (
+            <p className="text-xs text-slate-400">
+              Motivo: {LEAD_LOST_REASON_LABEL[lead.lostReason]}
+              {lead.lostReasonNote ? ` — ${lead.lostReasonNote}` : ''}
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-1.5">
           {lead.status === 'closed' &&
             (lead.convertedClientId ? (
