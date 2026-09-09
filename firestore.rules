@@ -343,6 +343,15 @@ service cloud.firestore {
       allow delete: if isInternal();
     }
 
+    // ---------- metaSnapshots (cache do módulo "Meta Ads") ----------
+    // Um doc por cliente (id = clientId) com o último resultado consolidado da
+    // Graph API para o período consultado. Gravado SÓ pelo backend
+    // (/api/meta/agency-overview) via service account. O SDK do cliente só lê.
+    match /metaSnapshots/{clientId} {
+      allow read: if isInternal();
+      allow write: if false;
+    }
+
     // ---------- metricsSnapshots (painel "Visão Geral" do Dashboard) ----------
     // Um doc por dia (id = YYYY-MM-DD) gravado SÓ pelo backend (cron
     // /api/cron/update-metrics + botão "Atualizar agora"), que usa a service

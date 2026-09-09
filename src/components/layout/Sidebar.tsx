@@ -29,12 +29,12 @@ const mainNav = [
   { to: '/reunioes', label: 'Reuniões', icon: Video },
 ]
 
-// "Leads" e "Relatórios" têm `to` e por isso renderizam como link ativo,
-// mesmo continuando listados dentro da seção "Em breve" junto dos módulos
-// ainda travados.
+// "Meta Ads", "Leads" e "Relatórios" têm `to` e por isso renderizam como link
+// ativo, mesmo continuando listados dentro da seção "Em breve" junto dos
+// módulos ainda travados.
 const futureNav: { label: string; icon: typeof Target; to?: string }[] = [
   { label: 'Google Ads', icon: Target },
-  { label: 'Meta Ads', icon: Megaphone },
+  { label: 'Meta Ads', icon: Megaphone, to: '/meta-ads' },
   { label: 'Leads', icon: UserPlus, to: '/leads' },
   { label: 'Relatórios', icon: BarChart3, to: '/relatorios' },
   { label: 'Financeiro', icon: Wallet },
