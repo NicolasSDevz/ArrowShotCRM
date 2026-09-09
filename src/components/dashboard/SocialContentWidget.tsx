@@ -18,24 +18,30 @@ import { clientHashColor } from '../../utils/clientColor'
 
 /** Só Ciane e Nicolas veem este widget — cada um focado no que o cargo dele
  *  precisa resolver. Bruno/Janilson não. */
-const ROLE_CONFIG: Record<string, { label: string; statuses: ContentStatus[] }> = {
-  Ciane: { label: 'Conteúdos para revisar', statuses: ['review', 'waiting_client'] },
-  Nicolas: { label: 'Conteúdos para produzir', statuses: ['ideas', 'production'] },
+const ROLE_CONFIG: Record<string, { label: string; focus: ContentStatus[] }> = {
+  Ciane: { label: 'Conteúdos para revisar', focus: ['review', 'waiting_client'] },
+  Nicolas: { label: 'Conteúdos para produzir', focus: ['ideas', 'production'] },
 }
 
-/** Dias úteis (seg–sex) de hoje até `target`. 0 se `target` for hoje ou já passou. */
-function businessDaysUntil(target: Date): number {
+/** Status que o widget considera "pendente" (não Aprovado/Agendado/
+ *  Publicado/Cancelado). O `focus` do cargo só reordena — nunca esconde. */
+const PENDING_STATUSES: ContentStatus[] = ['ideas', 'production', 'review', 'waiting_client']
+
+/** Dias úteis (seg–sex) de hoje até `target`. Negativo se `target` já passou. */
+function businessDaysBetween(target: Date): number {
   const a = startOfDay(new Date())
   const b = startOfDay(target)
-  if (b <= a) return 0
+  if (b.getTime() === a.getTime()) return 0
+  const sign = b > a ? 1 : -1
   let count = 0
-  const cur = new Date(a)
-  while (cur < b) {
+  const cur = new Date(sign > 0 ? a : b)
+  const end = sign > 0 ? b : a
+  while (cur < end) {
     cur.setDate(cur.getDate() + 1)
     const d = cur.getDay()
     if (d !== 0 && d !== 6) count++
   }
-  return count
+  return count * sign
 }
 
 function formatEmoji(t: ContentType): string {
@@ -44,28 +50,35 @@ function formatEmoji(t: ContentType): string {
   return '📷'
 }
 
-function urgency(days: number): { dot: string; text: string; className: string } {
-  if (days <= 0) return { dot: '🔴', text: 'Publica hoje', className: 'text-red-600' }
+function urgency(days: number, hasDate: boolean): { dot: string; text: string; className: string } | null {
+  if (!hasDate) return { dot: '⚪', text: 'Sem data definida', className: 'text-slate-400' }
+  if (days < 0) return { dot: '🔴', text: `Atrasado ${Math.abs(days)}d`, className: 'text-red-600' }
+  if (days === 0) return { dot: '🔴', text: 'Publica hoje', className: 'text-red-600' }
   if (days <= 2) return { dot: '🔴', text: `Publica em ${days} dia${days === 1 ? '' : 's'}`, className: 'text-red-600' }
   if (days <= 4) return { dot: '🟡', text: `Publica em ${days} dias`, className: 'text-amber-600' }
   return { dot: '🟢', text: `Publica em ${days} dias`, className: 'text-emerald-600' }
 }
 
+interface Row {
+  content: Content
+  days: number | null
+  hasDate: boolean
+}
+
 function ContentRow({
-  content,
+  row,
   clientName,
   clientColor,
-  daysLeft,
   onClick,
 }: {
-  content: Content
+  row: Row
   clientName: string
   clientColor: string
-  daysLeft: number | null
   onClick: () => void
 }) {
+  const { content } = row
   const pillar = content.pillar
-  const u = daysLeft != null ? urgency(daysLeft) : null
+  const u = urgency(row.days ?? 0, row.hasDate)
   return (
     <button
       type="button"
@@ -111,39 +124,63 @@ export function SocialContentWidget() {
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
 
-  const { urgent, fallback } = useMemo(() => {
-    if (!profile || !config) return { urgent: [], fallback: [] as Content[] }
+  const { urgent, fallback, mine } = useMemo(() => {
+    if (!profile || !config) return { urgent: [] as Row[], fallback: [] as Row[], mine: [] as Content[] }
 
-    // clientes onde o usuário logado é responsável
-    const myClientIds = new Set(
+    const myOwnedClientIds = new Set(
       clients.filter((c) => getClientOwnerIds(c).includes(profile.id)).map((c) => c.id)
     )
 
-    const relevant = contents.filter(
-      (c) => myClientIds.has(c.clientId) && config.statuses.includes(c.status)
+    // "Meus conteúdos": atribuídos a mim OU, se sem responsável, de um cliente
+    // que eu sou responsável. (assignedTo é o sinal principal — foi assim que
+    // a pauta foi gerada.)
+    const mineList = contents.filter(
+      (c) =>
+        c.assignedTo === profile.id || (!c.assignedTo && myOwnedClientIds.has(c.clientId))
     )
 
-    const withDays = relevant
-      .filter((c) => c.scheduledDate && c.scheduledDate.toDate() >= startOfDay(new Date()))
-      .map((c) => ({ content: c, days: businessDaysUntil(c.scheduledDate!.toDate()) }))
-      .filter((x) => x.days <= 5)
-      .sort((a, b) => a.content.scheduledDate!.toMillis() - b.content.scheduledDate!.toMillis())
+    const pending = mineList.filter((c) => PENDING_STATUSES.includes(c.status))
 
-    const fallbackList = [...relevant]
-      .sort((a, b) => {
-        const da = a.scheduledDate?.toMillis() ?? Infinity
-        const db = b.scheduledDate?.toMillis() ?? Infinity
-        return da - db
+    // ordem: foco do cargo primeiro, depois por data (sem data por último)
+    const isFocus = (c: Content) => config.focus.includes(c.status)
+    const dateMs = (c: Content) => c.scheduledDate?.toMillis() ?? Infinity
+    const sorted = [...pending].sort((a, b) => {
+      if (isFocus(a) !== isFocus(b)) return isFocus(a) ? -1 : 1
+      return dateMs(a) - dateMs(b)
+    })
+
+    const rows: Row[] = sorted.map((c) => {
+      const hasDate = !!c.scheduledDate
+      return { content: c, hasDate, days: hasDate ? businessDaysBetween(c.scheduledDate!.toDate()) : null }
+    })
+
+    // urgentes: com data, dentro dos próximos 5 dias úteis (inclui atrasados)
+    const urgentRows = rows
+      .filter((r) => r.hasDate && (r.days as number) <= 5)
+      .sort((a, b) => dateMs(a.content) - dateMs(b.content))
+
+    const fallbackRows = rows.slice(0, 3)
+
+    if (import.meta.env.DEV) {
+      console.log('[SocialContentWidget]', {
+        usuario: `${profile.name} (${profile.id})`,
+        totalConteudosNaBase: contents.length,
+        meus_por_assignedTo_ou_cliente: mineList.length,
+        com_data: mineList.filter((c) => c.scheduledDate).length,
+        em_status_pendente: pending.length,
+        por_status: pending.reduce<Record<string, number>>((acc, c) => ({ ...acc, [c.status]: (acc[c.status] ?? 0) + 1 }), {}),
+        urgentes_proximos_5_dias_uteis: urgentRows.length,
       })
-      .slice(0, 3)
+    }
 
-    return { urgent: withDays, fallback: fallbackList }
+    return { urgent: urgentRows, fallback: fallbackRows, mine: mineList }
   }, [profile, config, contents, clients])
 
   if (!profile || !config) return null
 
   const showFallback = urgent.length === 0
-  const nothing = showFallback && fallback.length === 0
+  const list = showFallback ? fallback : urgent
+  const nothing = list.length === 0
 
   return (
     <div
@@ -154,18 +191,18 @@ export function SocialContentWidget() {
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div>
           <p className="text-[16px] font-semibold text-slate-900">{config.label}</p>
-          <p className="text-[13px] text-[#64748B]">Conteúdos dos seus clientes com publicação nos próximos 5 dias úteis.</p>
-        </div>
-        {!nothing && (
-          <p className="shrink-0 text-[13px] text-[#64748B]">
-            {(showFallback ? fallback : urgent).length} conteúdo(s)
+          <p className="text-[13px] text-[#64748B]">
+            Seus conteúdos com publicação nos próximos 5 dias úteis.
           </p>
-        )}
+        </div>
+        {!nothing && <p className="shrink-0 text-[13px] text-[#64748B]">{list.length} conteúdo(s)</p>}
       </div>
 
       {nothing ? (
         <p className="mt-3 text-[14px] font-medium text-[#10B981]">
-          ✅ Nenhum conteúdo pendente nos próximos 5 dias úteis
+          {mine.length === 0
+            ? '✅ Nenhum conteúdo atribuído a você'
+            : '✅ Nenhum conteúdo pendente nos próximos 5 dias úteis'}
         </p>
       ) : (
         <>
@@ -174,27 +211,15 @@ export function SocialContentWidget() {
           )}
 
           <div className="mt-3 flex flex-col gap-2">
-            {showFallback
-              ? fallback.map((c) => (
-                  <ContentRow
-                    key={c.id}
-                    content={c}
-                    clientName={clientMap[c.clientId]?.companyName ?? '—'}
-                    clientColor={clientHashColor(c.clientId)}
-                    daysLeft={null}
-                    onClick={() => navigate(`/social-media?content=${c.id}`)}
-                  />
-                ))
-              : urgent.map(({ content, days }) => (
-                  <ContentRow
-                    key={content.id}
-                    content={content}
-                    clientName={clientMap[content.clientId]?.companyName ?? '—'}
-                    clientColor={clientHashColor(content.clientId)}
-                    daysLeft={days}
-                    onClick={() => navigate(`/social-media?content=${content.id}`)}
-                  />
-                ))}
+            {list.map((row) => (
+              <ContentRow
+                key={row.content.id}
+                row={row}
+                clientName={clientMap[row.content.clientId]?.companyName ?? '—'}
+                clientColor={clientHashColor(row.content.clientId)}
+                onClick={() => navigate(`/social-media?content=${row.content.id}`)}
+              />
+            ))}
           </div>
 
           <button
