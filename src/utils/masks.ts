@@ -15,6 +15,16 @@ export function maskPhone(raw: string): string {
   return `(${ddd}) ${part1}-${part2}`
 }
 
+/** Número pronto para `https://wa.me/<n>` — só dígitos, com DDI 55 na frente
+ *  quando o número tem 10-11 dígitos (formato BR sem código do país).
+ *  Retorna undefined se não sobrar dígito nenhum. */
+export function toWhatsappDigits(raw?: string | null): string | undefined {
+  let d = (raw ?? '').replace(/\D/g, '')
+  if (!d) return undefined
+  if (d.length === 10 || d.length === 11) d = `55${d}`
+  return d
+}
+
 /** A phone is only "complete" at exactly 10 (fixed) or 11 (mobile) digits. */
 export function isPhoneComplete(raw: string): boolean {
   const digits = raw.replace(/\D/g, '')

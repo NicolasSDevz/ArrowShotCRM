@@ -14,13 +14,15 @@ import {
   format,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Sparkles, CheckSquare, Video, Plus, LogOut, CalendarClock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles, CheckSquare, Video, Plus, LogOut, CalendarClock, Cake } from 'lucide-react'
 import { useAllContents } from '../hooks/useContents'
 import { useAllTasks } from '../hooks/useTasks'
 import { useAllMeetings } from '../hooks/useMeetings'
 import { useClients } from '../hooks/useClients'
 import { useGoogleCalendar } from '../hooks/useGoogleCalendar'
 import { useCalendarEvents } from '../hooks/useCalendarEvents'
+import { upcomingBirthdays } from '../services/birthdayService'
+import { toWhatsappDigits } from '../utils/masks'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 import { MEETING_TYPE_LABEL } from '../types/meeting'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
@@ -34,7 +36,7 @@ type CalItem = {
   title: string
   // 'meeting' = evento do Google Calendar sincronizado; 'internalMeeting' =
   // registro do módulo de Reuniões da plataforma (ver types/meeting.ts).
-  kind: 'task' | 'content' | 'meeting' | 'internalMeeting' | 'event'
+  kind: 'task' | 'content' | 'meeting' | 'internalMeeting' | 'event' | 'birthday'
   date: Date
   clientName?: string
   link?: string
@@ -46,6 +48,7 @@ const KIND_STYLE: Record<CalItem['kind'], string> = {
   meeting: 'bg-amber-50 text-amber-700',
   internalMeeting: 'bg-indigo-50 text-indigo-700',
   event: 'bg-violet-50 text-violet-700',
+  birthday: 'bg-pink-50 text-pink-700',
 }
 
 export function CalendarPage() {
@@ -95,13 +98,29 @@ export function CalendarPage() {
       date: new Date(ev.start),
       link: ev.hangoutLink || ev.htmlLink,
     }))
-    const fromEvents: CalItem[] = calendarEvents.map((ev) => ({
-      id: ev.id,
-      title: ev.title,
-      kind: 'event',
-      date: ev.date.toDate(),
-      clientName: ev.clientId ? clientMap[ev.clientId]?.companyName : undefined,
-    }))
+    const fromEvents: CalItem[] = calendarEvents
+      .filter((ev) => ev.type !== 'birthday')
+      .map((ev) => ({
+        id: ev.id,
+        title: ev.title,
+        kind: 'event',
+        date: ev.date.toDate(),
+        clientName: ev.clientId ? clientMap[ev.clientId]?.companyName : undefined,
+      }))
+    // Aniversários: recorrentes — renderiza a ocorrência de cada ano visível.
+    const cursorYear = cursor.getFullYear()
+    const fromBirthdays: CalItem[] = calendarEvents
+      .filter((ev) => ev.type === 'birthday' && ev.birthdayMonth && ev.birthdayDay)
+      .flatMap((ev) =>
+        [cursorYear - 1, cursorYear, cursorYear + 1].map((y) => ({
+          id: `${ev.id}-${y}`,
+          title: ev.title,
+          kind: 'birthday' as const,
+          date: new Date(y, ev.birthdayMonth! - 1, ev.birthdayDay!),
+          clientName: ev.clientId ? clientMap[ev.clientId]?.companyName : undefined,
+          link: ev.contactWhatsapp ? `https://wa.me/${ev.contactWhatsapp}` : undefined,
+        }))
+      )
     const fromInternalMeetings: CalItem[] = meetings.map((m) => {
       const clientName = m.clientId ? clientMap[m.clientId]?.companyName : undefined
       return {
@@ -112,8 +131,10 @@ export function CalendarPage() {
         clientName,
       }
     })
-    return [...fromTasks, ...fromContents, ...fromMeetings, ...fromEvents, ...fromInternalMeetings]
-  }, [tasks, contents, clientMap, google.events, calendarEvents, meetings])
+    return [...fromTasks, ...fromContents, ...fromMeetings, ...fromEvents, ...fromBirthdays, ...fromInternalMeetings]
+  }, [tasks, contents, clientMap, google.events, calendarEvents, meetings, cursor])
+
+  const birthdays30 = useMemo(() => upcomingBirthdays(calendarEvents, 30), [calendarEvents])
 
   const rangeStart = mode === 'month' ? startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 }) : startOfWeek(cursor, { weekStartsOn: 0 })
   const rangeEnd = mode === 'month' ? endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 }) : endOfWeek(cursor, { weekStartsOn: 0 })
@@ -185,6 +206,45 @@ export function CalendarPage() {
         </div>
       </div>
 
+      {birthdays30.length > 0 && (
+        <div className="rounded-xl border border-pink-100 bg-pink-50/60 p-4">
+          <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-pink-700">
+            <Cake size={15} /> Próximos aniversários
+          </p>
+          <ul className="flex flex-col divide-y divide-pink-100">
+            {birthdays30.map((b) => {
+              const wa = toWhatsappDigits(b.whatsapp)
+              return (
+                <li key={b.eventId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-sm">
+                  <span className="w-28 shrink-0 font-medium text-pink-700">
+                    {b.daysUntil === 0
+                      ? 'hoje'
+                      : b.daysUntil === 1
+                        ? 'amanhã'
+                        : `em ${b.daysUntil} dias`}{' '}
+                    <span className="text-pink-400">· {format(b.next, 'dd/MM')}</span>
+                  </span>
+                  <span className="font-medium text-slate-800">{b.name}</span>
+                  {b.clientId && clientMap[b.clientId] && (
+                    <span className="text-slate-400">— {clientMap[b.clientId].companyName}</span>
+                  )}
+                  {wa && (
+                    <a
+                      href={`https://wa.me/${wa}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-auto text-xs font-medium text-emerald-600 hover:underline"
+                    >
+                      Abrir WhatsApp
+                    </a>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-slate-100">
         <div className="grid min-w-[640px] grid-cols-7 gap-px bg-slate-100">
           {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
@@ -218,6 +278,7 @@ export function CalendarPage() {
                       {item.kind === 'meeting' && <Video size={10} />}
                       {item.kind === 'internalMeeting' && <Video size={10} />}
                       {item.kind === 'event' && <CalendarClock size={10} />}
+                      {item.kind === 'birthday' && <Cake size={10} />}
                       <span className="truncate">{item.title}</span>
                     </button>
                   ))}

@@ -52,7 +52,9 @@ export function NotificationsPage() {
   const handleClick = async (n: AppNotification) => {
     if (!n.read) await markNotificationRead(n.id)
     const route = resolveNotificationRoute(n)
-    if (route) navigate(route)
+    if (!route) return
+    if (route.startsWith('http')) window.open(route, '_blank', 'noopener,noreferrer')
+    else navigate(route)
   }
 
   return (

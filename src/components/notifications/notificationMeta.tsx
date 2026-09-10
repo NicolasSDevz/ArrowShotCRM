@@ -25,6 +25,7 @@ import {
   Video,
   HeartPulse,
   KeyRound,
+  Cake,
 } from 'lucide-react'
 import type { AppNotification, NotificationType } from '../../types'
 
@@ -64,6 +65,7 @@ export const NOTIFICATION_ICON: Record<NotificationType, IconType> = {
   team_member_added: UserPlus,
   member_health_updated: HeartPulse,
   meta_token_expiring: KeyRound,
+  birthday_today: Cake,
 }
 
 /** Icon chip background/text, per the spec's colors (azul, verde, vermelho,
@@ -100,6 +102,7 @@ export const NOTIFICATION_ICON_STYLE: Record<NotificationType, string> = {
   team_member_added: 'bg-indigo-50 text-indigo-700',
   member_health_updated: 'bg-purple-50 text-purple-600',
   meta_token_expiring: 'bg-amber-50 text-amber-600',
+  birthday_today: 'bg-pink-50 text-pink-600',
 }
 
 /** "há 5 minutos" / "há 2 horas" / "ontem às 14:30" / "dd/MM/yyyy às HH:mm". */
@@ -120,7 +123,12 @@ export function formatNotificationTime(date: Date): string {
  *  targets carry the id as a query param so the destination page can open
  *  the right drawer directly. Não há mais página de Tarefas: as
  *  notificações de tarefa abrem o drawer no Dashboard (aba Operacional). */
-export function resolveNotificationRoute(n: Pick<AppNotification, 'entityType' | 'entityId'>): string | null {
+export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'entityType' | 'entityId'>): string | null {
+  // Aniversário: o clique abre o WhatsApp do aniversariante (entityId = dígitos
+  // prontos p/ wa.me), ou o calendário se não houver número.
+  if (n.type === 'birthday_today') {
+    return n.entityId ? `https://wa.me/${n.entityId}` : '/calendario'
+  }
   if (!n.entityType) return null
   switch (n.entityType) {
     case 'client':

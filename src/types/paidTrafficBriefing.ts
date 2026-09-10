@@ -7,11 +7,13 @@ export interface BriefingContact {
   id: string
   name: string
   email: string
+  /** Máscara (00) 00000-0000 — usado no lembrete de aniversário (wa.me). */
+  whatsapp?: string
   birthday?: Timestamp | null
 }
 
 function emptyContact(): BriefingContact {
-  return { id: crypto.randomUUID(), name: '', email: '', birthday: null }
+  return { id: crypto.randomUUID(), name: '', email: '', whatsapp: '', birthday: null }
 }
 
 export type CreditCardForAds = 'sim' | 'nao' | 'boleto'

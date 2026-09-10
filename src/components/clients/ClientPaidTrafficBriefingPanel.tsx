@@ -11,7 +11,9 @@ import { useUsers } from '../../hooks/useUsers'
 import { updateClient } from '../../services/clientService'
 import { markBriefingChecklistDone } from '../../services/taskService'
 import { notifyBriefingFilled } from '../../services/clientWorkflowTemplates'
+import { syncClientBirthdays } from '../../services/birthdayService'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
+import { maskPhone } from '../../utils/masks'
 import {
   EMPTY_PAID_TRAFFIC_BRIEFING,
   CREDIT_CARD_FOR_ADS_LABEL,
@@ -42,7 +44,7 @@ function ContactListField({
 }) {
   const update = (id: string, patch: Partial<BriefingContact>) =>
     onChange(contacts.map((c) => (c.id === id ? { ...c, ...patch } : c)))
-  const add = () => onChange([...contacts, { id: crypto.randomUUID(), name: '', email: '', birthday: null }])
+  const add = () => onChange([...contacts, { id: crypto.randomUUID(), name: '', email: '', whatsapp: '', birthday: null }])
   const remove = (id: string) => onChange(contacts.filter((c) => c.id !== id))
 
   return (
@@ -50,12 +52,19 @@ function ContactListField({
       <p className="mb-2 text-sm font-medium text-slate-700">{label}</p>
       <div className="flex flex-col gap-2">
         {contacts.map((c, i) => (
-          <div key={c.id} className="grid grid-cols-1 items-end gap-2 rounded-md bg-slate-50 p-2 sm:grid-cols-[1fr_1fr_150px_auto]">
+          <div key={c.id} className="grid grid-cols-1 items-end gap-2 rounded-md bg-slate-50 p-2 sm:grid-cols-[1fr_1fr_150px_150px_auto]">
             <Field label="Nome">
               <Input value={c.name} onChange={(e) => update(c.id, { name: e.target.value })} />
             </Field>
             <Field label="E-mail">
               <Input type="email" value={c.email} onChange={(e) => update(c.id, { email: e.target.value })} />
+            </Field>
+            <Field label="WhatsApp">
+              <Input
+                value={c.whatsapp ?? ''}
+                onChange={(e) => update(c.id, { whatsapp: maskPhone(e.target.value) })}
+                placeholder="(00) 00000-0000"
+              />
             </Field>
             <Field label="Aniversário">
               <Input
@@ -107,6 +116,10 @@ export function ClientPaidTrafficBriefingPanel({ client }: { client: Client }) {
       await updateClient(client.id, { paidTrafficBriefing: payload }, profile.id, profile.name)
       await markBriefingChecklistDone(client.id, profile.id, profile.name)
       await notifyBriefingFilled(client, profile.id, profile.name, users)
+      // Aniversários dos responsáveis -> eventos recorrentes no calendário.
+      await syncClientBirthdays(client, payload, profile.id).catch((err) =>
+        console.error('[briefing] falha ao sincronizar aniversários', err)
+      )
       toast.success('Briefing salvo')
     } catch (err) {
       console.error(err)

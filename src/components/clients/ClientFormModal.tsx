@@ -9,6 +9,7 @@ import { createClient, updateClient } from '../../services/clientService'
 import { createInitialWorkflowTasks } from '../../services/clientWorkflowTemplates'
 import { logActivity } from '../../services/activityService'
 import { notifyAdminsOfAction } from '../../services/notificationService'
+import { removeClientBirthdays } from '../../services/birthdayService'
 import { uploadClientLogo, removeClientLogo } from '../../services/clientLogoService'
 import { ClientLogoField } from './ClientLogoField'
 import { maskPhone, isPhoneComplete, maskDocument, maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
@@ -196,6 +197,13 @@ export function ClientFormModal({
             entityType: 'client',
             entityId: client.id,
           })
+          // Cliente encerrado -> tira os aniversários do calendário e para os
+          // lembretes.
+          if (form.status === 'churned') {
+            await removeClientBirthdays(client.id).catch((err) =>
+              console.error('[cliente] falha ao remover aniversários', err)
+            )
+          }
         }
         toast.success('Cliente atualizado')
       } else {

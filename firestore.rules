@@ -105,7 +105,7 @@ service cloud.firestore {
                       'planning_saved', 'content_created', 'content_published', 'content_imported',
                       'lead_created', 'lead_stage_changed', 'lead_converted', 'meeting_created',
                       'report_created', 'team_member_added', 'member_health_updated',
-                      'meta_token_expiring']
+                      'meta_token_expiring', 'birthday_today']
         && request.resource.data.message is string
         && request.resource.data.message.size() > 0
         && request.resource.data.message.size() <= 5000

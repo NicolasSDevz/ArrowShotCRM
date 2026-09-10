@@ -17,7 +17,9 @@ export function NotificationBell() {
     if (!n.read) await markNotificationRead(n.id)
     setOpen(false)
     const route = resolveNotificationRoute(n)
-    if (route) navigate(route)
+    if (!route) return
+    if (route.startsWith('http')) window.open(route, '_blank', 'noopener,noreferrer')
+    else navigate(route)
   }
 
   return (
