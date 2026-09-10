@@ -10,6 +10,7 @@ import { useAssigneeMap, type Assignee } from '../hooks/useAssignees'
 import { EmptyState } from '../components/ui/EmptyState'
 import { DashboardEmptyState } from '../components/dashboard/DashboardEmptyState'
 import { DailyRoutineWidget } from '../components/dashboard/DailyRoutineWidget'
+import { BirthdayTodayWidget } from '../components/dashboard/BirthdayTodayWidget'
 import { SocialContentWidget } from '../components/dashboard/SocialContentWidget'
 import { OptimizationsTodayWidget } from '../components/dashboard/OptimizationsTodayWidget'
 import { Button } from '../components/ui/Button'
@@ -436,6 +437,7 @@ export function OperationalDashboard() {
 
   return (
     <div className="flex flex-col gap-4">
+      <BirthdayTodayWidget />
       <DailyRoutineWidget />
       <SocialContentWidget />
       <OptimizationsTodayWidget />

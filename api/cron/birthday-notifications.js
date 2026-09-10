@@ -30,6 +30,26 @@ function digitsOnly(v) {
   return String(v || '').replace(/\D/g, '')
 }
 
+/** Igual a src/utils/masks.ts#toWhatsappDigits — o cron não importa de src/. */
+function whatsappDigits(raw) {
+  let d = digitsOnly(raw)
+  if (!d) return ''
+  if (d.length === 10 || d.length === 11) d = `55${d}`
+  return d
+}
+
+/** Igual a src/utils/birthdayMessage.ts — manter os dois em sincronia. */
+function birthdayMessage(name) {
+  const first = String(name || '').trim().split(/\s+/)[0] || 'você'
+  return (
+    `Olá, ${first}! 🎂\n\n` +
+    `A equipe Arrow Shot veio te desejar um feliz aniversário! 🎉\n\n` +
+    `Que este novo ano seja repleto de muito sucesso, conquistas e ótimos negócios!\n\n` +
+    `Obrigado por confiar no nosso trabalho. É um prazer fazer parte da sua jornada! 🚀\n\n` +
+    `— Equipe Arrow Shot`
+  )
+}
+
 export default async function handler(req, res) {
   const secret = process.env.CRON_SECRET
   if (secret && req.headers.authorization !== `Bearer ${secret}`) {
@@ -76,11 +96,14 @@ export default async function handler(req, res) {
     for (const e of unique) {
       const nome = e.contactName || 'Um responsável'
       const cliente = e.clientId ? clientName.get(e.clientId) || 'um cliente' : 'um cliente'
-      const wa = digitsOnly(e.contactWhatsapp)
+      const wa = whatsappDigits(e.contactWhatsapp)
       const message =
         `🎂 Aniversário hoje!\n${nome} da ${cliente} faz aniversário hoje.\n` +
         `Que tal mandar uma mensagem de parabéns? 🎉` +
         (wa ? `\nWhatsApp: +${wa}` : '')
+      // Link wa.me com a mensagem de parabéns já escrita — o clique na
+      // notificação abre isso (ver resolveNotificationRoute).
+      const waLink = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(birthdayMessage(nome))}` : null
 
       for (const userId of recipientIds) {
         await setDoc(`notifications/${randomUUID()}`, {
@@ -88,9 +111,7 @@ export default async function handler(req, res) {
           type: 'birthday_today',
           message,
           actorName: 'Sistema',
-          // entityId carrega o número pronto p/ wa.me — o clique abre o WhatsApp
-          // (ver resolveNotificationRoute).
-          entityId: wa || null,
+          entityId: waLink,
           read: false,
           createdAt: new Date(),
         }).catch((err) => console.error('[cron] falha ao criar notificação de aniversário:', err.message))

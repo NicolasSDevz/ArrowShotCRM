@@ -124,10 +124,12 @@ export function formatNotificationTime(date: Date): string {
  *  the right drawer directly. Não há mais página de Tarefas: as
  *  notificações de tarefa abrem o drawer no Dashboard (aba Operacional). */
 export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'entityType' | 'entityId'>): string | null {
-  // Aniversário: o clique abre o WhatsApp do aniversariante (entityId = dígitos
-  // prontos p/ wa.me), ou o calendário se não houver número.
+  // Aniversário: o clique abre o WhatsApp já com a mensagem de parabéns
+  // escrita — o cron grava o link wa.me completo em `entityId`. (Notificações
+  // antigas guardavam só os dígitos; ainda funcionam.)
   if (n.type === 'birthday_today') {
-    return n.entityId ? `https://wa.me/${n.entityId}` : '/calendario'
+    if (!n.entityId) return '/calendario'
+    return n.entityId.startsWith('http') ? n.entityId : `https://wa.me/${n.entityId}`
   }
   if (!n.entityType) return null
   switch (n.entityType) {

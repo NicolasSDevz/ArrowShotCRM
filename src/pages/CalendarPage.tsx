@@ -22,7 +22,7 @@ import { useClients } from '../hooks/useClients'
 import { useGoogleCalendar } from '../hooks/useGoogleCalendar'
 import { useCalendarEvents } from '../hooks/useCalendarEvents'
 import { upcomingBirthdays } from '../services/birthdayService'
-import { toWhatsappDigits } from '../utils/masks'
+import { birthdayWhatsappLink } from '../utils/birthdayMessage'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 import { MEETING_TYPE_LABEL } from '../types/meeting'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
@@ -118,7 +118,7 @@ export function CalendarPage() {
           kind: 'birthday' as const,
           date: new Date(y, ev.birthdayMonth! - 1, ev.birthdayDay!),
           clientName: ev.clientId ? clientMap[ev.clientId]?.companyName : undefined,
-          link: ev.contactWhatsapp ? `https://wa.me/${ev.contactWhatsapp}` : undefined,
+          link: birthdayWhatsappLink(ev.contactName ?? '', ev.contactWhatsapp),
         }))
       )
     const fromInternalMeetings: CalItem[] = meetings.map((m) => {
@@ -213,7 +213,7 @@ export function CalendarPage() {
           </p>
           <ul className="flex flex-col divide-y divide-pink-100">
             {birthdays30.map((b) => {
-              const wa = toWhatsappDigits(b.whatsapp)
+              const wa = birthdayWhatsappLink(b.name, b.whatsapp)
               return (
                 <li key={b.eventId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-sm">
                   <span className="w-28 shrink-0 font-medium text-pink-700">
@@ -230,7 +230,7 @@ export function CalendarPage() {
                   )}
                   {wa && (
                     <a
-                      href={`https://wa.me/${wa}`}
+                      href={wa}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="ml-auto text-xs font-medium text-emerald-600 hover:underline"
