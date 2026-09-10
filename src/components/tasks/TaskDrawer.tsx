@@ -15,7 +15,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
 import { useUsers } from '../../hooks/useUsers'
 import { useAssignees } from '../../hooks/useAssignees'
-import { updateTask, deleteTask, duplicateRecurringTask, notifyTaskCompleted } from '../../services/taskService'
+import { updateTask, deleteTask, duplicateRecurringTask, notifyTaskCompleted, setTaskChecklist } from '../../services/taskService'
 import { advanceClientWorkflow, scheduleBriefingMeeting } from '../../services/clientWorkflowTemplates'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import {
@@ -202,7 +202,10 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
         </Field>
 
         <Field label="Checklist">
-          <ChecklistEditor items={task.checklist ?? []} onChange={(checklist) => save({ checklist })} />
+          <ChecklistEditor
+            items={task.checklist ?? []}
+            onChange={(checklist) => setTaskChecklist(task.id, checklist, profile.id)}
+          />
         </Field>
 
         {task.recurrence && (

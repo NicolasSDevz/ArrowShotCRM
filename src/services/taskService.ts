@@ -6,7 +6,7 @@ import { logActivity } from './activityService'
 import { createNotification, notifyAdminsOfAction } from './notificationService'
 import { getClientName } from './clientLookup'
 import { getClientOwnerIds } from '../types/client'
-import { nextRecurrenceDate } from '../types/task'
+import { nextRecurrenceDate, type ChecklistItem } from '../types/task'
 
 const HIGH_PRIORITIES: Task['priority'][] = ['high', 'urgent']
 
@@ -138,6 +138,16 @@ export async function deleteTask(task: Task, userId: string, userName: string) {
 
 export function getTask(id: string) {
   return base.getById(id)
+}
+
+/** Salva o checklist inteiro da tarefa. É um update PONTUAL (só o campo
+ *  `checklist` + `updatedAt`/`updatedBy` que o collectionService acrescenta) —
+ *  nunca sobrescreve o documento. O Firestore não permite endereçar um item
+ *  do array por caminho, então gravamos o array completo, que é o correto.
+ *  Propaga o erro para o chamador (a UI reverte o checkbox e mostra um toast)
+ *  em vez de deixar a falha passar silenciosa. */
+export async function setTaskChecklist(taskId: string, checklist: ChecklistItem[], userId: string) {
+  await base.update(taskId, { checklist }, userId)
 }
 
 export interface TaskFilters {
