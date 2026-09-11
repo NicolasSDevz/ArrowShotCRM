@@ -1,13 +1,14 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
   "functions": {
     "api/**/*.js": {
       "maxDuration": 30
     }
   },
   "crons": [
-    { "path": "/api/cron/check-meta-token-expiry", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/update-metrics", "schedule": "1 0 * * *" },
-    { "path": "/api/cron/birthday-notifications", "schedule": "0 11 * * *" }
+    { "path": "/api/cron/daily", "schedule": "0 8 * * *" }
   ]
 }

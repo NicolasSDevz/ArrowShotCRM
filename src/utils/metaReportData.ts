@@ -123,6 +123,44 @@ function parseMetricSet(row?: RawInsightsRow): ReportMetricSet {
   }
 }
 
+/** Soma as linhas por campanha num único ReportMetricSet — usado como
+ *  fallback quando a chamada agregada da conta (nível "account") vem vazia
+ *  (erro pontual, rate limit) mas as campanhas individuais têm dados reais
+ *  no período. Sem isso o relatório acusava "sem investimento" mesmo com a
+ *  conta tendo gasto, só porque essa UMA chamada específica falhou. */
+function aggregateMetricSet(rows: RawInsightsRow[]): ReportMetricSet {
+  let spend = 0
+  let impressions = 0
+  let clicks = 0
+  let reach = 0
+  let conversations = 0
+  let linkClicks = 0
+  let hasAny = false
+  for (const row of rows) {
+    const s = num(row.spend)
+    const i = num(row.impressions)
+    if (s != null || i != null) hasAny = true
+    spend += s ?? 0
+    impressions += i ?? 0
+    clicks += num(row.clicks) ?? 0
+    reach += num(row.reach) ?? 0
+    conversations += findAction(row.actions, CONVERSATION_ACTION_TYPES) ?? 0
+    linkClicks += findAction(row.actions, LINK_CLICK_ACTION_TYPES) ?? 0
+  }
+  if (!hasAny) return {}
+  return {
+    spend,
+    impressions,
+    clicks,
+    reach,
+    ctr: impressions > 0 ? (clicks / impressions) * 100 : undefined,
+    cpc: clicks > 0 ? spend / clicks : undefined,
+    cpm: impressions > 0 ? (spend / impressions) * 1000 : undefined,
+    conversations,
+    linkClicks,
+  }
+}
+
 function sumActions(rows: RawInsightsRow[]): ReportActionSummary[] {
   const totals = new Map<string, number>()
   for (const row of rows) {
@@ -187,6 +225,15 @@ export async function fetchMetaReportSnapshot(
   const platformFields = 'impressions,clicks,spend,reach,publisher_platform'
   const dailyFields = 'spend,impressions,clicks,reach,actions'
 
+  // Payload EXATO que vai para /api/meta/insights (chamada "current", a que
+  // alimenta o total do período e dispara o aviso de "sem dados" quando vem
+  // vazia) — logado antes de disparar a chamada, para depurar caso a conta
+  // realmente tenha investimento no período mas o relatório acuse zero.
+  console.log('[metaReport] payload -> /api/meta/insights (current):', {
+    account_id: accountId,
+    time_range: timeRange,
+    fields: accountFields,
+  })
   console.log('[metaReport] buscando snapshot:', { accountIdRaw, accountId, timeRange, prevTimeRange })
 
   const [current, previous, campaignsList, campaignLevel, adsetLevel, adLevel, platformLevel, account, daily] =
@@ -247,7 +294,24 @@ export async function fetchMetaReportSnapshot(
     spend: num(row.spend),
   }))
 
-  const actionsSummary = sumActions(currentRow ? [currentRow] : [])
+  // Fallback: se a chamada agregada da conta ("current") falhou ou voltou
+  // sem spend/impressions, mas as campanhas individuais têm dado real no
+  // período, soma as campanhas em vez de reportar "sem investimento". Evita
+  // falso negativo quando só essa UMA chamada (de nove disparadas em
+  // paralelo) falha por erro pontual/rate limit da Graph API.
+  let currentMetrics = parseMetricSet(currentRow)
+  if (!currentMetrics.spend && !currentMetrics.impressions && campaignRows.length > 0) {
+    const fallback = aggregateMetricSet(campaignRows)
+    if (fallback.spend || fallback.impressions) {
+      console.warn(
+        '[metaReport] chamada "current" (nível account) veio vazia — usando soma das campanhas como fallback:',
+        fallback
+      )
+      currentMetrics = fallback
+    }
+  }
+
+  const actionsSummary = sumActions(currentRow ? [currentRow] : campaignRows)
 
   const dailySeries: ReportDailyPoint[] = dailyRows
     .map(toDailyPoint)
@@ -260,7 +324,7 @@ export async function fetchMetaReportSnapshot(
 
   const snapshot: ReportMetaSnapshot = {
     accountId,
-    metrics: { current: parseMetricSet(currentRow), previous: previousRow ? parseMetricSet(previousRow) : undefined },
+    metrics: { current: currentMetrics, previous: previousRow ? parseMetricSet(previousRow) : undefined },
     balance,
     currency: accountData?.currency,
     topCampaigns,

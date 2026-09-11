@@ -2,6 +2,8 @@
 // O access_token é resolvido pelo chamador (metaTokenStore) e nunca chega
 // ao frontend.
 
+import { resolveMetaToken } from './metaTokenStore.js'
+
 const GRAPH_VERSION = 'v19.0'
 
 // Ordem = prioridade (igual src/utils/metaReportData.ts): o primeiro tipo
@@ -106,4 +108,42 @@ export async function fetchAccountInfo(token, accountId) {
 /** account_status: 1 = ativa. Qualquer outro valor = conta com restrição. */
 export function isAccountRestricted(accountStatus) {
   return accountStatus != null && accountStatus !== 1
+}
+
+/** Resolve o token, chama a Graph API e já escreve a resposta HTTP (sucesso
+ *  ou erro) — usado pelos endpoints estáticos de LEITURA em /api/meta/*
+ *  (insights, account, campaigns, adsets, ads) para não duplicar resolução
+ *  de token, tratamento de erro e logs em cada arquivo. `params` é um
+ *  URLSearchParams SEM access_token (esta função adiciona). */
+export async function respondMetaGraphRequest(req, res, { label, path, params }) {
+  let resolved
+  try {
+    resolved = await resolveMetaToken(req.query.client_id)
+  } catch (err) {
+    return res.status(409).json({ error: err.message })
+  }
+  if (!resolved) {
+    return res.status(500).json({
+      error:
+        'Nenhum token de acesso disponível — configure o token deste cliente em Acessos, ou META_ACCESS_TOKEN no servidor.',
+    })
+  }
+
+  params.set('access_token', resolved.token)
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${path}?${params.toString()}`
+  const safeUrl = url.replace(/access_token=[^&]+/, 'access_token=***')
+  console.log(`[meta] ${label} — account_id: ${req.query.account_id} — fonte do token: ${resolved.source}`)
+  console.log(`[meta] ${label} — URL: ${safeUrl}`)
+
+  const metaResponse = await fetch(url)
+  const data = await metaResponse.json()
+
+  if (!metaResponse.ok) {
+    const status = metaResponse.status >= 400 && metaResponse.status < 600 ? metaResponse.status : 502
+    console.error(`[meta] ${label} — Graph ${metaResponse.status}:`, JSON.stringify(data))
+    return res.status(status).json({ error: data?.error?.message || `Erro ao buscar ${label}` })
+  }
+
+  console.log(`[meta] ${label} OK — linhas: ${Array.isArray(data?.data) ? data.data.length : '(sem data[])'}`)
+  return res.status(200).json(data)
 }

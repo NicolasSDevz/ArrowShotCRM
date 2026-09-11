@@ -50,9 +50,16 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
   const [metaSnapshot, setMetaSnapshot] = useState<ReportMetaSnapshot | null>(null)
   const [weeklyText, setWeeklyText] = useState('')
   const [generated, setGenerated] = useState(false)
+  const [confirmNoData, setConfirmNoData] = useState(false)
 
   const client = clients.find((c) => c.id === clientId)
   const svc = trafficServices(client)
+
+  // Conta Meta Ads não retornou spend nem impressões no período — não bloqueia
+  // o salvamento, só avisa (o usuário pode ter escolhido um período sem
+  // veiculação de propósito, ex: conta pausada).
+  const hasNoMetaData = platforms.includes('meta') && !!metaSnapshot &&
+    !metaSnapshot.metrics.current?.spend && !metaSnapshot.metrics.current?.impressions
 
   /** Ao escolher um cliente, ajusta as plataformas conforme os serviços
    *  contratados: só Meta / só Google trava na plataforma contratada;
@@ -77,6 +84,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
     setWeeklyText('')
     setGenerated(false)
     setSavedOk(false)
+    setConfirmNoData(false)
   }
 
   /** Ao trocar semanal/mensal, ajusta as datas pro período padrão do novo
@@ -127,18 +135,12 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
 
     setLoading(true)
     setGenerated(false)
+    setConfirmNoData(false)
     try {
       let meta: ReportMetaSnapshot | null = null
       if (platforms.includes('meta') && accountId) {
         meta = await fetchMetaReportSnapshot(accountId, start, end, client.id)
         setMetaSnapshot(meta)
-        const cur = meta.metrics.current
-        if (!cur?.spend && !cur?.impressions) {
-          toast('A conta Meta Ads não retornou investimento nem impressões nesse período. Confira as datas antes de salvar.', {
-            icon: '⚠️',
-            duration: 6000,
-          })
-        }
       }
 
       if (type === 'weekly') {
@@ -161,6 +163,17 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
     } finally {
       setLoading(false)
     }
+  }
+
+  /** Se a conta Meta Ads não retornou dado nenhum, pede confirmação explícita
+   *  antes do primeiro clique em vez de salvar direto (aviso não bloqueante:
+   *  o usuário pode confirmar e salvar mesmo assim). */
+  const handleSaveClick = () => {
+    if (hasNoMetaData && !confirmNoData) {
+      setConfirmNoData(true)
+      return
+    }
+    handleSave()
   }
 
   const handleSave = async () => {
@@ -308,9 +321,29 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
           </div>
         )}
 
-        {generated && type === 'monthly' && !savedOk && !saving && (
+        {generated && type === 'monthly' && !savedOk && !saving && !hasNoMetaData && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
             Dados carregados. Clique em "Salvar relatório" para abrir o painel visual.
+          </div>
+        )}
+
+        {generated && !savedOk && !saving && hasNoMetaData && !confirmNoData && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            ⚠️ A conta Meta Ads não retornou investimento nem impressões nesse período. Confira as datas — você ainda pode salvar mesmo assim.
+          </div>
+        )}
+
+        {generated && !savedOk && !saving && confirmNoData && (
+          <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            <span>⚠️ Alguns dados não foram encontrados neste período. Deseja salvar mesmo assim?</span>
+            <div className="flex gap-2">
+              <Button size="sm" icon={<Save size={14} />} onClick={handleSave} loading={saving}>
+                Salvar mesmo assim
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setConfirmNoData(false)}>
+                Cancelar
+              </Button>
+            </div>
           </div>
         )}
 
@@ -330,8 +363,8 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
           <Button variant="secondary" onClick={handleClose} disabled={saving || savedOk}>
             Cancelar
           </Button>
-          {generated && !savedOk && (
-            <Button icon={<Save size={14} />} onClick={handleSave} loading={saving}>
+          {generated && !savedOk && !confirmNoData && (
+            <Button icon={<Save size={14} />} onClick={handleSaveClick} loading={saving}>
               Salvar relatório
             </Button>
           )}
