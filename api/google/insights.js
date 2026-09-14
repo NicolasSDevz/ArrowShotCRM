@@ -165,9 +165,9 @@ export default async function handler(req, res) {
         'login-customer-id': loginCustomerId,
         'Content-Type': 'application/json',
       },
-      // pageSize no máximo permitido pelo método — evita truncar um mês
-      // inteiro de linhas (1 por campanha+dia) sem precisar paginar.
-      body: JSON.stringify({ query, pageSize: 10000 }),
+      // googleAds:search não aceita pageSize — o tamanho de página é fixo em
+      // 10.000 linhas (API rejeita com PAGE_SIZE_NOT_SUPPORTED se enviado).
+      body: JSON.stringify({ query }),
     })
 
     // Lê como texto primeiro: uma resposta de erro nem sempre vem em JSON
