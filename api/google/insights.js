@@ -182,22 +182,19 @@ export default async function handler(req, res) {
     }
 
     if (!googleResponse.ok) {
+      // A mensagem específica do Google Ads (ex: "NOT_ADS_USER", developer
+      // token não aprovado, etc.) vem aninhada em error.details[], não no
+      // error.message genérico — sem isso, todo erro de auth parece a mesma
+      // mensagem inútil de "missing authentication credential".
+      const nestedMessage = data?.error?.details?.flatMap((d) => d?.errors ?? []).find((e) => e?.message)?.message
       const message =
-        data?.error?.message || rawText.slice(0, 300) || `Erro ${googleResponse.status} ao consultar a API do Google Ads`
+        nestedMessage ||
+        data?.error?.message ||
+        rawText.slice(0, 300) ||
+        `Erro ${googleResponse.status} ao consultar a API do Google Ads`
       console.error('[google/insights] Google Ads API erro:', googleResponse.status, rawText.slice(0, 1000))
       const status = googleResponse.status >= 400 && googleResponse.status < 600 ? googleResponse.status : 502
-      // DEBUG temporário (sem expor o token) — remover depois de diagnosticar
-      // o 401 "missing authentication credential".
-      return res.status(status).json({
-        error: message,
-        code: data?.error?.code ?? status,
-        debug: {
-          accessTokenPresent: Boolean(accessToken),
-          accessTokenLength: accessToken ? accessToken.length : 0,
-          loginCustomerId,
-          customerId,
-        },
-      })
+      return res.status(status).json({ error: message, code: data?.error?.code ?? status })
     }
 
     const rows = data.results ?? []
