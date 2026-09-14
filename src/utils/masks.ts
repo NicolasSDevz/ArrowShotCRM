@@ -64,3 +64,9 @@ export function parseCurrencyToNumber(masked: string): number | undefined {
   if (!digits) return undefined
   return Number(digits) / 100
 }
+
+/** Progressive Google Ads Customer ID mask: 000-000-0000 (10 digits). */
+export function maskGoogleAdsId(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 10)
+  return digits.replace(/(\d{3})(\d)/, '$1-$2').replace(/(\d{3})(\d)/, '$1-$2')
+}

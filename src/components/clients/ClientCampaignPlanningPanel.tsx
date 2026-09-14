@@ -9,7 +9,7 @@ import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { updateClient } from '../../services/clientService'
 import { notifyAdminsOfAction } from '../../services/notificationService'
-import { maskPhone } from '../../utils/masks'
+import { maskPhone, maskGoogleAdsId } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import { ensureActPrefix, normalizeMetaAccountId } from '../../utils/metaReportData'
 import { getMetaTokenStatus, saveMetaToken, deleteMetaToken, type MetaTokenStatus } from '../../services/metaApi'
@@ -152,6 +152,8 @@ function mergeCampaignPlanning(saved?: CampaignPlanning): CampaignPlanning {
   const acessos = { ...EMPTY_CAMPAIGN_PLANNING_ACCESS, ...saved?.acessos }
   // Sempre exibe o id da conta Meta Ads com o prefixo "act_".
   if (acessos.metaAdsAccountId) acessos.metaAdsAccountId = ensureActPrefix(acessos.metaAdsAccountId)
+  // Salvo só com dígitos — reaplica a máscara 000-000-0000 pra exibição.
+  if (acessos.googleAdsAccountId) acessos.googleAdsAccountId = maskGoogleAdsId(acessos.googleAdsAccountId)
   return {
     ...EMPTY_CAMPAIGN_PLANNING,
     ...saved,
@@ -327,6 +329,8 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
           ...form.acessos,
           // Sempre grava o id da conta Meta Ads com o prefixo "act_".
           metaAdsAccountId: ensureActPrefix(form.acessos.metaAdsAccountId) || undefined,
+          // Google Ads Customer ID: grava só dígitos (sem os hífens da máscara).
+          googleAdsAccountId: form.acessos.googleAdsAccountId?.replace(/\D/g, '') || undefined,
         },
         preenchidoPor: profile.name,
         filledAt: Timestamp.now(),
@@ -605,6 +609,17 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
             </details>
           </div>
           </>
+          )}
+
+          {svc.google && (
+          <Field label="ID da conta Google Ads">
+            <Input
+              value={form.acessos.googleAdsAccountId ?? ''}
+              onChange={(e) => setAccess('googleAdsAccountId', maskGoogleAdsId(e.target.value))}
+              placeholder="Ex: 212-001-7011"
+            />
+            <p className="mt-1 text-xs text-slate-400">Encontre no canto superior direito do Google Ads</p>
+          </Field>
           )}
         </div>
       </div>
