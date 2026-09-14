@@ -12,7 +12,7 @@
 //   date_from   (obrigatório) — "yyyy-MM-dd"
 //   date_to     (obrigatório) — "yyyy-MM-dd"
 
-const GOOGLE_ADS_API_VERSION = 'v17'
+const GOOGLE_ADS_API_VERSION = 'v25'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function num(v) {
@@ -170,11 +170,21 @@ export default async function handler(req, res) {
       body: JSON.stringify({ query, pageSize: 10000 }),
     })
 
-    const data = await googleResponse.json().catch(() => ({}))
+    // Lê como texto primeiro: uma resposta de erro nem sempre vem em JSON
+    // (ex: 404 de rota/versão inválida costuma vir em HTML/texto puro) — sem
+    // isso, o erro real ficava escondido atrás de uma mensagem genérica.
+    const rawText = await googleResponse.text()
+    let data = {}
+    try {
+      data = JSON.parse(rawText)
+    } catch {
+      // não era JSON — segue com data={} e usa rawText na mensagem abaixo
+    }
 
     if (!googleResponse.ok) {
-      const message = data?.error?.message || `Erro ${googleResponse.status} ao consultar a API do Google Ads`
-      console.error('[google/insights] Google Ads API erro:', googleResponse.status, JSON.stringify(data))
+      const message =
+        data?.error?.message || rawText.slice(0, 300) || `Erro ${googleResponse.status} ao consultar a API do Google Ads`
+      console.error('[google/insights] Google Ads API erro:', googleResponse.status, rawText.slice(0, 1000))
       const status = googleResponse.status >= 400 && googleResponse.status < 600 ? googleResponse.status : 502
       return res.status(status).json({ error: message, code: data?.error?.code ?? status })
     }
