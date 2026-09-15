@@ -25,8 +25,6 @@ import { ActivityPanel } from '../components/activity/ActivityPanel'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
 import { TaskFormModal } from '../components/tasks/TaskFormModal'
 import { ContentDrawer } from '../components/content/ContentDrawer'
-import { ContentFormModal } from '../components/content/ContentFormModal'
-import { ImportEditorialCalendarModal } from '../components/content/ImportEditorialCalendarModal'
 import { ClientMeetingsTab } from '../components/clients/ClientMeetingsTab'
 import { ClientOptimizationsTab } from '../components/clients/ClientOptimizationsTab'
 import { ClientContentsTab } from '../components/clients/ClientContentsTab'
@@ -49,8 +47,6 @@ export function ClientDetailPage() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [openContentId, setOpenContentId] = useState<string | null>(null)
   const [creatingTask, setCreatingTask] = useState(false)
-  const [creatingContent, setCreatingContent] = useState(false)
-  const [importingCalendar, setImportingCalendar] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -103,22 +99,7 @@ export function ClientDetailPage() {
       ]
     : []
 
-  const contentTab = hasSM
-    ? [
-        {
-          label: 'Conteúdos',
-          content: (
-            <ClientContentsTab
-              client={client}
-              contents={contents}
-              onOpenContent={setOpenContentId}
-              onNewContent={() => setCreatingContent(true)}
-              onImportCalendar={() => setImportingCalendar(true)}
-            />
-          ),
-        },
-      ]
-    : []
+  const contentTab = hasSM ? [{ label: 'Conteúdos', content: <ClientContentsTab client={client} /> }] : []
 
   const landingPageTab = hasLP ? [{ label: 'Landing Page', content: <ClientLandingPagePanel client={client} /> }] : []
 
@@ -236,8 +217,6 @@ export function ClientDetailPage() {
         onDeleted={() => navigate('/clientes')}
       />
       <TaskFormModal open={creatingTask} onClose={() => setCreatingTask(false)} defaultClientId={client.id} />
-      <ContentFormModal open={creatingContent} onClose={() => setCreatingContent(false)} defaultClientId={client.id} />
-      <ImportEditorialCalendarModal open={importingCalendar} onClose={() => setImportingCalendar(false)} clientId={client.id} />
       <TaskDrawer key={`task-${openTaskId ?? 'none'}`} task={openTask} onClose={() => setOpenTaskId(null)} />
       <ContentDrawer key={`content-${openContentId ?? 'none'}`} content={openContent} onClose={() => setOpenContentId(null)} />
     </div>

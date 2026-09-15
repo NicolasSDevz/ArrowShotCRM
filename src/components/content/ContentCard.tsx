@@ -5,9 +5,21 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Avatar } from '../ui/Avatar'
 import { Badge } from '../ui/Badge'
-import { CONTENT_PILLAR_LABEL, CONTENT_PILLAR_COLOR, CONTENT_FORMAT_LABEL, CONTENT_TYPE_LABEL, type Content } from '../../types/content'
+import { CONTENT_PILLAR_LABEL, CONTENT_PILLAR_COLOR, CONTENT_FORMAT_LABEL, CONTENT_TYPE_LABEL, type Content, type ContentStatus } from '../../types/content'
 import { clientHashColor } from '../../utils/clientColor'
+import { businessDaysBetween } from '../../utils/businessDays'
 import type { AppUser, Client } from '../../types'
+
+/** Status que ainda não "fecharam" o conteúdo — antes de Aprovado. Vencer o
+ *  prazo estando aqui é o que conta como urgente; depois de aprovado, uma
+ *  data próxima é o esperado, não um risco. */
+const PRE_APPROVAL_STATUSES: ContentStatus[] = ['ideas', 'production', 'review', 'waiting_client']
+
+function isUrgentContent(content: Content): boolean {
+  if (!content.scheduledDate) return false
+  if (!PRE_APPROVAL_STATUSES.includes(content.status)) return false
+  return businessDaysBetween(content.scheduledDate.toDate()) < 3
+}
 
 const FORMAT_ICON: Record<Content['type'], LucideIcon> = {
   post: Image,
@@ -46,6 +58,7 @@ export function ContentCard({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: content.id })
   const FormatIcon = FORMAT_ICON[content.type]
   const date = content.scheduledDate?.toDate()
+  const urgent = isUrgentContent(content)
 
   return (
     <div
@@ -58,10 +71,11 @@ export function ContentCard({
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`cursor-pointer rounded-[10px] border border-slate-100 bg-white p-[14px] shadow-sm transition-all duration-150 ease-in-out hover:shadow-md ${
-        content.pillar ? 'border-l-4' : ''
-      } ${isDragging ? 'opacity-40' : ''}`}
+      className={`cursor-pointer rounded-[10px] border bg-white p-[14px] shadow-sm transition-all duration-150 ease-in-out hover:shadow-md ${
+        urgent ? 'border-red-400 ring-2 ring-red-100' : 'border-slate-100'
+      } ${content.pillar ? 'border-l-4' : ''} ${isDragging ? 'opacity-40' : ''}`}
     >
+      {urgent && <p className="mb-1 flex items-center gap-1 text-[11px] font-bold text-red-600">⚠️ Urgente</p>}
       {client && (
         <p className={`mb-1 truncate text-[11px] font-medium ${clientHashColor(client.id)}`}>{client.companyName}</p>
       )}

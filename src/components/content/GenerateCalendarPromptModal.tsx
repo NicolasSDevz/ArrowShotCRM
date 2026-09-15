@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Copy, Check, Sparkles } from 'lucide-react'
 import { Modal } from '../ui/Modal'
@@ -60,7 +60,18 @@ ${distribuicao}
 Retorne APENAS o CSV, sem explicações, sem texto antes ou depois, sem blocos de código, sem aspas no início ou fim. Apenas as linhas do CSV começando pelo cabeçalho.`
 }
 
-export function GenerateCalendarPromptModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function GenerateCalendarPromptModal({
+  open,
+  onClose,
+  defaultClientId,
+}: {
+  open: boolean
+  onClose: () => void
+  /** Pré-seleciona o cliente ao abrir (ex: já dentro da tela de um cliente
+   *  específico) — o campo continua editável, mesmo padrão de
+   *  ContentFormModal/TaskFormModal. */
+  defaultClientId?: string
+}) {
   const { data: clients } = useClients()
   const now = new Date()
 
@@ -91,6 +102,13 @@ export function GenerateCalendarPromptModal({ open, onClose }: { open: boolean; 
       if (c.styleCatalog) setCatalogo(c.styleCatalog)
     }
   }
+
+  useEffect(() => {
+    if (open && defaultClientId && defaultClientId !== clientId) {
+      handleClientChange(defaultClientId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultClientId, clients])
 
   const handleGenerate = () => {
     setPrompt(buildPrompt({ mes, ano, segmento, pacote, catalogo, responsavel }))

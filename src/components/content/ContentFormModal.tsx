@@ -23,11 +23,15 @@ export function ContentFormModal({
   onClose,
   defaultClientId,
   defaultStatus = 'ideas',
+  defaultScheduledDate,
 }: {
   open: boolean
   onClose: () => void
   defaultClientId?: string
   defaultStatus?: ContentStatus
+  /** "yyyy-MM-dd" — pré-preenche a data ao criar a partir de um dia do
+   *  calendário (o "+" ao passar o mouse num dia). */
+  defaultScheduledDate?: string
 }) {
   const { profile } = useAuth()
   const { data: clients } = useClients()
@@ -38,7 +42,7 @@ export function ContentFormModal({
   const [clientId, setClientId] = useState(defaultClientId ?? '')
   const [pillar, setPillar] = useState<ContentPillar | ''>('')
   const [type, setType] = useState<ContentType>('post')
-  const [scheduledDate, setScheduledDate] = useState('')
+  const [scheduledDate, setScheduledDate] = useState(defaultScheduledDate ?? '')
   const [assignedTo, setAssignedTo] = useState('')
   const [canvaLink, setCanvaLink] = useState('')
   const [caption, setCaption] = useState('')
@@ -50,7 +54,7 @@ export function ContentFormModal({
     setClientId(defaultClientId ?? '')
     setPillar('')
     setType('post')
-    setScheduledDate('')
+    setScheduledDate(defaultScheduledDate ?? '')
     setAssignedTo('')
     setCanvaLink('')
     setCaption('')
