@@ -17,12 +17,14 @@ export function OptimizationScheduleSection() {
   const [seeding, setSeeding] = useState(false)
 
   const byGestor = useMemo(() => {
-    const clientName = (id: string) => clients.find((c) => c.id === id)?.companyName ?? '(cliente removido)'
     const userName = (id: string) => users.find((u) => u.id === id)?.name ?? '(usuário removido)'
     const groups = new Map<string, { name: string; entries: { client: string; days: number[] }[] }>()
     for (const r of rows) {
+      const client = clients.find((c) => c.id === r.clientId)
+      // Cliente encerrado não deve aparecer na agenda de otimizações.
+      if (client?.status === 'churned') continue
       if (!groups.has(r.userId)) groups.set(r.userId, { name: userName(r.userId), entries: [] })
-      groups.get(r.userId)!.entries.push({ client: clientName(r.clientId), days: r.weekdays })
+      groups.get(r.userId)!.entries.push({ client: client?.companyName ?? '(cliente removido)', days: r.weekdays })
     }
     for (const g of groups.values()) g.entries.sort((a, b) => a.client.localeCompare(b.client))
     return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
