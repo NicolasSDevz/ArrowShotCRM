@@ -259,6 +259,14 @@ service cloud.firestore {
       allow create: if isOwnUser(request.resource.data.userId);
     }
 
+    // ---------- userDashboards (layout personalizado do Dashboard por
+    // usuário — ver src/services/userDashboardService.ts). O id do doc É o
+    // uid do dono, então dá pra comparar direto com o path, sem checar
+    // resource.data. Estritamente pessoal, igual dailyRoutineProgress. ----------
+    match /userDashboards/{userId} {
+      allow read, write: if isOwnUser(userId);
+    }
+
     // ---------- teamMembers (Equipe roster: cargo, permissão informativa,
     // rotina — separado de `users`, que controla o acesso real) ----------
     match /teamMembers/{memberId} {
