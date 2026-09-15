@@ -13,7 +13,7 @@ import { markBriefingChecklistDone } from '../../services/taskService'
 import { notifyBriefingFilled } from '../../services/clientWorkflowTemplates'
 import { syncClientBirthdays } from '../../services/birthdayService'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
-import { maskPhone } from '../../utils/masks'
+import { maskPhone, maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import {
   EMPTY_PAID_TRAFFIC_BRIEFING,
   CREDIT_CARD_FOR_ADS_LABEL,
@@ -25,8 +25,13 @@ import {
 
 const toDateInputValue = timestampToDateInput
 
-function toNumberOrUndefined(v: string) {
-  return v === '' ? undefined : Number(v)
+/** Reconstrói o texto mascarado (R$ 0,00) a partir do número guardado no
+ *  form — assim o campo continua digitável em formato livre (com vírgula
+ *  decimal, sem as setinhas do input nativo type="number") sem precisar de
+ *  um segundo state string separado. */
+function moneyToMasked(v?: number): string {
+  if (v == null) return ''
+  return maskCurrencyInput(String(Math.round(v * 100)))
 }
 
 function SectionTitle({ children }: { children: string }) {
@@ -215,20 +220,16 @@ export function ClientPaidTrafficBriefingPanel({ client }: { client: Client }) {
           </Field>
           <Field label="Ticket médio (R$)">
             <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.ticketMedio ?? ''}
-              onChange={(e) => set('ticketMedio', toNumberOrUndefined(e.target.value))}
+              value={moneyToMasked(form.ticketMedio)}
+              onChange={(e) => set('ticketMedio', parseCurrencyToNumber(e.target.value))}
+              placeholder="R$ 0,00"
             />
           </Field>
           <Field label="Faturamento mensal estimado (R$)">
             <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.faturamentoMensal ?? ''}
-              onChange={(e) => set('faturamentoMensal', toNumberOrUndefined(e.target.value))}
+              value={moneyToMasked(form.faturamentoMensal)}
+              onChange={(e) => set('faturamentoMensal', parseCurrencyToNumber(e.target.value))}
+              placeholder="R$ 0,00"
             />
           </Field>
           <div className="sm:col-span-2">
@@ -289,11 +290,9 @@ export function ClientPaidTrafficBriefingPanel({ client }: { client: Client }) {
           </Field>
           <Field label="Faturamento mínimo (R$)">
             <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.b2bFaturamentoMinimo ?? ''}
-              onChange={(e) => set('b2bFaturamentoMinimo', toNumberOrUndefined(e.target.value))}
+              value={moneyToMasked(form.b2bFaturamentoMinimo)}
+              onChange={(e) => set('b2bFaturamentoMinimo', parseCurrencyToNumber(e.target.value))}
+              placeholder="R$ 0,00"
             />
           </Field>
           <Field label="Quantidade de funcionários">
