@@ -4,17 +4,9 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
+import { ClientServiceBadges } from './ServiceBadges'
 import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
 import type { AppUser } from '../../types'
-
-function ServiceBadge({ client }: { client: Client }) {
-  const paidTraffic = !!client.modules?.paidTraffic
-  const socialMedia = !!client.modules?.socialMedia
-  if (paidTraffic && socialMedia) return <Badge className="badge-service-both">Ambos</Badge>
-  if (paidTraffic) return <Badge className="badge-service-traffic">Tráfego</Badge>
-  if (socialMedia) return <Badge className="badge-service-social">Social Mídia</Badge>
-  return <span className="text-xs text-slate-400">—</span>
-}
 
 export function ClientsTable({
   clients,
@@ -70,7 +62,7 @@ export function ClientsTable({
                 </td>
                 <td className="max-w-[140px] truncate py-2.5 pr-3 text-slate-500">{client.segment || '—'}</td>
                 <td className="py-2.5 pr-3">
-                  <ServiceBadge client={client} />
+                  <ClientServiceBadges client={client} />
                 </td>
                 <td className="py-2.5 pr-3">
                   <Badge className={CLIENT_STATUS_BADGE[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>

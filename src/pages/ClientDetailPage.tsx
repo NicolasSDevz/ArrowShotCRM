@@ -10,6 +10,8 @@ import { useUsers } from '../hooks/useUsers'
 import { ClientFormModal } from '../components/clients/ClientFormModal'
 import { ClientBriefingTab } from '../components/clients/ClientBriefingTab'
 import { ClientCampaignPlanningPanel } from '../components/clients/ClientCampaignPlanningPanel'
+import { ClientLandingPagePanel } from '../components/clients/ClientLandingPagePanel'
+import { ClientServiceBadges } from '../components/clients/ServiceBadges'
 import { ClientLogoUpload } from '../components/clients/ClientLogoUpload'
 import { DeleteClientModal } from '../components/clients/DeleteClientModal'
 import { Badge } from '../components/ui/Badge'
@@ -67,6 +69,7 @@ export function ClientDetailPage() {
   // gerido pela aba Conteúdos). Tráfego Pago + Social Mídia mostra tudo.
   const hasPT = !!client.modules?.paidTraffic
   const hasSM = !!client.modules?.socialMedia
+  const hasLP = !!client.modules?.landingPage
 
   const trafficTabs = hasPT
     ? [
@@ -117,6 +120,8 @@ export function ClientDetailPage() {
       ]
     : []
 
+  const landingPageTab = hasLP ? [{ label: 'Landing Page', content: <ClientLandingPagePanel client={client} /> }] : []
+
   return (
     <div className="flex flex-col gap-4">
       <button onClick={() => navigate('/clientes')} className="flex w-fit items-center gap-1 text-xs text-slate-400 hover:text-slate-600">
@@ -138,6 +143,7 @@ export function ClientDetailPage() {
                 {client.styleCatalog && (
                   <Badge className="bg-slate-100 text-slate-500">{STYLE_CATALOG_LABEL[client.styleCatalog]}</Badge>
                 )}
+                {(hasPT || hasSM || hasLP) && <ClientServiceBadges client={client} />}
               </div>
               {client.contactName && <p className="text-sm text-slate-400">{client.contactName}</p>}
             </div>
@@ -201,6 +207,7 @@ export function ClientDetailPage() {
             { label: 'Briefing', content: <ClientBriefingTab client={client} /> },
             ...trafficTabs,
             ...contentTab,
+            ...landingPageTab,
             {
               label: 'Calendário',
               content: (

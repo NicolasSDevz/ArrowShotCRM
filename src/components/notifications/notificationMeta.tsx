@@ -26,6 +26,7 @@ import {
   HeartPulse,
   KeyRound,
   Cake,
+  Globe,
 } from 'lucide-react'
 import type { AppNotification, NotificationType } from '../../types'
 
@@ -54,6 +55,7 @@ export const NOTIFICATION_ICON: Record<NotificationType, IconType> = {
   client_status_changed: ArrowRightLeft,
   client_deleted: Trash2,
   planning_saved: Target,
+  landing_page_saved: Globe,
   content_created: Sparkles,
   content_published: Send,
   content_imported: Upload,
@@ -91,6 +93,7 @@ export const NOTIFICATION_ICON_STYLE: Record<NotificationType, string> = {
   client_status_changed: 'bg-indigo-50 text-indigo-700',
   client_deleted: 'bg-red-50 text-red-600',
   planning_saved: 'bg-blue-50 text-blue-600',
+  landing_page_saved: 'bg-emerald-50 text-emerald-600',
   content_created: 'bg-violet-50 text-violet-600',
   content_published: 'bg-emerald-50 text-emerald-600',
   content_imported: 'bg-violet-50 text-violet-600',

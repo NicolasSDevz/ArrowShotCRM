@@ -25,6 +25,7 @@ export type NotificationType =
   | 'client_status_changed'
   | 'client_deleted'
   | 'planning_saved'
+  | 'landing_page_saved'
   | 'content_created'
   | 'content_published'
   | 'content_imported'
@@ -73,6 +74,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   client_status_changed: 'Status do cliente alterado',
   client_deleted: 'Cliente excluído',
   planning_saved: 'Planejamento de campanha salvo',
+  landing_page_saved: 'Landing Page atualizada',
   content_created: 'Conteúdo criado',
   content_published: 'Conteúdo publicado',
   content_imported: 'Calendário editorial importado',

@@ -61,6 +61,7 @@ export interface LeadServiceInterest {
   socialMedia?: boolean
   /** Só relevante quando socialMedia === true. */
   socialMediaPackage?: 'weekly' | 'monthly'
+  landingPage?: boolean
 }
 
 export type LeadLostReason =

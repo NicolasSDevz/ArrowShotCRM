@@ -87,6 +87,8 @@ export type WorkflowStepKey =
   | 'sm_aprovacao'
   | 'sm_cs_semanal'
   | 'sm_cs_mensal'
+  | 'lp_briefing'
+  | 'lp_desenvolvimento'
 
 export interface Task extends BaseDoc {
   title: string

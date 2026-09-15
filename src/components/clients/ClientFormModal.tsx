@@ -6,7 +6,7 @@ import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { createClient, updateClient } from '../../services/clientService'
-import { createInitialWorkflowTasks } from '../../services/clientWorkflowTemplates'
+import { createInitialWorkflowTasks, createLandingPageWorkflowTasks } from '../../services/clientWorkflowTemplates'
 import { logActivity } from '../../services/activityService'
 import { notifyAdminsOfAction } from '../../services/notificationService'
 import { removeClientBirthdays } from '../../services/birthdayService'
@@ -27,6 +27,7 @@ import {
   type ClientStatus,
   type StyleCatalog,
 } from '../../types/client'
+import { LANDING_PAGE_TYPE_LABEL, type LandingPageType } from '../../types/landingPage'
 
 const EMPTY = {
   companyName: '',
@@ -46,6 +47,8 @@ const EMPTY = {
   paidTraffic: false,
   metaAds: false,
   googleAds: false,
+  landingPage: false,
+  landingPageType: '' as LandingPageType | '',
 }
 
 const toDateInputValue = timestampToDateInput
@@ -55,6 +58,7 @@ const MODULE_LABEL: Record<string, string> = {
   paidTraffic: 'Tráfego Pago',
   metaAds: 'Meta Ads',
   googleAds: 'Google Ads',
+  landingPage: 'Landing Page',
 }
 
 /** Descreve uma expansão de contrato (novo módulo ou aumento de valor) para
@@ -116,6 +120,8 @@ export function ClientFormModal({
         paidTraffic: client.modules?.paidTraffic ?? false,
         metaAds: client.modules?.metaAds ?? false,
         googleAds: client.modules?.googleAds ?? false,
+        landingPage: client.modules?.landingPage ?? false,
+        landingPageType: client.landingPageType ?? '',
       })
     } else {
       setForm(EMPTY)
@@ -139,6 +145,7 @@ export function ClientFormModal({
   const autoTaskSummary = [
     form.paidTraffic && 'Tráfego Pago: cria "Onboarding" — as próximas etapas aparecem sozinhas conforme cada uma for concluída',
     form.socialMedia && 'Social Mídia: cria "Ativação de Social Mídia" — as próximas etapas aparecem sozinhas conforme cada uma for concluída',
+    form.landingPage && 'Landing Page: cria "Briefing de Landing Page" e "Desenvolvimento da Landing Page"',
   ]
     .filter(Boolean)
     .join('; ')
@@ -157,6 +164,7 @@ export function ClientFormModal({
         document: form.document || undefined,
         package: form.socialMedia ? form.package || undefined : undefined,
         styleCatalog: form.socialMedia ? form.styleCatalog || undefined : undefined,
+        landingPageType: form.landingPage ? form.landingPageType || undefined : undefined,
         ownerIds: form.ownerIds.length > 0 ? form.ownerIds : undefined,
         categoria: form.categoria || undefined,
         monthlyValue: parseCurrencyToNumber(form.monthlyValue),
@@ -168,6 +176,7 @@ export function ClientFormModal({
           paidTraffic: form.paidTraffic,
           metaAds: form.paidTraffic && form.metaAds,
           googleAds: form.paidTraffic && form.googleAds,
+          landingPage: form.landingPage,
         },
       }
       let targetId: string
@@ -186,6 +195,14 @@ export function ClientFormModal({
             userId: profile.id,
             userName: profile.name,
           })
+        }
+
+        // Landing Page contratada agora (não tinha antes) — cria as tarefas
+        // padrão de briefing/desenvolvimento, igual acontece na criação do
+        // cliente (ver createInitialWorkflowTasks).
+        if (basePayload.modules.landingPage && !client.modules?.landingPage) {
+          const updatedClient = { id: client.id, companyName: basePayload.companyName, modules: basePayload.modules }
+          await createLandingPageWorkflowTasks(updatedClient, profile.id, profile.name, users)
         }
 
         if (form.status !== client.status) {
@@ -371,6 +388,31 @@ export function ClientFormModal({
               </Field>
             </div>
           )}
+
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={form.landingPage}
+              onChange={(e) => set('landingPage', e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+            />
+            Landing Page
+          </label>
+          {form.landingPage && (
+            <div className="ml-6 flex flex-col gap-2.5">
+              <Field label="Tipo de Landing Page">
+                <Select
+                  value={form.landingPageType}
+                  onChange={(e) => set('landingPageType', e.target.value as LandingPageType)}
+                >
+                  <option value="">Selecione...</option>
+                  {Object.entries(LANDING_PAGE_TYPE_LABEL).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+          )}
         </div>
 
         <Field label="Valor mensal do contrato (R$)">
@@ -410,7 +452,7 @@ export function ClientFormModal({
         </div>
       </div>
 
-      {!client && (form.socialMedia || form.paidTraffic) && (
+      {!client && (form.socialMedia || form.paidTraffic || form.landingPage) && (
         <label className="mt-3 flex items-start gap-2 text-xs text-slate-500">
           <input
             type="checkbox"

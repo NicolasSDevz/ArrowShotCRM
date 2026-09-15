@@ -13,7 +13,13 @@ import { createReport } from '../../services/reportService'
 import { fetchMetaReportSnapshot } from '../../utils/metaReportData'
 import { buildWeeklyReportText } from '../../utils/metaWeeklyReportText'
 import { trafficServices } from '../../utils/clientServices'
-import type { ReportMetaSnapshot, ReportPlatform, ReportType } from '../../types'
+import type { ReportLandingPageSnapshot, ReportMetaSnapshot, ReportPlatform, ReportType } from '../../types'
+import type { LandingPage } from '../../types/landingPage'
+
+function buildLandingPageSnapshot(lp?: LandingPage): ReportLandingPageSnapshot | undefined {
+  if (!lp) return undefined
+  return { url: lp.url, status: lp.status, platform: lp.platform, checklist: lp.checklist, observations: lp.observations }
+}
 
 function toDateStr(d: Date) {
   return format(d, 'yyyy-MM-dd')
@@ -189,6 +195,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
           periodEnd: Timestamp.fromDate(new Date(`${endStr}T00:00:00`)),
           meta: metaSnapshot ?? undefined,
           google: platforms.includes('google') ? { available: false } : undefined,
+          landingPage: platforms.includes('landingPage') ? buildLandingPageSnapshot(client.landingPage) : undefined,
           weeklyText: type === 'weekly' ? weeklyText : undefined,
           generatedBy: profile.id,
           generatedByName: profile.name,
@@ -277,6 +284,17 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
                   className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400 disabled:opacity-60"
                 />
                 Google Ads
+              </label>
+            )}
+            {!!client?.modules?.landingPage && (
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={platforms.includes('landingPage')}
+                  onChange={() => togglePlatform('landingPage')}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                />
+                Landing Page
               </label>
             )}
           </div>

@@ -13,6 +13,7 @@ export interface LeadFormState {
   googleAds: boolean
   socialMedia: boolean
   socialMediaPackage: 'weekly' | 'monthly'
+  landingPage: boolean
   source: LeadSource
   estimatedValueStr: string
   nextAction: string
@@ -47,6 +48,7 @@ export function buildDefaultLeadForm(defaultAssignedTo?: string): LeadFormState 
     googleAds: false,
     socialMedia: false,
     socialMediaPackage: 'monthly',
+    landingPage: false,
     source: 'instagram_organic',
     estimatedValueStr: '',
     nextAction: '',
@@ -68,6 +70,7 @@ export function leadToFormState(lead: Lead): LeadFormState {
     googleAds: !!lead.services.googleAds,
     socialMedia: !!lead.services.socialMedia,
     socialMediaPackage: lead.services.socialMediaPackage ?? 'monthly',
+    landingPage: !!lead.services.landingPage,
     source: lead.source,
     estimatedValueStr: moneyToMasked(lead.estimatedValue),
     nextAction: lead.nextAction ?? '',
@@ -90,6 +93,7 @@ export function formStateToLeadFields(state: LeadFormState): LeadEditableFields 
       googleAds: state.paidTraffic && state.googleAds ? true : undefined,
       socialMedia: state.socialMedia || undefined,
       socialMediaPackage: state.socialMedia ? state.socialMediaPackage : undefined,
+      landingPage: state.landingPage || undefined,
     },
     source: state.source,
     estimatedValue: parseCurrencyToNumber(state.estimatedValueStr),

@@ -1,6 +1,8 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
 import type { SalesFunnelNetwork, SalesFunnelService } from './salesFunnel'
+import type { ChecklistItem } from './task'
+import type { LandingPagePlatform, LandingPageStatus } from './landingPage'
 
 export type ReportType = 'weekly' | 'monthly'
 
@@ -9,11 +11,12 @@ export const REPORT_TYPE_LABEL: Record<ReportType, string> = {
   monthly: 'Mensal',
 }
 
-export type ReportPlatform = 'meta' | 'google'
+export type ReportPlatform = 'meta' | 'google' | 'landingPage'
 
 export const REPORT_PLATFORM_LABEL: Record<ReportPlatform, string> = {
   meta: 'Meta Ads',
   google: 'Google Ads',
+  landingPage: 'Landing Page',
 }
 
 /** Métricas de um período — todas opcionais porque a API do Meta nem
@@ -103,6 +106,17 @@ export interface ReportGoogleSnapshot {
   available: false
 }
 
+/** Snapshot da aba "Landing Page" do cliente no momento em que o relatório
+ *  foi gerado — não é lido ao vivo depois (mesma convenção do Meta Ads: o
+ *  relatório não muda se o cliente atualizar a ficha depois). */
+export interface ReportLandingPageSnapshot {
+  url?: string
+  status: LandingPageStatus
+  platform?: LandingPagePlatform
+  checklist: ChecklistItem[]
+  observations?: string
+}
+
 /** Funil Comercial do relatório mensal — parte puxada da API do Meta
  *  (investimento/impressões/alcance/cliques/conversas ficam em
  *  `report.meta.metrics.current`), parte preenchida à mão pelo gestor antes
@@ -137,6 +151,7 @@ export interface Report extends BaseDoc {
   periodEnd: Timestamp
   meta?: ReportMetaSnapshot
   google?: ReportGoogleSnapshot
+  landingPage?: ReportLandingPageSnapshot
   /** Só para type === 'monthly' — dados manuais do Funil Comercial (ver
    *  ReportFunnel). Preenchido/salvo no próprio painel do relatório. */
   funnel?: ReportFunnel

@@ -76,7 +76,12 @@ export function ClientSummaryWidget({
                       </div>
                     </td>
                     <td className="py-2 pr-2 align-middle">
-                      <ServicePill service={service} />
+                      <span className="flex flex-wrap items-center gap-1">
+                        <ServicePill service={service} />
+                        {client.modules?.landingPage && (
+                          <span className="badge-service-landing rounded-full px-2.5 py-1 text-xs font-medium">Landing Page</span>
+                        )}
+                      </span>
                     </td>
                     <td className="py-2 pr-2 align-middle text-slate-500">{ownerName}</td>
                     <td className="max-w-[160px] truncate py-2 pr-2 align-middle text-slate-500">

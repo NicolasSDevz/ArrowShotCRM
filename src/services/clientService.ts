@@ -39,7 +39,13 @@ export async function createClient(
 
   const hasTraffic = !!data.modules?.paidTraffic
   const hasSocial = !!data.modules?.socialMedia
-  const serviceLabel = hasTraffic && hasSocial ? 'Ambos' : hasTraffic ? 'Tráfego' : hasSocial ? 'Social Mídia' : 'Não definido'
+  const hasLandingPage = !!data.modules?.landingPage
+  const serviceParts = [
+    hasTraffic && 'Tráfego',
+    hasSocial && 'Social Mídia',
+    hasLandingPage && 'Landing Page',
+  ].filter((v): v is string => !!v)
+  const serviceLabel = serviceParts.length > 0 ? serviceParts.join(' + ') : 'Não definido'
   const message = `🆕 Novo cliente cadastrado: ${data.companyName}\nServiço: ${serviceLabel}\nCadastrado por: ${userName}`
 
   const recipientIds = getInternalStaffIds(users).filter((uid) => uid !== userId)
