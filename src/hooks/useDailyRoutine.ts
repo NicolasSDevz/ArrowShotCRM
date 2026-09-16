@@ -39,7 +39,16 @@ export function useDailyRoutine() {
   const toggle = (itemId: string) => {
     if (!profile) return
     const done = !completedIds.includes(itemId)
-    setDailyRoutineItemDone(profile.id, dateKey, itemId, done).catch(console.error)
+    // Atualiza local antes da confirmação do Firestore: arrayUnion/arrayRemove
+    // não são resolvidos otimisticamente quando o documento do dia ainda não
+    // existe (primeira marcação), então sem isso o checkbox só refletia a
+    // marcação depois que o snapshot voltasse do servidor — na prática, só
+    // ao sair e voltar para a página.
+    setCompletedIds((prev) => (done ? [...prev, itemId] : prev.filter((id) => id !== itemId)))
+    setDailyRoutineItemDone(profile.id, dateKey, itemId, done).catch((err) => {
+      console.error(err)
+      setCompletedIds((prev) => (done ? prev.filter((id) => id !== itemId) : [...prev, itemId]))
+    })
   }
 
   return { personKey, items, completedIds, toggle }
