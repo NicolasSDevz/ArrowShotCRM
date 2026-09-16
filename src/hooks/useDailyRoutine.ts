@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useAuth } from '../context/AuthContext'
-import { resolveRoutinePersonKey, buildDailyRoutine } from '../services/dailyRoutineTemplates'
+import { useRoutineItemsFor } from './useRoutineItemsFor'
 import { subscribeDailyRoutineProgress, setDailyRoutineItemDone } from '../services/dailyRoutineService'
 
 function todayKey() {
@@ -11,6 +11,7 @@ function todayKey() {
 export function useDailyRoutine() {
   const { profile } = useAuth()
   const [dateKey, setDateKey] = useState(todayKey)
+  const items = useRoutineItemsFor(profile?.id, profile?.name)
   const [completedIds, setCompletedIds] = useState<string[]>([])
 
   // No backend scheduler in this project — the checklist "resets at
@@ -25,16 +26,13 @@ export function useDailyRoutine() {
     return () => clearInterval(interval)
   }, [])
 
-  const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
-  const items = useMemo(() => (personKey ? buildDailyRoutine(personKey, new Date(`${dateKey}T00:00:00`)) : []), [personKey, dateKey])
-
   useEffect(() => {
-    if (!profile || !personKey) {
+    if (!profile) {
       setCompletedIds([])
       return
     }
     return subscribeDailyRoutineProgress(profile.id, dateKey, setCompletedIds)
-  }, [profile, personKey, dateKey])
+  }, [profile, dateKey])
 
   const toggle = (itemId: string) => {
     if (!profile) return
@@ -51,5 +49,5 @@ export function useDailyRoutine() {
     })
   }
 
-  return { personKey, items, completedIds, toggle }
+  return { items, completedIds, toggle }
 }

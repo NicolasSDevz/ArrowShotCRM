@@ -1,22 +1,25 @@
+import { useState } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Check } from 'lucide-react'
+import { Check, Pencil } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useDailyRoutine } from '../../hooks/useDailyRoutine'
+import { DailyRoutineEditModal } from './DailyRoutineEditModal'
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-/** Dashboard widget — checklist diário personalizado por pessoa (ver
- *  services/dailyRoutineTemplates.ts). Não renderiza nada quando o usuário
- *  logado não tem uma rotina definida (ninguém além de Bruno/Jamilson/
- *  Ciane/Nicolas tem uma hoje). */
+/** Dashboard widget — checklist diário editável por pessoa (ver
+ *  services/dailyRoutineTemplates.ts + hooks/useDailyRoutine.ts). Qualquer
+ *  usuário logado pode ter uma rotina; quem não tem itens ainda vê o estado
+ *  vazio e pode montar a própria pelo botão "Editar". */
 export function DailyRoutineWidget() {
   const { profile } = useAuth()
-  const { personKey, items, completedIds, toggle } = useDailyRoutine()
+  const { items, completedIds, toggle } = useDailyRoutine()
+  const [editing, setEditing] = useState(false)
 
-  if (!profile || !personKey) return null
+  if (!profile) return null
 
   const weekdayLabel = capitalize(format(new Date(), 'EEEE', { locale: ptBR }))
   const firstName = profile.name.split(' ')[0]
@@ -32,7 +35,16 @@ export function DailyRoutineWidget() {
           <p className="text-[16px] font-semibold text-slate-900">Rotina de hoje — {weekdayLabel}</p>
           <p className="text-[13px] text-[#64748B]">Olá, {firstName}! Aqui está sua rotina para hoje.</p>
         </div>
-        {total > 0 && <p className="shrink-0 text-[13px] text-[#64748B]">{done}/{total} concluídos</p>}
+        <div className="flex shrink-0 items-center gap-3">
+          {total > 0 && <p className="text-[13px] text-[#64748B]">{done}/{total} concluídos</p>}
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-brand-600"
+          >
+            <Pencil size={12} /> Editar
+          </button>
+        </div>
       </div>
 
       {total === 0 ? (
@@ -78,6 +90,14 @@ export function DailyRoutineWidget() {
           {allDone && <p className="mt-3.5 text-[14px] font-medium text-[#10B981]">✅ Rotina do dia completa!</p>}
         </>
       )}
+
+      <DailyRoutineEditModal
+        open={editing}
+        onClose={() => setEditing(false)}
+        userId={profile.id}
+        userName={profile.name}
+        items={items}
+      />
     </div>
   )
 }

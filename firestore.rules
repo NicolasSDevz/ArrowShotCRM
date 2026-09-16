@@ -267,6 +267,16 @@ service cloud.firestore {
       allow read, write: if isOwnUser(userId);
     }
 
+    // ---------- dailyRoutines (itens editáveis do widget "Rotina do dia" —
+    // ver src/services/dailyRoutineItemsService.ts). O id do doc é o uid do
+    // dono, igual userDashboards. Diferente daquele: aqui o Admin (Bruno)
+    // também pode escrever, porque a ficha de qualquer membro em Equipe
+    // (rota /equipe, admin-only) deixa editar a rotina de outra pessoa. ----------
+    match /dailyRoutines/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwnUser(userId) || isAdmin();
+    }
+
     // ---------- teamMembers (Equipe roster: cargo, permissão informativa,
     // rotina — separado de `users`, que controla o acesso real) ----------
     match /teamMembers/{memberId} {
