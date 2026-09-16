@@ -256,6 +256,13 @@ export function OverviewDashboard() {
   const [refreshing, setRefreshing] = useState(false)
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
+  // Mesmo critério de utils/metrics.ts (computeCompanyMetrics) — calculado ao
+  // vivo aqui pra sempre bater com os nomes listados, mesmo quando `m` vem do
+  // snapshot diário (que pode estar um pouco desatualizado).
+  const clientsWithoutValueList = useMemo(
+    () => clients.filter((c) => c.status === 'active' && !((c.monthlyValue ?? 0) > 0)),
+    [clients]
+  )
   const live = useMemo(() => computeCompanyMetrics(clients, users), [clients, users])
   const mrrSeries = useMemo(() => computeMrrSeries(clients), [clients])
 
@@ -376,14 +383,24 @@ export function OverviewDashboard() {
         </Button>
       </div>
 
-      {m.clientsWithoutValue > 0 && (
-        <button
-          onClick={() => navigate('/clientes')}
-          className="flex items-center gap-2 self-start rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100"
-        >
-          <AlertTriangle size={13} />
-          {m.clientsWithoutValue} {m.clientsWithoutValue === 1 ? 'cliente sem' : 'clientes sem'} valor cadastrado — acesse a ficha para completar
-        </button>
+      {clientsWithoutValueList.length > 0 && (
+        <div className="flex flex-col gap-2 self-start rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <p className="flex items-center gap-2 font-medium">
+            <AlertTriangle size={13} />
+            {clientsWithoutValueList.length} {clientsWithoutValueList.length === 1 ? 'cliente sem' : 'clientes sem'} valor cadastrado — clique para completar a ficha
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {clientsWithoutValueList.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => navigate(`/clientes/${c.id}`)}
+                className="rounded-md border border-amber-300 bg-white px-2 py-1 font-medium text-amber-800 hover:bg-amber-100"
+              >
+                {c.companyName}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* LINHA 1 — Cards de métricas */}
