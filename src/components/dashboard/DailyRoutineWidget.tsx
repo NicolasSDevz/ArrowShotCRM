@@ -16,7 +16,7 @@ function capitalize(s: string) {
  *  vazio e pode montar a própria pelo botão "Editar". */
 export function DailyRoutineWidget() {
   const { profile } = useAuth()
-  const { items, completedIds, toggle } = useDailyRoutine()
+  const { items, allItems, completedIds, toggle } = useDailyRoutine()
   const [editing, setEditing] = useState(false)
 
   if (!profile) return null
@@ -96,7 +96,7 @@ export function DailyRoutineWidget() {
         onClose={() => setEditing(false)}
         userId={profile.id}
         userName={profile.name}
-        items={items}
+        items={allItems}
       />
     </div>
   )

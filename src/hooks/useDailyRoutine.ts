@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { useAuth } from '../context/AuthContext'
 import { useRoutineItemsFor } from './useRoutineItemsFor'
+import { filterRoutineItemsForDate } from '../services/dailyRoutineTemplates'
 import { subscribeDailyRoutineProgress, setDailyRoutineItemDone } from '../services/dailyRoutineService'
 
 function todayKey() {
@@ -11,7 +12,13 @@ function todayKey() {
 export function useDailyRoutine() {
   const { profile } = useAuth()
   const [dateKey, setDateKey] = useState(todayKey)
-  const items = useRoutineItemsFor(profile?.id, profile?.name)
+  // allItems = rotina inteira (o que o modal de edição precisa mostrar);
+  // items = só o que aparece hoje (o que o checklist do widget renderiza).
+  const allItems = useRoutineItemsFor(profile?.id, profile?.name)
+  const items = useMemo(
+    () => filterRoutineItemsForDate(allItems, new Date(`${dateKey}T00:00:00`)),
+    [allItems, dateKey]
+  )
   const [completedIds, setCompletedIds] = useState<string[]>([])
 
   // No backend scheduler in this project — the checklist "resets at
@@ -49,5 +56,5 @@ export function useDailyRoutine() {
     })
   }
 
-  return { items, completedIds, toggle }
+  return { items, allItems, completedIds, toggle }
 }

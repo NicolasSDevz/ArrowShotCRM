@@ -8,10 +8,14 @@ interface StoredRoutineItem {
   id: string
   text: string
   order: number
+  days?: number[]
+  monthlyDay1?: boolean
 }
 
 function fromStored(items: StoredRoutineItem[] | undefined): RoutineItem[] {
-  return [...(items ?? [])].sort((a, b) => a.order - b.order).map((it) => ({ id: it.id, text: it.text }))
+  return [...(items ?? [])]
+    .sort((a, b) => a.order - b.order)
+    .map((it) => ({ id: it.id, text: it.text, days: it.days, monthlyDay1: it.monthlyDay1 }))
 }
 
 /** Itens da rotina diária editável de um usuário. `onData(null)` significa
@@ -36,7 +40,9 @@ export function subscribeDailyRoutineItems(
 export async function saveDailyRoutineItems(userId: string, items: RoutineItem[]) {
   await setDoc(doc(db, COLLECTION, userId), {
     userId,
-    items: items.map((it, i) => ({ id: it.id, text: it.text, order: i })),
+    // days/monthlyDay1 undefined viram vazios sozinhos (ignoreUndefinedProperties
+    // no firebase/config.ts) — sem precisar espalhar condicionalmente aqui.
+    items: items.map((it, i) => ({ id: it.id, text: it.text, order: i, days: it.days, monthlyDay1: it.monthlyDay1 })),
     updatedAt: serverTimestamp(),
   })
 }
