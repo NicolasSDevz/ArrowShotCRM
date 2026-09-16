@@ -11,11 +11,6 @@ function birthdayEventId(clientId: string, contactId: string) {
   return `bday_${clientId}_${contactId}`
 }
 
-/** Chave de dedupe: mesma pessoa cadastrada em vários papéis conta uma vez. */
-function dedupeKey(c: BriefingContact) {
-  return toWhatsappDigits(c.whatsapp) || c.name.trim().toLowerCase()
-}
-
 function allBriefingContacts(b: PaidTrafficBriefing): BriefingContact[] {
   return [
     ...(b.socios ?? []),
@@ -40,15 +35,17 @@ function occurrence(month: number, day: number, year: number): Date {
 export async function syncClientBirthdays(client: Client, briefing: PaidTrafficBriefing, userId: string) {
   const year = new Date().getFullYear()
 
-  // pessoas com aniversário, deduplicadas
-  const seen = new Set<string>()
-  const targets = allBriefingContacts(briefing).filter((c) => {
-    if (!c.birthday || !c.name.trim()) return false
-    const key = dedupeKey(c)
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+  // pessoas com aniversário, deduplicadas por nome — mesma pessoa cadastrada
+  // em vários papéis (sócio + decisor, por ex.) conta uma vez só; entre as
+  // duplicatas, fica a que tem WhatsApp preenchido.
+  const byName = new Map<string, BriefingContact>()
+  for (const c of allBriefingContacts(briefing)) {
+    if (!c.birthday || !c.name.trim()) continue
+    const key = c.name.trim().toLowerCase()
+    const current = byName.get(key)
+    if (!current || (!current.whatsapp && c.whatsapp)) byName.set(key, c)
+  }
+  const targets = [...byName.values()]
   const keepIds = new Set(targets.map((c) => c.id))
 
   // eventos de aniversário já existentes deste cliente (filtro de campo único)
