@@ -11,10 +11,11 @@ function layout(entries: [DashboardWidgetConfig['id'], DashboardWidgetConfig['wi
 const BRUNO_LAYOUT = layout([
   ['rotina', 'full'],
   ['rotina_equipe', 'full'],
-  ['nova_tarefa', 'half'],
-  ['resumo_clientes', 'half'],
+  ['otimizacoes_equipe', 'full'],
+  ['tarefas_equipe', 'full'],
   ['tarefas_atrasadas', 'full'],
   ['proximas_7dias', 'full'],
+  ['resumo_clientes', 'full'],
 ])
 
 const JAMILSON_LAYOUT = layout([

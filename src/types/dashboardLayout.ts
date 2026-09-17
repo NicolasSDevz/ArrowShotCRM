@@ -9,6 +9,8 @@ export type DashboardWidgetId =
   | 'rotina'
   | 'rotina_equipe'
   | 'otimizacoes'
+  | 'otimizacoes_equipe'
+  | 'tarefas_equipe'
   | 'tarefas_atrasadas'
   | 'tarefas_hoje'
   | 'proximas_7dias'
