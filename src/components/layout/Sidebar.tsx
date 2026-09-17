@@ -33,7 +33,7 @@ const mainNav = [
 // ativo, mesmo continuando listados dentro da seção "Em breve" junto dos
 // módulos ainda travados.
 const futureNav: { label: string; icon: typeof Target; to?: string }[] = [
-  { label: 'Google Ads', icon: Target },
+  { label: 'Google Ads', icon: Target, to: '/google-ads' },
   { label: 'Meta Ads', icon: Megaphone, to: '/meta-ads' },
   { label: 'Leads', icon: UserPlus, to: '/leads' },
   { label: 'Relatórios', icon: BarChart3, to: '/relatorios' },

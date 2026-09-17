@@ -361,6 +361,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---------- clientSuccessEvaluations (aba "Sucesso do Cliente" da ficha
+    // do cliente — avaliação mensal preenchida pelo CS). ----------
+    match /clientSuccessEvaluations/{evaluationId} {
+      allow read: if canReadClientScoped(resource.data.clientId);
+      allow create: if isInternal() && createdBySelf() && updatedBySelf();
+      allow update: if isInternal() && updatedBySelf();
+      allow delete: if isInternal();
+    }
+
     // ---------- future modules ----------
     // When googleAdsCampaigns, metaAdsCampaigns, leads, reports, finance, etc.
     // are introduced, add a `match /{collection}/{docId}` block here following

@@ -106,6 +106,14 @@
         { "fieldPath": "trailId", "order": "ASCENDING" },
         { "fieldPath": "order", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "clientSuccessEvaluations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId", "order": "ASCENDING" },
+        { "fieldPath": "referenceMonth", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MapPin, MoreVertical, Trash2 } from 'lucide-react'
+import { MapPin, MoreVertical, Trash2, MessageCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Badge } from '../ui/Badge'
@@ -64,6 +64,22 @@ export function ClientsTable({
                       <Badge className={`shrink-0 ${CLIENT_CATEGORY_BADGE[client.categoria]}`}>
                         {CLIENT_CATEGORY_LABEL[client.categoria]}
                       </Badge>
+                    )}
+                    {client.whatsappGroupLink ? (
+                      <a
+                        href={client.whatsappGroupLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        title="Abrir grupo do WhatsApp"
+                        className="shrink-0 text-emerald-500 hover:text-emerald-600"
+                      >
+                        <MessageCircle size={14} />
+                      </a>
+                    ) : (
+                      <span title="Grupo do WhatsApp não cadastrado" className="shrink-0 text-slate-300">
+                        <MessageCircle size={14} />
+                      </span>
                     )}
                   </div>
                   {client.contactName && <p className="truncate text-xs text-slate-400">{client.contactName}</p>}

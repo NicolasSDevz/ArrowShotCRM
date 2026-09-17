@@ -18,6 +18,7 @@ import { useAssignees } from '../../hooks/useAssignees'
 import { updateTask, deleteTask, duplicateRecurringTask, notifyTaskCompleted, setTaskChecklist } from '../../services/taskService'
 import { advanceClientWorkflow, scheduleBriefingMeeting } from '../../services/clientWorkflowTemplates'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
+import { isCelebratoryTaskTitle, triggerTaskCelebration } from '../../utils/taskCelebration'
 import {
   TASK_PRIORITY_LABEL,
   TASK_STATUS_LABEL,
@@ -49,7 +50,17 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
       const client = clients.find((c) => c.id === task.clientId)
       if (client && task.workflowStep) await advanceClientWorkflow(task, client, profile.id, profile.name, users)
       await notifyTaskCompleted(task, client, profile.id, profile.name)
+      if (isCelebratoryTaskTitle(task.title)) triggerTaskCelebration()
     }
+  }
+
+  // TAREFA 2 — confetes quando todos os itens de um checklist de
+  // questionário/prova/atividade/exercício/quiz são marcados.
+  const handleChecklistChange = (checklist: Task['checklist']) => {
+    const wasAllDone = (task.checklist ?? []).length > 0 && (task.checklist ?? []).every((i) => i.done)
+    const nowAllDone = checklist.length > 0 && checklist.every((i) => i.done)
+    if (!wasAllDone && nowAllDone && isCelebratoryTaskTitle(task.title)) triggerTaskCelebration()
+    return setTaskChecklist(task.id, checklist, profile.id)
   }
 
   const needsBriefingMeeting = task.workflowStep === 'pt_onboarding_janilson'
@@ -204,7 +215,7 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
         <Field label="Checklist">
           <ChecklistEditor
             items={task.checklist ?? []}
-            onChange={(checklist) => setTaskChecklist(task.id, checklist, profile.id)}
+            onChange={handleChecklistChange}
           />
         </Field>
 

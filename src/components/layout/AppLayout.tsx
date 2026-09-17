@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { CelebrationOverlay } from '../CelebrationOverlay'
+import { TaskCelebrationOverlay } from '../TaskCelebrationOverlay'
 import { useTaskDueDateSweep } from '../../hooks/useTaskDueDateSweep'
 
 export function AppLayout() {
@@ -23,6 +24,7 @@ export function AppLayout() {
         </main>
       </div>
       <CelebrationOverlay />
+      <TaskCelebrationOverlay />
     </div>
   )
 }

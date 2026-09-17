@@ -2,14 +2,19 @@ import confetti from 'canvas-confetti'
 
 const COLORS = ['#2563EB', '#10B981', '#F59E0B', '#FFFFFF', '#60A5FA']
 
+/** Paleta usada na comemoração de tarefas/questionários concluídos (ver
+ *  fireTaskCompletionCelebration) — mesma lógica de confete do fechamento de
+ *  cliente, cores diferentes. */
+const TASK_COLORS = ['#2563EB', '#10B981', '#F59E0B', '#FFFFFF', '#A855F7']
+
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
 
 /** Canhão duplo dos cantos superiores por 4s: duas rajadas de 100 + uma
  *  trilha leve preenchendo a duração. spread 70, gravity 1.2. */
-function fireConfetti() {
-  const base = { spread: 70, gravity: 1.2, colors: COLORS, disableForReducedMotion: true } as const
+function fireConfetti(colors: string[] = COLORS) {
+  const base = { spread: 70, gravity: 1.2, colors, disableForReducedMotion: true } as const
 
   confetti({ ...base, particleCount: 100, angle: 60, origin: { x: 0, y: 0.6 } })
   confetti({ ...base, particleCount: 100, angle: 120, origin: { x: 1, y: 0.6 } })
@@ -56,5 +61,13 @@ function playChime() {
  *  do CelebrationOverlay. Respeita prefers-reduced-motion (só o som fica). */
 export function fireCelebration() {
   if (!prefersReducedMotion()) fireConfetti()
+  playChime()
+}
+
+/** Comemoração de tarefa/questionário concluído (ver TaskCelebrationOverlay)
+ *  — mesma lógica de confete + som do fechamento de cliente, com a paleta
+ *  pedida para esta comemoração. */
+export function fireTaskCompletionCelebration() {
+  if (!prefersReducedMotion()) fireConfetti(TASK_COLORS)
   playChime()
 }

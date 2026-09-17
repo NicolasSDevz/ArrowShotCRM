@@ -21,6 +21,16 @@ export type ClientAudience = 'residencial' | 'comercial' | 'ambos'
 
 export type ApprovalChannel = 'whatsapp' | 'email' | 'drive' | 'outro'
 
+/** Endereço completo do cliente — separado do `city` (Cidade/Região) livre já
+ *  existente no cadastro rápido, que continua servindo de referência curta. */
+export interface ClientAddress {
+  street?: string
+  complement?: string
+  city?: string
+  state?: string
+  zip?: string
+}
+
 /** Onboarding briefing — filled once in the kickoff meeting (playbook section
  *  7). Deliberately kept off the quick client-create form and off the base
  *  Client fields it would otherwise duplicate (empresa/responsável/whatsapp/
@@ -98,6 +108,9 @@ export interface Client extends BaseDoc {
   segment?: string
   /** CNPJ ou CPF, digits or formatted — free text, no mask enforced. */
   document?: string
+  address?: ClientAddress
+  /** Link do grupo do WhatsApp do cliente — sempre https://chat.whatsapp.com/... */
+  whatsappGroupLink?: string
   status: ClientStatus
   /** Classificação A/B (ver ClientCategory). */
   categoria?: ClientCategory

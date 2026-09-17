@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ArrowLeft, Pencil, Plus, Globe, Camera, ThumbsUp, Phone, Mail, MapPin, Sparkles, CheckSquare, MoreVertical, Trash2 } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Globe, Camera, ThumbsUp, Phone, Mail, MapPin, Sparkles, CheckSquare, MoreVertical, Trash2, MessageCircle } from 'lucide-react'
 import { useClients } from '../hooks/useClients'
 import { useTasks } from '../hooks/useTasks'
 import { useContents } from '../hooks/useContents'
@@ -28,6 +28,8 @@ import { ImportEditorialCalendarModal } from '../components/content/ImportEditor
 import { ClientMeetingsTab } from '../components/clients/ClientMeetingsTab'
 import { ClientOptimizationsTab } from '../components/clients/ClientOptimizationsTab'
 import { ClientContentsTab } from '../components/clients/ClientContentsTab'
+import { ClientSuccessTab } from '../components/clients/ClientSuccessTab'
+import { WhatsappGroupLinkModal } from '../components/clients/WhatsappGroupLinkModal'
 import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, CLIENT_STATUS_BADGE, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
 import { TASK_STATUS_LABEL } from '../types/task'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
@@ -51,6 +53,7 @@ export function ClientDetailPage() {
   const [importingCalendar, setImportingCalendar] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [whatsappGroupModalOpen, setWhatsappGroupModalOpen] = useState(false)
 
   if (!client) {
     return <EmptyState title="Cliente não encontrado" action={<Button onClick={() => navigate('/clientes')}>Voltar</Button>} />
@@ -143,6 +146,25 @@ export function ClientDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            {client.whatsappGroupLink ? (
+              <a
+                href={client.whatsappGroupLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir grupo do WhatsApp"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-500 px-2.5 text-xs font-medium text-white transition-colors duration-150 ease-in-out hover:bg-emerald-600"
+              >
+                <MessageCircle size={13} /> Abrir grupo
+              </a>
+            ) : (
+              <button
+                title="Adicionar link do grupo do WhatsApp"
+                onClick={() => setWhatsappGroupModalOpen(true)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 text-xs font-medium text-slate-500 transition-colors duration-150 ease-in-out hover:bg-slate-200"
+              >
+                <MessageCircle size={13} /> Adicionar grupo
+              </button>
+            )}
             <Button variant="secondary" size="sm" icon={<Pencil size={13} />} onClick={() => setEditing(true)}>
               Editar
             </Button>
@@ -215,6 +237,7 @@ export function ClientDetailPage() {
               ),
             },
             { label: 'Reuniões', content: <ClientMeetingsTab client={client} /> },
+            { label: 'Sucesso do Cliente', content: <ClientSuccessTab clientId={client.id} clientName={client.companyName} /> },
             { label: 'Arquivos', content: <FilesPanel clientId={client.id} category="documents" relatedType="client" relatedId={client.id} /> },
             { label: 'Comentários', content: <CommentsPanel entityType="client" entityId={client.id} clientId={client.id} /> },
             { label: 'Histórico', content: <ActivityPanel entityType="client" entityId={client.id} /> },
@@ -223,6 +246,7 @@ export function ClientDetailPage() {
       </div>
 
       <ClientFormModal open={editing} onClose={() => setEditing(false)} client={client} />
+      <WhatsappGroupLinkModal open={whatsappGroupModalOpen} onClose={() => setWhatsappGroupModalOpen(false)} client={client} />
       <DeleteClientModal
         client={deleting ? client : null}
         onClose={() => setDeleting(false)}

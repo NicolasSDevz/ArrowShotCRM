@@ -64,3 +64,15 @@ export function parseCurrencyToNumber(masked: string): number | undefined {
   if (!digits) return undefined
   return Number(digits) / 100
 }
+
+/** Progressive CEP (00000-000) mask. */
+export function maskCep(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 5) return digits
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`
+}
+
+/** A CEP is only "complete" at exactly 8 digits — used to gate the ViaCEP lookup. */
+export function isCepComplete(raw: string): boolean {
+  return raw.replace(/\D/g, '').length === 8
+}

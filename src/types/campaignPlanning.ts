@@ -23,6 +23,12 @@ export interface CampaignPlanningAccess {
    *  Obrigatório para gerar relatórios automáticos do Meta Ads deste
    *  cliente (ver módulo de Relatórios). */
   metaAdsAccountId?: string
+
+  /** ID da conta Google Ads (formato 000-000-0000, aceito com ou sem
+   *  hífens). Usado pela página Google Ads para linkar "Abrir no Google Ads"
+   *  e, assim que a API estiver aprovada, para puxar métricas via
+   *  /api/google/insights (ver src/pages/GoogleAdsPage.tsx). */
+  googleAdsAccountId?: string
 }
 
 export const EMPTY_CAMPAIGN_PLANNING_ACCESS: CampaignPlanningAccess = {}

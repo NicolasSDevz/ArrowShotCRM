@@ -7,9 +7,13 @@ import { useAllTasks } from '../hooks/useTasks'
 import { useAllContents } from '../hooks/useContents'
 import { useClients } from '../hooks/useClients'
 import { useAssigneeMap, type Assignee } from '../hooks/useAssignees'
+import { useAllClientSuccessEvaluations } from '../hooks/useClientSuccessEvaluations'
+import { latestClientSuccessByClient } from '../utils/clientSuccessLatest'
+import { CLIENT_SUCCESS_TIER_LABEL, CLIENT_SUCCESS_TIER_BADGE } from '../types/clientSuccess'
 import { EmptyState } from '../components/ui/EmptyState'
 import { DashboardEmptyState } from '../components/dashboard/DashboardEmptyState'
 import { DailyRoutineWidget } from '../components/dashboard/DailyRoutineWidget'
+import { TeamRoutineTodayWidget } from '../components/dashboard/TeamRoutineTodayWidget'
 import { BirthdayTodayWidget } from '../components/dashboard/BirthdayTodayWidget'
 import { SocialContentWidget } from '../components/dashboard/SocialContentWidget'
 import { OptimizationsTodayWidget } from '../components/dashboard/OptimizationsTodayWidget'
@@ -344,6 +348,8 @@ export function OperationalDashboard() {
   const { data: contents } = useAllContents()
   const { data: clients } = useClients()
   const userMap = useAssigneeMap()
+  const { data: clientSuccessEvaluations } = useAllClientSuccessEvaluations()
+  const latestClientSuccess = useMemo(() => latestClientSuccessByClient(clientSuccessEvaluations), [clientSuccessEvaluations])
   const { canSeeAllTasks, viewerId } = useTaskVisibility()
   const visibleTasks = useMemo(() => filterVisibleTasks(tasks, canSeeAllTasks, viewerId), [tasks, canSeeAllTasks, viewerId])
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -439,6 +445,7 @@ export function OperationalDashboard() {
     <div className="flex flex-col gap-4">
       <BirthdayTodayWidget />
       <DailyRoutineWidget />
+      <TeamRoutineTodayWidget />
       <SocialContentWidget />
       <OptimizationsTodayWidget />
 
@@ -636,6 +643,7 @@ export function OperationalDashboard() {
                     <th className="w-6 py-1.5"></th>
                     <th className="py-1.5 pr-2 font-semibold">Cliente</th>
                     <th className="py-1.5 pr-2 font-semibold">Serviço</th>
+                    <th className="py-1.5 pr-2 font-semibold">Sucesso do Cliente</th>
                     <th className="py-1.5 pr-2 font-semibold">Responsável</th>
                     <th className="py-1.5 pr-2 font-semibold">Próxima tarefa</th>
                     <th className="py-1.5 font-semibold">Prazo</th>
@@ -663,6 +671,17 @@ export function OperationalDashboard() {
                         </td>
                         <td className="py-2 pr-2 align-middle">
                           <ServicePill service={service} />
+                        </td>
+                        <td className="py-2 pr-2 align-middle">
+                          {latestClientSuccess[client.id] ? (
+                            <span
+                              className={`rounded-md px-2 py-0.5 text-xs font-medium ${CLIENT_SUCCESS_TIER_BADGE[latestClientSuccess[client.id].tier]}`}
+                            >
+                              {CLIENT_SUCCESS_TIER_LABEL[latestClientSuccess[client.id].tier]}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
                         </td>
                         <td className="py-2 pr-2 align-middle text-slate-500">{ownerName}</td>
                         <td className="max-w-[160px] truncate py-2 pr-2 align-middle text-slate-500">

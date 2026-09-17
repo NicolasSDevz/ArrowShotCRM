@@ -12,8 +12,10 @@ import { notifyAdminsOfAction } from '../../services/notificationService'
 import { removeClientBirthdays } from '../../services/birthdayService'
 import { uploadClientLogo, removeClientLogo } from '../../services/clientLogoService'
 import { ClientLogoField } from './ClientLogoField'
-import { maskPhone, isPhoneComplete, maskDocument, maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
+import { maskPhone, isPhoneComplete, maskDocument, maskCurrencyInput, parseCurrencyToNumber, maskCep, isCepComplete } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
+import { fetchAddressByCep } from '../../services/viaCepService'
+import { BRAZIL_STATES } from '../../utils/brazilStates'
 import {
   CLIENT_PACKAGE_LABEL,
   CLIENT_STATUS_LABEL,
@@ -28,12 +30,20 @@ import {
   type StyleCatalog,
 } from '../../types/client'
 
+const WHATSAPP_GROUP_PREFIX = 'https://chat.whatsapp.com/'
+
 const EMPTY = {
   companyName: '',
   whatsapp: '',
   city: '',
   segment: '',
   document: '',
+  addressStreet: '',
+  addressComplement: '',
+  addressCity: '',
+  addressState: '',
+  addressZip: '',
+  whatsappGroupLink: '',
   package: '' as ClientPackage | '',
   styleCatalog: '' as StyleCatalog | '',
   ownerIds: [] as string[],
@@ -95,6 +105,7 @@ export function ClientFormModal({
   const [createTasks, setCreateTasks] = useState(true)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoRemoved, setLogoRemoved] = useState(false)
+  const [cepLoading, setCepLoading] = useState(false)
 
   useEffect(() => {
     if (client) {
@@ -104,6 +115,12 @@ export function ClientFormModal({
         city: client.city ?? '',
         segment: client.segment ?? '',
         document: client.document ? maskDocument(client.document) : '',
+        addressStreet: client.address?.street ?? '',
+        addressComplement: client.address?.complement ?? '',
+        addressCity: client.address?.city ?? '',
+        addressState: client.address?.state ?? '',
+        addressZip: client.address?.zip ? maskCep(client.address.zip) : '',
+        whatsappGroupLink: client.whatsappGroupLink ?? '',
         package: client.package ?? '',
         styleCatalog: client.styleCatalog ?? '',
         ownerIds: getClientOwnerIds(client),
@@ -135,6 +152,27 @@ export function ClientFormModal({
     }))
 
   const whatsappIncomplete = form.whatsapp.trim() !== '' && !isPhoneComplete(form.whatsapp)
+  const whatsappGroupLinkInvalid = form.whatsappGroupLink.trim() !== '' && !form.whatsappGroupLink.trim().startsWith(WHATSAPP_GROUP_PREFIX)
+
+  const handleCepChange = async (raw: string) => {
+    const masked = maskCep(raw)
+    set('addressZip', masked)
+    if (!isCepComplete(masked)) return
+    setCepLoading(true)
+    try {
+      const result = await fetchAddressByCep(masked)
+      if (result) {
+        setForm((f) => ({
+          ...f,
+          addressStreet: result.street || f.addressStreet,
+          addressCity: result.city || f.addressCity,
+          addressState: result.state || f.addressState,
+        }))
+      }
+    } finally {
+      setCepLoading(false)
+    }
+  }
 
   const autoTaskSummary = [
     form.paidTraffic && 'Tráfego Pago: cria "Onboarding" — as próximas etapas aparecem sozinhas conforme cada uma for concluída',
@@ -143,7 +181,7 @@ export function ClientFormModal({
     .filter(Boolean)
     .join('; ')
 
-  const canSubmit = form.companyName.trim() !== '' && !whatsappIncomplete
+  const canSubmit = form.companyName.trim() !== '' && !whatsappIncomplete && !whatsappGroupLinkInvalid
 
   const handleSubmit = async () => {
     if (!canSubmit || !profile) return
@@ -155,6 +193,17 @@ export function ClientFormModal({
         city: form.city || undefined,
         segment: form.segment || undefined,
         document: form.document || undefined,
+        address:
+          form.addressStreet || form.addressComplement || form.addressCity || form.addressState || form.addressZip
+            ? {
+                street: form.addressStreet || undefined,
+                complement: form.addressComplement || undefined,
+                city: form.addressCity || undefined,
+                state: form.addressState || undefined,
+                zip: form.addressZip || undefined,
+              }
+            : undefined,
+        whatsappGroupLink: form.whatsappGroupLink.trim() || undefined,
         package: form.socialMedia ? form.package || undefined : undefined,
         styleCatalog: form.socialMedia ? form.styleCatalog || undefined : undefined,
         ownerIds: form.ownerIds.length > 0 ? form.ownerIds : undefined,
@@ -264,6 +313,59 @@ export function ClientFormModal({
           />
           {whatsappIncomplete && <p className="mt-1 text-xs text-red-500">Número incompleto — informe DDD + número completo.</p>}
         </Field>
+        <Field label="CNPJ ou CPF">
+          <Input
+            value={form.document}
+            onChange={(e) => set('document', maskDocument(e.target.value))}
+            placeholder="000.000.000-00"
+          />
+        </Field>
+        <Field label="Link do grupo WhatsApp">
+          <Input
+            value={form.whatsappGroupLink}
+            onChange={(e) => set('whatsappGroupLink', e.target.value)}
+            placeholder="https://chat.whatsapp.com/..."
+          />
+          {whatsappGroupLinkInvalid && (
+            <p className="mt-1 text-xs text-red-500">O link precisa começar com {WHATSAPP_GROUP_PREFIX}</p>
+          )}
+        </Field>
+
+        <div className="flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Endereço completo</p>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <Field label="CEP">
+              <Input
+                value={form.addressZip}
+                onChange={(e) => handleCepChange(e.target.value)}
+                placeholder="00000-000"
+              />
+              {cepLoading && <p className="mt-1 text-xs text-slate-400">Buscando endereço...</p>}
+            </Field>
+            <Field label="Estado">
+              <Select value={form.addressState} onChange={(e) => set('addressState', e.target.value)}>
+                <option value="">Selecione</option>
+                {BRAZIL_STATES.map((s) => (
+                  <option key={s.uf} value={s.uf}>
+                    {s.uf} — {s.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Cidade">
+              <Input value={form.addressCity} onChange={(e) => set('addressCity', e.target.value)} />
+            </Field>
+            <Field label="Rua e número">
+              <Input value={form.addressStreet} onChange={(e) => set('addressStreet', e.target.value)} />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Complemento">
+                <Input value={form.addressComplement} onChange={(e) => set('addressComplement', e.target.value)} />
+              </Field>
+            </div>
+          </div>
+        </div>
+
         <Field label="Cidade/Região">
           <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
         </Field>
@@ -287,15 +389,6 @@ export function ClientFormModal({
             ))}
           </Select>
         </Field>
-        <div className="sm:col-span-2">
-          <Field label="CNPJ ou CPF">
-            <Input
-              value={form.document}
-              onChange={(e) => set('document', maskDocument(e.target.value))}
-              placeholder="000.000.000-00"
-            />
-          </Field>
-        </div>
 
         <div className="flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Serviços contratados</p>
