@@ -253,9 +253,13 @@ service cloud.firestore {
 
     // ---------- dailyRoutineProgress (widget "Rotina do dia" — quais itens do
     // checklist gerado no frontend já foram marcados hoje, {uid}_{yyyy-MM-dd}).
-    // Estritamente pessoal: nunca lido/escrito por outra conta, nem pelo Admin. ----------
+    // Leitura: o próprio dono OU o Admin (Bruno), que acompanha a rotina da
+    // equipe em somente-leitura no widget "Rotina da equipe — hoje" (ver
+    // TeamRoutineTodayWidget). Escrita continua estritamente pessoal — nem o
+    // Admin marca/desmarca item de outra pessoa. ----------
     match /dailyRoutineProgress/{progressId} {
-      allow read, update, delete: if isOwnUser(resource.data.userId);
+      allow read: if isOwnUser(resource.data.userId) || isAdmin();
+      allow update, delete: if isOwnUser(resource.data.userId);
       allow create: if isOwnUser(request.resource.data.userId);
     }
 
