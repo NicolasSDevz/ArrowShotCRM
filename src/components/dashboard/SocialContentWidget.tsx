@@ -18,7 +18,7 @@ import { clientHashColor } from '../../utils/clientColor'
 import { businessDaysBetween } from '../../utils/businessDays'
 
 /** Só Ciane e Nicolas veem este widget — cada um focado no que o cargo dele
- *  precisa resolver. Bruno/Janilson não. */
+ *  precisa resolver. Bruno/Jamilson não. */
 const ROLE_CONFIG: Record<string, { label: string; focus: ContentStatus[] }> = {
   Ciane: { label: 'Conteúdos para revisar', focus: ['review', 'waiting_client'] },
   Nicolas: { label: 'Conteúdos para produzir', focus: ['ideas', 'production'] },

@@ -26,7 +26,7 @@ function monthLabel(referenceMonth: string) {
 }
 
 /** Aba "Sucesso do Cliente" da ficha do cliente — preenchida pelo CS
- *  (Janilson). Uma avaliação mensal com 5 critérios de 1 a 5, que vira um
+ *  (Jamilson). Uma avaliação mensal com 5 critérios de 1 a 5, que vira um
  *  score médio (0-5) classificado em 4 faixas (ver types/clientSuccess.ts). */
 export function ClientSuccessTab({ clientId, clientName }: { clientId: string; clientName: string }) {
   const { profile } = useAuth()

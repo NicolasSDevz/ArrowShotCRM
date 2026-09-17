@@ -11,7 +11,7 @@ import { TaskDrawer } from '../tasks/TaskDrawer'
 import type { Task } from '../../types/task'
 
 const OWNER_EMAIL = 'gestorarrowshotmkt@gmail.com'
-const PEOPLE = ['Janilson', 'Ciane', 'Nicolas']
+const PEOPLE = ['Jamilson', 'Ciane', 'Nicolas']
 
 function daysOverdueLabel(date: Date): string {
   const n = differenceInDays(new Date(), date)
@@ -50,7 +50,7 @@ function EmptyCategory({ label }: { label: string }) {
 }
 
 /** Widget "Tarefas da equipe", visível SÓ para Bruno (Admin) — em abas por
- *  pessoa (Janilson, Ciane, Nicolas), mostra tarefas atrasadas, de hoje e
+ *  pessoa (Jamilson, Ciane, Nicolas), mostra tarefas atrasadas, de hoje e
  *  dos próximos 3 dias. `tasks`/`optimizations`/`clients` já são legíveis
  *  por qualquer usuário interno (ver firestore.rules) — sem regra nova.
  *  Clicar numa tarefa abre o mesmo TaskDrawer usado no resto do app. */

@@ -12,7 +12,7 @@ import { USER_ROLE_LABEL } from '../../types/user'
 
 const OWNER_EMAIL = 'gestorarrowshotmkt@gmail.com'
 
-const TEAM_ROUTINE_PEOPLE = ['Janilson', 'Ciane', 'Nicolas']
+const TEAM_ROUTINE_PEOPLE = ['Jamilson', 'Ciane', 'Nicolas']
 
 function todayKey() {
   const d = new Date()
@@ -32,7 +32,7 @@ function PersonRoutineCard({ name }: { name: string }) {
   // IMPEDIMENTO TÉCNICO (TAREFA 4): firestore.rules restringe
   // dailyRoutineProgress a leitura/escrita só pelo próprio dono, "nem pelo
   // Admin" (decisão de privacidade já documentada na regra). Então Bruno não
-  // consegue ler se Janilson/Ciane/Nicolas marcaram os itens hoje — só a
+  // consegue ler se Jamilson/Ciane/Nicolas marcaram os itens hoje — só a
   // LISTA dos itens (dailyRoutines/{userId}, essa sim legível por qualquer
   // signed-in user) fica visível. Detectamos o permission-denied aqui e
   // mostramos isso explicitamente em vez de fingir "0% concluído".
@@ -118,7 +118,7 @@ function PersonRoutineCard({ name }: { name: string }) {
 
 /** Widget "Rotina da equipe — hoje", visível SÓ para Bruno (Admin ou o
  *  e-mail dono da conta) — mostra, em modo somente-leitura, a rotina diária
- *  de Janilson, Ciane e Nicolas (mesma fonte de dados do widget "Rotina do
+ *  de Jamilson, Ciane e Nicolas (mesma fonte de dados do widget "Rotina do
  *  dia" de cada um — /dailyRoutines/{userId} + dailyRoutineProgress/
  *  {userId}_{yyyy-MM-dd}, ver hooks/useRoutineItemsFor e
  *  services/dailyRoutineService.ts). */

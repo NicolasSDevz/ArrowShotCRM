@@ -1,6 +1,6 @@
 import type { BaseDoc } from './common'
 
-/** As 5 dimensões avaliadas mensalmente pelo CS (Janilson) na aba "Sucesso
+/** As 5 dimensões avaliadas mensalmente pelo CS (Jamilson) na aba "Sucesso
  *  do Cliente" da ficha do cliente. Cada uma vai de 1 a 5. */
 export type ClientSuccessCriterion = 'meetings' | 'whatsapp' | 'materials' | 'platform' | 'payment'
 

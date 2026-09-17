@@ -30,7 +30,7 @@ function onboardingBrunoItems({ companyName }: Pick<Client, 'companyName' | 'mod
 }
 
 /** Boas-vindas e agendamento do briefing — responsabilidade de Jamilson (CS). */
-const ONBOARDING_JANILSON_ITEMS = ['Enviar mensagem de boas-vindas no grupo', 'Agendar reunião de briefing e acessos']
+const ONBOARDING_JAMILSON_ITEMS = ['Enviar mensagem de boas-vindas no grupo', 'Agendar reunião de briefing e acessos']
 
 const BRIEFING_ACESSOS_ITEMS = [
   'Enviar formulário de briefing ao cliente antes da call',
@@ -172,11 +172,8 @@ interface StepDef {
   checklist: string[] | ((client: Pick<Client, 'companyName' | 'modules'>) => string[])
   priority: TaskPriority
   /** 'creator' assigns to whoever triggered the step; a name assigns via
-   *  findUserIdByName (falls back to unassigned if nobody matches yet).
-   *  Note: 'Jamilson' (existing literal, kept as-is) vs 'Janilson' (used
-   *  below, for the actual spelling of the real user's name) — pre-existing
-   *  inconsistency, not fixed here since it's out of scope for this change. */
-  assignee: 'creator' | 'Bruno' | 'Jamilson' | 'Janilson' | 'Ciane'
+   *  findUserIdByName (falls back to unassigned if nobody matches yet). */
+  assignee: 'creator' | 'Bruno' | 'Jamilson' | 'Ciane'
   recurrence?: TaskRecurrence
   /** This step's completion only advances the workflow once every one of
    *  these sibling steps (same client) is also done — used to split one
@@ -198,7 +195,7 @@ const STEP_DEFS: Record<WorkflowStepKey, StepDef> = {
   pt_onboarding_janilson: {
     title: (name) => `Onboarding (Boas-vindas e Briefing) — ${name}`,
     description: 'Checklist padrão de onboarding de cliente novo — boas-vindas e agendamento do briefing.',
-    checklist: ONBOARDING_JANILSON_ITEMS,
+    checklist: ONBOARDING_JAMILSON_ITEMS,
     priority: 'high',
     assignee: 'Jamilson',
     waitForSiblings: ['pt_onboarding_bruno'],
@@ -293,7 +290,7 @@ const STEP_DEFS: Record<WorkflowStepKey, StepDef> = {
     description: 'Checklist padrão de briefing de Landing Page — objetivo, público, materiais e estrutura.',
     checklist: LP_BRIEFING_ITEMS,
     priority: 'high',
-    assignee: 'Janilson',
+    assignee: 'Jamilson',
   },
   lp_desenvolvimento: {
     title: (name) => `Desenvolvimento da Landing Page — ${name}`,

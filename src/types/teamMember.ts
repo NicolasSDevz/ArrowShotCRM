@@ -43,7 +43,7 @@ export const ROLE_ROUTINES: Record<RoutineKey, RoleRoutine> = {
   closer: {
     title: 'Rotina do Closer',
     items: [
-      'Reunião diária com o time (9h)',
+      'Reunião de equipe (sexta, 9h15 às 10h)',
       'Responder mensagens de anúncios e confirmar reuniões (manhã)',
       'Organizar CRM (Leads na plataforma)',
       'Responder mensagens e confirmar reuniões (tarde)',
@@ -53,7 +53,7 @@ export const ROLE_ROUTINES: Record<RoutineKey, RoleRoutine> = {
   cs: {
     title: 'Rotina do CS',
     items: [
-      'Reunião diária com o time (9h)',
+      'Reunião de equipe (sexta, 9h15 às 10h)',
       'Verificar mensagens sem resposta nos grupos de clientes',
       'Atualizar status das tarefas na plataforma',
       'Sexta: enviar atualização semanal a todos os clientes ativos',
@@ -63,7 +63,7 @@ export const ROLE_ROUTINES: Record<RoutineKey, RoleRoutine> = {
   gestor_trafego: {
     title: 'Rotina do Gestor de Tráfego',
     items: [
-      'Reunião diária com o time (9h)',
+      'Reunião de equipe (sexta, 9h15 às 10h)',
       'Verificar desempenho das campanhas ativas',
       'Atualizar tarefas na plataforma',
       'Segunda: overview completo de todos os clientes',
@@ -81,9 +81,7 @@ export interface TeamMeeting {
 /** Fixed company schedule, not meant to be edited from the UI — same spirit
  *  as ROLE_ROUTINES above. */
 export const TEAM_MEETINGS: TeamMeeting[] = [
-  { title: 'Reunião Diária', schedule: 'Segunda a sexta, 09:00 às 09:45', participants: 'Toda a equipe' },
-  { title: 'Reunião de Sociedade', schedule: 'Toda segunda, 11:30 às 12:00', participants: 'Bruno + Ciane' },
-  { title: 'Reunião de Sociedade', schedule: 'Toda sexta, 17:00', participants: 'Bruno + Ciane' },
+  { title: 'Reunião de Equipe', schedule: 'Toda sexta, 09:15 às 10:00', participants: 'Toda a equipe' },
   { title: 'Reunião Mensal da Equipe', schedule: '3ª quinta-feira do mês, 13:30', participants: 'Toda a equipe' },
 ]
 
