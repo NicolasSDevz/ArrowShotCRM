@@ -1,16 +1,20 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Plus } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { ClientSuccessFormModal } from './ClientSuccessFormModal'
+import { useAuth } from '../../context/AuthContext'
 import { useClientSuccessEvaluations } from '../../hooks/useClientSuccessEvaluations'
+import { deleteClientSuccessEvaluation } from '../../services/clientSuccessService'
 import {
   CLIENT_SUCCESS_CRITERIA,
   CLIENT_SUCCESS_CRITERION_LABEL,
   CLIENT_SUCCESS_TIER_LABEL,
   CLIENT_SUCCESS_TIER_BADGE,
+  type ClientSuccessEvaluation,
 } from '../../types/clientSuccess'
 
 function monthLabel(referenceMonth: string) {
@@ -25,8 +29,21 @@ function monthLabel(referenceMonth: string) {
  *  (Janilson). Uma avaliação mensal com 5 critérios de 1 a 5, que vira um
  *  score médio (0-5) classificado em 4 faixas (ver types/clientSuccess.ts). */
 export function ClientSuccessTab({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const { profile } = useAuth()
   const { data: evaluations } = useClientSuccessEvaluations(clientId)
   const [creating, setCreating] = useState(false)
+
+  const handleDelete = async (evaluation: ClientSuccessEvaluation) => {
+    if (!profile) return
+    if (!confirm(`Excluir a avaliação de ${monthLabel(evaluation.referenceMonth)}? Essa ação não pode ser desfeita.`)) return
+    try {
+      await deleteClientSuccessEvaluation(evaluation, profile.id, profile.name)
+      toast.success('Avaliação excluída')
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao excluir a avaliação')
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,6 +73,14 @@ export function ClientSuccessTab({ clientId, clientName }: { clientId: string; c
                   <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${CLIENT_SUCCESS_TIER_BADGE[evaluation.tier]}`}>
                     {CLIENT_SUCCESS_TIER_LABEL[evaluation.tier]}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(evaluation)}
+                    className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                    title="Excluir avaliação"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
 

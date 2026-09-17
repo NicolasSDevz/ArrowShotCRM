@@ -45,6 +45,24 @@ export async function createClientSuccessEvaluation(
   return id
 }
 
+export async function deleteClientSuccessEvaluation(
+  evaluation: ClientSuccessEvaluation,
+  userId: string,
+  userName: string
+) {
+  await base.remove(evaluation.id)
+
+  await logActivity({
+    entityType: 'client',
+    entityId: evaluation.clientId,
+    clientId: evaluation.clientId,
+    action: 'deleted',
+    message: `excluiu a avaliação de Sucesso do Cliente de ${evaluation.referenceMonth}`,
+    userId,
+    userName,
+  })
+}
+
 /** Avaliações de um cliente, mais recente primeiro (por mês de referência). */
 export function subscribeClientSuccessEvaluations(
   clientId: string,
