@@ -24,10 +24,10 @@ export interface CampaignPlanningAccess {
    *  cliente (ver módulo de Relatórios). */
   metaAdsAccountId?: string
 
-  /** ID da conta Google Ads (formato 000-000-0000, aceito com ou sem
-   *  hífens). Usado pela página Google Ads para linkar "Abrir no Google Ads"
-   *  e, assim que a API estiver aprovada, para puxar métricas via
-   *  /api/google/insights (ver src/pages/GoogleAdsPage.tsx). */
+  /** ID da conta Google Ads (Customer ID), salvo só com dígitos — sem os
+   *  hífens usados na exibição (000-000-0000). Encontrado no canto superior
+   *  direito do Google Ads. Necessário para consultar métricas via
+   *  /api/google/insights. */
   googleAdsAccountId?: string
 }
 

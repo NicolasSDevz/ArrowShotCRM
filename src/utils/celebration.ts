@@ -7,14 +7,12 @@ const COLORS = ['#2563EB', '#10B981', '#F59E0B', '#FFFFFF', '#60A5FA']
  *  cliente, cores diferentes. */
 const TASK_COLORS = ['#2563EB', '#10B981', '#F59E0B', '#FFFFFF', '#A855F7']
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-}
-
 /** Canhão duplo dos cantos superiores por 4s: duas rajadas de 100 + uma
- *  trilha leve preenchendo a duração. spread 70, gravity 1.2. */
+ *  trilha leve preenchendo a duração. spread 70, gravity 1.2. Não respeita
+ *  prefers-reduced-motion de propósito — é uma comemoração de equipe que
+ *  todo mundo deve ver, não uma animação de UI a ser evitada por acessibilidade. */
 function fireConfetti(colors: string[] = COLORS) {
-  const base = { spread: 70, gravity: 1.2, colors, disableForReducedMotion: true } as const
+  const base = { spread: 70, gravity: 1.2, colors } as const
 
   confetti({ ...base, particleCount: 100, angle: 60, origin: { x: 0, y: 0.6 } })
   confetti({ ...base, particleCount: 100, angle: 120, origin: { x: 1, y: 0.6 } })
@@ -58,9 +56,9 @@ function playChime() {
 }
 
 /** Dispara a comemoração completa: confetes + som. O toast é responsabilidade
- *  do CelebrationOverlay. Respeita prefers-reduced-motion (só o som fica). */
+ *  do CelebrationOverlay. */
 export function fireCelebration() {
-  if (!prefersReducedMotion()) fireConfetti()
+  fireConfetti()
   playChime()
 }
 
@@ -68,6 +66,6 @@ export function fireCelebration() {
  *  — mesma lógica de confete + som do fechamento de cliente, com a paleta
  *  pedida para esta comemoração. */
 export function fireTaskCompletionCelebration() {
-  if (!prefersReducedMotion()) fireConfetti(TASK_COLORS)
+  fireConfetti(TASK_COLORS)
   playChime()
 }

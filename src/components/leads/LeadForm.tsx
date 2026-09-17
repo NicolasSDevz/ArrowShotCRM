@@ -96,6 +96,16 @@ export function LeadForm({
               </Field>
             </div>
           )}
+
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={value.landingPage}
+              onChange={(e) => set('landingPage', e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+            />
+            Landing Page
+          </label>
         </div>
       </div>
 

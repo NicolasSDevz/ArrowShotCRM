@@ -242,6 +242,14 @@ body {
 :root[data-theme="dark"] nav.sidebar .cursor-not-allowed { color: #333333; }
 :root[data-theme="dark"] nav.sidebar .cursor-not-allowed svg { color: #2a2a2a; }
 
+/* serviço — Landing Page (única com regra de modo claro definida; as
+   badge-service-* de tráfego/social não têm regra em modo claro, só escuro,
+   herdando a cor de texto padrão nesse caso — pré-existente, não mexido aqui). */
+.badge-service-landing {
+  background-color: #D1FAE5;
+  color: #059669;
+}
+
 /* ---- badges (monocromático) ---- */
 :root[data-theme="dark"] .badge {
   background-color: transparent;
@@ -268,6 +276,13 @@ body {
   background-color: #1e1e1e;
   color: #777777;
   border: 1px solid #2a2a2a;
+  border-radius: 20px;
+  font-size: 11px;
+}
+:root[data-theme="dark"] .badge-service-landing {
+  background-color: #1e1e1e;
+  color: #34D399;
+  border: 1px solid #065F46;
   border-radius: 20px;
   font-size: 11px;
 }

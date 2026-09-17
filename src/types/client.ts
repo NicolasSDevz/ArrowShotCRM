@@ -3,6 +3,7 @@ import type { BaseDoc } from './common'
 import type { PaidTrafficBriefing } from './paidTrafficBriefing'
 import type { CampaignPlanning } from './campaignPlanning'
 import type { SalesFunnel } from './salesFunnel'
+import type { LandingPage, LandingPageType } from './landingPage'
 
 export type ClientStatus = 'active' | 'paused' | 'churned' | 'prospect'
 
@@ -116,6 +117,9 @@ export interface Client extends BaseDoc {
   categoria?: ClientCategory
   package?: ClientPackage
   styleCatalog?: StyleCatalog
+  /** Tipo de Landing Page contratado — só relevante quando modules.landingPage
+   *  === true (ver landingPage.ts). */
+  landingPageType?: LandingPageType
   /** @deprecated superseded by `ownerIds` (multi-owner). Kept so older docs
    *  still resolve an owner until they're re-saved through the form. */
   ownerId?: string
@@ -141,6 +145,9 @@ export interface Client extends BaseDoc {
   /** Funil Comercial — captação até fechamento, com métricas financeiras e
    *  benchmarks de mercado (ver salesFunnel.ts). */
   salesFunnel?: SalesFunnel
+  /** Aba "Landing Page" — só exibida quando modules.landingPage === true (ver
+   *  landingPage.ts). */
+  landingPage?: LandingPage
   /** Which services this client has contracted — also drives which onboarding
    *  task templates get created (see clientWorkflowTemplates.ts). */
   modules?: {
@@ -148,6 +155,7 @@ export interface Client extends BaseDoc {
     paidTraffic?: boolean
     googleAds?: boolean
     metaAds?: boolean
+    landingPage?: boolean
     leads?: boolean
     reports?: boolean
     finance?: boolean

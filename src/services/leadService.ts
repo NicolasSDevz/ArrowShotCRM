@@ -217,6 +217,7 @@ export async function convertLeadToClient(lead: Lead, userId: string, userName: 
     metaAds: !!lead.services.metaAds,
     googleAds: !!lead.services.googleAds,
     socialMedia: !!lead.services.socialMedia,
+    landingPage: !!lead.services.landingPage,
   }
 
   const clientId = await createClient(

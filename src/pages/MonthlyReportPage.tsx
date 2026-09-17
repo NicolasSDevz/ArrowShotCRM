@@ -28,7 +28,8 @@ import { ReportLineChart, type ChartSeries } from '../components/reports/ReportL
 import { ReportFunnelSection } from '../components/reports/ReportFunnelSection'
 import { previousPeriod } from '../utils/metaReportData'
 import { buildExecutiveSummary, buildFunnelSentence, pctChange } from '../utils/reportSummary'
-import type { ReportMetaSnapshot, ReportEntitySummary } from '../types'
+import type { ReportMetaSnapshot, ReportEntitySummary, ReportLandingPageSnapshot } from '../types'
+import { LANDING_PAGE_STATUS_LABEL } from '../types/landingPage'
 
 /* ---------- formatters ---------- */
 const fmtInt = (v?: number) => (v == null || Number.isNaN(v) ? '—' : Math.round(v).toLocaleString('pt-BR'))
@@ -422,6 +423,35 @@ function PlatformSection({ meta }: { meta: ReportMetaSnapshot }) {
   )
 }
 
+function LandingPageSection({ lp }: { lp: ReportLandingPageSnapshot }) {
+  const total = lp.checklist.length
+  const done = lp.checklist.filter((i) => i.done).length
+  return (
+    <Section title="Landing Page">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Card>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">URL</p>
+          <p className="mt-1 truncate text-sm text-slate-700">{lp.url || '—'}</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Status</p>
+          <p className="mt-1 text-sm text-slate-700">{LANDING_PAGE_STATUS_LABEL[lp.status]}</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Checklist de entrega</p>
+          <p className="mt-1 text-sm text-slate-700">{done} de {total} itens concluídos</p>
+        </Card>
+        {lp.observations && (
+          <Card className="sm:col-span-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Observações</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{lp.observations}</p>
+          </Card>
+        )}
+      </div>
+    </Section>
+  )
+}
+
 /* ---------- Page ---------- */
 function toValidDate(ts: unknown): Date {
   try {
@@ -513,23 +543,28 @@ export function MonthlyReportPage() {
     </div>
   ) : null
 
-  // Sequência de slides do modo apresentação (uma seção por vez).
-  const slides: { title: string; node: ReactNode }[] = meta
-    ? [
-        { title: 'Meta Ads — Visão Geral', node: <OverviewSection meta={meta} /> },
-        { title: 'Jornada do Cliente', node: <FunnelSection meta={meta} /> },
-        { title: 'Evolução no tempo', node: <EvolutionSection meta={meta} periodStart={periodStart} periodEnd={periodEnd} /> },
-        { title: 'Campanhas em destaque', node: <CampaignsSection campaigns={meta.topCampaigns} /> },
-        { title: 'Funil Comercial', node: <ReportFunnelSection report={report} editable={false} /> },
-        { title: 'Resumo Executivo', node: resumoNode },
-      ]
-    : []
+  // Sequência de slides do modo apresentação (uma seção por vez). Landing
+  // Page entra mesmo sem dados do Meta — são seções independentes.
+  const slides: { title: string; node: ReactNode }[] = [
+    ...(meta
+      ? [
+          { title: 'Meta Ads — Visão Geral', node: <OverviewSection meta={meta} /> },
+          { title: 'Jornada do Cliente', node: <FunnelSection meta={meta} /> },
+          { title: 'Evolução no tempo', node: <EvolutionSection meta={meta} periodStart={periodStart} periodEnd={periodEnd} /> },
+          { title: 'Campanhas em destaque', node: <CampaignsSection campaigns={meta.topCampaigns} /> },
+          { title: 'Funil Comercial', node: <ReportFunnelSection report={report} editable={false} /> },
+          { title: 'Resumo Executivo', node: resumoNode },
+        ]
+      : []),
+    ...(report.landingPage ? [{ title: 'Landing Page', node: <LandingPageSection lp={report.landingPage} /> }] : []),
+  ]
 
   const clampedSlide = Math.min(slide, Math.max(0, slides.length - 1))
+  const hasAnyData = slides.length > 0
 
   const body = presenting ? (
     <div className="mx-auto flex min-h-[70vh] max-w-6xl flex-col gap-8 p-6 pb-28">
-      {!meta ? (
+      {!hasAnyData ? (
         <Card><p className="text-sm text-slate-400">Este relatório não tem dados do Meta Ads.</p></Card>
       ) : (
         <Section title={slides[clampedSlide].title}>{slides[clampedSlide].node}</Section>
@@ -537,26 +572,31 @@ export function MonthlyReportPage() {
     </div>
   ) : (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
-      {!meta ? (
+      {!hasAnyData ? (
         <Card><p className="text-sm text-slate-400">Este relatório não tem dados do Meta Ads.</p></Card>
       ) : (
         <>
-          <OverviewSection meta={meta} />
-          <FunnelSection meta={meta} />
-          <EvolutionSection meta={meta} periodStart={periodStart} periodEnd={periodEnd} />
-          <CampaignsSection campaigns={meta.topCampaigns} />
-          <AdsSection ads={meta.topAds} />
-          <PlatformSection meta={meta} />
-          <Section title="Resumo do período">{resumoNode}</Section>
-          <Section title="Funil Comercial" subtitle="Do investimento em anúncios ao contrato assinado">
-            <ReportFunnelSection report={report} editable />
-          </Section>
+          {meta && (
+            <>
+              <OverviewSection meta={meta} />
+              <FunnelSection meta={meta} />
+              <EvolutionSection meta={meta} periodStart={periodStart} periodEnd={periodEnd} />
+              <CampaignsSection campaigns={meta.topCampaigns} />
+              <AdsSection ads={meta.topAds} />
+              <PlatformSection meta={meta} />
+              <Section title="Resumo do período">{resumoNode}</Section>
+              <Section title="Funil Comercial" subtitle="Do investimento em anúncios ao contrato assinado">
+                <ReportFunnelSection report={report} editable />
+              </Section>
+            </>
+          )}
+          {report.landingPage && <LandingPageSection lp={report.landingPage} />}
         </>
       )}
     </div>
   )
 
-  const presentationNav = presenting && meta && (
+  const presentationNav = presenting && hasAnyData && (
     <div className="fixed inset-x-0 bottom-0 z-[110] flex items-center justify-center gap-3 bg-[#0F172A]/95 px-6 py-3 text-white">
       <button
         onClick={() => setSlide((s) => Math.max(0, s - 1))}

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { format, startOfDay } from 'date-fns'
+import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAuth } from '../../context/AuthContext'
 import { useAllContents } from '../../hooks/useContents'
@@ -15,6 +15,7 @@ import {
 } from '../../types/content'
 import { getClientOwnerIds } from '../../types/client'
 import { clientHashColor } from '../../utils/clientColor'
+import { businessDaysBetween } from '../../utils/businessDays'
 
 /** Só Ciane e Nicolas veem este widget — cada um focado no que o cargo dele
  *  precisa resolver. Bruno/Janilson não. */
@@ -26,23 +27,6 @@ const ROLE_CONFIG: Record<string, { label: string; focus: ContentStatus[] }> = {
 /** Status que o widget considera "pendente" (não Aprovado/Agendado/
  *  Publicado/Cancelado). O `focus` do cargo só reordena — nunca esconde. */
 const PENDING_STATUSES: ContentStatus[] = ['ideas', 'production', 'review', 'waiting_client']
-
-/** Dias úteis (seg–sex) de hoje até `target`. Negativo se `target` já passou. */
-function businessDaysBetween(target: Date): number {
-  const a = startOfDay(new Date())
-  const b = startOfDay(target)
-  if (b.getTime() === a.getTime()) return 0
-  const sign = b > a ? 1 : -1
-  let count = 0
-  const cur = new Date(sign > 0 ? a : b)
-  const end = sign > 0 ? b : a
-  while (cur < end) {
-    cur.setDate(cur.getDate() + 1)
-    const d = cur.getDay()
-    if (d !== 0 && d !== 6) count++
-  }
-  return count * sign
-}
 
 function formatEmoji(t: ContentType): string {
   if (t === 'reels' || t === 'video') return '🎬'
@@ -224,7 +208,7 @@ export function SocialContentWidget() {
 
           <button
             type="button"
-            onClick={() => navigate(`/social-media?assignee=${profile.id}`)}
+            onClick={() => navigate('/social-media')}
             className="mt-3 text-[13px] font-medium text-brand-600 hover:text-brand-700"
           >
             Ver todos →

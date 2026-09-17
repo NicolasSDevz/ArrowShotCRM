@@ -141,14 +141,42 @@ const APROVACAO_CONTEUDO_ITEMS = [
   'Agendar publicação dos conteúdos aprovados',
 ]
 
+const LP_BRIEFING_ITEMS = [
+  'Entender o objetivo da LP (venda, lead, contato)',
+  'Definir público-alvo',
+  'Coletar materiais (logo, fotos, textos, cores)',
+  'Definir estrutura da página (seções)',
+  'Definir CTA principal',
+  'Coletar acesso à hospedagem/domínio',
+  'Agendar reunião de apresentação do layout',
+]
+
+const LP_DESENVOLVIMENTO_ITEMS = [
+  'Criar layout no Figma/Canva para aprovação',
+  'Aguardar aprovação do cliente',
+  'Desenvolver a LP na plataforma escolhida',
+  'Instalar pixel do Meta Ads',
+  'Instalar pixel do Google Ads (GTM)',
+  'Integrar formulário de captura',
+  'Testar formulário (envio + notificação)',
+  'Revisar versão mobile',
+  'Verificar velocidade (PageSpeed > 80)',
+  'Publicar LP',
+  'Enviar link ao cliente',
+  'Vincular LP às campanhas',
+]
+
 interface StepDef {
   title: (companyName: string) => string
   description: string
   checklist: string[] | ((client: Pick<Client, 'companyName' | 'modules'>) => string[])
   priority: TaskPriority
   /** 'creator' assigns to whoever triggered the step; a name assigns via
-   *  findUserIdByName (falls back to unassigned if nobody matches yet). */
-  assignee: 'creator' | 'Bruno' | 'Jamilson' | 'Ciane'
+   *  findUserIdByName (falls back to unassigned if nobody matches yet).
+   *  Note: 'Jamilson' (existing literal, kept as-is) vs 'Janilson' (used
+   *  below, for the actual spelling of the real user's name) — pre-existing
+   *  inconsistency, not fixed here since it's out of scope for this change. */
+  assignee: 'creator' | 'Bruno' | 'Jamilson' | 'Janilson' | 'Ciane'
   recurrence?: TaskRecurrence
   /** This step's completion only advances the workflow once every one of
    *  these sibling steps (same client) is also done — used to split one
@@ -260,6 +288,20 @@ const STEP_DEFS: Record<WorkflowStepKey, StepDef> = {
     assignee: 'Jamilson',
     recurrence: { frequency: 'monthly', dayOfMonth: 1 },
   },
+  lp_briefing: {
+    title: (name) => `Briefing de Landing Page — ${name}`,
+    description: 'Checklist padrão de briefing de Landing Page — objetivo, público, materiais e estrutura.',
+    checklist: LP_BRIEFING_ITEMS,
+    priority: 'high',
+    assignee: 'Janilson',
+  },
+  lp_desenvolvimento: {
+    title: (name) => `Desenvolvimento da Landing Page — ${name}`,
+    description: 'Checklist padrão de desenvolvimento, pixels, formulário e publicação da Landing Page.',
+    checklist: LP_DESENVOLVIMENTO_ITEMS,
+    priority: 'high',
+    assignee: 'Ciane',
+  },
 }
 
 /** Which step(s) get created automatically once `key` is marked done.
@@ -328,9 +370,26 @@ export async function createInitialWorkflowTasks(
   const firstSteps: WorkflowStepKey[] = []
   if (client.modules?.paidTraffic) firstSteps.push('pt_onboarding_bruno', 'pt_onboarding_janilson')
   if (client.modules?.socialMedia) firstSteps.push('sm_ativacao')
+  if (client.modules?.landingPage) firstSteps.push('lp_briefing', 'lp_desenvolvimento')
 
   for (let i = 0; i < firstSteps.length; i++) {
     await createWorkflowStepTask(firstSteps[i], client, userId, userName, users, base + i)
+  }
+}
+
+/** Cliente já existente que ganhou o serviço de Landing Page depois (upsell)
+ *  — cria as mesmas duas tarefas que createInitialWorkflowTasks criaria se o
+ *  serviço já tivesse sido contratado desde o início. */
+export async function createLandingPageWorkflowTasks(
+  client: Pick<Client, 'id' | 'companyName' | 'modules'>,
+  userId: string,
+  userName: string,
+  users: AppUser[]
+) {
+  const base = Date.now()
+  const steps: WorkflowStepKey[] = ['lp_briefing', 'lp_desenvolvimento']
+  for (let i = 0; i < steps.length; i++) {
+    await createWorkflowStepTask(steps[i], client, userId, userName, users, base + i)
   }
 }
 

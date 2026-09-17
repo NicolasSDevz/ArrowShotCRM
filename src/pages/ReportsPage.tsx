@@ -76,6 +76,9 @@ export function ReportsPage() {
                 </tr>
               </thead>
               <tbody>
+                {/* r.createdAt vem de serverTimestamp() — no primeiro snapshot local
+                    logo após criar o relatório (antes do servidor confirmar) ele chega
+                    null, e .toDate() nisso quebrava a tela até o valor real sincronizar. */}
                 {reports.map((r) => (
                   <tr key={r.id} className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50">
                     <td className="px-4 py-2.5 font-medium">{clientMap[r.clientId]?.companyName ?? '—'}</td>
@@ -87,7 +90,9 @@ export function ReportsPage() {
                         {REPORT_TYPE_LABEL[r.type]}
                       </Badge>
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500">{format(r.createdAt.toDate(), 'dd/MM/yyyy', { locale: ptBR })}</td>
+                    <td className="px-4 py-2.5 text-slate-500">
+                      {r.createdAt ? format(r.createdAt.toDate(), 'dd/MM/yyyy', { locale: ptBR }) : '—'}
+                    </td>
                     <td className="px-4 py-2.5 text-slate-500">{r.generatedByName}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1.5">

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { Mail, Phone, Pencil, Trash2, ListChecks, HeartPulse, Siren } from 'lucide-react'
+import { Mail, Phone, Pencil, Trash2, ListChecks, HeartPulse, Siren, CalendarCheck } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
@@ -8,6 +8,7 @@ import { Button } from '../ui/Button'
 import { Select } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
+import { useRoutineItemsFor } from '../../hooks/useRoutineItemsFor'
 import { deleteTeamMember } from '../../services/teamMemberService'
 import { updateUserRole, updateUserActive } from '../../services/userService'
 import { USER_ROLE_LABEL } from '../../types/user'
@@ -18,6 +19,7 @@ import {
   type TeamMember,
 } from '../../types'
 import { MemberHealthTab } from './MemberHealthTab'
+import { DailyRoutineEditor } from './DailyRoutineEditor'
 
 const STATUS_BADGE: Record<TeamMember['status'], string> = {
   active: 'bg-emerald-100 text-emerald-700',
@@ -38,11 +40,14 @@ export function TeamMemberDrawer({
   const { profile } = useAuth()
   const { data: users } = useUsers()
   const [tab, setTab] = useState<'profile' | 'health'>('profile')
+  const linkedUser = member?.userId ? users.find((u) => u.id === member.userId) : undefined
+  // Rotina diária editável (não confundir com ROLE_ROUTINES logo abaixo —
+  // é outra feature, descrição estática por cargo, sem relação com esta).
+  const routineItems = useRoutineItemsFor(linkedUser?.id, linkedUser?.name)
 
   if (!member) return null
 
   const isAdmin = profile?.role === 'admin'
-  const linkedUser = member.userId ? users.find((u) => u.id === member.userId) : undefined
   const routine = member.routineKey ? ROLE_ROUTINES[member.routineKey] : undefined
   const isSelf = linkedUser?.id === profile?.id
   const otherActiveAdmins = users.filter((u) => u.id !== linkedUser?.id && u.role === 'admin' && u.active).length
@@ -200,6 +205,15 @@ export function TeamMemberDrawer({
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {linkedUser && (
+            <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <CalendarCheck size={13} /> Rotina diária
+              </p>
+              <DailyRoutineEditor key={linkedUser.id} userId={linkedUser.id} userName={linkedUser.name} initialItems={routineItems} />
             </div>
           )}
 

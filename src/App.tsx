@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { ClientsPage } from './pages/ClientsPage'
 import { ClientDetailPage } from './pages/ClientDetailPage'
 import { SocialMediaPage } from './pages/SocialMediaPage'
+import { SocialMediaClientPage } from './pages/SocialMediaClientPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { MeetingsPage } from './pages/MeetingsPage'
@@ -49,6 +50,7 @@ function App() {
             <Route path="/clientes" element={<ClientsPage />} />
             <Route path="/clientes/:id" element={<ClientDetailPage />} />
             <Route path="/social-media" element={<SocialMediaPage />} />
+            <Route path="/social-media/:clientId" element={<SocialMediaClientPage />} />
             <Route path="/calendario" element={<CalendarPage />} />
             <Route path="/reunioes" element={<MeetingsPage />} />
             <Route path="/leads" element={<LeadsPage />} />

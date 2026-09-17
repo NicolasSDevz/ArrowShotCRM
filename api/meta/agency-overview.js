@@ -72,7 +72,7 @@ const EMPTY_METRICS = { spend: 0, impressions: 0, reach: 0, clicks: 0, ctr: 0, c
 
 /** Busca (ou lê do cache) os dados de um cliente. */
 async function loadClient(client, range, periodKey, force) {
-  const accountId = normalizeAccountId(client.campaignPlanning?.access?.metaAdsAccountId || '')
+  const accountId = normalizeAccountId(client.campaignPlanning?.acessos?.metaAdsAccountId || '')
   const base = {
     clientId: client.id,
     companyName: client.companyName || '—',
@@ -175,7 +175,7 @@ async function handle(req, res, user) {
     const tokenByClient = new Map(tokenStatuses.map((t) => [t.clientId, t]))
 
     // Clientes com Meta Ads. Ciane/Nicolas só veem os seus.
-    let eligible = clients.filter((c) => c.modules?.metaAds || c.campaignPlanning?.access?.metaAdsAccountId)
+    let eligible = clients.filter((c) => c.modules?.metaAds || c.campaignPlanning?.acessos?.metaAdsAccountId)
     if (user.role !== 'admin') {
       eligible = eligible.filter((c) => ownerIdsOf(c).includes(user.uid))
     }
@@ -190,7 +190,7 @@ async function handle(req, res, user) {
             companyName: c.companyName || '—',
             logoUrl: c.logoUrl || null,
             ownerIds: ownerIdsOf(c),
-            accountId: normalizeAccountId(c.campaignPlanning?.access?.metaAdsAccountId || '') || null,
+            accountId: normalizeAccountId(c.campaignPlanning?.acessos?.metaAdsAccountId || '') || null,
             hasToken: false,
             tokenExpiresAt: null,
             metrics: null,

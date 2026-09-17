@@ -33,6 +33,20 @@ function statusMatches(filter: string, status: ClientStatus): boolean {
   return status === filter
 }
 
+const SERVICE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Todos os serviços' },
+  { value: 'paidTraffic', label: 'Tráfego Pago' },
+  { value: 'socialMedia', label: 'Social Mídia' },
+  { value: 'landingPage', label: 'Landing Page' },
+  { value: 'both', label: 'Ambos (Tráfego + Social Mídia)' },
+]
+
+function serviceMatches(filter: string, modules: Client['modules']): boolean {
+  if (!filter) return true
+  if (filter === 'both') return !!modules?.paidTraffic && !!modules?.socialMedia
+  return !!modules?.[filter as 'paidTraffic' | 'socialMedia' | 'landingPage']
+}
+
 export function ClientsPage() {
   const navigate = useNavigate()
   const { data: clients, loading } = useClients()
@@ -41,6 +55,7 @@ export function ClientsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ativos')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [serviceFilter, setServiceFilter] = useState('')
   // null = ainda não interagido → deriva do usuário logado (Ciane/Nicolas
   // começam vendo só os deles). Qualquer escolha do usuário passa a mandar.
   const [managerFilterChoice, setManagerFilterChoice] = useState<string | null>(null)
@@ -63,11 +78,12 @@ export function ClientsPage() {
       if (search && !c.companyName.toLowerCase().includes(search.toLowerCase())) return false
       if (!statusMatches(statusFilter, c.status)) return false
       if (categoryFilter && c.categoria !== categoryFilter) return false
+      if (!serviceMatches(serviceFilter, c.modules)) return false
       if (managerFilter && !ownerNames(c).includes(managerFilter)) return false
       return true
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients, search, statusFilter, categoryFilter, managerFilter, userMap])
+  }, [clients, search, statusFilter, categoryFilter, serviceFilter, managerFilter, userMap])
 
   const ownersByClientId = useMemo(() => {
     return Object.fromEntries(
@@ -112,6 +128,11 @@ export function ClientsPage() {
           <option value="">Todos os gestores</option>
           {MANAGER_FILTER_NAMES.map((name) => (
             <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+        <select value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
+          {SERVICE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
       </div>

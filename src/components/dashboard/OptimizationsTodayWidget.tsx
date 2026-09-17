@@ -32,7 +32,7 @@ export function OptimizationsTodayWidget() {
       .filter((r) => r.userId === profile.id && r.weekdays.includes(weekday))
       .map((r) => {
         const client = clients.find((c) => c.id === r.clientId)
-        return client
+        return client && client.status !== 'churned'
           ? { id: client.id, name: client.companyName, platforms: trafficServices(client).platforms, done: doneIds.has(client.id) }
           : null
       })

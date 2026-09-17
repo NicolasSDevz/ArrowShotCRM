@@ -76,3 +76,9 @@ export function maskCep(raw: string): string {
 export function isCepComplete(raw: string): boolean {
   return raw.replace(/\D/g, '').length === 8
 }
+
+/** Progressive Google Ads Customer ID mask: 000-000-0000 (10 digits). */
+export function maskGoogleAdsId(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 10)
+  return digits.replace(/(\d{3})(\d)/, '$1-$2').replace(/(\d{3})(\d)/, '$1-$2')
+}

@@ -4,12 +4,11 @@ import { fireCelebration } from '../utils/celebration'
 
 /** Overlay global (montado no AppLayout) — escuta `celebrationEvents` e, a
  *  cada evento fresco, dispara confetes + som e mostra um toast centralizado
- *  por 5s. Funciona em qualquer rota. */
+ *  que fica até alguém clicar em "OK". Funciona em qualquer rota. */
 export function CelebrationOverlay() {
   const [toast, setToast] = useState<{ clientName: string; closedBy: string } | null>(null)
   const seen = useRef<Set<string>>(new Set())
   const lastFiredAt = useRef(0)
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     pruneOldCelebrations()
@@ -22,24 +21,16 @@ export function CelebrationOverlay() {
       // eventos seguidos — uma festa só.
       if (Date.now() - lastFiredAt.current < 8000) {
         setToast({ clientName: event.clientName, closedBy: event.closedBy })
-        clearTimeout(hideTimer.current)
-        hideTimer.current = setTimeout(() => setToast(null), 5000)
         return
       }
       lastFiredAt.current = Date.now()
 
       fireCelebration()
-
       setToast({ clientName: event.clientName, closedBy: event.closedBy })
-      clearTimeout(hideTimer.current)
-      hideTimer.current = setTimeout(() => setToast(null), 5000)
     }
 
     const unsub = subscribeCelebrations(onNew, (err) => console.error('subscribeCelebrations', err))
-    return () => {
-      unsub()
-      clearTimeout(hideTimer.current)
-    }
+    return unsub
   }, [])
 
   if (!toast) return null
@@ -48,7 +39,7 @@ export function CelebrationOverlay() {
     <div className="celebration-toast pointer-events-none fixed inset-x-0 top-6 z-[200] flex justify-center px-4">
       <div
         role="status"
-        className="flex items-center gap-3 rounded-xl px-5 py-3.5 shadow-2xl"
+        className="pointer-events-auto flex items-center gap-3 rounded-xl px-5 py-3.5 shadow-2xl"
         style={{ backgroundColor: '#1E293B', border: '1px solid #2563EB', maxWidth: '92vw' }}
       >
         <span className="text-2xl" aria-hidden="true">🎉</span>
@@ -58,6 +49,13 @@ export function CelebrationOverlay() {
             {toast.closedBy} fechou {toast.clientName}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setToast(null)}
+          className="ml-1 shrink-0 rounded-lg bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/20"
+        >
+          OK
+        </button>
       </div>
     </div>
   )

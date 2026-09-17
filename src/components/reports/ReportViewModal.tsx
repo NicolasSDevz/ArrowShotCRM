@@ -41,7 +41,10 @@ export function ReportViewModal({
             <Badge key={p} className="bg-blue-50 text-blue-600">{REPORT_PLATFORM_LABEL[p]}</Badge>
           ))}
           <span className="ml-auto text-xs text-slate-400">
-            Gerado por {report.generatedByName} em {format(report.createdAt.toDate(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            Gerado por {report.generatedByName}
+            {/* createdAt vem de serverTimestamp() — pode chegar null no primeiro
+                instante após criar o relatório, antes do servidor confirmar. */}
+            {report.createdAt && ` em ${format(report.createdAt.toDate(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`}
           </span>
         </div>
 

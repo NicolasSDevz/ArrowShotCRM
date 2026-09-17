@@ -3,7 +3,6 @@ import { Cake } from 'lucide-react'
 import { useCalendarEvents } from '../../hooks/useCalendarEvents'
 import { useClients } from '../../hooks/useClients'
 import { birthdayWhatsappLink } from '../../utils/birthdayMessage'
-import { toWhatsappDigits } from '../../utils/masks'
 
 /** Só aparece quando há aniversário de responsável de cliente HOJE. Mostra
  *  cada aniversariante com um botão direto pro WhatsApp (mensagem pronta). */
@@ -19,15 +18,19 @@ export function BirthdayTodayWidget() {
   const clientName = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c.companyName])), [clients])
 
   const list = useMemo(() => {
-    const seen = new Set<string>()
-    return events
-      .filter((e) => e.type === 'birthday' && e.birthdayMonth === today.month && e.birthdayDay === today.day)
-      .filter((e) => {
-        const key = toWhatsappDigits(e.contactWhatsapp) || (e.contactName ?? '').trim().toLowerCase()
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
+    const todays = events.filter(
+      (e) => e.type === 'birthday' && e.birthdayMonth === today.month && e.birthdayDay === today.day
+    )
+    // Mesma pessoa cadastrada duas vezes no Briefing (ex.: sócio + decisor)
+    // pode gerar um evento sem WhatsApp e outro com — agrupa por cliente+nome
+    // e fica só com a versão que tem o link.
+    const byKey = new Map<string, (typeof todays)[number]>()
+    for (const e of todays) {
+      const key = `${e.clientId ?? ''}:${(e.contactName ?? '').trim().toLowerCase()}`
+      const current = byKey.get(key)
+      if (!current || (!current.contactWhatsapp && e.contactWhatsapp)) byKey.set(key, e)
+    }
+    return [...byKey.values()]
   }, [events, today])
 
   if (list.length === 0) return null
