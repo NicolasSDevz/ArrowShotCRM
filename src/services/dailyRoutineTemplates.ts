@@ -50,16 +50,15 @@ const FRIDAY = [5]
  *  (b) pelo botão "Restaurar padrão" no editor. */
 export const DEFAULT_ROUTINE_ITEMS: Record<RoutinePersonKey, DefaultRoutineItemSeed[]> = {
   bruno: [
-    { text: 'Participar da reunião diária com o time (9h)', days: WEEKDAYS },
+    { text: 'Reunião de equipe (sexta, 9h15 às 10h)', days: FRIDAY },
     { text: 'Responder mensagens de leads (manhã)', days: WEEKDAYS },
     { text: 'Organizar pipeline de leads na plataforma', days: WEEKDAYS },
     { text: 'Confirmar reuniões de vendas do dia', days: WEEKDAYS },
     { text: 'Responder mensagens e leads (tarde)', days: WEEKDAYS },
     { text: 'Marcar novas reuniões de vendas', days: WEEKDAYS },
-    { text: 'Reunião de Sociedade (segunda e sexta)', days: [1, 5] },
   ],
   jamilson: [
-    { text: 'Participar da reunião diária com o time (9h)', days: WEEKDAYS },
+    { text: 'Reunião de equipe (sexta, 9h15 às 10h)', days: FRIDAY },
     { text: 'Verificar mensagens sem resposta nos grupos de WhatsApp dos clientes', days: WEEKDAYS },
     { text: 'Atualizar status das tarefas na plataforma', days: WEEKDAYS },
     { text: 'Verificar se há tarefas atrasadas dos clientes', days: WEEKDAYS },
@@ -67,7 +66,7 @@ export const DEFAULT_ROUTINE_ITEMS: Record<RoutinePersonKey, DefaultRoutineItemS
     { text: 'Enviar relatório mensal aos clientes (dia 1)', monthlyDay1: true },
   ],
   ciane: [
-    { text: 'Participar da reunião diária com o time (9h)', days: WEEKDAYS },
+    { text: 'Reunião de equipe (sexta, 9h15 às 10h)', days: FRIDAY },
     { text: 'Verificar desempenho das campanhas ativas', days: WEEKDAYS },
     { text: 'Atualizar tarefas na plataforma', days: WEEKDAYS },
     { text: 'Overview completo de todos os clientes (segunda)', days: MONDAY },
@@ -75,7 +74,7 @@ export const DEFAULT_ROUTINE_ITEMS: Record<RoutinePersonKey, DefaultRoutineItemS
     { text: 'Verificar conteúdos aguardando aprovação (sexta)', days: FRIDAY },
   ],
   nicolas: [
-    { text: 'Participar da reunião diária com o time (9h)', days: WEEKDAYS },
+    { text: 'Reunião de equipe (sexta, 9h15 às 10h)', days: FRIDAY },
     { text: 'Verificar desempenho das campanhas ativas', days: WEEKDAYS },
     { text: 'Atualizar tarefas na plataforma', days: WEEKDAYS },
     { text: 'Iniciar produção de conteúdos da semana (segunda)', days: MONDAY },
