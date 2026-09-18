@@ -163,33 +163,25 @@ function Cell({
   )
 }
 
+/** Só é renderizada quando há pelo menos 1 cliente sem dia — a página some
+ *  com a área inteira assim que todo mundo fica com os 2 dias definidos. */
 function BankArea({ name, gestorId, chips }: { name: string; gestorId: string; chips: ChipData[] }) {
   const total = chips.length
   return (
     <div className="rounded-xl p-3" style={{ backgroundColor: '#F8FAFC', border: '2px dashed #CBD5E1' }}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-700">📋 Sem dia definido — {name}</p>
-        {total === 0 ? (
-          <span className="text-xs font-medium text-emerald-600">✅ Todos os clientes têm dias definidos</span>
-        ) : (
-          <span className="flex items-center gap-1 text-xs font-medium text-amber-600">
-            <AlertTriangle size={12} /> {total} cliente{total === 1 ? '' : 's'} sem dia definido
-          </span>
-        )}
+        <span className="flex items-center gap-1 text-xs font-medium text-amber-600">
+          <AlertTriangle size={12} /> {total} cliente{total === 1 ? '' : 's'} sem dia definido
+        </span>
       </div>
-      {total === 0 ? (
-        <p className="text-xs" style={{ color: '#94A3B8' }}>
-          Arraste para um dia →
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {chips.map((c) => (
-            <div key={c.clientId} className="w-[190px]">
-              <Chip chip={c} gestorId={gestorId} weekday="bank" />
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {chips.map((c) => (
+          <div key={c.clientId} className="w-[190px]">
+            <Chip chip={c} gestorId={gestorId} weekday="bank" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -525,11 +517,15 @@ export function OptimizationCalendarPage() {
         <p className="text-sm text-slate-400">Carregando…</p>
       ) : (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {visibleGestores.map((name) => (
-              <BankArea key={name} name={name} gestorId={gestorIds[name] ?? ''} chips={bankByGestor[name] ?? []} />
-            ))}
-          </div>
+          {visibleGestores.some((name) => (bankByGestor[name]?.length ?? 0) > 0) && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {visibleGestores
+                .filter((name) => (bankByGestor[name]?.length ?? 0) > 0)
+                .map((name) => (
+                  <BankArea key={name} name={name} gestorId={gestorIds[name] ?? ''} chips={bankByGestor[name] ?? []} />
+                ))}
+            </div>
+          )}
 
           {rows.length === 0 ? (
             <div className="mt-3 flex flex-col items-start gap-2 rounded-xl border border-slate-100 bg-white p-6">
