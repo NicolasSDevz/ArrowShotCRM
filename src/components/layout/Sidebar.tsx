@@ -14,6 +14,7 @@ import {
   UserCog,
   GraduationCap,
   KeyRound,
+  CalendarRange,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
@@ -120,6 +121,21 @@ export function Sidebar({
             >
               <UserCog size={18} />
               Equipe
+            </NavLink>
+          )}
+
+          {canManageTokens && (
+            <NavLink
+              to="/otimizacoes/calendario"
+              onClick={onCloseMobile}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] font-medium transition-all duration-150 ease-in-out ${
+                  isActive ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
+                }`
+              }
+            >
+              <CalendarRange size={18} />
+              Calendário de Otimizações
             </NavLink>
           )}
 
