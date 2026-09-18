@@ -9,7 +9,7 @@ import {
   useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { CalendarRange, Wand2, LayoutGrid, List, Download, GripVertical } from 'lucide-react'
+import { CalendarRange, Wand2, LayoutGrid, List, Download, GripVertical, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useClients } from '../hooks/useClients'
 import { useUsers } from '../hooks/useUsers'
@@ -19,7 +19,7 @@ import { seedOptimizationSchedule } from '../services/optimizationSeed'
 import { findUserIdByName } from '../utils/userLookup'
 import { trafficServices, platformBadgeLabel } from '../utils/clientServices'
 import { OPTIMIZATION_WEEKDAYS, type OptimizationScheduleRow } from '../types/optimization'
-import type { Client } from '../types/client'
+import { getClientOwnerIds, type Client } from '../types/client'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 
@@ -47,12 +47,17 @@ interface ChipData {
   clientId: string
   companyName: string
   platforms: ('meta' | 'google')[]
+  /** Quantos dias esse cliente já tem no total (0, 1 ou 2) — define o
+   *  visual do chip (completo/incompleto/sem dia), igual em qualquer célula
+   *  ou na área "Sem dia definido" em que ele apareça. */
+  daysCount: number
 }
 
-/** id do chip = 1 ocorrência (cliente + gestor + dia) — o mesmo cliente pode
- *  aparecer em 2 dias pro mesmo gestor (ex.: segunda e quarta), então cada
- *  ocorrência precisa de um id de arraste próprio. */
-function chipDragId(clientId: string, gestorId: string, weekday: number) {
+/** id do chip = 1 ocorrência (cliente + gestor + dia, ou "bank" quando vem
+ *  da área "Sem dia definido") — o mesmo cliente pode aparecer em 2 dias
+ *  pro mesmo gestor (ex.: segunda e quarta) mais a área "sem dia" quando
+ *  incompleto, então cada ocorrência precisa de um id de arraste próprio. */
+function chipDragId(clientId: string, gestorId: string, weekday: number | 'bank') {
   return `${clientId}::${gestorId}::${weekday}`
 }
 function cellDropId(gestorId: string, weekday: number) {
@@ -68,6 +73,15 @@ function cellBg(count: number): string {
   return '#FEE2E2'
 }
 
+/** Borda do chip pelo estado de completude (não onde ele está renderizado):
+ *  2 dias = completo (azul), 1 dia = falta o segundo (âmbar, tracejado
+ *  fica só pro "zero dias" que só existe na área "Sem dia definido"). */
+function chipBorderStyle(daysCount: number): { border: string; background: string } {
+  if (daysCount >= 2) return { border: '2px solid #2563EB', background: '#FFFFFF' }
+  if (daysCount === 1) return { border: '2px solid #F59E0B', background: '#FFFFFF' }
+  return { border: '2px dashed #94A3B8', background: '#F8FAFC' }
+}
+
 function Chip({
   chip,
   gestorId,
@@ -76,8 +90,10 @@ function Chip({
 }: {
   chip: ChipData
   gestorId: string
-  weekday: number
-  onRemove: () => void
+  weekday: number | 'bank'
+  /** Só passado pelas células da grade — a área "Sem dia definido" não tem
+   *  um dia específico pra remover. */
+  onRemove?: () => void
 }) {
   const id = chipDragId(chip.clientId, gestorId, weekday)
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -89,23 +105,27 @@ function Chip({
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-center gap-1.5 rounded-lg border border-white bg-white px-2 py-1.5 text-xs shadow-sm ${
-        isDragging ? 'opacity-30' : ''
-      }`}
+      style={chipBorderStyle(chip.daysCount)}
+      className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs shadow-sm ${isDragging ? 'opacity-30' : ''}`}
     >
       <button {...attributes} {...listeners} type="button" className="flex shrink-0 cursor-grab items-center active:cursor-grabbing">
         <GripVertical size={11} className="text-slate-300" />
       </button>
       <span className="min-w-0 flex-1 truncate font-medium text-slate-700">{chip.companyName}</span>
+      {chip.daysCount === 1 && (
+        <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Falta 1 dia</span>
+      )}
       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${badge.className}`}>{badge.label}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        title="Remover este dia de otimização"
-        className="shrink-0 rounded p-0.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
-      >
-        ×
-      </button>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remover este dia de otimização"
+          className="shrink-0 rounded p-0.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
+        >
+          ×
+        </button>
+      )}
     </div>
   )
 }
@@ -139,6 +159,37 @@ function Cell({
         ))}
         {chips.length === 0 && <p className="px-0.5 py-1.5 text-center text-[11px] text-slate-300">Solte aqui</p>}
       </div>
+    </div>
+  )
+}
+
+function BankArea({ name, gestorId, chips }: { name: string; gestorId: string; chips: ChipData[] }) {
+  const total = chips.length
+  return (
+    <div className="rounded-xl p-3" style={{ backgroundColor: '#F8FAFC', border: '2px dashed #CBD5E1' }}>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-slate-700">📋 Sem dia definido — {name}</p>
+        {total === 0 ? (
+          <span className="text-xs font-medium text-emerald-600">✅ Todos os clientes têm dias definidos</span>
+        ) : (
+          <span className="flex items-center gap-1 text-xs font-medium text-amber-600">
+            <AlertTriangle size={12} /> {total} cliente{total === 1 ? '' : 's'} sem dia definido
+          </span>
+        )}
+      </div>
+      {total === 0 ? (
+        <p className="text-xs" style={{ color: '#94A3B8' }}>
+          Arraste para um dia →
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {chips.map((c) => (
+            <div key={c.clientId} className="w-[190px]">
+              <Chip chip={c} gestorId={gestorId} weekday="bank" />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -183,7 +234,12 @@ export function OptimizationCalendarPage() {
         if (row.userId !== gid) continue
         const client = clientById[row.clientId]
         if (!client || client.status === 'churned') continue
-        const chip: ChipData = { clientId: client.id, companyName: client.companyName, platforms: trafficServices(client).platforms }
+        const chip: ChipData = {
+          clientId: client.id,
+          companyName: client.companyName,
+          platforms: trafficServices(client).platforms,
+          daysCount: row.weekdays.length,
+        }
         for (const d of row.weekdays) {
           if (out[name][d]) out[name][d].push(chip)
         }
@@ -192,6 +248,33 @@ export function OptimizationCalendarPage() {
     }
     return out
   }, [rows, gestorIds, clientById])
+
+  /** Clientes sem os 2 dias completos — sem nenhuma linha, linha com 0 dias
+   *  (removidos de tudo), ou com só 1 dia (falta o segundo). O "gestor dono"
+   *  vem da linha do calendário quando existe; sem linha, cai pro
+   *  responsável cadastrado no próprio cliente (cliente novo, nunca tocado
+   *  no calendário). */
+  const bankByGestor = useMemo(() => {
+    const out: Record<string, ChipData[]> = {}
+    for (const name of GESTORES) out[name] = []
+    for (const client of clients) {
+      if (client.status === 'churned') continue
+      const svc = trafficServices(client)
+      if (!svc.any) continue
+      const row = rows.find((r) => r.clientId === client.id)
+      const daysCount = row?.weekdays.length ?? 0
+      if (daysCount >= 2) continue
+      const owners = row ? [row.userId] : getClientOwnerIds(client)
+      for (const name of GESTORES) {
+        const gid = gestorIds[name]
+        if (gid && owners.includes(gid)) {
+          out[name].push({ clientId: client.id, companyName: client.companyName, platforms: svc.platforms, daysCount })
+        }
+      }
+    }
+    for (const name of GESTORES) out[name].sort((a, b) => a.companyName.localeCompare(b.companyName))
+    return out
+  }, [clients, rows, gestorIds])
 
   const summaryByGestor = useMemo(() => {
     return GESTORES.map((name) => {
@@ -206,6 +289,7 @@ export function OptimizationCalendarPage() {
           clientIds.add(row.clientId)
           for (const d of row.weekdays) if (perDay[d] != null) perDay[d] += 1
         }
+        for (const c of bankByGestor[name] ?? []) clientIds.add(c.clientId)
       }
       const entries = OPTIMIZATION_WEEKDAYS.map((d) => ({ day: d, count: perDay[d] }))
       const max = entries.reduce((a, b) => (b.count > a.count ? b : a), entries[0])
@@ -213,7 +297,7 @@ export function OptimizationCalendarPage() {
       const maxCount = Math.max(1, ...entries.map((e) => e.count))
       return { name, total: clientIds.size, entries, max, min, maxCount }
     })
-  }, [rows, gestorIds, clientById])
+  }, [rows, gestorIds, clientById, bankByGestor])
 
   const persist = async (newRows: OptimizationScheduleRow[]) => {
     if (!profile) return
@@ -222,34 +306,36 @@ export function OptimizationCalendarPage() {
 
   /** Move (ou cria) 1 ocorrência (cliente + dia) pra outra célula (gestor +
    *  dia de destino). Regra de 2 dias por cliente: se o cliente já tem só 1
-   *  dia, arrastar CRIA o segundo (mantém o de origem); se já tem 2, arrastar
-   *  TROCA o dia arrastado pelo novo, mantendo o outro dia intocado. */
-  const computeMovedRows = (clientId: string, fromWeekday: number, toGestorId: string, toWeekday: number) => {
+   *  dia (ou veio da área "Sem dia definido", sem dia de origem), arrastar
+   *  CRIA/ADICIONA o dia; se já tem 2, arrastar TROCA o dia arrastado pelo
+   *  novo, mantendo o outro dia intocado. A linha nunca é apagada por ficar
+   *  com 0 dias — assim o cliente continua atribuído ao gestor certo na área
+   *  "Sem dia definido" em vez de perder essa informação. */
+  const computeMovedRows = (clientId: string, fromWeekday: number | 'bank', toGestorId: string, toWeekday: number) => {
     const next: OptimizationScheduleRow[] = rows.map((r) => ({ ...r, weekdays: [...r.weekdays] }))
     let row = next.find((r) => r.clientId === clientId)
     if (!row) {
       row = { clientId, userId: toGestorId, weekdays: [] }
       next.push(row)
     }
-    if (row.weekdays.length >= 2) {
+    if (row.weekdays.length >= 2 && typeof fromWeekday === 'number') {
       row.weekdays = row.weekdays.filter((d) => d !== fromWeekday)
     }
     row.userId = toGestorId
     if (!row.weekdays.includes(toWeekday)) row.weekdays.push(toWeekday)
     row.weekdays.sort((a, b) => a - b)
-    return next.filter((r) => r.weekdays.length > 0)
+    return next
   }
 
   /** Botão "×" do chip — remove só aquele dia (o cliente continua no outro,
-   *  se tiver). */
+   *  se tiver, ou cai na área "Sem dia definido" se esse era o único). */
   const handleRemoveDay = (clientId: string, weekday: number) => {
     const client = clientById[clientId]
     const next: OptimizationScheduleRow[] = rows.map((r) => ({ ...r, weekdays: [...r.weekdays] }))
     const row = next.find((r) => r.clientId === clientId)
     if (!row) return
     row.weekdays = row.weekdays.filter((d) => d !== weekday)
-    const filtered = next.filter((r) => r.weekdays.length > 0)
-    persist(filtered)
+    persist(next)
       .then(() => toast.success(`✅ ${client?.companyName ?? 'Cliente'} removido de ${WEEKDAY_COL_LABEL[weekday]}`))
       .catch((err) => {
         console.error(err)
@@ -269,7 +355,7 @@ export function OptimizationCalendarPage() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over) return
-    const data = active.data.current as { clientId: string; gestorId: string; weekday: number } | undefined
+    const data = active.data.current as { clientId: string; gestorId: string; weekday: number | 'bank' } | undefined
     if (!data) return
     const [toGestorId, toWeekdayStr] = String(over.id).split('::')
     const toWeekday = Number(toWeekdayStr)
@@ -343,7 +429,11 @@ export function OptimizationCalendarPage() {
     for (const name of visibleGestores) {
       const gid = gestorIds[name]
       if (!gid) continue
-      const clientIds = [...new Set(rows.filter((r) => r.userId === gid).map((r) => r.clientId))]
+      // Inclui também quem está na área "Sem dia definido" — o auto-balancear
+      // é a forma mais rápida de encaixar esses clientes de uma vez.
+      const idsFromRows = rows.filter((r) => r.userId === gid).map((r) => r.clientId)
+      const idsFromBank = (bankByGestor[name] ?? []).map((c) => c.clientId)
+      const clientIds = [...new Set([...idsFromRows, ...idsFromBank])]
         .filter((id) => clientById[id] && clientById[id].status !== 'churned')
         .sort((a, b) => clientById[a].companyName.localeCompare(clientById[b].companyName))
 
@@ -368,7 +458,7 @@ export function OptimizationCalendarPage() {
       toast('Já está balanceado.')
       return
     }
-    setBalancePreview({ rows: next.filter((r) => r.weekdays.length > 0), changed })
+    setBalancePreview({ rows: next, changed })
   }
 
   const confirmAutoBalance = () => {
@@ -433,17 +523,23 @@ export function OptimizationCalendarPage() {
 
       {loading ? (
         <p className="text-sm text-slate-400">Carregando…</p>
-      ) : rows.length === 0 ? (
-        <div className="flex flex-col items-start gap-2 rounded-xl border border-slate-100 bg-white p-6">
-          <p className="text-sm text-slate-500">Nenhum calendário cadastrado ainda.</p>
-          <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={handleSeed} loading={seeding}>
-            Importar calendário padrão
-          </Button>
-        </div>
       ) : (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          {view === 'grid' ? (
-            <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white p-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {visibleGestores.map((name) => (
+              <BankArea key={name} name={name} gestorId={gestorIds[name] ?? ''} chips={bankByGestor[name] ?? []} />
+            ))}
+          </div>
+
+          {rows.length === 0 ? (
+            <div className="mt-3 flex flex-col items-start gap-2 rounded-xl border border-slate-100 bg-white p-6">
+              <p className="text-sm text-slate-500">Nenhum calendário cadastrado ainda.</p>
+              <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={handleSeed} loading={seeding}>
+                Importar calendário padrão
+              </Button>
+            </div>
+          ) : view === 'grid' ? (
+            <div className="mt-3 overflow-x-auto rounded-xl border border-slate-100 bg-white p-3">
               <div className="grid min-w-[720px] gap-2" style={{ gridTemplateColumns: '110px repeat(5, 1fr)' }}>
                 <div />
                 {OPTIMIZATION_WEEKDAYS.map((d) => (
@@ -468,7 +564,7 @@ export function OptimizationCalendarPage() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="mt-3 flex flex-col gap-3">
               {OPTIMIZATION_WEEKDAYS.map((d) => {
                 const isCollapsed = collapsedDays.has(d)
                 return (
