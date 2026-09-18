@@ -24,6 +24,16 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 
 const GESTORES = ['Ciane', 'Nicolas']
+/** Combinações de 2 dias não-consecutivos preferidas pro auto-balancear —
+ *  evita Segunda+Terça, Terça+Quarta etc. (dias colados = muito tempo sem
+ *  otimizar entre uma passagem e outra). */
+const PREFERRED_PAIRS: [number, number][] = [
+  [1, 3],
+  [1, 4],
+  [2, 4],
+  [2, 5],
+  [3, 5],
+]
 const WEEKDAY_COL_LABEL: Record<number, string> = { 1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta', 5: 'Sexta' }
 const WEEKDAY_FULL_LABEL: Record<number, string> = {
   1: 'Segunda-feira',
@@ -49,14 +59,26 @@ function cellDropId(gestorId: string, weekday: number) {
   return `${gestorId}::${weekday}`
 }
 
+// Cada cliente aparece 2x por semana — os limiares de carga por célula
+// consideram isso (ver "CORES DE CARGA ATUALIZADAS" do pedido).
 function cellBg(count: number): string {
   if (count === 0) return '#F8FAFC'
-  if (count <= 4) return '#D1FAE5'
-  if (count <= 6) return '#FEF3C7'
+  if (count <= 5) return '#D1FAE5'
+  if (count <= 8) return '#FEF3C7'
   return '#FEE2E2'
 }
 
-function Chip({ chip, gestorId, weekday }: { chip: ChipData; gestorId: string; weekday: number }) {
+function Chip({
+  chip,
+  gestorId,
+  weekday,
+  onRemove,
+}: {
+  chip: ChipData
+  gestorId: string
+  weekday: number
+  onRemove: () => void
+}) {
   const id = chipDragId(chip.clientId, gestorId, weekday)
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
@@ -67,15 +89,23 @@ function Chip({ chip, gestorId, weekday }: { chip: ChipData; gestorId: string; w
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      className={`flex cursor-grab items-center gap-1.5 rounded-lg border border-white bg-white px-2 py-1.5 text-xs shadow-sm active:cursor-grabbing ${
+      className={`flex items-center gap-1.5 rounded-lg border border-white bg-white px-2 py-1.5 text-xs shadow-sm ${
         isDragging ? 'opacity-30' : ''
       }`}
     >
-      <GripVertical size={11} className="shrink-0 text-slate-300" />
+      <button {...attributes} {...listeners} type="button" className="flex shrink-0 cursor-grab items-center active:cursor-grabbing">
+        <GripVertical size={11} className="text-slate-300" />
+      </button>
       <span className="min-w-0 flex-1 truncate font-medium text-slate-700">{chip.companyName}</span>
       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${badge.className}`}>{badge.label}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        title="Remover este dia de otimização"
+        className="shrink-0 rounded p-0.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
+      >
+        ×
+      </button>
     </div>
   )
 }
@@ -85,11 +115,13 @@ function Cell({
   weekday,
   chips,
   compact,
+  onRemoveChip,
 }: {
   gestorId: string
   weekday: number
   chips: ChipData[]
   compact?: boolean
+  onRemoveChip: (clientId: string, weekday: number) => void
 }) {
   const id = cellDropId(gestorId, weekday)
   const { setNodeRef, isOver } = useDroppable({ id })
@@ -103,7 +135,7 @@ function Cell({
       {!compact && <p className="px-0.5 text-[11px] font-semibold text-slate-500">{chips.length} cliente{chips.length === 1 ? '' : 's'}</p>}
       <div className="flex flex-col gap-1">
         {chips.map((c) => (
-          <Chip key={c.clientId} chip={c} gestorId={gestorId} weekday={weekday} />
+          <Chip key={c.clientId} chip={c} gestorId={gestorId} weekday={weekday} onRemove={() => onRemoveChip(c.clientId, weekday)} />
         ))}
         {chips.length === 0 && <p className="px-0.5 py-1.5 text-center text-[11px] text-slate-300">Solte aqui</p>}
       </div>
@@ -188,8 +220,10 @@ export function OptimizationCalendarPage() {
     await setOptimizationSchedule(newRows, profile.id)
   }
 
-  /** Move 1 ocorrência (cliente + dia de origem) pra outra célula (gestor +
-   *  dia de destino), sem tocar nos outros dias que esse cliente já tenha. */
+  /** Move (ou cria) 1 ocorrência (cliente + dia) pra outra célula (gestor +
+   *  dia de destino). Regra de 2 dias por cliente: se o cliente já tem só 1
+   *  dia, arrastar CRIA o segundo (mantém o de origem); se já tem 2, arrastar
+   *  TROCA o dia arrastado pelo novo, mantendo o outro dia intocado. */
   const computeMovedRows = (clientId: string, fromWeekday: number, toGestorId: string, toWeekday: number) => {
     const next: OptimizationScheduleRow[] = rows.map((r) => ({ ...r, weekdays: [...r.weekdays] }))
     let row = next.find((r) => r.clientId === clientId)
@@ -197,11 +231,30 @@ export function OptimizationCalendarPage() {
       row = { clientId, userId: toGestorId, weekdays: [] }
       next.push(row)
     }
-    row.weekdays = row.weekdays.filter((d) => d !== fromWeekday)
+    if (row.weekdays.length >= 2) {
+      row.weekdays = row.weekdays.filter((d) => d !== fromWeekday)
+    }
     row.userId = toGestorId
     if (!row.weekdays.includes(toWeekday)) row.weekdays.push(toWeekday)
     row.weekdays.sort((a, b) => a - b)
     return next.filter((r) => r.weekdays.length > 0)
+  }
+
+  /** Botão "×" do chip — remove só aquele dia (o cliente continua no outro,
+   *  se tiver). */
+  const handleRemoveDay = (clientId: string, weekday: number) => {
+    const client = clientById[clientId]
+    const next: OptimizationScheduleRow[] = rows.map((r) => ({ ...r, weekdays: [...r.weekdays] }))
+    const row = next.find((r) => r.clientId === clientId)
+    if (!row) return
+    row.weekdays = row.weekdays.filter((d) => d !== weekday)
+    const filtered = next.filter((r) => r.weekdays.length > 0)
+    persist(filtered)
+      .then(() => toast.success(`✅ ${client?.companyName ?? 'Cliente'} removido de ${WEEKDAY_COL_LABEL[weekday]}`))
+      .catch((err) => {
+        console.error(err)
+        toast.error('Erro ao remover o dia')
+      })
   }
 
   const persistMove = (newRows: OptimizationScheduleRow[], label: string) => {
@@ -231,7 +284,7 @@ export function OptimizationCalendarPage() {
     const newRows = computeMovedRows(data.clientId, data.weekday, toGestorId, toWeekday)
     const label = `${client?.companyName ?? 'Cliente'} movido para ${WEEKDAY_COL_LABEL[toWeekday]}`
 
-    if (projectedCount >= 7) {
+    if (projectedCount >= 9) {
       setPendingMove({ row: newRows, label })
       return
     }
@@ -260,6 +313,29 @@ export function OptimizationCalendarPage() {
     }
   }
 
+  /** Escolhe, pra cada cliente, o par de dias (não-consecutivos quando
+   *  possível) que deixa a carga total dos 5 dias mais equilibrada — sempre
+   *  greedy: escolhe o par com menor soma de carga atual, dia a dia. */
+  const assignBalancedPairs = (clientIds: string[]): Record<string, [number, number]> => {
+    const dayLoad: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+    const assignment: Record<string, [number, number]> = {}
+    for (const clientId of clientIds) {
+      let best = PREFERRED_PAIRS[0]
+      let bestLoad = Infinity
+      for (const pair of PREFERRED_PAIRS) {
+        const load = dayLoad[pair[0]] + dayLoad[pair[1]]
+        if (load < bestLoad) {
+          best = pair
+          bestLoad = load
+        }
+      }
+      assignment[clientId] = best
+      dayLoad[best[0]] += 1
+      dayLoad[best[1]] += 1
+    }
+    return assignment
+  }
+
   const handleAutoBalancePreview = () => {
     const next: OptimizationScheduleRow[] = rows.map((r) => ({ ...r, weekdays: [...r.weekdays] }))
     let changed = 0
@@ -271,19 +347,21 @@ export function OptimizationCalendarPage() {
         .filter((id) => clientById[id] && clientById[id].status !== 'churned')
         .sort((a, b) => clientById[a].companyName.localeCompare(clientById[b].companyName))
 
-      clientIds.forEach((clientId, i) => {
-        const targetDay = OPTIMIZATION_WEEKDAYS[i % OPTIMIZATION_WEEKDAYS.length]
+      const assignment = assignBalancedPairs(clientIds)
+
+      for (const clientId of clientIds) {
+        const [d1, d2] = assignment[clientId]
         const row = next.find((r) => r.clientId === clientId)
-        const currentDays = row?.weekdays ?? []
-        const isSame = currentDays.length === 1 && currentDays[0] === targetDay
+        const currentDays = [...(row?.weekdays ?? [])].sort((a, b) => a - b)
+        const isSame = currentDays.length === 2 && currentDays[0] === d1 && currentDays[1] === d2
         if (!isSame) changed += 1
         if (row) {
-          row.weekdays = [targetDay]
+          row.weekdays = [d1, d2]
           row.userId = gid
         } else {
-          next.push({ clientId, userId: gid, weekdays: [targetDay] })
+          next.push({ clientId, userId: gid, weekdays: [d1, d2] })
         }
-      })
+      }
     }
 
     if (changed === 0) {
@@ -377,7 +455,13 @@ export function OptimizationCalendarPage() {
                   <Fragment key={name}>
                     <div className="flex items-center text-sm font-semibold text-slate-700">{name}</div>
                     {OPTIMIZATION_WEEKDAYS.map((d) => (
-                      <Cell key={`${name}-${d}`} gestorId={gestorIds[name] ?? ''} weekday={d} chips={chipsByGestorDay[name]?.[d] ?? []} />
+                      <Cell
+                        key={`${name}-${d}`}
+                        gestorId={gestorIds[name] ?? ''}
+                        weekday={d}
+                        chips={chipsByGestorDay[name]?.[d] ?? []}
+                        onRemoveChip={handleRemoveDay}
+                      />
                     ))}
                   </Fragment>
                 ))}
@@ -412,7 +496,7 @@ export function OptimizationCalendarPage() {
                               <p className="mb-1.5 text-xs font-semibold text-slate-500">
                                 ▼ {name} ({chips.length} cliente{chips.length === 1 ? '' : 's'})
                               </p>
-                              <Cell gestorId={gestorIds[name] ?? ''} weekday={d} chips={chips} compact />
+                              <Cell gestorId={gestorIds[name] ?? ''} weekday={d} chips={chips} compact onRemoveChip={handleRemoveDay} />
                             </div>
                           )
                         })}
@@ -434,6 +518,12 @@ export function OptimizationCalendarPage() {
               <div key={s.name} className="rounded-xl border border-slate-100 bg-white p-4">
                 <p className="mb-2 text-sm font-semibold text-slate-800">{s.name}</p>
                 <p className="text-xs text-slate-500">Total de clientes: <span className="font-semibold text-slate-700">{s.total}</span></p>
+                <p className="text-xs text-slate-500">
+                  Otimizações por semana: <span className="font-semibold text-slate-700">{s.total} × 2 = {s.total * 2}</span>
+                </p>
+                <p className="text-xs text-slate-500">
+                  Média por dia: <span className="font-semibold text-slate-700">{s.total * 2} ÷ 5 = {((s.total * 2) / 5).toFixed(1)}</span>
+                </p>
                 <p className="text-xs text-slate-500">
                   Dia mais cheio: <span className="font-semibold text-slate-700">{WEEKDAY_COL_LABEL[s.max.day]} ({s.max.count})</span>
                 </p>
@@ -475,7 +565,8 @@ export function OptimizationCalendarPage() {
         <div className="flex flex-col gap-3">
           <p className="text-sm text-slate-600">
             Isso vai mover {balancePreview?.changed} cliente{balancePreview?.changed === 1 ? '' : 's'} para equilibrar a
-            carga por dia (cada cliente passa a ter um único dia fixo de otimização). Confirmar?
+            carga por dia, mantendo os 2 dias de otimização por cliente (evitando dias consecutivos quando possível).
+            Confirmar?
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setBalancePreview(null)}>
