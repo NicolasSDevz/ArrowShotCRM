@@ -6,6 +6,8 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { OperationalDashboard } from './pages/OperationalDashboard'
+import { RootRedirect } from './pages/RootRedirect'
 import { ClientsPage } from './pages/ClientsPage'
 import { ClientDetailPage } from './pages/ClientDetailPage'
 import { SocialMediaPage } from './pages/SocialMediaPage'
@@ -47,7 +49,9 @@ function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<DashboardPage />} />
+            <Route path="/" element={<RootRedirect />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/operacional" element={<OperationalDashboard />} />
             <Route path="/clientes" element={<ClientsPage />} />
             <Route path="/clientes/:id" element={<ClientDetailPage />} />
             <Route path="/social-media" element={<SocialMediaPage />} />

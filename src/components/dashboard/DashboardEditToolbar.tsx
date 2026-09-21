@@ -19,18 +19,18 @@ export function DashboardEditToolbar({
   saving: boolean
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-blue-300 bg-blue-50/50 p-4">
+    <div className="flex flex-col gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium text-slate-600">Modo de edição — arraste os widgets pra reordenar</p>
+        <p className="text-sm font-semibold text-brand-700">Modo de edição ativo — arraste os widgets para reorganizar</p>
         <div className="flex gap-2">
-          <Button variant="ghost" size="sm" icon={<RotateCcw size={13} />} onClick={onRestoreDefault}>
+          <Button variant="secondary" size="sm" icon={<RotateCcw size={13} />} onClick={onRestoreDefault}>
             Restaurar padrão
+          </Button>
+          <Button size="sm" icon={<Save size={13} />} onClick={onSave} loading={saving}>
+            Salvar
           </Button>
           <Button variant="secondary" size="sm" icon={<X size={13} />} onClick={onCancel}>
             Cancelar
-          </Button>
-          <Button size="sm" icon={<Save size={13} />} onClick={onSave} loading={saving}>
-            Salvar layout
           </Button>
         </div>
       </div>

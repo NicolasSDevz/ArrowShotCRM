@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { isPast, isToday, isWithinInterval, addDays, differenceInDays, isSameDay } from 'date-fns'
-import { Pencil } from 'lucide-react'
+import { isPast, isToday, isWithinInterval, addDays, differenceInDays, isSameDay, format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useAuth } from '../context/AuthContext'
@@ -236,6 +236,11 @@ export function OperationalDashboard() {
     })
   }
 
+  const todayLabel = useMemo(() => {
+    const s = format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+    return s.charAt(0).toUpperCase() + s.slice(1)
+  }, [])
+
   const visibleSorted = useMemo(() => activeWidgets.filter((w) => w.visible).sort((a, b) => a.order - b.order), [activeWidgets])
   const hiddenWidgetIds = useMemo(() => {
     const visibleIds = new Set(draft.filter((w) => w.visible).map((w) => w.id))
@@ -263,13 +268,23 @@ export function OperationalDashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">Dashboard Operacional</h2>
-        {!editMode && (
-          <Button variant="secondary" size="sm" icon={<Pencil size={13} />} onClick={enterEditMode}>
-            Personalizar
-          </Button>
-        )}
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h1 className="text-[28px] font-extrabold leading-tight text-slate-900">Operacional</h1>
+          <p className="text-[15px] text-[#64748B]">Visão geral do que precisa da sua atenção hoje.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="text-[14px] text-slate-400">{todayLabel}</p>
+          {!editMode && (
+            <Button
+              variant="secondary"
+              onClick={enterEditMode}
+              className="border-brand-300 bg-transparent text-brand-600 hover:bg-brand-50"
+            >
+              ✏️ Personalizar dashboard
+            </Button>
+          )}
+        </div>
       </div>
 
       {editMode && (

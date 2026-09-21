@@ -125,7 +125,7 @@ export function formatNotificationTime(date: Date): string {
 /** Where clicking a notification should navigate to — the task/content
  *  targets carry the id as a query param so the destination page can open
  *  the right drawer directly. Não há mais página de Tarefas: as
- *  notificações de tarefa abrem o drawer no Dashboard (aba Operacional). */
+ *  notificações de tarefa abrem o drawer na página Operacional. */
 export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'entityType' | 'entityId'>): string | null {
   // Aniversário: o clique abre o WhatsApp já com a mensagem de parabéns
   // escrita — o cron grava o link wa.me completo em `entityId`. (Notificações
@@ -139,7 +139,7 @@ export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'enti
     case 'client':
       return n.entityId ? `/clientes/${n.entityId}` : '/clientes'
     case 'task':
-      return n.entityId ? `/?task=${n.entityId}` : '/'
+      return n.entityId ? `/operacional?task=${n.entityId}` : '/operacional'
     case 'content':
       return n.entityId ? `/social-media?content=${n.entityId}` : '/social-media'
     case 'lead':
