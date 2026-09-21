@@ -8,6 +8,7 @@ import { SocialContentWidget } from './SocialContentWidget'
 import { OptimizationsTodayWidget } from './OptimizationsTodayWidget'
 import { OptimizationsTeamTodayWidget } from './OptimizationsTeamTodayWidget'
 import { TeamTasksWidget } from './TeamTasksWidget'
+import { WeeklyReportWidget } from './WeeklyReportWidget'
 import { OverdueTasksWidget } from './OverdueTasksWidget'
 import { TodayTasksWidget } from './TodayTasksWidget'
 import { UpcomingTasksWidget } from './UpcomingTasksWidget'
@@ -24,6 +25,7 @@ import { QuickTaskWidget } from './QuickTaskWidget'
 export const WIDGET_LABEL: Record<DashboardWidgetId, string> = {
   rotina: 'Rotina do dia',
   rotina_equipe: 'Rotina da equipe — hoje',
+  relatorios_semanais: 'Envio de Relatórios Semanais',
   otimizacoes: 'Otimizações de hoje',
   otimizacoes_equipe: 'Otimizações de hoje — equipe',
   tarefas_equipe: 'Tarefas da equipe',
@@ -54,6 +56,8 @@ export function renderDashboardWidget(id: DashboardWidgetId, data: DashboardWidg
       return <DailyRoutineWidget />
     case 'rotina_equipe':
       return <TeamRoutineTodayWidget />
+    case 'relatorios_semanais':
+      return <WeeklyReportWidget />
     case 'otimizacoes':
       return <OptimizationsTodayWidget />
     case 'otimizacoes_equipe':

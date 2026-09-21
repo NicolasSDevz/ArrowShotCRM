@@ -281,6 +281,14 @@ service cloud.firestore {
       allow write: if isOwnUser(userId) || isAdmin();
     }
 
+    // ---------- weeklyReportChecks (widget "Envio de Relatórios Semanais"
+    // do Dashboard de Ciane/Nicolas, toda segunda — id {uid}_{semana ISO}).
+    // Estritamente pessoal: o dono do id (uid antes do "_") é quem lê/escreve. ----------
+    match /weeklyReportChecks/{docId} {
+      allow read, write: if isSignedIn() &&
+        docId.matches(request.auth.uid + "_.*");
+    }
+
     // ---------- teamMembers (Equipe roster: cargo, permissão informativa,
     // rotina — separado de `users`, que controla o acesso real) ----------
     match /teamMembers/{memberId} {

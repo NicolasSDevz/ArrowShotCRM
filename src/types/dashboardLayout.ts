@@ -8,6 +8,7 @@ import type { Timestamp } from 'firebase/firestore'
 export type DashboardWidgetId =
   | 'rotina'
   | 'rotina_equipe'
+  | 'relatorios_semanais'
   | 'otimizacoes'
   | 'otimizacoes_equipe'
   | 'tarefas_equipe'

@@ -28,6 +28,7 @@ const JAMILSON_LAYOUT = layout([
 
 const GESTORES_LAYOUT = layout([
   ['rotina', 'full'],
+  ['relatorios_semanais', 'full'],
   ['otimizacoes', 'full'],
   ['conteudos_produzir', 'full'],
   ['tarefas_atrasadas', 'half'],
