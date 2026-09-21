@@ -110,7 +110,11 @@ export function OptimizationsTodayWidget() {
         <div className="mt-4 flex flex-col gap-2.5">
           {items.map((item) => {
             const b = platformBadgeLabel(item.rowPlatform ? [item.rowPlatform] : item.platforms)
-            const registeredAt = item.done && item.todayRecord ? format(item.todayRecord.updatedAt.toDate(), 'HH:mm') : null
+            // updatedAt pode vir null por um instante logo após criar o
+            // registro (serverTimestamp() ainda não resolvido) — sem essa
+            // checagem, .toDate() explode assim que a linha vira "done".
+            const registeredAt =
+              item.done && item.todayRecord?.updatedAt ? format(item.todayRecord.updatedAt.toDate(), 'HH:mm') : null
             return (
               <div key={item.key} className="flex items-center gap-2.5">
                 <button
@@ -133,7 +137,7 @@ export function OptimizationsTodayWidget() {
                 </button>
                 {item.done ? (
                   <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[#10B981]">
-                    ✅ Registrado {registeredAt}
+                    ✅ Registrado{registeredAt ? ` ${registeredAt}` : ''}
                     <button
                       type="button"
                       onClick={() => openRow(item)}

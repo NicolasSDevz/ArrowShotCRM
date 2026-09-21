@@ -73,8 +73,11 @@ export function OptimizationFormModal({
       setGoogleNotes(o.googleNotes ?? (legacyIsGoogle ? (o.notes ?? '') : ''))
       setMetaBalance(centsMask(o.metaBalance))
       setGoogleBalance(centsMask(o.googleBalance))
-      setMetaSavedAt(o.metaOptimizationsText ? o.updatedAt.toDate() : null)
-      setGoogleSavedAt(o.googleOptimizationsText ? o.updatedAt.toDate() : null)
+      // o.updatedAt pode vir null por um instante em registro recém-criado
+      // (serverTimestamp() ainda não resolvido no snapshot local/cache
+      // offline) — sem essa checagem, .toDate() explode e derruba a tela.
+      setMetaSavedAt(o.metaOptimizationsText && o.updatedAt ? o.updatedAt.toDate() : null)
+      setGoogleSavedAt(o.googleOptimizationsText && o.updatedAt ? o.updatedAt.toDate() : null)
     } else {
       setDateStr(todayInput())
       setMetaText('')
@@ -156,7 +159,7 @@ export function OptimizationFormModal({
         const id = await createOptimization(payload, profile.id, profile.name)
         setActiveRecordId(id)
       }
-      toast.success(`${label} salvo`)
+      toast.success(both ? `✅ ${label} registrado!` : '✅ Otimização registrada!')
       if (isMeta) setMetaSavedAt(new Date())
       else setGoogleSavedAt(new Date())
       // Não fecha sozinho — se o cliente tem as duas plataformas, deixa a
