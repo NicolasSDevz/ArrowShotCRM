@@ -7,7 +7,7 @@ import { useClients } from '../../hooks/useClients'
 import { useOptimizationSchedule, useTodayOptimizations } from '../../hooks/useOptimizations'
 import { OptimizationFormModal } from '../clients/OptimizationFormModal'
 import { type OptimizationPlatform } from '../../types'
-import { trafficServices, platformBadgeLabel } from '../../utils/clientServices'
+import { trafficServices, platformBadgeLabel, hasContractedPaidTraffic } from '../../utils/clientServices'
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -32,7 +32,7 @@ export function OptimizationsTodayWidget() {
       .filter((r) => r.userId === profile.id && r.weekdays.includes(weekday))
       .map((r) => {
         const client = clients.find((c) => c.id === r.clientId)
-        return client && client.status !== 'churned'
+        return client && client.status !== 'churned' && hasContractedPaidTraffic(client)
           ? { id: client.id, name: client.companyName, platforms: trafficServices(client).platforms, done: doneIds.has(client.id) }
           : null
       })

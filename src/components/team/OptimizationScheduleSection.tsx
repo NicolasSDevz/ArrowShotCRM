@@ -6,6 +6,7 @@ import { useClients } from '../../hooks/useClients'
 import { useUsers } from '../../hooks/useUsers'
 import { useOptimizationSchedule } from '../../hooks/useOptimizations'
 import { seedOptimizationSchedule } from '../../services/optimizationSeed'
+import { hasContractedPaidTraffic } from '../../utils/clientServices'
 import { Button } from '../ui/Button'
 import { weekdaysLabel } from '../../types'
 
@@ -21,8 +22,11 @@ export function OptimizationScheduleSection() {
     const groups = new Map<string, { name: string; entries: { client: string; days: number[] }[] }>()
     for (const r of rows) {
       const client = clients.find((c) => c.id === r.clientId)
-      // Cliente encerrado não deve aparecer na agenda de otimizações.
-      if (client?.status === 'churned') continue
+      // Cliente encerrado ou sem Tráfego Pago contratado (ex.: só Landing
+      // Page) não deve aparecer na agenda de otimizações. Cliente excluído
+      // (sem registro nenhum) continua aparecendo como "(cliente removido)"
+      // pra dar visibilidade de que sobrou lixo pra limpar do calendário.
+      if (client?.status === 'churned' || (client && !hasContractedPaidTraffic(client))) continue
       if (!groups.has(r.userId)) groups.set(r.userId, { name: userName(r.userId), entries: [] })
       groups.get(r.userId)!.entries.push({ client: client?.companyName ?? '(cliente removido)', days: r.weekdays })
     }

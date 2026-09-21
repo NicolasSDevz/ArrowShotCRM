@@ -6,7 +6,7 @@ import { useClients } from '../../hooks/useClients'
 import { useOptimizationSchedule } from '../../hooks/useOptimizations'
 import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
 import { ensureWeeklyReportCheck, setWeeklyReportCheckItem, subscribeWeeklyReportCheck } from '../../services/weeklyReportCheckService'
-import { trafficServices, platformBadgeLabel } from '../../utils/clientServices'
+import { trafficServices, platformBadgeLabel, hasContractedPaidTraffic } from '../../utils/clientServices'
 import { getClientOwnerIds, type Client } from '../../types/client'
 import { isoWeekKey } from '../../utils/isoWeek'
 import type { WeeklyReportCheck, ReportPlatform } from '../../types'
@@ -52,16 +52,15 @@ export function WeeklyReportWidget() {
   const eligibleClients = useMemo(() => {
     if (!profile) return []
     return clients
-      // client.modules?.paidTraffic é o sinal real de "contratou Tráfego
-      // Pago" — trafficServices(...).any NÃO serve aqui: por design (ver
-      // utils/clientServices.ts) ele assume "ambos" pra qualquer cadastro
-      // sem essa info, incluindo clientes só de Social Mídia.
+      // hasContractedPaidTraffic (não trafficServices(...).any, que por
+      // design sempre retorna true) é quem decide "tem Tráfego Pago de
+      // verdade" — exclui cliente só de Landing Page/Social Mídia.
       // Inclui "Onboarding" (status 'prospect') além de "Ativo": um cliente
       // pode já ter campanha rodando (Tráfego Pago marcado) antes de alguém
       // lembrar de virar o status pra Ativo — sem isso ele fica invisível
       // aqui até esse detalhe manual acontecer (foi exatamente o caso da
       // Limma Eventos e da Impactus).
-      .filter((c) => (c.status === 'active' || c.status === 'prospect') && !!c.modules?.paidTraffic && belongsToMe(c))
+      .filter((c) => (c.status === 'active' || c.status === 'prospect') && hasContractedPaidTraffic(c) && belongsToMe(c))
       .sort((a, b) => a.companyName.localeCompare(b.companyName))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, profile, scheduleRows])

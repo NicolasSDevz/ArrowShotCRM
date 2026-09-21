@@ -51,6 +51,17 @@ export function trafficServices(client?: Pick<Client, 'modules'> | null): Traffi
   }
 }
 
+/** true se o cliente tem "Tráfego Pago" marcado nos serviços contratados —
+ *  o sinal correto pra decidir se ele deve aparecer em otimizações e
+ *  relatórios de tráfego (widgets do Dashboard, Calendário de Otimizações,
+ *  Envio de Relatórios Semanais). NÃO usar trafficServices(...).any pra
+ *  isso: por design (ver comentário acima) ele assume "ambos" pra qualquer
+ *  cadastro sem essa info, incluindo cliente só de Landing Page ou Social
+ *  Mídia — sempre `true`, então nunca filtra ninguém de fato. */
+export function hasContractedPaidTraffic(client?: Pick<Client, 'modules'> | null): boolean {
+  return !!client?.modules?.paidTraffic
+}
+
 /** Badge da(s) plataforma(s) do cliente — usado no widget do Dashboard e
  *  nos registros de otimização. */
 export const PLATFORM_BADGE: Record<OptimizationPlatform, string> = {

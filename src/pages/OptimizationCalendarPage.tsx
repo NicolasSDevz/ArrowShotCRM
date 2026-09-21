@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import {
   DndContext,
@@ -17,7 +17,7 @@ import { useOptimizationSchedule } from '../hooks/useOptimizations'
 import { setOptimizationSchedule } from '../services/optimizationService'
 import { seedOptimizationSchedule } from '../services/optimizationSeed'
 import { findUserIdByName } from '../utils/userLookup'
-import { trafficServices, platformBadgeLabel } from '../utils/clientServices'
+import { trafficServices, platformBadgeLabel, hasContractedPaidTraffic } from '../utils/clientServices'
 import { OPTIMIZATION_WEEKDAYS, type OptimizationScheduleRow } from '../types/optimization'
 import { getClientOwnerIds, type Client } from '../types/client'
 import { Button } from '../components/ui/Button'
@@ -225,7 +225,7 @@ export function OptimizationCalendarPage() {
       for (const row of rows) {
         if (row.userId !== gid) continue
         const client = clientById[row.clientId]
-        if (!client || client.status === 'churned') continue
+        if (!client || client.status === 'churned' || !hasContractedPaidTraffic(client)) continue
         const chip: ChipData = {
           clientId: client.id,
           companyName: client.companyName,
@@ -250,9 +250,8 @@ export function OptimizationCalendarPage() {
     const out: Record<string, ChipData[]> = {}
     for (const name of GESTORES) out[name] = []
     for (const client of clients) {
-      if (client.status === 'churned') continue
+      if (client.status === 'churned' || !hasContractedPaidTraffic(client)) continue
       const svc = trafficServices(client)
-      if (!svc.any) continue
       const row = rows.find((r) => r.clientId === client.id)
       const daysCount = row?.weekdays.length ?? 0
       if (daysCount >= 2) continue
@@ -277,7 +276,7 @@ export function OptimizationCalendarPage() {
         for (const row of rows) {
           if (row.userId !== gid) continue
           const client = clientById[row.clientId]
-          if (!client || client.status === 'churned') continue
+          if (!client || client.status === 'churned' || !hasContractedPaidTraffic(client)) continue
           clientIds.add(row.clientId)
           for (const d of row.weekdays) if (perDay[d] != null) perDay[d] += 1
         }
@@ -295,6 +294,29 @@ export function OptimizationCalendarPage() {
     if (!profile) return
     await setOptimizationSchedule(newRows, profile.id)
   }
+
+  // Auto-limpeza: remove do calendário linhas de clientes que não têm (ou
+  // não têm mais) Tráfego Pago contratado — ex.: cliente só de Landing Page
+  // cadastrado ali por engano (caso da "Dona Clean") — ou que foi excluído/
+  // encerrado. Roda sozinha ao abrir a página; sem isso o cliente ficava
+  // "fantasma" no documento mesmo já escondido da exibição pelos filtros
+  // acima. Autolimitante: depois de limpar, `rows` atualiza via onSnapshot
+  // sem mais linhas inválidas, então não roda de novo.
+  useEffect(() => {
+    if (!profile || rows.length === 0) return
+    const invalidIds = new Set(
+      rows
+        .filter((r) => {
+          const c = clientById[r.clientId]
+          return !c || c.status === 'churned' || !hasContractedPaidTraffic(c)
+        })
+        .map((r) => r.clientId)
+    )
+    if (invalidIds.size === 0) return
+    const cleaned = rows.filter((r) => !invalidIds.has(r.clientId))
+    persist(cleaned).catch((err) => console.error('[OptimizationCalendarPage] falha ao limpar linhas inválidas', err))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, clientById, profile?.id])
 
   /** Move (ou cria) 1 ocorrência (cliente + dia) pra outra célula (gestor +
    *  dia de destino). Regra de 2 dias por cliente: se o cliente já tem só 1
@@ -426,7 +448,7 @@ export function OptimizationCalendarPage() {
       const idsFromRows = rows.filter((r) => r.userId === gid).map((r) => r.clientId)
       const idsFromBank = (bankByGestor[name] ?? []).map((c) => c.clientId)
       const clientIds = [...new Set([...idsFromRows, ...idsFromBank])]
-        .filter((id) => clientById[id] && clientById[id].status !== 'churned')
+        .filter((id) => clientById[id] && clientById[id].status !== 'churned' && hasContractedPaidTraffic(clientById[id]))
         .sort((a, b) => clientById[a].companyName.localeCompare(clientById[b].companyName))
 
       const assignment = assignBalancedPairs(clientIds)
