@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   UserPlus,
+  Info,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useClients } from '../../hooks/useClients'
@@ -49,7 +50,7 @@ function formatWhen(v: unknown): string | null {
 const CHART_COLOR = '#2563EB'
 const PIPELINE_STAGES: LeadStatus[] = ['new', 'contacted', 'meeting_scheduled', 'proposal_sent', 'negotiation']
 
-/** Textos explicativos exibidos no tooltip ℹ️ de cada métrica. */
+/** Textos explicativos exibidos no tooltip de informação de cada métrica. */
 const TIPS = {
   mrr: {
     title: 'MRR — Receita Recorrente Mensal',
@@ -368,7 +369,8 @@ export function OverviewDashboard() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-xs text-slate-400">
-        Métricas atualizadas diariamente às 00:01. Passe o mouse sobre o ℹ️ para entender cada indicador.
+        Métricas atualizadas diariamente às 00:01. Passe o mouse sobre o ícone{' '}
+        <Info size={12} className="inline align-[-2px]" aria-label="informação" /> para entender cada indicador.
       </p>
 
       {/* Barra superior */}

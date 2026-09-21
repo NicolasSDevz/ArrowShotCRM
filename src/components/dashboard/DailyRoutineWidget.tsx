@@ -51,7 +51,7 @@ export function DailyRoutineWidget() {
         <p className="mt-3 text-sm text-slate-400">Sem itens de rotina para hoje.</p>
       ) : (
         <>
-          <div className="mt-2.5 h-[6px] w-full overflow-hidden rounded-full" style={{ backgroundColor: '#E2E8F0' }}>
+          <div className="mt-2.5 h-[6px] w-full overflow-hidden rounded-full bg-slate-200">
             <div
               className="h-full rounded-full transition-all duration-300 ease-in-out"
               style={{ width: `${progressPct}%`, backgroundColor: allDone ? '#10B981' : '#2563EB' }}

@@ -152,7 +152,7 @@ export function WeeklyReportWidget() {
         <p className="shrink-0 text-[13px] text-[#64748B]">{done}/{total} relatórios enviados</p>
       </div>
 
-      <div className="mt-2.5 h-[6px] w-full overflow-hidden rounded-full" style={{ backgroundColor: '#E2E8F0' }}>
+      <div className="mt-2.5 h-[6px] w-full overflow-hidden rounded-full bg-slate-200">
         <div
           className="h-full rounded-full transition-all duration-300 ease-in-out"
           style={{ width: `${pct}%`, backgroundColor: allDone ? '#10B981' : '#2563EB' }}

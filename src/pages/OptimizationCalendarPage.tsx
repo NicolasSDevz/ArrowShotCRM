@@ -66,20 +66,23 @@ function cellDropId(gestorId: string, weekday: number) {
 
 // Cada cliente aparece 2x por semana — os limiares de carga por célula
 // consideram isso (ver "CORES DE CARGA ATUALIZADAS" do pedido).
-function cellBg(count: number): string {
-  if (count === 0) return '#F8FAFC'
-  if (count <= 5) return '#D1FAE5'
-  if (count <= 8) return '#FEF3C7'
-  return '#FEE2E2'
+// As cores de cada faixa ficam em index.css (.opt-cell[data-load]) — assim
+// o tema escuro consegue trocá-las.
+function cellLoad(count: number): 'empty' | 'low' | 'mid' | 'high' {
+  if (count === 0) return 'empty'
+  if (count <= 5) return 'low'
+  if (count <= 8) return 'mid'
+  return 'high'
 }
 
-/** Borda do chip pelo estado de completude (não onde ele está renderizado):
- *  2 dias = completo (azul), 1 dia = falta o segundo (âmbar, tracejado
- *  fica só pro "zero dias" que só existe na área "Sem dia definido"). */
-function chipBorderStyle(daysCount: number): { border: string; background: string } {
-  if (daysCount >= 2) return { border: '2px solid #2563EB', background: '#FFFFFF' }
-  if (daysCount === 1) return { border: '2px solid #F59E0B', background: '#FFFFFF' }
-  return { border: '2px dashed #94A3B8', background: '#F8FAFC' }
+/** Estado do chip pela completude (não onde ele está renderizado): 2 dias =
+ *  completo (azul), 1 dia = falta o segundo (âmbar, tracejado fica só pro
+ *  "zero dias" que só existe na área "Sem dia definido"). Cores em
+ *  index.css (.opt-chip[data-chip]). */
+function chipState(daysCount: number): 'full' | 'half' | 'none' {
+  if (daysCount >= 2) return 'full'
+  if (daysCount === 1) return 'half'
+  return 'none'
 }
 
 function Chip({
@@ -105,8 +108,8 @@ function Chip({
   return (
     <div
       ref={setNodeRef}
-      style={chipBorderStyle(chip.daysCount)}
-      className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs shadow-sm ${isDragging ? 'opacity-30' : ''}`}
+      data-chip={chipState(chip.daysCount)}
+      className={`opt-chip flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs shadow-sm ${isDragging ? 'opacity-30' : ''}`}
     >
       <button {...attributes} {...listeners} type="button" className="flex shrink-0 cursor-grab items-center active:cursor-grabbing">
         <GripVertical size={11} className="text-slate-300" />
@@ -149,8 +152,8 @@ function Cell({
   return (
     <div
       ref={setNodeRef}
-      className={`flex min-h-[86px] flex-col gap-1.5 rounded-lg p-2 transition-shadow ${isOver ? 'ring-2 ring-brand-400' : ''}`}
-      style={{ backgroundColor: cellBg(chips.length) }}
+      className={`opt-cell flex min-h-[86px] flex-col gap-1.5 rounded-lg p-2 transition-shadow ${isOver ? 'ring-2 ring-brand-400' : ''}`}
+      data-load={cellLoad(chips.length)}
     >
       {!compact && <p className="px-0.5 text-[11px] font-semibold text-slate-500">{chips.length} cliente{chips.length === 1 ? '' : 's'}</p>}
       <div className="flex flex-col gap-1">
@@ -168,7 +171,7 @@ function Cell({
 function BankArea({ name, gestorId, chips }: { name: string; gestorId: string; chips: ChipData[] }) {
   const total = chips.length
   return (
-    <div className="rounded-xl p-3" style={{ backgroundColor: '#F8FAFC', border: '2px dashed #CBD5E1' }}>
+    <div className="opt-bank rounded-xl p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-700">📋 Sem dia definido — {name}</p>
         <span className="flex items-center gap-1 text-xs font-medium text-amber-600">

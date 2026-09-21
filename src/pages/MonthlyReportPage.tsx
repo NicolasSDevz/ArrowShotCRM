@@ -167,7 +167,7 @@ function FunnelSection({ meta }: { meta: ReportMetaSnapshot }) {
             return (
               <div key={s.label} className="flex w-full flex-col items-center">
                 <div
-                  className="flex flex-col items-center justify-center py-3 text-center text-white transition-all"
+                  className="report-funnel-step flex flex-col items-center justify-center py-3 text-center text-white transition-all"
                   style={{
                     width: `${width}%`,
                     minWidth: '46%',

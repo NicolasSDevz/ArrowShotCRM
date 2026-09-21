@@ -1,0 +1,451 @@
+/* GERADO por scripts/gen-dark-families.mjs — não editar à mão. */
+
+/* red */
+:root[data-theme="dark"] :is(.bg-red-50,[class*="bg-red-50/"]) { background-color: hsl(0 70% 55% / 0.1); }
+:root[data-theme="dark"] :is(.hover\:bg-red-50:hover) { background-color: hsl(0 70% 55% / 0.15); }
+:root[data-theme="dark"] :is(.bg-red-100,[class*="bg-red-100/"]) { background-color: hsl(0 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-red-100:hover) { background-color: hsl(0 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-red-200,[class*="bg-red-200/"]) { background-color: hsl(0 70% 55% / 0.22); }
+:root[data-theme="dark"] :is(.hover\:bg-red-200:hover) { background-color: hsl(0 70% 55% / 0.27); }
+:root[data-theme="dark"] :is(.bg-red-300) { background-color: hsl(0 50% 46%); }
+:root[data-theme="dark"] :is(.bg-red-400) { background-color: hsl(0 50% 46%); }
+:root[data-theme="dark"] :is(.bg-red-500) { background-color: hsl(0 50% 46%); }
+:root[data-theme="dark"] :is(.bg-red-600) { background-color: hsl(0 50% 42%); }
+:root[data-theme="dark"] :is(.bg-red-700) { background-color: hsl(0 50% 42%); }
+:root[data-theme="dark"] :is(.bg-red-800) { background-color: hsl(0 50% 42%); }
+:root[data-theme="dark"] :is(.hover\:bg-red-500:hover) { background-color: hsl(0 50% 42%); }
+:root[data-theme="dark"] :is(.hover\:bg-red-600:hover) { background-color: hsl(0 50% 42%); }
+:root[data-theme="dark"] :is(.hover\:bg-red-700:hover) { background-color: hsl(0 50% 42%); }
+:root[data-theme="dark"] :is(.text-red-400,.text-red-500,.text-red-600,.text-red-700,.text-red-800,.text-red-900) { color: hsl(0 60% 70%); }
+:root[data-theme="dark"] :is(.hover\:text-red-400:hover,.hover\:text-red-500:hover,.hover\:text-red-600:hover,.hover\:text-red-700:hover,.hover\:text-red-800:hover) { color: hsl(0 65% 76%); }
+:root[data-theme="dark"] :is(.border-red-100,.border-red-200,.border-red-300) { border-color: hsl(0 28% 24%); }
+:root[data-theme="dark"] :is(.border-red-400,.border-red-500,.border-red-600) { border-color: hsl(0 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-red-200:hover,.hover\:border-red-300:hover,.hover\:border-red-400:hover) { border-color: hsl(0 38% 40%); }
+:root[data-theme="dark"] :is(.ring-red-100,.ring-red-200,.ring-red-300,.ring-red-400,.ring-red-500) { --tw-ring-color: hsl(0 32% 30%); }
+:root[data-theme="dark"] :is(.divide-red-100 > :not(:last-child),.divide-red-200 > :not(:last-child),.divide-red-300 > :not(:last-child)) { border-color: hsl(0 28% 22%); }
+:root[data-theme="dark"] :is(.from-red-50,.to-red-50,.via-red-50,.from-red-100,.to-red-100,.via-red-100,.from-red-200,.to-red-200,.via-red-200) { --tw-gradient-from: hsl(0 70% 55% / 0.16); --tw-gradient-to: hsl(0 70% 55% / 0.1); --tw-gradient-via: hsl(0 70% 55% / 0.1); }
+
+/* orange */
+:root[data-theme="dark"] :is(.bg-orange-50,[class*="bg-orange-50/"]) { background-color: hsl(25 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-orange-50:hover) { background-color: hsl(25 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-orange-100,[class*="bg-orange-100/"]) { background-color: hsl(25 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-orange-100:hover) { background-color: hsl(25 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-orange-200,[class*="bg-orange-200/"]) { background-color: hsl(25 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-orange-200:hover) { background-color: hsl(25 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-orange-300) { background-color: hsl(25 50% 42%); }
+:root[data-theme="dark"] :is(.bg-orange-400) { background-color: hsl(25 50% 42%); }
+:root[data-theme="dark"] :is(.bg-orange-500) { background-color: hsl(25 50% 42%); }
+:root[data-theme="dark"] :is(.bg-orange-600) { background-color: hsl(25 50% 38%); }
+:root[data-theme="dark"] :is(.bg-orange-700) { background-color: hsl(25 50% 38%); }
+:root[data-theme="dark"] :is(.bg-orange-800) { background-color: hsl(25 50% 38%); }
+:root[data-theme="dark"] :is(.hover\:bg-orange-500:hover) { background-color: hsl(25 50% 38%); }
+:root[data-theme="dark"] :is(.hover\:bg-orange-600:hover) { background-color: hsl(25 50% 38%); }
+:root[data-theme="dark"] :is(.hover\:bg-orange-700:hover) { background-color: hsl(25 50% 38%); }
+:root[data-theme="dark"] :is(.text-orange-400,.text-orange-500,.text-orange-600,.text-orange-700,.text-orange-800,.text-orange-900) { color: hsl(25 60% 66%); }
+:root[data-theme="dark"] :is(.hover\:text-orange-400:hover,.hover\:text-orange-500:hover,.hover\:text-orange-600:hover,.hover\:text-orange-700:hover,.hover\:text-orange-800:hover) { color: hsl(25 65% 72%); }
+:root[data-theme="dark"] :is(.border-orange-100,.border-orange-200,.border-orange-300) { border-color: hsl(25 28% 24%); }
+:root[data-theme="dark"] :is(.border-orange-400,.border-orange-500,.border-orange-600) { border-color: hsl(25 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-orange-200:hover,.hover\:border-orange-300:hover,.hover\:border-orange-400:hover) { border-color: hsl(25 38% 40%); }
+:root[data-theme="dark"] :is(.ring-orange-100,.ring-orange-200,.ring-orange-300,.ring-orange-400,.ring-orange-500) { --tw-ring-color: hsl(25 32% 30%); }
+:root[data-theme="dark"] :is(.divide-orange-100 > :not(:last-child),.divide-orange-200 > :not(:last-child),.divide-orange-300 > :not(:last-child)) { border-color: hsl(25 28% 22%); }
+:root[data-theme="dark"] :is(.from-orange-50,.to-orange-50,.via-orange-50,.from-orange-100,.to-orange-100,.via-orange-100,.from-orange-200,.to-orange-200,.via-orange-200) { --tw-gradient-from: hsl(25 70% 55% / 0.11); --tw-gradient-to: hsl(25 70% 55% / 0.07); --tw-gradient-via: hsl(25 70% 55% / 0.07); }
+
+/* amber */
+:root[data-theme="dark"] :is(.bg-amber-50,[class*="bg-amber-50/"]) { background-color: hsl(38 70% 55% / 0.1); }
+:root[data-theme="dark"] :is(.hover\:bg-amber-50:hover) { background-color: hsl(38 70% 55% / 0.15); }
+:root[data-theme="dark"] :is(.bg-amber-100,[class*="bg-amber-100/"]) { background-color: hsl(38 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-amber-100:hover) { background-color: hsl(38 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-amber-200,[class*="bg-amber-200/"]) { background-color: hsl(38 70% 55% / 0.22); }
+:root[data-theme="dark"] :is(.hover\:bg-amber-200:hover) { background-color: hsl(38 70% 55% / 0.27); }
+:root[data-theme="dark"] :is(.bg-amber-300) { background-color: hsl(38 50% 40%); }
+:root[data-theme="dark"] :is(.bg-amber-400) { background-color: hsl(38 50% 40%); }
+:root[data-theme="dark"] :is(.bg-amber-500) { background-color: hsl(38 50% 40%); }
+:root[data-theme="dark"] :is(.bg-amber-600) { background-color: hsl(38 50% 36%); }
+:root[data-theme="dark"] :is(.bg-amber-700) { background-color: hsl(38 50% 36%); }
+:root[data-theme="dark"] :is(.bg-amber-800) { background-color: hsl(38 50% 36%); }
+:root[data-theme="dark"] :is(.hover\:bg-amber-500:hover) { background-color: hsl(38 50% 36%); }
+:root[data-theme="dark"] :is(.hover\:bg-amber-600:hover) { background-color: hsl(38 50% 36%); }
+:root[data-theme="dark"] :is(.hover\:bg-amber-700:hover) { background-color: hsl(38 50% 36%); }
+:root[data-theme="dark"] :is(.text-amber-400,.text-amber-500,.text-amber-600,.text-amber-700,.text-amber-800,.text-amber-900) { color: hsl(38 60% 64%); }
+:root[data-theme="dark"] :is(.hover\:text-amber-400:hover,.hover\:text-amber-500:hover,.hover\:text-amber-600:hover,.hover\:text-amber-700:hover,.hover\:text-amber-800:hover) { color: hsl(38 65% 70%); }
+:root[data-theme="dark"] :is(.border-amber-100,.border-amber-200,.border-amber-300) { border-color: hsl(38 28% 24%); }
+:root[data-theme="dark"] :is(.border-amber-400,.border-amber-500,.border-amber-600) { border-color: hsl(38 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-amber-200:hover,.hover\:border-amber-300:hover,.hover\:border-amber-400:hover) { border-color: hsl(38 38% 40%); }
+:root[data-theme="dark"] :is(.ring-amber-100,.ring-amber-200,.ring-amber-300,.ring-amber-400,.ring-amber-500) { --tw-ring-color: hsl(38 32% 30%); }
+:root[data-theme="dark"] :is(.divide-amber-100 > :not(:last-child),.divide-amber-200 > :not(:last-child),.divide-amber-300 > :not(:last-child)) { border-color: hsl(38 28% 22%); }
+:root[data-theme="dark"] :is(.from-amber-50,.to-amber-50,.via-amber-50,.from-amber-100,.to-amber-100,.via-amber-100,.from-amber-200,.to-amber-200,.via-amber-200) { --tw-gradient-from: hsl(38 70% 55% / 0.16); --tw-gradient-to: hsl(38 70% 55% / 0.1); --tw-gradient-via: hsl(38 70% 55% / 0.1); }
+
+/* yellow */
+:root[data-theme="dark"] :is(.bg-yellow-50,[class*="bg-yellow-50/"]) { background-color: hsl(48 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-yellow-50:hover) { background-color: hsl(48 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-yellow-100,[class*="bg-yellow-100/"]) { background-color: hsl(48 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-yellow-100:hover) { background-color: hsl(48 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-yellow-200,[class*="bg-yellow-200/"]) { background-color: hsl(48 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-yellow-200:hover) { background-color: hsl(48 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-yellow-300) { background-color: hsl(48 50% 40%); }
+:root[data-theme="dark"] :is(.bg-yellow-400) { background-color: hsl(48 50% 40%); }
+:root[data-theme="dark"] :is(.bg-yellow-500) { background-color: hsl(48 50% 40%); }
+:root[data-theme="dark"] :is(.bg-yellow-600) { background-color: hsl(48 50% 36%); }
+:root[data-theme="dark"] :is(.bg-yellow-700) { background-color: hsl(48 50% 36%); }
+:root[data-theme="dark"] :is(.bg-yellow-800) { background-color: hsl(48 50% 36%); }
+:root[data-theme="dark"] :is(.hover\:bg-yellow-500:hover) { background-color: hsl(48 50% 36%); }
+:root[data-theme="dark"] :is(.hover\:bg-yellow-600:hover) { background-color: hsl(48 50% 36%); }
+:root[data-theme="dark"] :is(.hover\:bg-yellow-700:hover) { background-color: hsl(48 50% 36%); }
+:root[data-theme="dark"] :is(.text-yellow-400,.text-yellow-500,.text-yellow-600,.text-yellow-700,.text-yellow-800,.text-yellow-900) { color: hsl(48 60% 64%); }
+:root[data-theme="dark"] :is(.hover\:text-yellow-400:hover,.hover\:text-yellow-500:hover,.hover\:text-yellow-600:hover,.hover\:text-yellow-700:hover,.hover\:text-yellow-800:hover) { color: hsl(48 65% 70%); }
+:root[data-theme="dark"] :is(.border-yellow-100,.border-yellow-200,.border-yellow-300) { border-color: hsl(48 28% 24%); }
+:root[data-theme="dark"] :is(.border-yellow-400,.border-yellow-500,.border-yellow-600) { border-color: hsl(48 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-yellow-200:hover,.hover\:border-yellow-300:hover,.hover\:border-yellow-400:hover) { border-color: hsl(48 38% 40%); }
+:root[data-theme="dark"] :is(.ring-yellow-100,.ring-yellow-200,.ring-yellow-300,.ring-yellow-400,.ring-yellow-500) { --tw-ring-color: hsl(48 32% 30%); }
+:root[data-theme="dark"] :is(.divide-yellow-100 > :not(:last-child),.divide-yellow-200 > :not(:last-child),.divide-yellow-300 > :not(:last-child)) { border-color: hsl(48 28% 22%); }
+:root[data-theme="dark"] :is(.from-yellow-50,.to-yellow-50,.via-yellow-50,.from-yellow-100,.to-yellow-100,.via-yellow-100,.from-yellow-200,.to-yellow-200,.via-yellow-200) { --tw-gradient-from: hsl(48 70% 55% / 0.11); --tw-gradient-to: hsl(48 70% 55% / 0.07); --tw-gradient-via: hsl(48 70% 55% / 0.07); }
+
+/* lime */
+:root[data-theme="dark"] :is(.bg-lime-50,[class*="bg-lime-50/"]) { background-color: hsl(84 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-lime-50:hover) { background-color: hsl(84 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-lime-100,[class*="bg-lime-100/"]) { background-color: hsl(84 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-lime-100:hover) { background-color: hsl(84 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-lime-200,[class*="bg-lime-200/"]) { background-color: hsl(84 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-lime-200:hover) { background-color: hsl(84 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-lime-300) { background-color: hsl(84 50% 38%); }
+:root[data-theme="dark"] :is(.bg-lime-400) { background-color: hsl(84 50% 38%); }
+:root[data-theme="dark"] :is(.bg-lime-500) { background-color: hsl(84 50% 38%); }
+:root[data-theme="dark"] :is(.bg-lime-600) { background-color: hsl(84 50% 34%); }
+:root[data-theme="dark"] :is(.bg-lime-700) { background-color: hsl(84 50% 34%); }
+:root[data-theme="dark"] :is(.bg-lime-800) { background-color: hsl(84 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-lime-500:hover) { background-color: hsl(84 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-lime-600:hover) { background-color: hsl(84 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-lime-700:hover) { background-color: hsl(84 50% 34%); }
+:root[data-theme="dark"] :is(.text-lime-400,.text-lime-500,.text-lime-600,.text-lime-700,.text-lime-800,.text-lime-900) { color: hsl(84 60% 62%); }
+:root[data-theme="dark"] :is(.hover\:text-lime-400:hover,.hover\:text-lime-500:hover,.hover\:text-lime-600:hover,.hover\:text-lime-700:hover,.hover\:text-lime-800:hover) { color: hsl(84 65% 68%); }
+:root[data-theme="dark"] :is(.border-lime-100,.border-lime-200,.border-lime-300) { border-color: hsl(84 28% 24%); }
+:root[data-theme="dark"] :is(.border-lime-400,.border-lime-500,.border-lime-600) { border-color: hsl(84 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-lime-200:hover,.hover\:border-lime-300:hover,.hover\:border-lime-400:hover) { border-color: hsl(84 38% 40%); }
+:root[data-theme="dark"] :is(.ring-lime-100,.ring-lime-200,.ring-lime-300,.ring-lime-400,.ring-lime-500) { --tw-ring-color: hsl(84 32% 30%); }
+:root[data-theme="dark"] :is(.divide-lime-100 > :not(:last-child),.divide-lime-200 > :not(:last-child),.divide-lime-300 > :not(:last-child)) { border-color: hsl(84 28% 22%); }
+:root[data-theme="dark"] :is(.from-lime-50,.to-lime-50,.via-lime-50,.from-lime-100,.to-lime-100,.via-lime-100,.from-lime-200,.to-lime-200,.via-lime-200) { --tw-gradient-from: hsl(84 70% 55% / 0.11); --tw-gradient-to: hsl(84 70% 55% / 0.07); --tw-gradient-via: hsl(84 70% 55% / 0.07); }
+
+/* green */
+:root[data-theme="dark"] :is(.bg-green-50,[class*="bg-green-50/"]) { background-color: hsl(142 70% 55% / 0.1); }
+:root[data-theme="dark"] :is(.hover\:bg-green-50:hover) { background-color: hsl(142 70% 55% / 0.15); }
+:root[data-theme="dark"] :is(.bg-green-100,[class*="bg-green-100/"]) { background-color: hsl(142 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-green-100:hover) { background-color: hsl(142 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-green-200,[class*="bg-green-200/"]) { background-color: hsl(142 70% 55% / 0.22); }
+:root[data-theme="dark"] :is(.hover\:bg-green-200:hover) { background-color: hsl(142 70% 55% / 0.27); }
+:root[data-theme="dark"] :is(.bg-green-300) { background-color: hsl(142 50% 38%); }
+:root[data-theme="dark"] :is(.bg-green-400) { background-color: hsl(142 50% 38%); }
+:root[data-theme="dark"] :is(.bg-green-500) { background-color: hsl(142 50% 38%); }
+:root[data-theme="dark"] :is(.bg-green-600) { background-color: hsl(142 50% 34%); }
+:root[data-theme="dark"] :is(.bg-green-700) { background-color: hsl(142 50% 34%); }
+:root[data-theme="dark"] :is(.bg-green-800) { background-color: hsl(142 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-green-500:hover) { background-color: hsl(142 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-green-600:hover) { background-color: hsl(142 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-green-700:hover) { background-color: hsl(142 50% 34%); }
+:root[data-theme="dark"] :is(.text-green-400,.text-green-500,.text-green-600,.text-green-700,.text-green-800,.text-green-900) { color: hsl(142 60% 62%); }
+:root[data-theme="dark"] :is(.hover\:text-green-400:hover,.hover\:text-green-500:hover,.hover\:text-green-600:hover,.hover\:text-green-700:hover,.hover\:text-green-800:hover) { color: hsl(142 65% 68%); }
+:root[data-theme="dark"] :is(.border-green-100,.border-green-200,.border-green-300) { border-color: hsl(142 28% 24%); }
+:root[data-theme="dark"] :is(.border-green-400,.border-green-500,.border-green-600) { border-color: hsl(142 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-green-200:hover,.hover\:border-green-300:hover,.hover\:border-green-400:hover) { border-color: hsl(142 38% 40%); }
+:root[data-theme="dark"] :is(.ring-green-100,.ring-green-200,.ring-green-300,.ring-green-400,.ring-green-500) { --tw-ring-color: hsl(142 32% 30%); }
+:root[data-theme="dark"] :is(.divide-green-100 > :not(:last-child),.divide-green-200 > :not(:last-child),.divide-green-300 > :not(:last-child)) { border-color: hsl(142 28% 22%); }
+:root[data-theme="dark"] :is(.from-green-50,.to-green-50,.via-green-50,.from-green-100,.to-green-100,.via-green-100,.from-green-200,.to-green-200,.via-green-200) { --tw-gradient-from: hsl(142 70% 55% / 0.16); --tw-gradient-to: hsl(142 70% 55% / 0.1); --tw-gradient-via: hsl(142 70% 55% / 0.1); }
+
+/* emerald */
+:root[data-theme="dark"] :is(.bg-emerald-50,[class*="bg-emerald-50/"]) { background-color: hsl(160 70% 55% / 0.1); }
+:root[data-theme="dark"] :is(.hover\:bg-emerald-50:hover) { background-color: hsl(160 70% 55% / 0.15); }
+:root[data-theme="dark"] :is(.bg-emerald-100,[class*="bg-emerald-100/"]) { background-color: hsl(160 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-emerald-100:hover) { background-color: hsl(160 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-emerald-200,[class*="bg-emerald-200/"]) { background-color: hsl(160 70% 55% / 0.22); }
+:root[data-theme="dark"] :is(.hover\:bg-emerald-200:hover) { background-color: hsl(160 70% 55% / 0.27); }
+:root[data-theme="dark"] :is(.bg-emerald-300) { background-color: hsl(160 50% 38%); }
+:root[data-theme="dark"] :is(.bg-emerald-400) { background-color: hsl(160 50% 38%); }
+:root[data-theme="dark"] :is(.bg-emerald-500) { background-color: hsl(160 50% 38%); }
+:root[data-theme="dark"] :is(.bg-emerald-600) { background-color: hsl(160 50% 34%); }
+:root[data-theme="dark"] :is(.bg-emerald-700) { background-color: hsl(160 50% 34%); }
+:root[data-theme="dark"] :is(.bg-emerald-800) { background-color: hsl(160 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-emerald-500:hover) { background-color: hsl(160 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-emerald-600:hover) { background-color: hsl(160 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-emerald-700:hover) { background-color: hsl(160 50% 34%); }
+:root[data-theme="dark"] :is(.text-emerald-400,.text-emerald-500,.text-emerald-600,.text-emerald-700,.text-emerald-800,.text-emerald-900) { color: hsl(160 60% 62%); }
+:root[data-theme="dark"] :is(.hover\:text-emerald-400:hover,.hover\:text-emerald-500:hover,.hover\:text-emerald-600:hover,.hover\:text-emerald-700:hover,.hover\:text-emerald-800:hover) { color: hsl(160 65% 68%); }
+:root[data-theme="dark"] :is(.border-emerald-100,.border-emerald-200,.border-emerald-300) { border-color: hsl(160 28% 24%); }
+:root[data-theme="dark"] :is(.border-emerald-400,.border-emerald-500,.border-emerald-600) { border-color: hsl(160 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-emerald-200:hover,.hover\:border-emerald-300:hover,.hover\:border-emerald-400:hover) { border-color: hsl(160 38% 40%); }
+:root[data-theme="dark"] :is(.ring-emerald-100,.ring-emerald-200,.ring-emerald-300,.ring-emerald-400,.ring-emerald-500) { --tw-ring-color: hsl(160 32% 30%); }
+:root[data-theme="dark"] :is(.divide-emerald-100 > :not(:last-child),.divide-emerald-200 > :not(:last-child),.divide-emerald-300 > :not(:last-child)) { border-color: hsl(160 28% 22%); }
+:root[data-theme="dark"] :is(.from-emerald-50,.to-emerald-50,.via-emerald-50,.from-emerald-100,.to-emerald-100,.via-emerald-100,.from-emerald-200,.to-emerald-200,.via-emerald-200) { --tw-gradient-from: hsl(160 70% 55% / 0.16); --tw-gradient-to: hsl(160 70% 55% / 0.1); --tw-gradient-via: hsl(160 70% 55% / 0.1); }
+
+/* teal */
+:root[data-theme="dark"] :is(.bg-teal-50,[class*="bg-teal-50/"]) { background-color: hsl(173 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-teal-50:hover) { background-color: hsl(173 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-teal-100,[class*="bg-teal-100/"]) { background-color: hsl(173 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-teal-100:hover) { background-color: hsl(173 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-teal-200,[class*="bg-teal-200/"]) { background-color: hsl(173 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-teal-200:hover) { background-color: hsl(173 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-teal-300) { background-color: hsl(173 50% 38%); }
+:root[data-theme="dark"] :is(.bg-teal-400) { background-color: hsl(173 50% 38%); }
+:root[data-theme="dark"] :is(.bg-teal-500) { background-color: hsl(173 50% 38%); }
+:root[data-theme="dark"] :is(.bg-teal-600) { background-color: hsl(173 50% 34%); }
+:root[data-theme="dark"] :is(.bg-teal-700) { background-color: hsl(173 50% 34%); }
+:root[data-theme="dark"] :is(.bg-teal-800) { background-color: hsl(173 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-teal-500:hover) { background-color: hsl(173 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-teal-600:hover) { background-color: hsl(173 50% 34%); }
+:root[data-theme="dark"] :is(.hover\:bg-teal-700:hover) { background-color: hsl(173 50% 34%); }
+:root[data-theme="dark"] :is(.text-teal-400,.text-teal-500,.text-teal-600,.text-teal-700,.text-teal-800,.text-teal-900) { color: hsl(173 60% 62%); }
+:root[data-theme="dark"] :is(.hover\:text-teal-400:hover,.hover\:text-teal-500:hover,.hover\:text-teal-600:hover,.hover\:text-teal-700:hover,.hover\:text-teal-800:hover) { color: hsl(173 65% 68%); }
+:root[data-theme="dark"] :is(.border-teal-100,.border-teal-200,.border-teal-300) { border-color: hsl(173 28% 24%); }
+:root[data-theme="dark"] :is(.border-teal-400,.border-teal-500,.border-teal-600) { border-color: hsl(173 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-teal-200:hover,.hover\:border-teal-300:hover,.hover\:border-teal-400:hover) { border-color: hsl(173 38% 40%); }
+:root[data-theme="dark"] :is(.ring-teal-100,.ring-teal-200,.ring-teal-300,.ring-teal-400,.ring-teal-500) { --tw-ring-color: hsl(173 32% 30%); }
+:root[data-theme="dark"] :is(.divide-teal-100 > :not(:last-child),.divide-teal-200 > :not(:last-child),.divide-teal-300 > :not(:last-child)) { border-color: hsl(173 28% 22%); }
+:root[data-theme="dark"] :is(.from-teal-50,.to-teal-50,.via-teal-50,.from-teal-100,.to-teal-100,.via-teal-100,.from-teal-200,.to-teal-200,.via-teal-200) { --tw-gradient-from: hsl(173 70% 55% / 0.11); --tw-gradient-to: hsl(173 70% 55% / 0.07); --tw-gradient-via: hsl(173 70% 55% / 0.07); }
+
+/* cyan */
+:root[data-theme="dark"] :is(.bg-cyan-50,[class*="bg-cyan-50/"]) { background-color: hsl(188 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-cyan-50:hover) { background-color: hsl(188 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-cyan-100,[class*="bg-cyan-100/"]) { background-color: hsl(188 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-cyan-100:hover) { background-color: hsl(188 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-cyan-200,[class*="bg-cyan-200/"]) { background-color: hsl(188 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-cyan-200:hover) { background-color: hsl(188 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-cyan-300) { background-color: hsl(188 50% 40%); }
+:root[data-theme="dark"] :is(.bg-cyan-400) { background-color: hsl(188 50% 40%); }
+:root[data-theme="dark"] :is(.bg-cyan-500) { background-color: hsl(188 50% 40%); }
+:root[data-theme="dark"] :is(.bg-cyan-600) { background-color: hsl(188 50% 36%); }
+:root[data-theme="dark"] :is(.bg-cyan-700) { background-color: hsl(188 50% 36%); }
+:root[data-theme="dark"] :is(.bg-cyan-800) { background-color: hsl(188 50% 36%); }
+:root[data-theme="dark"] :is(.hover\:bg-cyan-500:hover) { background-color: hsl(188 50% 36%); }
+:root[data-theme="dark"] :is(.hover\:bg-cyan-600:hover) { background-color: hsl(188 50% 36%); }
+:root[data-theme="dark"] :is(.hover\:bg-cyan-700:hover) { background-color: hsl(188 50% 36%); }
+:root[data-theme="dark"] :is(.text-cyan-400,.text-cyan-500,.text-cyan-600,.text-cyan-700,.text-cyan-800,.text-cyan-900) { color: hsl(188 60% 64%); }
+:root[data-theme="dark"] :is(.hover\:text-cyan-400:hover,.hover\:text-cyan-500:hover,.hover\:text-cyan-600:hover,.hover\:text-cyan-700:hover,.hover\:text-cyan-800:hover) { color: hsl(188 65% 70%); }
+:root[data-theme="dark"] :is(.border-cyan-100,.border-cyan-200,.border-cyan-300) { border-color: hsl(188 28% 24%); }
+:root[data-theme="dark"] :is(.border-cyan-400,.border-cyan-500,.border-cyan-600) { border-color: hsl(188 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-cyan-200:hover,.hover\:border-cyan-300:hover,.hover\:border-cyan-400:hover) { border-color: hsl(188 38% 40%); }
+:root[data-theme="dark"] :is(.ring-cyan-100,.ring-cyan-200,.ring-cyan-300,.ring-cyan-400,.ring-cyan-500) { --tw-ring-color: hsl(188 32% 30%); }
+:root[data-theme="dark"] :is(.divide-cyan-100 > :not(:last-child),.divide-cyan-200 > :not(:last-child),.divide-cyan-300 > :not(:last-child)) { border-color: hsl(188 28% 22%); }
+:root[data-theme="dark"] :is(.from-cyan-50,.to-cyan-50,.via-cyan-50,.from-cyan-100,.to-cyan-100,.via-cyan-100,.from-cyan-200,.to-cyan-200,.via-cyan-200) { --tw-gradient-from: hsl(188 70% 55% / 0.11); --tw-gradient-to: hsl(188 70% 55% / 0.07); --tw-gradient-via: hsl(188 70% 55% / 0.07); }
+
+/* sky */
+:root[data-theme="dark"] :is(.bg-sky-50,[class*="bg-sky-50/"]) { background-color: hsl(199 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-sky-50:hover) { background-color: hsl(199 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-sky-100,[class*="bg-sky-100/"]) { background-color: hsl(199 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-sky-100:hover) { background-color: hsl(199 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-sky-200,[class*="bg-sky-200/"]) { background-color: hsl(199 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-sky-200:hover) { background-color: hsl(199 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-sky-300) { background-color: hsl(199 50% 44%); }
+:root[data-theme="dark"] :is(.bg-sky-400) { background-color: hsl(199 50% 44%); }
+:root[data-theme="dark"] :is(.bg-sky-500) { background-color: hsl(199 50% 44%); }
+:root[data-theme="dark"] :is(.bg-sky-600) { background-color: hsl(199 50% 40%); }
+:root[data-theme="dark"] :is(.bg-sky-700) { background-color: hsl(199 50% 40%); }
+:root[data-theme="dark"] :is(.bg-sky-800) { background-color: hsl(199 50% 40%); }
+:root[data-theme="dark"] :is(.hover\:bg-sky-500:hover) { background-color: hsl(199 50% 40%); }
+:root[data-theme="dark"] :is(.hover\:bg-sky-600:hover) { background-color: hsl(199 50% 40%); }
+:root[data-theme="dark"] :is(.hover\:bg-sky-700:hover) { background-color: hsl(199 50% 40%); }
+:root[data-theme="dark"] :is(.text-sky-400,.text-sky-500,.text-sky-600,.text-sky-700,.text-sky-800,.text-sky-900) { color: hsl(199 60% 68%); }
+:root[data-theme="dark"] :is(.hover\:text-sky-400:hover,.hover\:text-sky-500:hover,.hover\:text-sky-600:hover,.hover\:text-sky-700:hover,.hover\:text-sky-800:hover) { color: hsl(199 65% 74%); }
+:root[data-theme="dark"] :is(.border-sky-100,.border-sky-200,.border-sky-300) { border-color: hsl(199 28% 24%); }
+:root[data-theme="dark"] :is(.border-sky-400,.border-sky-500,.border-sky-600) { border-color: hsl(199 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-sky-200:hover,.hover\:border-sky-300:hover,.hover\:border-sky-400:hover) { border-color: hsl(199 38% 40%); }
+:root[data-theme="dark"] :is(.ring-sky-100,.ring-sky-200,.ring-sky-300,.ring-sky-400,.ring-sky-500) { --tw-ring-color: hsl(199 32% 30%); }
+:root[data-theme="dark"] :is(.divide-sky-100 > :not(:last-child),.divide-sky-200 > :not(:last-child),.divide-sky-300 > :not(:last-child)) { border-color: hsl(199 28% 22%); }
+:root[data-theme="dark"] :is(.from-sky-50,.to-sky-50,.via-sky-50,.from-sky-100,.to-sky-100,.via-sky-100,.from-sky-200,.to-sky-200,.via-sky-200) { --tw-gradient-from: hsl(199 70% 55% / 0.11); --tw-gradient-to: hsl(199 70% 55% / 0.07); --tw-gradient-via: hsl(199 70% 55% / 0.07); }
+
+/* blue */
+:root[data-theme="dark"] :is(.bg-blue-50,[class*="bg-blue-50/"]) { background-color: hsl(217 70% 55% / 0.1); }
+:root[data-theme="dark"] :is(.hover\:bg-blue-50:hover) { background-color: hsl(217 70% 55% / 0.15); }
+:root[data-theme="dark"] :is(.bg-blue-100,[class*="bg-blue-100/"]) { background-color: hsl(217 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-blue-100:hover) { background-color: hsl(217 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-blue-200,[class*="bg-blue-200/"]) { background-color: hsl(217 70% 55% / 0.22); }
+:root[data-theme="dark"] :is(.hover\:bg-blue-200:hover) { background-color: hsl(217 70% 55% / 0.27); }
+:root[data-theme="dark"] :is(.bg-blue-300) { background-color: hsl(217 50% 48%); }
+:root[data-theme="dark"] :is(.bg-blue-400) { background-color: hsl(217 50% 48%); }
+:root[data-theme="dark"] :is(.bg-blue-500) { background-color: hsl(217 50% 48%); }
+:root[data-theme="dark"] :is(.bg-blue-600) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.bg-blue-700) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.bg-blue-800) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-blue-500:hover) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-blue-600:hover) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-blue-700:hover) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.text-blue-400,.text-blue-500,.text-blue-600,.text-blue-700,.text-blue-800,.text-blue-900) { color: hsl(217 60% 72%); }
+:root[data-theme="dark"] :is(.hover\:text-blue-400:hover,.hover\:text-blue-500:hover,.hover\:text-blue-600:hover,.hover\:text-blue-700:hover,.hover\:text-blue-800:hover) { color: hsl(217 65% 78%); }
+:root[data-theme="dark"] :is(.border-blue-100,.border-blue-200,.border-blue-300) { border-color: hsl(217 28% 24%); }
+:root[data-theme="dark"] :is(.border-blue-400,.border-blue-500,.border-blue-600) { border-color: hsl(217 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-blue-200:hover,.hover\:border-blue-300:hover,.hover\:border-blue-400:hover) { border-color: hsl(217 38% 40%); }
+:root[data-theme="dark"] :is(.ring-blue-100,.ring-blue-200,.ring-blue-300,.ring-blue-400,.ring-blue-500) { --tw-ring-color: hsl(217 32% 30%); }
+:root[data-theme="dark"] :is(.divide-blue-100 > :not(:last-child),.divide-blue-200 > :not(:last-child),.divide-blue-300 > :not(:last-child)) { border-color: hsl(217 28% 22%); }
+:root[data-theme="dark"] :is(.from-blue-50,.to-blue-50,.via-blue-50,.from-blue-100,.to-blue-100,.via-blue-100,.from-blue-200,.to-blue-200,.via-blue-200) { --tw-gradient-from: hsl(217 70% 55% / 0.16); --tw-gradient-to: hsl(217 70% 55% / 0.1); --tw-gradient-via: hsl(217 70% 55% / 0.1); }
+
+/* indigo */
+:root[data-theme="dark"] :is(.bg-indigo-50,[class*="bg-indigo-50/"]) { background-color: hsl(239 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-indigo-50:hover) { background-color: hsl(239 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-indigo-100,[class*="bg-indigo-100/"]) { background-color: hsl(239 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-indigo-100:hover) { background-color: hsl(239 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-indigo-200,[class*="bg-indigo-200/"]) { background-color: hsl(239 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-indigo-200:hover) { background-color: hsl(239 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-indigo-300) { background-color: hsl(239 50% 52%); }
+:root[data-theme="dark"] :is(.bg-indigo-400) { background-color: hsl(239 50% 52%); }
+:root[data-theme="dark"] :is(.bg-indigo-500) { background-color: hsl(239 50% 52%); }
+:root[data-theme="dark"] :is(.bg-indigo-600) { background-color: hsl(239 50% 48%); }
+:root[data-theme="dark"] :is(.bg-indigo-700) { background-color: hsl(239 50% 48%); }
+:root[data-theme="dark"] :is(.bg-indigo-800) { background-color: hsl(239 50% 48%); }
+:root[data-theme="dark"] :is(.hover\:bg-indigo-500:hover) { background-color: hsl(239 50% 48%); }
+:root[data-theme="dark"] :is(.hover\:bg-indigo-600:hover) { background-color: hsl(239 50% 48%); }
+:root[data-theme="dark"] :is(.hover\:bg-indigo-700:hover) { background-color: hsl(239 50% 48%); }
+:root[data-theme="dark"] :is(.text-indigo-400,.text-indigo-500,.text-indigo-600,.text-indigo-700,.text-indigo-800,.text-indigo-900) { color: hsl(239 60% 76%); }
+:root[data-theme="dark"] :is(.hover\:text-indigo-400:hover,.hover\:text-indigo-500:hover,.hover\:text-indigo-600:hover,.hover\:text-indigo-700:hover,.hover\:text-indigo-800:hover) { color: hsl(239 65% 82%); }
+:root[data-theme="dark"] :is(.border-indigo-100,.border-indigo-200,.border-indigo-300) { border-color: hsl(239 28% 24%); }
+:root[data-theme="dark"] :is(.border-indigo-400,.border-indigo-500,.border-indigo-600) { border-color: hsl(239 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-indigo-200:hover,.hover\:border-indigo-300:hover,.hover\:border-indigo-400:hover) { border-color: hsl(239 38% 40%); }
+:root[data-theme="dark"] :is(.ring-indigo-100,.ring-indigo-200,.ring-indigo-300,.ring-indigo-400,.ring-indigo-500) { --tw-ring-color: hsl(239 32% 30%); }
+:root[data-theme="dark"] :is(.divide-indigo-100 > :not(:last-child),.divide-indigo-200 > :not(:last-child),.divide-indigo-300 > :not(:last-child)) { border-color: hsl(239 28% 22%); }
+:root[data-theme="dark"] :is(.from-indigo-50,.to-indigo-50,.via-indigo-50,.from-indigo-100,.to-indigo-100,.via-indigo-100,.from-indigo-200,.to-indigo-200,.via-indigo-200) { --tw-gradient-from: hsl(239 70% 55% / 0.11); --tw-gradient-to: hsl(239 70% 55% / 0.07); --tw-gradient-via: hsl(239 70% 55% / 0.07); }
+
+/* violet */
+:root[data-theme="dark"] :is(.bg-violet-50,[class*="bg-violet-50/"]) { background-color: hsl(258 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-violet-50:hover) { background-color: hsl(258 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-violet-100,[class*="bg-violet-100/"]) { background-color: hsl(258 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-violet-100:hover) { background-color: hsl(258 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-violet-200,[class*="bg-violet-200/"]) { background-color: hsl(258 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-violet-200:hover) { background-color: hsl(258 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-violet-300) { background-color: hsl(258 50% 52%); }
+:root[data-theme="dark"] :is(.bg-violet-400) { background-color: hsl(258 50% 52%); }
+:root[data-theme="dark"] :is(.bg-violet-500) { background-color: hsl(258 50% 52%); }
+:root[data-theme="dark"] :is(.bg-violet-600) { background-color: hsl(258 50% 48%); }
+:root[data-theme="dark"] :is(.bg-violet-700) { background-color: hsl(258 50% 48%); }
+:root[data-theme="dark"] :is(.bg-violet-800) { background-color: hsl(258 50% 48%); }
+:root[data-theme="dark"] :is(.hover\:bg-violet-500:hover) { background-color: hsl(258 50% 48%); }
+:root[data-theme="dark"] :is(.hover\:bg-violet-600:hover) { background-color: hsl(258 50% 48%); }
+:root[data-theme="dark"] :is(.hover\:bg-violet-700:hover) { background-color: hsl(258 50% 48%); }
+:root[data-theme="dark"] :is(.text-violet-400,.text-violet-500,.text-violet-600,.text-violet-700,.text-violet-800,.text-violet-900) { color: hsl(258 60% 76%); }
+:root[data-theme="dark"] :is(.hover\:text-violet-400:hover,.hover\:text-violet-500:hover,.hover\:text-violet-600:hover,.hover\:text-violet-700:hover,.hover\:text-violet-800:hover) { color: hsl(258 65% 82%); }
+:root[data-theme="dark"] :is(.border-violet-100,.border-violet-200,.border-violet-300) { border-color: hsl(258 28% 24%); }
+:root[data-theme="dark"] :is(.border-violet-400,.border-violet-500,.border-violet-600) { border-color: hsl(258 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-violet-200:hover,.hover\:border-violet-300:hover,.hover\:border-violet-400:hover) { border-color: hsl(258 38% 40%); }
+:root[data-theme="dark"] :is(.ring-violet-100,.ring-violet-200,.ring-violet-300,.ring-violet-400,.ring-violet-500) { --tw-ring-color: hsl(258 32% 30%); }
+:root[data-theme="dark"] :is(.divide-violet-100 > :not(:last-child),.divide-violet-200 > :not(:last-child),.divide-violet-300 > :not(:last-child)) { border-color: hsl(258 28% 22%); }
+:root[data-theme="dark"] :is(.from-violet-50,.to-violet-50,.via-violet-50,.from-violet-100,.to-violet-100,.via-violet-100,.from-violet-200,.to-violet-200,.via-violet-200) { --tw-gradient-from: hsl(258 70% 55% / 0.11); --tw-gradient-to: hsl(258 70% 55% / 0.07); --tw-gradient-via: hsl(258 70% 55% / 0.07); }
+
+/* purple */
+:root[data-theme="dark"] :is(.bg-purple-50,[class*="bg-purple-50/"]) { background-color: hsl(274 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-purple-50:hover) { background-color: hsl(274 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-purple-100,[class*="bg-purple-100/"]) { background-color: hsl(274 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-purple-100:hover) { background-color: hsl(274 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-purple-200,[class*="bg-purple-200/"]) { background-color: hsl(274 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-purple-200:hover) { background-color: hsl(274 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-purple-300) { background-color: hsl(274 50% 50%); }
+:root[data-theme="dark"] :is(.bg-purple-400) { background-color: hsl(274 50% 50%); }
+:root[data-theme="dark"] :is(.bg-purple-500) { background-color: hsl(274 50% 50%); }
+:root[data-theme="dark"] :is(.bg-purple-600) { background-color: hsl(274 50% 46%); }
+:root[data-theme="dark"] :is(.bg-purple-700) { background-color: hsl(274 50% 46%); }
+:root[data-theme="dark"] :is(.bg-purple-800) { background-color: hsl(274 50% 46%); }
+:root[data-theme="dark"] :is(.hover\:bg-purple-500:hover) { background-color: hsl(274 50% 46%); }
+:root[data-theme="dark"] :is(.hover\:bg-purple-600:hover) { background-color: hsl(274 50% 46%); }
+:root[data-theme="dark"] :is(.hover\:bg-purple-700:hover) { background-color: hsl(274 50% 46%); }
+:root[data-theme="dark"] :is(.text-purple-400,.text-purple-500,.text-purple-600,.text-purple-700,.text-purple-800,.text-purple-900) { color: hsl(274 60% 74%); }
+:root[data-theme="dark"] :is(.hover\:text-purple-400:hover,.hover\:text-purple-500:hover,.hover\:text-purple-600:hover,.hover\:text-purple-700:hover,.hover\:text-purple-800:hover) { color: hsl(274 65% 80%); }
+:root[data-theme="dark"] :is(.border-purple-100,.border-purple-200,.border-purple-300) { border-color: hsl(274 28% 24%); }
+:root[data-theme="dark"] :is(.border-purple-400,.border-purple-500,.border-purple-600) { border-color: hsl(274 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-purple-200:hover,.hover\:border-purple-300:hover,.hover\:border-purple-400:hover) { border-color: hsl(274 38% 40%); }
+:root[data-theme="dark"] :is(.ring-purple-100,.ring-purple-200,.ring-purple-300,.ring-purple-400,.ring-purple-500) { --tw-ring-color: hsl(274 32% 30%); }
+:root[data-theme="dark"] :is(.divide-purple-100 > :not(:last-child),.divide-purple-200 > :not(:last-child),.divide-purple-300 > :not(:last-child)) { border-color: hsl(274 28% 22%); }
+:root[data-theme="dark"] :is(.from-purple-50,.to-purple-50,.via-purple-50,.from-purple-100,.to-purple-100,.via-purple-100,.from-purple-200,.to-purple-200,.via-purple-200) { --tw-gradient-from: hsl(274 70% 55% / 0.11); --tw-gradient-to: hsl(274 70% 55% / 0.07); --tw-gradient-via: hsl(274 70% 55% / 0.07); }
+
+/* fuchsia */
+:root[data-theme="dark"] :is(.bg-fuchsia-50,[class*="bg-fuchsia-50/"]) { background-color: hsl(292 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-fuchsia-50:hover) { background-color: hsl(292 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-fuchsia-100,[class*="bg-fuchsia-100/"]) { background-color: hsl(292 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-fuchsia-100:hover) { background-color: hsl(292 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-fuchsia-200,[class*="bg-fuchsia-200/"]) { background-color: hsl(292 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-fuchsia-200:hover) { background-color: hsl(292 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-fuchsia-300) { background-color: hsl(292 50% 48%); }
+:root[data-theme="dark"] :is(.bg-fuchsia-400) { background-color: hsl(292 50% 48%); }
+:root[data-theme="dark"] :is(.bg-fuchsia-500) { background-color: hsl(292 50% 48%); }
+:root[data-theme="dark"] :is(.bg-fuchsia-600) { background-color: hsl(292 50% 44%); }
+:root[data-theme="dark"] :is(.bg-fuchsia-700) { background-color: hsl(292 50% 44%); }
+:root[data-theme="dark"] :is(.bg-fuchsia-800) { background-color: hsl(292 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-fuchsia-500:hover) { background-color: hsl(292 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-fuchsia-600:hover) { background-color: hsl(292 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-fuchsia-700:hover) { background-color: hsl(292 50% 44%); }
+:root[data-theme="dark"] :is(.text-fuchsia-400,.text-fuchsia-500,.text-fuchsia-600,.text-fuchsia-700,.text-fuchsia-800,.text-fuchsia-900) { color: hsl(292 60% 72%); }
+:root[data-theme="dark"] :is(.hover\:text-fuchsia-400:hover,.hover\:text-fuchsia-500:hover,.hover\:text-fuchsia-600:hover,.hover\:text-fuchsia-700:hover,.hover\:text-fuchsia-800:hover) { color: hsl(292 65% 78%); }
+:root[data-theme="dark"] :is(.border-fuchsia-100,.border-fuchsia-200,.border-fuchsia-300) { border-color: hsl(292 28% 24%); }
+:root[data-theme="dark"] :is(.border-fuchsia-400,.border-fuchsia-500,.border-fuchsia-600) { border-color: hsl(292 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-fuchsia-200:hover,.hover\:border-fuchsia-300:hover,.hover\:border-fuchsia-400:hover) { border-color: hsl(292 38% 40%); }
+:root[data-theme="dark"] :is(.ring-fuchsia-100,.ring-fuchsia-200,.ring-fuchsia-300,.ring-fuchsia-400,.ring-fuchsia-500) { --tw-ring-color: hsl(292 32% 30%); }
+:root[data-theme="dark"] :is(.divide-fuchsia-100 > :not(:last-child),.divide-fuchsia-200 > :not(:last-child),.divide-fuchsia-300 > :not(:last-child)) { border-color: hsl(292 28% 22%); }
+:root[data-theme="dark"] :is(.from-fuchsia-50,.to-fuchsia-50,.via-fuchsia-50,.from-fuchsia-100,.to-fuchsia-100,.via-fuchsia-100,.from-fuchsia-200,.to-fuchsia-200,.via-fuchsia-200) { --tw-gradient-from: hsl(292 70% 55% / 0.11); --tw-gradient-to: hsl(292 70% 55% / 0.07); --tw-gradient-via: hsl(292 70% 55% / 0.07); }
+
+/* pink */
+:root[data-theme="dark"] :is(.bg-pink-50,[class*="bg-pink-50/"]) { background-color: hsl(330 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-pink-50:hover) { background-color: hsl(330 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-pink-100,[class*="bg-pink-100/"]) { background-color: hsl(330 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-pink-100:hover) { background-color: hsl(330 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-pink-200,[class*="bg-pink-200/"]) { background-color: hsl(330 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-pink-200:hover) { background-color: hsl(330 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-pink-300) { background-color: hsl(330 50% 48%); }
+:root[data-theme="dark"] :is(.bg-pink-400) { background-color: hsl(330 50% 48%); }
+:root[data-theme="dark"] :is(.bg-pink-500) { background-color: hsl(330 50% 48%); }
+:root[data-theme="dark"] :is(.bg-pink-600) { background-color: hsl(330 50% 44%); }
+:root[data-theme="dark"] :is(.bg-pink-700) { background-color: hsl(330 50% 44%); }
+:root[data-theme="dark"] :is(.bg-pink-800) { background-color: hsl(330 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-pink-500:hover) { background-color: hsl(330 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-pink-600:hover) { background-color: hsl(330 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-pink-700:hover) { background-color: hsl(330 50% 44%); }
+:root[data-theme="dark"] :is(.text-pink-400,.text-pink-500,.text-pink-600,.text-pink-700,.text-pink-800,.text-pink-900) { color: hsl(330 60% 72%); }
+:root[data-theme="dark"] :is(.hover\:text-pink-400:hover,.hover\:text-pink-500:hover,.hover\:text-pink-600:hover,.hover\:text-pink-700:hover,.hover\:text-pink-800:hover) { color: hsl(330 65% 78%); }
+:root[data-theme="dark"] :is(.border-pink-100,.border-pink-200,.border-pink-300) { border-color: hsl(330 28% 24%); }
+:root[data-theme="dark"] :is(.border-pink-400,.border-pink-500,.border-pink-600) { border-color: hsl(330 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-pink-200:hover,.hover\:border-pink-300:hover,.hover\:border-pink-400:hover) { border-color: hsl(330 38% 40%); }
+:root[data-theme="dark"] :is(.ring-pink-100,.ring-pink-200,.ring-pink-300,.ring-pink-400,.ring-pink-500) { --tw-ring-color: hsl(330 32% 30%); }
+:root[data-theme="dark"] :is(.divide-pink-100 > :not(:last-child),.divide-pink-200 > :not(:last-child),.divide-pink-300 > :not(:last-child)) { border-color: hsl(330 28% 22%); }
+:root[data-theme="dark"] :is(.from-pink-50,.to-pink-50,.via-pink-50,.from-pink-100,.to-pink-100,.via-pink-100,.from-pink-200,.to-pink-200,.via-pink-200) { --tw-gradient-from: hsl(330 70% 55% / 0.11); --tw-gradient-to: hsl(330 70% 55% / 0.07); --tw-gradient-via: hsl(330 70% 55% / 0.07); }
+
+/* rose */
+:root[data-theme="dark"] :is(.bg-rose-50,[class*="bg-rose-50/"]) { background-color: hsl(350 70% 55% / 0.07); }
+:root[data-theme="dark"] :is(.hover\:bg-rose-50:hover) { background-color: hsl(350 70% 55% / 0.12); }
+:root[data-theme="dark"] :is(.bg-rose-100,[class*="bg-rose-100/"]) { background-color: hsl(350 70% 55% / 0.11); }
+:root[data-theme="dark"] :is(.hover\:bg-rose-100:hover) { background-color: hsl(350 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.bg-rose-200,[class*="bg-rose-200/"]) { background-color: hsl(350 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-rose-200:hover) { background-color: hsl(350 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-rose-300) { background-color: hsl(350 50% 48%); }
+:root[data-theme="dark"] :is(.bg-rose-400) { background-color: hsl(350 50% 48%); }
+:root[data-theme="dark"] :is(.bg-rose-500) { background-color: hsl(350 50% 48%); }
+:root[data-theme="dark"] :is(.bg-rose-600) { background-color: hsl(350 50% 44%); }
+:root[data-theme="dark"] :is(.bg-rose-700) { background-color: hsl(350 50% 44%); }
+:root[data-theme="dark"] :is(.bg-rose-800) { background-color: hsl(350 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-rose-500:hover) { background-color: hsl(350 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-rose-600:hover) { background-color: hsl(350 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-rose-700:hover) { background-color: hsl(350 50% 44%); }
+:root[data-theme="dark"] :is(.text-rose-400,.text-rose-500,.text-rose-600,.text-rose-700,.text-rose-800,.text-rose-900) { color: hsl(350 60% 72%); }
+:root[data-theme="dark"] :is(.hover\:text-rose-400:hover,.hover\:text-rose-500:hover,.hover\:text-rose-600:hover,.hover\:text-rose-700:hover,.hover\:text-rose-800:hover) { color: hsl(350 65% 78%); }
+:root[data-theme="dark"] :is(.border-rose-100,.border-rose-200,.border-rose-300) { border-color: hsl(350 28% 24%); }
+:root[data-theme="dark"] :is(.border-rose-400,.border-rose-500,.border-rose-600) { border-color: hsl(350 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-rose-200:hover,.hover\:border-rose-300:hover,.hover\:border-rose-400:hover) { border-color: hsl(350 38% 40%); }
+:root[data-theme="dark"] :is(.ring-rose-100,.ring-rose-200,.ring-rose-300,.ring-rose-400,.ring-rose-500) { --tw-ring-color: hsl(350 32% 30%); }
+:root[data-theme="dark"] :is(.divide-rose-100 > :not(:last-child),.divide-rose-200 > :not(:last-child),.divide-rose-300 > :not(:last-child)) { border-color: hsl(350 28% 22%); }
+:root[data-theme="dark"] :is(.from-rose-50,.to-rose-50,.via-rose-50,.from-rose-100,.to-rose-100,.via-rose-100,.from-rose-200,.to-rose-200,.via-rose-200) { --tw-gradient-from: hsl(350 70% 55% / 0.11); --tw-gradient-to: hsl(350 70% 55% / 0.07); --tw-gradient-via: hsl(350 70% 55% / 0.07); }
+
+/* brand */
+:root[data-theme="dark"] :is(.bg-brand-50,[class*="bg-brand-50/"]) { background-color: hsl(217 70% 55% / 0.1); }
+:root[data-theme="dark"] :is(.hover\:bg-brand-50:hover) { background-color: hsl(217 70% 55% / 0.15); }
+:root[data-theme="dark"] :is(.bg-brand-100,[class*="bg-brand-100/"]) { background-color: hsl(217 70% 55% / 0.16); }
+:root[data-theme="dark"] :is(.hover\:bg-brand-100:hover) { background-color: hsl(217 70% 55% / 0.21); }
+:root[data-theme="dark"] :is(.bg-brand-200,[class*="bg-brand-200/"]) { background-color: hsl(217 70% 55% / 0.22); }
+:root[data-theme="dark"] :is(.hover\:bg-brand-200:hover) { background-color: hsl(217 70% 55% / 0.27); }
+:root[data-theme="dark"] :is(.bg-brand-300) { background-color: hsl(217 50% 48%); }
+:root[data-theme="dark"] :is(.bg-brand-400) { background-color: hsl(217 50% 48%); }
+:root[data-theme="dark"] :is(.bg-brand-500) { background-color: hsl(217 50% 48%); }
+:root[data-theme="dark"] :is(.bg-brand-600) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.bg-brand-700) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.bg-brand-800) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-brand-500:hover) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-brand-600:hover) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.hover\:bg-brand-700:hover) { background-color: hsl(217 50% 44%); }
+:root[data-theme="dark"] :is(.text-brand-400,.text-brand-500,.text-brand-600,.text-brand-700,.text-brand-800,.text-brand-900) { color: hsl(217 60% 72%); }
+:root[data-theme="dark"] :is(.hover\:text-brand-400:hover,.hover\:text-brand-500:hover,.hover\:text-brand-600:hover,.hover\:text-brand-700:hover,.hover\:text-brand-800:hover) { color: hsl(217 65% 78%); }
+:root[data-theme="dark"] :is(.border-brand-100,.border-brand-200,.border-brand-300) { border-color: hsl(217 28% 24%); }
+:root[data-theme="dark"] :is(.border-brand-400,.border-brand-500,.border-brand-600) { border-color: hsl(217 38% 38%); }
+:root[data-theme="dark"] :is(.hover\:border-brand-200:hover,.hover\:border-brand-300:hover,.hover\:border-brand-400:hover) { border-color: hsl(217 38% 40%); }
+:root[data-theme="dark"] :is(.ring-brand-100,.ring-brand-200,.ring-brand-300,.ring-brand-400,.ring-brand-500) { --tw-ring-color: hsl(217 32% 30%); }
+:root[data-theme="dark"] :is(.divide-brand-100 > :not(:last-child),.divide-brand-200 > :not(:last-child),.divide-brand-300 > :not(:last-child)) { border-color: hsl(217 28% 22%); }
+:root[data-theme="dark"] :is(.from-brand-50,.to-brand-50,.via-brand-50,.from-brand-100,.to-brand-100,.via-brand-100,.from-brand-200,.to-brand-200,.via-brand-200) { --tw-gradient-from: hsl(217 70% 55% / 0.16); --tw-gradient-to: hsl(217 70% 55% / 0.1); --tw-gradient-via: hsl(217 70% 55% / 0.1); }

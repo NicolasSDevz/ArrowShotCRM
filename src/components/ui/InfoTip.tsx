@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { Info } from 'lucide-react'
 
-/** Ícone ℹ️ com tooltip explicativo. Aparece no hover, no foco por teclado e
+/** Ícone de informação com tooltip explicativo. Aparece no hover, no foco por teclado e
  *  no clique (fixa até clicar fora / Esc). Fundo escuro em ambos os temas,
  *  seta apontando para o ícone. Usado nos cards do painel "Visão Geral". */
 export function InfoTip({ title, children }: { title?: string; children: string }) {
@@ -36,9 +37,9 @@ export function InfoTip({ title, children }: { title?: string; children: string 
         onFocus={() => setHover(true)}
         onBlur={() => setHover(false)}
         onClick={() => setPinned((p) => !p)}
-        className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] leading-none opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100"
+        className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:text-slate-600"
       >
-        <span aria-hidden="true">ℹ️</span>
+        <Info size={14} aria-hidden="true" />
       </button>
       {open && (
         <span
