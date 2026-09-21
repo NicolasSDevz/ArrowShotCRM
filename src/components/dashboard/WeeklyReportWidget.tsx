@@ -56,7 +56,12 @@ export function WeeklyReportWidget() {
       // Pago" — trafficServices(...).any NÃO serve aqui: por design (ver
       // utils/clientServices.ts) ele assume "ambos" pra qualquer cadastro
       // sem essa info, incluindo clientes só de Social Mídia.
-      .filter((c) => c.status === 'active' && !!c.modules?.paidTraffic && belongsToMe(c))
+      // Inclui "Onboarding" (status 'prospect') além de "Ativo": um cliente
+      // pode já ter campanha rodando (Tráfego Pago marcado) antes de alguém
+      // lembrar de virar o status pra Ativo — sem isso ele fica invisível
+      // aqui até esse detalhe manual acontecer (foi exatamente o caso da
+      // Limma Eventos e da Impactus).
+      .filter((c) => (c.status === 'active' || c.status === 'prospect') && !!c.modules?.paidTraffic && belongsToMe(c))
       .sort((a, b) => a.companyName.localeCompare(b.companyName))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, profile, scheduleRows])
