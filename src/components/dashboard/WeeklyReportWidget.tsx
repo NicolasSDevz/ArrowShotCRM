@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, FileBarChart } from 'lucide-react'
+import { format, subDays } from 'date-fns'
+import { Check, FileBarChart, BarChart3 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
+import { useOptimizationSchedule } from '../../hooks/useOptimizations'
 import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
 import { ensureWeeklyReportCheck, setWeeklyReportCheckItem, subscribeWeeklyReportCheck } from '../../services/weeklyReportCheckService'
 import { trafficServices, platformBadgeLabel } from '../../utils/clientServices'
-import { getClientOwnerIds } from '../../types/client'
+import { getClientOwnerIds, type Client } from '../../types/client'
 import { isoWeekKey } from '../../utils/isoWeek'
-import type { WeeklyReportCheck } from '../../types/weeklyReportCheck'
+import type { WeeklyReportCheck, ReportPlatform } from '../../types'
+import { ReportFormModal } from '../reports/ReportFormModal'
+
+function toDateStr(d: Date) {
+  return format(d, 'yyyy-MM-dd')
+}
 
 /** Widget "Envio de Relatórios Semanais" — só pra Ciane/Nicolas, só às
  *  segundas, só enquanto houver cliente de tráfego pago sem marcar. Estado
@@ -17,23 +24,42 @@ import type { WeeklyReportCheck } from '../../types/weeklyReportCheck'
 export function WeeklyReportWidget() {
   const { profile } = useAuth()
   const { data: clients } = useClients()
+  const { rows: scheduleRows } = useOptimizationSchedule()
 
   const [doc, setDoc] = useState<WeeklyReportCheck | null>(null)
   const [localChecks, setLocalChecks] = useState<Record<string, boolean>>({})
   const [justCompleted, setJustCompleted] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [reportClient, setReportClient] = useState<Client | null>(null)
 
   const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
   const canSee = personKey === 'ciane' || personKey === 'nicolas'
   const isMonday = new Date().getDay() === 1
   const weekKey = isoWeekKey()
 
+  // Dono "de verdade" pra esse fim: prioriza quem está de fato responsável
+  // no calendário de otimizações (settings/optimizationSchedule) — é comum
+  // um cliente ter isso certo lá mas o campo ownerIds/ownerId do cadastro
+  // do cliente estar vazio ou desatualizado. Cai pro ownerIds só quando o
+  // cliente não tem nenhuma linha no calendário ainda.
+  const belongsToMe = (client: Client): boolean => {
+    if (!profile) return false
+    const row = scheduleRows.find((r) => r.clientId === client.id)
+    if (row) return row.userId === profile.id
+    return getClientOwnerIds(client).includes(profile.id)
+  }
+
   const eligibleClients = useMemo(() => {
     if (!profile) return []
     return clients
-      .filter((c) => c.status === 'active' && getClientOwnerIds(c).includes(profile.id) && trafficServices(c).any)
+      // client.modules?.paidTraffic é o sinal real de "contratou Tráfego
+      // Pago" — trafficServices(...).any NÃO serve aqui: por design (ver
+      // utils/clientServices.ts) ele assume "ambos" pra qualquer cadastro
+      // sem essa info, incluindo clientes só de Social Mídia.
+      .filter((c) => c.status === 'active' && !!c.modules?.paidTraffic && belongsToMe(c))
       .sort((a, b) => a.companyName.localeCompare(b.companyName))
-  }, [clients, profile])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients, profile, scheduleRows])
   const eligibleIds = useMemo(() => eligibleClients.map((c) => c.id), [eligibleClients])
   const eligibleIdsKey = eligibleIds.join(',')
 
@@ -58,9 +84,8 @@ export function WeeklyReportWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, active, weekKey, eligibleIdsKey])
 
-  const toggle = (clientId: string) => {
+  const applyCheck = (clientId: string, done: boolean) => {
     if (!profile) return
-    const done = !localChecks[clientId]
     const nextChecks = { ...localChecks, [clientId]: done }
     setLocalChecks(nextChecks)
     const allDone = eligibleIds.length > 0 && eligibleIds.every((id) => nextChecks[id])
@@ -75,6 +100,14 @@ export function WeeklyReportWidget() {
       setTimeout(() => setDismissed(true), 3000)
     }
   }
+
+  const toggle = (clientId: string) => applyCheck(clientId, !localChecks[clientId])
+
+  // Semana anterior completa (segunda a domingo) — o widget só existe às
+  // segundas, então "hoje - 7" é sempre a segunda passada e "hoje - 1" o
+  // domingo passado.
+  const lastWeekStart = toDateStr(subDays(new Date(), 7))
+  const lastWeekEnd = toDateStr(subDays(new Date(), 1))
 
   if (!active) return null
   if (dismissed) return null
@@ -122,36 +155,53 @@ export function WeeklyReportWidget() {
         />
       </div>
 
-      <div className="mt-4 flex flex-col gap-2.5">
+      <div className="mt-4 flex flex-col gap-1">
         {displayClients.map((client) => {
           const checked = !!localChecks[client.id]
           const badge = platformBadgeLabel(trafficServices(client).platforms)
           return (
-            <button
-              key={client.id}
-              type="button"
-              onClick={() => toggle(client.id)}
-              className="flex items-center gap-2.5 text-left"
-            >
-              <span
-                className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-colors duration-150 ease-in-out ${
-                  checked ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 bg-white'
-                }`}
-              >
-                {checked && <Check size={12} className="text-white" strokeWidth={3} />}
-              </span>
-              <span
-                className={`flex min-w-0 flex-1 items-center gap-1.5 text-[14px] transition-opacity duration-150 ease-in-out ${
-                  checked ? 'text-[#94A3B8] line-through opacity-50' : 'text-[#0F172A]'
-                }`}
-              >
-                <span className="min-w-0 truncate">{client.companyName}</span>
-                <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${badge.className}`}>{badge.label}</span>
-              </span>
-            </button>
+            <div key={client.id} className="group flex flex-col gap-1 py-0.5">
+              <button type="button" onClick={() => toggle(client.id)} className="flex items-center gap-2.5 text-left">
+                <span
+                  className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-colors duration-150 ease-in-out ${
+                    checked ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 bg-white'
+                  }`}
+                >
+                  {checked && <Check size={12} className="text-white" strokeWidth={3} />}
+                </span>
+                <span
+                  className={`flex min-w-0 flex-1 items-center gap-1.5 text-[14px] transition-opacity duration-150 ease-in-out ${
+                    checked ? 'text-[#94A3B8] line-through opacity-50' : 'text-[#0F172A]'
+                  }`}
+                >
+                  <span className="min-w-0 truncate">{client.companyName}</span>
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${badge.className}`}>{badge.label}</span>
+                </span>
+              </button>
+              {!checked && (
+                <button
+                  type="button"
+                  onClick={() => setReportClient(client)}
+                  className="ml-[26px] flex w-fit items-center gap-1 rounded-md border border-brand-300 bg-transparent px-2 py-0.5 text-[11px] font-medium text-brand-600 opacity-100 transition-opacity duration-150 hover:bg-brand-50 sm:opacity-0 sm:group-hover:opacity-100"
+                >
+                  <BarChart3 size={11} /> Gerar relatório semanal
+                </button>
+              )}
+            </div>
           )
         })}
       </div>
+
+      <ReportFormModal
+        key={reportClient?.id ?? 'none'}
+        open={!!reportClient}
+        onClose={() => setReportClient(null)}
+        initialClientId={reportClient?.id}
+        initialPlatforms={reportClient ? (trafficServices(reportClient).platforms as ReportPlatform[]) : undefined}
+        initialStartStr={lastWeekStart}
+        initialEndStr={lastWeekEnd}
+        onGenerated={(clientId) => applyCheck(clientId, true)}
+      />
     </div>
   )
 }

@@ -37,7 +37,29 @@ function defaultRange(t: ReportType): { start: string; end: string } {
   return { start: toDateStr(subDays(now, 7)), end: toDateStr(now) }
 }
 
-export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ReportFormModal({
+  open,
+  onClose,
+  initialClientId,
+  initialPlatforms,
+  initialStartStr,
+  initialEndStr,
+  onGenerated,
+}: {
+  open: boolean
+  onClose: () => void
+  /** Pré-preenchimento — usado pelo botão "Gerar relatório semanal" do
+   *  widget "Envio de Relatórios Semanais". O chamador deve remontar o modal
+   *  (via `key`) quando trocar de cliente, já que esses valores só viram o
+   *  estado inicial (não ficam sincronizados depois). */
+  initialClientId?: string
+  initialPlatforms?: ReportPlatform[]
+  initialStartStr?: string
+  initialEndStr?: string
+  /** Chamado quando um relatório SEMANAL é salvo com sucesso (não mensal —
+   *  esse fluxo de pré-preenchimento só existe pro semanal). */
+  onGenerated?: (clientId: string) => void
+}) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   // Todos os clientes cadastrados — sem filtrar por status nem por já ter o
@@ -45,11 +67,11 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
   // "Buscar dados", com um aviso específico — ver handleGenerate).
   const { data: clients } = useClients()
 
-  const [clientId, setClientId] = useState('')
+  const [clientId, setClientId] = useState(initialClientId ?? '')
   const [type, setType] = useState<ReportType>('weekly')
-  const [platforms, setPlatforms] = useState<ReportPlatform[]>(['meta'])
-  const [startStr, setStartStr] = useState(defaultRange('weekly').start)
-  const [endStr, setEndStr] = useState(defaultRange('weekly').end)
+  const [platforms, setPlatforms] = useState<ReportPlatform[]>(initialPlatforms ?? ['meta'])
+  const [startStr, setStartStr] = useState(initialStartStr ?? defaultRange('weekly').start)
+  const [endStr, setEndStr] = useState(initialEndStr ?? defaultRange('weekly').end)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -207,6 +229,7 @@ export function ReportFormModal({ open, onClose }: { open: boolean; onClose: () 
       if (type === 'weekly') {
         toast.success('Relatório salvo')
         setSaving(false)
+        onGenerated?.(client.id)
         handleClose()
         return
       }

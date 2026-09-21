@@ -9,18 +9,19 @@ import {
   Target,
   UserPlus,
   BarChart3,
-  Wallet,
-  Lock,
   UserCog,
   GraduationCap,
   KeyRound,
   CalendarRange,
+  ChevronDown,
   X,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { Avatar } from '../ui/Avatar'
 import { USER_ROLE_LABEL } from '../../types/user'
+import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
 
 const mainNav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -28,17 +29,10 @@ const mainNav = [
   { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
   { to: '/calendario', label: 'Calendário', icon: CalendarDays },
   { to: '/reunioes', label: 'Reuniões', icon: Video },
-]
-
-// "Google Ads", "Meta Ads", "Leads" e "Relatórios" têm `to` e por isso
-// renderizam como link ativo, mesmo continuando listados dentro da seção
-// "Em breve" junto dos módulos ainda travados.
-const futureNav: { label: string; icon: typeof Target; to?: string }[] = [
-  { label: 'Google Ads', icon: Target, to: '/google-ads' },
-  { label: 'Meta Ads', icon: Megaphone, to: '/meta-ads' },
-  { label: 'Leads', icon: UserPlus, to: '/leads' },
-  { label: 'Relatórios', icon: BarChart3, to: '/relatorios' },
-  { label: 'Financeiro', icon: Wallet },
+  { to: '/google-ads', label: 'Google Ads', icon: Target },
+  { to: '/meta-ads', label: 'Meta Ads', icon: Megaphone },
+  { to: '/leads', label: 'Leads', icon: UserPlus },
+  { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
 ]
 
 export function Sidebar({
@@ -50,8 +44,12 @@ export function Sidebar({
 }) {
   const { profile } = useAuth()
   const { data: teamMembers } = useTeamMembers()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const canSeeUniversity = profile?.role === 'admin' || profile?.role === 'manager' || profile?.role === 'employee'
   const canManageTokens = profile?.role === 'admin' || profile?.role === 'manager'
+  const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
+  const isGestorTrafego = personKey === 'ciane' || personKey === 'nicolas'
+  const showSettingsSection = canManageTokens || isGestorTrafego
   const myProfileCargo = teamMembers.find((m) => m.userId === profile?.id)?.jobTitle
 
   return (
@@ -124,68 +122,55 @@ export function Sidebar({
             </NavLink>
           )}
 
-          {canManageTokens && (
-            <NavLink
-              to="/otimizacoes/calendario"
-              onClick={onCloseMobile}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] font-medium transition-all duration-150 ease-in-out ${
-                  isActive ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
-                }`
-              }
-            >
-              <CalendarRange size={18} />
-              Calendário de Otimizações
-            </NavLink>
-          )}
+          {showSettingsSection && (
+            <div className="mt-2 border-t border-navy-800 pt-1.5">
+              <button
+                type="button"
+                onClick={() => setSettingsOpen((v) => !v)}
+                className="flex w-full items-center gap-2.5 rounded-lg px-4 py-2 text-[13px] font-medium text-slate-500 transition-colors hover:text-slate-300"
+              >
+                <span aria-hidden="true">⚙️</span>
+                Configurações
+                <ChevronDown size={13} className={`ml-auto transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-          {canManageTokens && (
-            <NavLink
-              to="/configuracoes/tokens"
-              onClick={onCloseMobile}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] font-medium transition-all duration-150 ease-in-out ${
-                  isActive ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
-                }`
-              }
-            >
-              <KeyRound size={18} />
-              Tokens Meta Ads
-            </NavLink>
-          )}
+              {settingsOpen && (
+                <div className="flex flex-col gap-0.5 pb-1">
+                  {isGestorTrafego && (
+                    <NavLink
+                      to="/otimizacoes/calendario"
+                      onClick={onCloseMobile}
+                      className={({ isActive }) =>
+                        `flex items-center gap-2 rounded-lg px-4 py-2 text-[11px] transition-colors ${
+                          isActive ? 'text-slate-200' : 'hover:text-slate-300'
+                        }`
+                      }
+                      style={{ color: '#64748B' }}
+                    >
+                      <CalendarRange size={14} />
+                      Calendário de Otimizações
+                    </NavLink>
+                  )}
 
-          <div className="mt-2 border-t border-navy-800 px-4 pb-1.5 pt-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600">Em breve</p>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            {futureNav.map(({ label, icon: Icon, to }) =>
-              to ? (
-                <NavLink
-                  key={label}
-                  to={to}
-                  onClick={onCloseMobile}
-                  className={({ isActive }) =>
-                    `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] font-medium transition-all duration-150 ease-in-out ${
-                      isActive ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
-                    }`
-                  }
-                >
-                  <Icon size={18} />
-                  {label}
-                </NavLink>
-              ) : (
-                <div
-                  key={label}
-                  title="Módulo em preparação"
-                  className="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] text-slate-400 opacity-50"
-                >
-                  <Icon size={18} />
-                  {label}
-                  <Lock size={11} className="ml-auto opacity-70" />
+                  {canManageTokens && (
+                    <NavLink
+                      to="/configuracoes/tokens"
+                      onClick={onCloseMobile}
+                      className={({ isActive }) =>
+                        `flex items-center gap-2 rounded-lg px-4 py-2 text-[11px] transition-colors ${
+                          isActive ? 'text-slate-200' : 'hover:text-slate-300'
+                        }`
+                      }
+                      style={{ color: '#64748B' }}
+                    >
+                      <KeyRound size={14} />
+                      Tokens Meta Ads
+                    </NavLink>
+                  )}
                 </div>
-              )
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </nav>
 
         {profile && (
