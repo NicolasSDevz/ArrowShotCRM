@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { Camera, Loader2, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { Avatar } from '../ui/Avatar'
+import { ImageCropModal } from '../ui/ImageCropModal'
 import {
   uploadClientLogo,
   removeClientLogo,
@@ -11,24 +12,32 @@ import {
 } from '../../services/clientLogoService'
 import type { Client } from '../../types/client'
 
-/** Header da ficha do cliente — logo circular 80px, upload imediato ao
- *  escolher, "x" para remover no hover. */
+/** Header da ficha do cliente — logo circular 80px. Ao escolher o arquivo,
+ *  abre o editor de recorte (ImageCropModal); o upload só acontece ao
+ *  confirmar lá, já com a imagem recortada e comprimida. */
 export function ClientLogoUpload({ client }: { client: Client }) {
   const { profile } = useAuth()
   const [busy, setBusy] = useState(false)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const handlePick = async (file?: File | null) => {
-    if (!file || !profile) return
+  const handlePick = (file?: File | null) => {
+    if (!file) return
     try {
       assertValidLogo(file)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Imagem inválida')
       return
     }
+    setPendingFile(file)
+  }
+
+  const handleCropConfirm = async (cropped: File) => {
+    setPendingFile(null)
+    if (!profile) return
     setBusy(true)
     try {
-      await uploadClientLogo(client.id, file, profile.id, profile.name)
+      await uploadClientLogo(client.id, cropped, profile.id, profile.name)
       toast.success('Logo atualizada')
     } catch (err) {
       console.error(err)
@@ -87,6 +96,15 @@ export function ClientLogoUpload({ client }: { client: Client }) {
           handlePick(e.target.files?.[0])
           e.target.value = ''
         }}
+      />
+
+      <ImageCropModal
+        key={pendingFile ? `${pendingFile.name}-${pendingFile.lastModified}` : 'none'}
+        open={!!pendingFile}
+        file={pendingFile}
+        onCancel={() => setPendingFile(null)}
+        onConfirm={handleCropConfirm}
+        title="Ajustar logo"
       />
     </div>
   )

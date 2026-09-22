@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Camera, X } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
+import { ImageCropModal } from '../ui/ImageCropModal'
 import { CLIENT_LOGO_ACCEPT_ATTR, assertValidLogo } from '../../services/clientLogoService'
 import toast from 'react-hot-toast'
 
@@ -25,6 +26,7 @@ export function ClientLogoField({
   busy?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [cropFile, setCropFile] = useState<File | null>(null)
 
   const previewUrl = useMemo(() => (pendingFile ? URL.createObjectURL(pendingFile) : null), [pendingFile])
   useEffect(() => () => {
@@ -38,7 +40,7 @@ export function ClientLogoField({
     if (!file) return
     try {
       assertValidLogo(file)
-      onPick(file)
+      setCropFile(file)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Imagem inválida')
     }
@@ -90,6 +92,18 @@ export function ClientLogoField({
           pick(e.target.files?.[0])
           e.target.value = ''
         }}
+      />
+
+      <ImageCropModal
+        key={cropFile ? `${cropFile.name}-${cropFile.lastModified}` : 'none'}
+        open={!!cropFile}
+        file={cropFile}
+        onCancel={() => setCropFile(null)}
+        onConfirm={(cropped) => {
+          setCropFile(null)
+          onPick(cropped)
+        }}
+        title="Ajustar logo"
       />
     </div>
   )
