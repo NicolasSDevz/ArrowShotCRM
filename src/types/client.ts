@@ -130,6 +130,9 @@ export interface Client extends BaseDoc {
   monthlyValue?: number
   contractStartDate?: Timestamp | null
   notes?: string
+  /** Preenchido ao mudar o status para "Encerrado" — mostrado no popup de
+   *  Churn Rate do Dashboard (ver OverviewDashboard). */
+  churnReason?: string
   /** URL pública da logo no Firebase Storage (clients/{id}/logo/logo).
    *  `null` = removida explicitamente. */
   logoUrl?: string | null

@@ -1,22 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info } from 'lucide-react'
 
-/** Ícone de informação com tooltip explicativo. Aparece no hover, no foco por teclado e
- *  no clique (fixa até clicar fora / Esc). Fundo escuro em ambos os temas,
- *  seta apontando para o ícone. Usado nos cards do painel "Visão Geral". */
-export function InfoTip({ title, children }: { title?: string; children: string }) {
-  const [hover, setHover] = useState(false)
-  const [pinned, setPinned] = useState(false)
+/** Ícone de informação com popup explicativo — abre e fecha só no clique
+ *  (nunca no hover, pra não atrapalhar quem só tá passando o mouse pelo
+ *  card), fecha ao clicar fora ou apertar Esc. Fundo escuro em ambos os
+ *  temas, seta apontando pro ícone. Usado nos cards do painel "Visão
+ *  Geral" — `children` aceita texto simples ou conteúdo rico (ex: lista de
+ *  clientes que deram churn, no popup de Churn Rate). */
+export function InfoTip({ title, children }: { title?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
-  const open = hover || pinned
 
   useEffect(() => {
-    if (!pinned) return
+    if (!open) return
     const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setPinned(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPinned(false)
+      if (e.key === 'Escape') setOpen(false)
     }
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
@@ -24,7 +25,7 @@ export function InfoTip({ title, children }: { title?: string; children: string 
       document.removeEventListener('mousedown', onDoc)
       document.removeEventListener('keydown', onKey)
     }
-  }, [pinned])
+  }, [open])
 
   return (
     <span ref={ref} className="relative inline-flex shrink-0">
@@ -32,11 +33,10 @@ export function InfoTip({ title, children }: { title?: string; children: string 
         type="button"
         aria-label={title ? `O que é ${title}` : 'Mais informações'}
         aria-expanded={open}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        onFocus={() => setHover(true)}
-        onBlur={() => setHover(false)}
-        onClick={() => setPinned((p) => !p)}
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((p) => !p)
+        }}
         className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:text-slate-600"
       >
         <Info size={14} aria-hidden="true" />
@@ -44,7 +44,7 @@ export function InfoTip({ title, children }: { title?: string; children: string 
       {open && (
         <span
           role="tooltip"
-          className="infotip-pop absolute right-0 top-full z-[80] mt-2 block w-[250px] whitespace-pre-line text-left text-xs font-normal leading-relaxed"
+          className="infotip-pop absolute right-0 top-full z-[80] mt-2 block max-h-80 w-[290px] overflow-y-auto whitespace-pre-line text-left text-xs font-normal leading-relaxed"
           style={{
             backgroundColor: '#1E293B',
             color: '#F1F5F9',
@@ -58,8 +58,8 @@ export function InfoTip({ title, children }: { title?: string; children: string 
             className="absolute -top-1.5 right-2.5 block h-3 w-3 rotate-45"
             style={{ backgroundColor: '#1E293B' }}
           />
-          {title && <span className="mb-1 block font-semibold">{title}</span>}
-          <span className="relative">{children}</span>
+          {title && <span className="relative mb-1 block font-semibold">{title}</span>}
+          <span className="relative block">{children}</span>
         </span>
       )}
     </span>

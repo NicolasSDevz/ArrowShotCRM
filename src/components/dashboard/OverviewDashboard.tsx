@@ -93,7 +93,7 @@ function Card({ children, className = '' }: { children: ReactNode; className?: s
   )
 }
 
-function CardTitle({ children, tip }: { children: ReactNode; tip?: { title?: string; body: string } }) {
+function CardTitle({ children, tip }: { children: ReactNode; tip?: { title?: string; body: ReactNode } }) {
   return (
     <div className="mb-3 flex items-start justify-between gap-2">
       <p className="text-[15px] font-semibold text-slate-900">{children}</p>
@@ -134,7 +134,7 @@ function MetricCard({
   valueColor?: string
   subtitle: string
   delta?: number | null
-  tip: { title?: string; body: string }
+  tip: { title?: string; body: ReactNode }
 }) {
   return (
     <Card>
@@ -242,6 +242,33 @@ function GestorBar({
   )
 }
 
+/** Corpo do popup de Churn Rate — a faixa de saúde (texto fixo) mais a lista
+ *  de quem deu churn este mês, com o motivo preenchido no cadastro do
+ *  cliente (Status → Encerrado). Mesmo critério de "este mês" usado no
+ *  cálculo do indicador (computeCompanyMetrics). */
+function ChurnTipBody({ churned }: { churned: { id: string; companyName: string; churnReason?: string; when: Date }[] }) {
+  return (
+    <>
+      {TIPS.churn.body}
+      <span className="relative mt-2 block border-t border-white/15 pt-2 font-semibold">
+        {churned.length === 0 ? 'Ninguém deu churn este mês.' : `Quem deu churn este mês (${churned.length}):`}
+      </span>
+      {churned.length > 0 && (
+        <ul className="relative mt-1 flex flex-col gap-1.5">
+          {churned.map((c) => (
+            <li key={c.id}>
+              <span className="block font-semibold">
+                {c.companyName} <span className="font-normal opacity-70">— {format(c.when, 'dd/MM', { locale: ptBR })}</span>
+              </span>
+              <span className="block opacity-80">{c.churnReason || 'Motivo não informado'}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
 export function OverviewDashboard() {
   const navigate = useNavigate()
   const { data: clients } = useClients()
@@ -278,6 +305,15 @@ export function OverviewDashboard() {
       : null
 
   const churnColor = m.churnRate < 5 ? '#059669' : m.churnRate <= 10 ? '#D97706' : '#DC2626'
+
+  // ---- Quem deu churn este mês (mesmo critério de computeCompanyMetrics) ----
+  const churnedThisMonth = useMemo(() => {
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+    return clients
+      .filter((c) => c.status === 'churned' && (c.updatedAt?.toDate?.() ?? new Date(0)) >= monthStart)
+      .map((c) => ({ id: c.id, companyName: c.companyName, churnReason: c.churnReason, when: c.updatedAt!.toDate() }))
+      .sort((a, b) => b.when.getTime() - a.when.getTime())
+  }, [clients])
 
   // ---- Pipeline de Leads (ao vivo) ----
   const pipeline = useMemo(() => {
@@ -369,8 +405,8 @@ export function OverviewDashboard() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-xs text-slate-400">
-        Métricas atualizadas diariamente às 00:01. Passe o mouse sobre o ícone{' '}
-        <Info size={12} className="inline align-[-2px]" aria-label="informação" /> para entender cada indicador.
+        Métricas atualizadas diariamente às 00:01. Clique no ícone{' '}
+        <Info size={12} className="inline align-[-2px]" aria-label="informação" /> pra entender cada indicador.
       </p>
 
       {/* Barra superior */}
@@ -432,7 +468,7 @@ export function OverviewDashboard() {
           value={`${m.churnRate.toFixed(1)}%`}
           valueColor={churnColor}
           subtitle="Taxa de cancelamento do mês"
-          tip={TIPS.churn}
+          tip={{ title: TIPS.churn.title, body: <ChurnTipBody churned={churnedThisMonth} /> }}
         />
         <MetricCard
           icon={<Gem size={17} className="text-white" />}

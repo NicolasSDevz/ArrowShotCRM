@@ -52,6 +52,7 @@ const EMPTY = {
   contractStartDate: '',
   notes: '',
   status: 'prospect' as ClientStatus,
+  churnReason: '',
   categoria: '' as ClientCategory | '',
   socialMedia: false,
   paidTraffic: false,
@@ -132,6 +133,7 @@ export function ClientFormModal({
         contractStartDate: toDateInputValue(client.contractStartDate),
         notes: client.notes ?? '',
         status: client.status,
+        churnReason: client.churnReason ?? '',
         categoria: client.categoria ?? '',
         socialMedia: client.modules?.socialMedia ?? false,
         paidTraffic: client.modules?.paidTraffic ?? false,
@@ -219,6 +221,7 @@ export function ClientFormModal({
         monthlyValue: parseCurrencyToNumber(form.monthlyValue),
         contractStartDate: dateInputToTimestamp(form.contractStartDate),
         notes: form.notes || undefined,
+        churnReason: form.status === 'churned' ? form.churnReason.trim() || undefined : undefined,
         modules: {
           ...client?.modules,
           socialMedia: form.socialMedia,
@@ -397,6 +400,19 @@ export function ClientFormModal({
               ))}
             </Select>
           </Field>
+        )}
+        {client && form.status === 'churned' && (
+          <div className="sm:col-span-2">
+            <Field label="Motivo do cancelamento">
+              <Textarea
+                rows={2}
+                value={form.churnReason}
+                onChange={(e) => set('churnReason', e.target.value)}
+                placeholder="Ex: preço, resultado abaixo do esperado, mudou de agência..."
+              />
+            </Field>
+            <p className="mt-1 text-xs text-slate-400">Aparece no popup de Churn Rate do Dashboard.</p>
+          </div>
         )}
         <Field label="Categoria">
           <Select value={form.categoria} onChange={(e) => set('categoria', e.target.value as ClientCategory | '')}>
