@@ -20,6 +20,27 @@ export function subscribeLatestMetricsSnapshot(
   )
 }
 
+/** Últimos N snapshots diários (mais antigo primeiro) — base do gráfico de
+ *  evolução de churn/MRR no modal de detalhe do Churn Rate. Como só existe
+ *  um doc por dia desde que o cron de métricas passou a rodar, o histórico
+ *  pode vir curto (poucos dias) em contas recentes — o gráfico lida com
+ *  qualquer quantidade de pontos. */
+export function subscribeRecentMetricsSnapshots(
+  days: number,
+  onData: (snapshots: MetricsSnapshot[]) => void,
+  onError?: (err: FirestoreError) => void
+): Unsubscribe {
+  const q = query(collection(db, COLLECTION), orderBy('calculatedAt', 'desc'), limit(days))
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MetricsSnapshot).reverse()
+      onData(items)
+    },
+    onError
+  )
+}
+
 /** Força o recálculo do snapshot no backend (botão "Atualizar agora"). */
 export async function refreshMetricsNow(): Promise<MetricsSnapshot> {
   const user = auth.currentUser

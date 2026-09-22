@@ -22,7 +22,7 @@ export function ClientsTable({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   return (
-    <div className="clients-table overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="clients-table overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
       <table className="w-full min-w-[820px] text-left text-[15px]">
         <thead className="border-b border-slate-100 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
           <tr>
@@ -51,7 +51,7 @@ export function ClientsTable({
                 <td className="py-2.5 pl-3">
                   <Avatar name={client.companyName} photoURL={client.logoUrl} size="lg" />
                 </td>
-                <td className="max-w-[240px] py-2.5 pr-3">
+                <td className="max-w-[240px] py-2.5 pl-3 pr-3">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate font-medium text-slate-800">{client.companyName}</p>
                     {client.categoria && (

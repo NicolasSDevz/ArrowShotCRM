@@ -27,7 +27,7 @@ export function ClientsGrid({
           <button
             key={client.id}
             onClick={() => onRowClick(client)}
-            className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-md"
+            className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-shadow hover:shadow-md"
           >
             <div className="flex items-start gap-3">
               <span className="mt-1 shrink-0 text-xs font-medium text-slate-300">{i + 1}</span>

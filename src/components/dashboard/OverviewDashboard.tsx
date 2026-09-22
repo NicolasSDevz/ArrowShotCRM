@@ -28,6 +28,9 @@ import { refreshMetricsNow } from '../../services/metricsService'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { InfoTip } from '../ui/InfoTip'
+import { ChurnDetailModal } from './ChurnDetailModal'
+import { ClientsStatusChart } from './ClientsStatusChart'
+import { UpsellRevenueChart } from './UpsellRevenueChart'
 import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
 import { LEAD_STATUS_LABEL, type Activity, type LeadStatus } from '../../types'
 
@@ -126,6 +129,7 @@ function MetricCard({
   subtitle,
   delta,
   tip,
+  onInfoClick,
 }: {
   icon: ReactNode
   iconBg: string
@@ -134,7 +138,10 @@ function MetricCard({
   valueColor?: string
   subtitle: string
   delta?: number | null
-  tip: { title?: string; body: ReactNode }
+  tip?: { title?: string; body: ReactNode }
+  /** Quando informado, o ícone "i" abre isso em vez do popup padrão — usado
+   *  no Churn Rate pra abrir o modal completo (ver ChurnDetailModal). */
+  onInfoClick?: () => void
 }) {
   return (
     <Card>
@@ -142,7 +149,18 @@ function MetricCard({
         <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconBg}`}>{icon}</div>
         <div className="flex items-center gap-2">
           {delta !== undefined && <DeltaChip pct={delta} />}
-          <InfoTip title={tip.title}>{tip.body}</InfoTip>
+          {onInfoClick ? (
+            <button
+              type="button"
+              onClick={onInfoClick}
+              aria-label={`Ver detalhes de ${label}`}
+              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600"
+            >
+              <Info size={14} />
+            </button>
+          ) : (
+            tip && <InfoTip title={tip.title}>{tip.body}</InfoTip>
+          )}
         </div>
       </div>
       <p className="mt-3 text-[13px] font-medium text-slate-500">{label}</p>
@@ -242,33 +260,6 @@ function GestorBar({
   )
 }
 
-/** Corpo do popup de Churn Rate — a faixa de saúde (texto fixo) mais a lista
- *  de quem deu churn este mês, com o motivo preenchido no cadastro do
- *  cliente (Status → Encerrado). Mesmo critério de "este mês" usado no
- *  cálculo do indicador (computeCompanyMetrics). */
-function ChurnTipBody({ churned }: { churned: { id: string; companyName: string; churnReason?: string; when: Date }[] }) {
-  return (
-    <>
-      {TIPS.churn.body}
-      <span className="relative mt-2 block border-t border-white/15 pt-2 font-semibold">
-        {churned.length === 0 ? 'Ninguém deu churn este mês.' : `Quem deu churn este mês (${churned.length}):`}
-      </span>
-      {churned.length > 0 && (
-        <ul className="relative mt-1 flex flex-col gap-1.5">
-          {churned.map((c) => (
-            <li key={c.id}>
-              <span className="block font-semibold">
-                {c.companyName} <span className="font-normal opacity-70">— {format(c.when, 'dd/MM', { locale: ptBR })}</span>
-              </span>
-              <span className="block opacity-80">{c.churnReason || 'Motivo não informado'}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
-  )
-}
-
 export function OverviewDashboard() {
   const navigate = useNavigate()
   const { data: clients } = useClients()
@@ -306,14 +297,22 @@ export function OverviewDashboard() {
 
   const churnColor = m.churnRate < 5 ? '#059669' : m.churnRate <= 10 ? '#D97706' : '#DC2626'
 
-  // ---- Quem deu churn este mês (mesmo critério de computeCompanyMetrics) ----
-  const churnedThisMonth = useMemo(() => {
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    return clients
-      .filter((c) => c.status === 'churned' && (c.updatedAt?.toDate?.() ?? new Date(0)) >= monthStart)
-      .map((c) => ({ id: c.id, companyName: c.companyName, churnReason: c.churnReason, when: c.updatedAt!.toDate() }))
-      .sort((a, b) => b.when.getTime() - a.when.getTime())
-  }, [clients])
+  // ---- Todo o histórico de churn (pro modal de detalhe do card) ----
+  const allChurned = useMemo(
+    () =>
+      clients
+        .filter((c) => c.status === 'churned')
+        .map((c) => ({
+          id: c.id,
+          companyName: c.companyName,
+          churnReason: c.churnReason,
+          when: c.updatedAt?.toDate?.() ?? new Date(0),
+          monthlyValue: c.monthlyValue,
+        }))
+        .sort((a, b) => b.when.getTime() - a.when.getTime()),
+    [clients]
+  )
+  const [churnModalOpen, setChurnModalOpen] = useState(false)
 
   // ---- Pipeline de Leads (ao vivo) ----
   const pipeline = useMemo(() => {
@@ -468,7 +467,7 @@ export function OverviewDashboard() {
           value={`${m.churnRate.toFixed(1)}%`}
           valueColor={churnColor}
           subtitle="Taxa de cancelamento do mês"
-          tip={{ title: TIPS.churn.title, body: <ChurnTipBody churned={churnedThisMonth} /> }}
+          onInfoClick={() => setChurnModalOpen(true)}
         />
         <MetricCard
           icon={<Gem size={17} className="text-white" />}
@@ -485,6 +484,18 @@ export function OverviewDashboard() {
         <CardTitle>Evolução do MRR — últimos 6 meses</CardTitle>
         <MrrChart series={mrrSeries} />
       </Card>
+
+      {/* LINHA 2.5 — Carteira de clientes + Receita de Upsell */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardTitle>Carteira de Clientes</CardTitle>
+          <ClientsStatusChart clients={clients} />
+        </Card>
+        <Card>
+          <CardTitle>Upsell — Receita por mês</CardTitle>
+          <UpsellRevenueChart activities={upsellActivities} />
+        </Card>
+      </div>
 
       {/* LINHA 3 — Receita por gestor + Pipeline */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -617,6 +628,13 @@ export function OverviewDashboard() {
           )}
         </Card>
       </div>
+
+      <ChurnDetailModal
+        open={churnModalOpen}
+        onClose={() => setChurnModalOpen(false)}
+        churned={allChurned}
+        currentChurnRate={m.churnRate}
+      />
     </div>
   )
 }

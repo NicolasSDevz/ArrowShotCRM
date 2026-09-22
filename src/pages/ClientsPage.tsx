@@ -139,7 +139,7 @@ export function ClientsPage() {
         </Button>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-white p-3">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />

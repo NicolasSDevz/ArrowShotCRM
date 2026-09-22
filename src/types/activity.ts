@@ -23,6 +23,12 @@ export interface Activity {
   action: ActivityAction
   /** human-readable summary, e.g. "moveu de Revisão para Aprovado" */
   message: string
+  /** Valor em R$ do upsell — só preenchido quando `action === 'upsell'` e
+   *  registrado manualmente pelo widget "Registrar upsell" (upsells
+   *  detectados automaticamente ao editar o cliente não têm esse valor
+   *  estruturado, só descrito em `message`). Alimenta o gráfico de receita
+   *  de upsell do painel Visão Geral. */
+  amount?: number
   userId: string
   userName: string
   createdAt: Timestamp

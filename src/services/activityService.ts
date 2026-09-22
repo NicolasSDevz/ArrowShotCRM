@@ -12,6 +12,9 @@ export async function logActivity(params: {
   clientId?: string
   action: ActivityAction
   message: string
+  /** Só usado por action === 'upsell' registrado manualmente (ver
+   *  RegisterUpsellWidget) — ignorado nas demais ações. */
+  amount?: number
   userId: string
   userName: string
 }) {
@@ -24,6 +27,7 @@ export async function logActivity(params: {
       clientId: params.clientId ?? null,
       action: params.action,
       message: params.message,
+      ...(params.amount != null ? { amount: params.amount } : {}),
       userId: params.userId,
       userName: params.userName,
       createdAt: serverTimestamp(),

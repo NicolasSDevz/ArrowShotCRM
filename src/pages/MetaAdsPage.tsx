@@ -248,11 +248,6 @@ export function MetaAdsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-[28px] font-extrabold leading-tight text-slate-900">Meta Ads</h1>
-        <p className="text-[15px] text-[#64748B]">Visão consolidada de todas as contas</p>
-      </div>
-
       {/* Resumo — status, atualização e período */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
         <div className="flex flex-wrap items-center justify-between gap-3">

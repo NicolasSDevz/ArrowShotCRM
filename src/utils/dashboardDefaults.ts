@@ -16,6 +16,8 @@ const BRUNO_LAYOUT = layout([
   ['tarefas_atrasadas', 'full'],
   ['proximas_7dias', 'full'],
   ['resumo_clientes', 'full'],
+  ['registrar_upsell', 'half'],
+  ['relatorio_semanal_equipe', 'half'],
 ])
 
 const JAMILSON_LAYOUT = layout([

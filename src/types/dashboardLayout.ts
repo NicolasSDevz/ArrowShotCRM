@@ -23,6 +23,8 @@ export type DashboardWidgetId =
   | 'resumo_clientes'
   | 'aniversarios'
   | 'nova_tarefa'
+  | 'registrar_upsell'
+  | 'relatorio_semanal_equipe'
 
 export type DashboardWidgetWidth = 'full' | 'half'
 

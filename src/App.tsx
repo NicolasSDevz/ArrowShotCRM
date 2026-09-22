@@ -16,8 +16,7 @@ import { CalendarPage } from './pages/CalendarPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { MeetingsPage } from './pages/MeetingsPage'
 import { LeadsPage } from './pages/LeadsPage'
-import { MetaAdsPage } from './pages/MetaAdsPage'
-import { GoogleAdsPage } from './pages/GoogleAdsPage'
+import { MetricsPage } from './pages/MetricsPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { MonthlyReportPage } from './pages/MonthlyReportPage'
 import { TeamPage } from './pages/TeamPage'
@@ -59,8 +58,7 @@ function App() {
             <Route path="/calendario" element={<CalendarPage />} />
             <Route path="/reunioes" element={<MeetingsPage />} />
             <Route path="/leads" element={<LeadsPage />} />
-            <Route path="/meta-ads" element={<MetaAdsPage />} />
-            <Route path="/google-ads" element={<GoogleAdsPage />} />
+            <Route path="/metricas" element={<MetricsPage />} />
             <Route path="/relatorios" element={<ReportsPage />} />
             <Route path="/relatorios/:id" element={<MonthlyReportPage />} />
             <Route path="/notificacoes" element={<NotificationsPage />} />
