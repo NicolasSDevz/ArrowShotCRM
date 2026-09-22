@@ -14,6 +14,7 @@ import { useAllClientSuccessEvaluations } from '../hooks/useClientSuccessEvaluat
 import { latestClientSuccessByClient } from '../utils/clientSuccessLatest'
 import { useUserDashboardLayout } from '../hooks/useUserDashboardLayout'
 import { DashboardEmptyState } from '../components/dashboard/DashboardEmptyState'
+import { MotivationalQuoteBanner } from '../components/dashboard/MotivationalQuoteBanner'
 import { EditableWidgetFrame } from '../components/dashboard/EditableWidgetFrame'
 import { DashboardEditToolbar } from '../components/dashboard/DashboardEditToolbar'
 import { WIDGET_LABEL, ALL_WIDGET_IDS, renderDashboardWidget } from '../components/dashboard/dashboardWidgetCatalog'
@@ -286,6 +287,8 @@ export function OperationalDashboard() {
           )}
         </div>
       </div>
+
+      <MotivationalQuoteBanner />
 
       {editMode && (
         <DashboardEditToolbar

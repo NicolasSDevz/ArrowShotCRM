@@ -9,6 +9,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Field'
 import { EmptyState } from '../components/ui/EmptyState'
+import { InfoTip } from '../components/ui/InfoTip'
 import { updateClient } from '../services/clientService'
 import { getGoogleAdsInsights, type GoogleAdsInsightsSummary } from '../services/googleAdsApi'
 import { maskGoogleAdsId } from '../utils/masks'
@@ -17,6 +18,15 @@ import type { Client } from '../types/client'
 
 const BRL = (v: number) => (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const INT = (v: number) => (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })
+
+/** Explicações do ícone "i" de cada card — mesmo padrão do painel Visão
+ *  Geral (ver TIPS em OverviewDashboard.tsx). */
+const TIPS = {
+  cost: 'Soma do custo de todas as campanhas ativas de todos os clientes, no período de 30 dias exibido.',
+  conversions: 'Ações completadas atribuídas aos anúncios (leads, ligações, compras…), conforme as conversões configuradas em cada conta do Google Ads.',
+  cpc: 'Custo total dividido pelo total de cliques no período — quanto menor, melhor.',
+  ctr: 'Percentual de pessoas que clicaram no anúncio em relação a quantas o viram (cliques ÷ impressões). Acima de 3% é considerado bom para Rede de Pesquisa.',
+} as const
 
 type ClientResult =
   | { status: 'loading' }
@@ -152,46 +162,63 @@ export function GoogleAdsPage() {
   }, [successResults])
 
   const noAccountsConfigured = googleAdsClients.length > 0 && clientsWithAccount.length === 0
+  const ctrColor = totals ? (totals.ctr > 3 ? '#059669' : totals.ctr >= 1 ? '#D97706' : '#DC2626') : undefined
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[28px] font-bold leading-tight text-slate-900">Google Ads</h1>
-          <p className="text-[15px] text-slate-500">Visão consolidada de todas as contas</p>
-          {fetchedAt && (
-            <p className="mt-1 text-xs text-slate-400">Atualizado em {format(fetchedAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
-          )}
+      <div>
+        <h1 className="text-[28px] font-bold leading-tight text-slate-900">Google Ads</h1>
+        <p className="text-[15px] text-slate-500">Visão consolidada de todas as contas</p>
+      </div>
+
+      {/* Resumo — status, atualização e período */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[15px] font-semibold text-slate-900">Resumo</p>
+          <div className="flex flex-wrap items-center gap-3">
+            {fetchedAt && (
+              <span className="text-sm text-slate-400">Atualizado em {format(fetchedAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+            )}
+            {!hasAnyData && (
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                {noAccountsConfigured ? '⏳ Nenhuma conta configurada' : anyError ? '⚠️ Erro na integração' : '⏳ API em aprovação'}
+              </span>
+            )}
+            <Button
+              icon={<RefreshCw size={14} className={loading ? 'animate-spin' : ''} />}
+              onClick={() => load()}
+              loading={loading}
+              disabled={clientsWithAccount.length === 0}
+            >
+              Atualizar
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {!hasAnyData && (
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-              {noAccountsConfigured ? '⏳ Nenhuma conta configurada' : anyError ? '⚠️ Erro na integração' : '⏳ API em aprovação'}
-            </span>
-          )}
-          <Button
-            variant="secondary"
-            icon={<RefreshCw size={14} className={loading ? 'animate-spin' : ''} />}
-            onClick={() => load()}
-            loading={loading}
-            disabled={clientsWithAccount.length === 0}
-          >
-            Atualizar dados
-          </Button>
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="text-xs font-medium text-slate-500">Período</p>
+          <p className="mt-1 text-sm text-slate-700">Últimos 30 dias</p>
         </div>
       </div>
 
       {/* Seção 1 — cards consolidados */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Total Investido (R$)', value: totals ? BRL(totals.cost) : '--' },
-          { label: 'Total de Conversões', value: totals ? INT(totals.conversions) : '--' },
-          { label: 'CPC Médio (R$)', value: totals ? BRL(totals.cpc) : '--' },
-          { label: 'CTR Médio (%)', value: totals ? `${totals.ctr.toFixed(2)}%` : '--' },
+          { label: 'Total Investido', value: totals ? BRL(totals.cost) : '--', tip: TIPS.cost },
+          { label: 'Total de Conversões', value: totals ? INT(totals.conversions) : '--', tip: TIPS.conversions },
+          { label: 'CPC Médio', value: totals ? BRL(totals.cpc) : '--', tip: TIPS.cpc },
+          { label: 'CTR Médio', value: totals ? `${totals.ctr.toFixed(2)}%` : '--', tip: TIPS.ctr, color: ctrColor },
         ].map((card) => (
           <div key={card.label} className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-            <p className="text-[13px] font-medium text-slate-500">{card.label}</p>
-            <p className={`mt-1 text-[24px] font-extrabold leading-tight ${totals ? 'text-slate-900' : 'text-slate-400'}`}>{card.value}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-medium text-slate-500">{card.label}</p>
+              <InfoTip title={card.label}>{card.tip}</InfoTip>
+            </div>
+            <p
+              className="mt-1 text-[24px] font-extrabold leading-tight"
+              style={{ color: !totals ? '#94A3B8' : (card.color ?? '#0F172A') }}
+            >
+              {card.value}
+            </p>
           </div>
         ))}
       </div>

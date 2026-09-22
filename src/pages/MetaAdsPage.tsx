@@ -10,6 +10,7 @@ import { useReports } from '../hooks/useReports'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
+import { InfoTip } from '../components/ui/InfoTip'
 import { tokenValidity } from '../utils/metaTokenValidity'
 import { findUserIdByName } from '../utils/userLookup'
 import {
@@ -27,6 +28,17 @@ const BRL0 = (v: number) =>
 const INT = (v: number) => (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })
 
 const PRESETS: Exclude<MetaPeriodPreset, 'custom'>[] = ['last_7d', 'last_14d', 'last_30d', 'this_month', 'last_month']
+
+/** Explicações do ícone "i" de cada card — mesmo padrão do painel Visão
+ *  Geral (ver TIPS em OverviewDashboard.tsx). */
+const TIPS = {
+  spend: 'Soma do valor gasto em anúncios no período, em todas as contas Meta Ads da agência.',
+  conversations: 'Pessoas que iniciaram uma conversa pelo WhatsApp/Messenger/Instagram Direct a partir do anúncio.',
+  costPerConversation: 'Total investido dividido pelo número de conversas iniciadas — quanto menor, melhor.',
+  reach: 'Pessoas únicas que viram os anúncios no período (não conta a mesma pessoa duas vezes).',
+  impressions: 'Quantas vezes os anúncios foram exibidos ao todo — a mesma pessoa pode ver o anúncio mais de uma vez.',
+  ctr: 'Percentual de pessoas que clicaram no anúncio em relação a quantas o viram (cliques ÷ impressões). Média ponderada de todas as contas.',
+} as const
 
 type AlertKey = 'restricted' | 'expiring' | 'noToken' | 'lowBalance'
 
@@ -62,18 +74,23 @@ function MetricCard({
   valueColor,
   delta,
   subtitle,
+  tip,
 }: {
   label: string
   value: string
   valueColor?: string
   delta?: number | null
   subtitle?: string
+  tip?: ReactNode
 }) {
   return (
     <Card>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-[13px] font-medium text-slate-500">{label}</p>
-        {delta !== undefined && <Delta value={delta ?? null} />}
+        <div className="flex items-center gap-2">
+          {delta !== undefined && <Delta value={delta ?? null} />}
+          {tip && <InfoTip title={label}>{tip}</InfoTip>}
+        </div>
       </div>
       <p className="mt-1 text-[24px] font-extrabold leading-tight" style={valueColor ? { color: valueColor } : undefined}>
         {value}
@@ -231,61 +248,61 @@ export function MetaAdsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[28px] font-extrabold leading-tight text-slate-900">Meta Ads</h1>
-          <p className="text-[15px] text-[#64748B]">Visão consolidada de todas as contas</p>
-          {fetchedAt && (
-            <p className="mt-1 text-xs text-slate-400">
-              Atualizado em {format(fetchedAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-              {hoursAgo >= 1 && <span className="ml-1 text-amber-600">· dados de {Math.floor(hoursAgo)}h atrás</span>}
-            </p>
-          )}
-        </div>
-        <Button
-          variant="secondary"
-          icon={<RefreshCw size={14} className={loading ? 'animate-spin' : ''} />}
-          onClick={handleRefresh}
-          loading={loading}
-        >
-          Atualizar dados
-        </Button>
+      <div>
+        <h1 className="text-[28px] font-extrabold leading-tight text-slate-900">Meta Ads</h1>
+        <p className="text-[15px] text-[#64748B]">Visão consolidada de todas as contas</p>
       </div>
 
-      {/* Seletor de período */}
-      <div className="flex flex-wrap items-center gap-2">
-        {PRESETS.map((pk) => (
-          <button
-            key={pk}
-            onClick={() => setPreset(pk)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              preset === pk ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {META_PERIOD_LABEL[pk]}
-          </button>
-        ))}
-        <div className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1">
-          <input
-            type="date"
-            value={customSince}
-            onChange={(e) => {
-              setCustomSince(e.target.value)
-              setPreset('custom')
-            }}
-            className="bg-transparent text-sm outline-none"
-          />
-          <span className="text-slate-400">–</span>
-          <input
-            type="date"
-            value={customUntil}
-            onChange={(e) => {
-              setCustomUntil(e.target.value)
-              setPreset('custom')
-            }}
-            className="bg-transparent text-sm outline-none"
-          />
+      {/* Resumo — status, atualização e período */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[15px] font-semibold text-slate-900">Resumo</p>
+          <div className="flex flex-wrap items-center gap-3">
+            {fetchedAt && (
+              <span className="text-sm text-slate-400">
+                Atualizado em {format(fetchedAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                {hoursAgo >= 1 && <span className="ml-1 text-amber-600">· dados de {Math.floor(hoursAgo)}h atrás</span>}
+              </span>
+            )}
+            <Button icon={<RefreshCw size={14} className={loading ? 'animate-spin' : ''} />} onClick={handleRefresh} loading={loading}>
+              Atualizar
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+          {PRESETS.map((pk) => (
+            <button
+              key={pk}
+              onClick={() => setPreset(pk)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                preset === pk ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {META_PERIOD_LABEL[pk]}
+            </button>
+          ))}
+          <div className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1">
+            <input
+              type="date"
+              value={customSince}
+              onChange={(e) => {
+                setCustomSince(e.target.value)
+                setPreset('custom')
+              }}
+              className="bg-transparent text-sm outline-none"
+            />
+            <span className="text-slate-400">–</span>
+            <input
+              type="date"
+              value={customUntil}
+              onChange={(e) => {
+                setCustomUntil(e.target.value)
+                setPreset('custom')
+              }}
+              className="bg-transparent text-sm outline-none"
+            />
+          </div>
         </div>
       </div>
 
@@ -304,21 +321,23 @@ export function MetaAdsPage() {
         <>
           {/* LINHA 1 — cards consolidados */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <MetricCard label="Total Investido" value={BRL(t!.spend)} delta={pct(t!.spend, p!.spend)} />
+            <MetricCard label="Total Investido" value={BRL(t!.spend)} delta={pct(t!.spend, p!.spend)} tip={TIPS.spend} />
             <MetricCard
               label="Conversas Iniciadas"
               value={INT(t!.conversations)}
               delta={pct(t!.conversations, p!.conversations)}
+              tip={TIPS.conversations}
             />
             <MetricCard
               label="Custo por Conversa"
               value={BRL(t!.costPerConversation)}
               valueColor={cpcColor}
               subtitle="Total investido / conversas"
+              tip={TIPS.costPerConversation}
             />
-            <MetricCard label="Alcance Total" value={INT(t!.reach)} delta={pct(t!.reach, p!.reach)} />
-            <MetricCard label="Impressões Totais" value={INT(t!.impressions)} />
-            <MetricCard label="CTR Médio" value={`${t!.ctr.toFixed(2)}%`} valueColor={ctrColor} subtitle="Média ponderada" />
+            <MetricCard label="Alcance Total" value={INT(t!.reach)} delta={pct(t!.reach, p!.reach)} tip={TIPS.reach} />
+            <MetricCard label="Impressões Totais" value={INT(t!.impressions)} tip={TIPS.impressions} />
+            <MetricCard label="CTR Médio" value={`${t!.ctr.toFixed(2)}%`} valueColor={ctrColor} subtitle="Média ponderada" tip={TIPS.ctr} />
           </div>
 
           {/* LINHA 2 — gráfico */}
