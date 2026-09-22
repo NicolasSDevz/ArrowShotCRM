@@ -27,19 +27,14 @@ import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
 const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/operacional', label: 'Operacional', icon: ListChecks },
+  { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { to: '/clientes', label: 'Clientes', icon: Users },
-  { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
-  { to: '/calendario', label: 'Calendário', icon: CalendarDays },
-  { to: '/reunioes', label: 'Reuniões', icon: Video },
-]
-
-// Ainda em maturação — ficam agrupados no fim do menu, depois de Equipe e
-// Configurações, mas já totalmente acessíveis (não há mais bloqueio).
-const comingSoonNav = [
   { to: '/google-ads', label: 'Google Ads', icon: Target },
   { to: '/meta-ads', label: 'Meta Ads', icon: Megaphone },
   { to: '/leads', label: 'Leads', icon: UserPlus },
-  { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
+  { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
+  { to: '/calendario', label: 'Calendário', icon: CalendarDays },
+  { to: '/reunioes', label: 'Reuniões', icon: Video },
 ]
 
 export function Sidebar({
@@ -177,25 +172,6 @@ export function Sidebar({
               )}
             </div>
           )}
-
-          <div className="mt-2 border-t border-navy-800 pt-1.5">
-            <p className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">Em breve</p>
-            {comingSoonNav.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={onCloseMobile}
-                className={({ isActive }) =>
-                  `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] font-medium transition-all duration-150 ease-in-out ${
-                    isActive ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
-                  }`
-                }
-              >
-                <Icon size={18} />
-                {label}
-              </NavLink>
-            ))}
-          </div>
         </nav>
 
         {profile && (
