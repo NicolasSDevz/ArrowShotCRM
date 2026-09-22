@@ -66,7 +66,7 @@ export function Sidebar({
         }`}
       >
         <div className="flex items-center justify-between border-b border-navy-800 px-4 py-4">
-          <img src="/favicon.png" alt="Arrow Shot" className="h-14 w-auto" />
+          <img src="/logo-white.png" alt="Arrow Shot" className="h-14 w-auto" />
           <button onClick={onCloseMobile} className="rounded-md p-1 text-slate-400 hover:text-white md:hidden">
             <X size={18} />
           </button>

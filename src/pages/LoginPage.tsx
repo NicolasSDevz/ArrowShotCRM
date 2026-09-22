@@ -56,7 +56,7 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-navy-950 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-navy-900 p-8 shadow-2xl">
         <div className="mb-6 flex flex-col items-center gap-2">
-          <img src="/favicon.png" alt="Arrow Shot" className="h-12 w-12 rounded-lg" />
+          <img src="/logo-white.png" alt="Arrow Shot" className="h-14 w-auto" />
           <h1 className="font-display text-xl font-semibold text-white">Arrow Shot CRM</h1>
           <p className="text-xs text-slate-400">
             {mode === 'signin' ? 'Entre com sua conta da equipe' : 'Redefinir senha'}
