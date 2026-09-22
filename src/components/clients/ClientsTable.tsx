@@ -26,7 +26,8 @@ export function ClientsTable({
       <table className="w-full min-w-[820px] text-left text-[15px]">
         <thead className="border-b border-slate-100 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
           <tr>
-            <th className="w-10 py-3 pl-4"></th>
+            <th className="w-8 py-3 pl-4 text-right">#</th>
+            <th className="w-10 py-3 pl-3"></th>
             <th className="py-3 pr-3 font-semibold">Nome</th>
             <th className="py-3 pr-3 font-semibold">Segmento</th>
             <th className="py-3 pr-3 font-semibold">Serviço</th>
@@ -38,7 +39,7 @@ export function ClientsTable({
           </tr>
         </thead>
         <tbody>
-          {clients.map((client) => {
+          {clients.map((client, i) => {
             const owners = ownersByClientId[client.id] ?? []
             return (
               <tr
@@ -46,7 +47,8 @@ export function ClientsTable({
                 onClick={() => onRowClick(client)}
                 className="cursor-pointer border-t border-slate-50 text-slate-700 transition-colors duration-150 ease-in-out hover:bg-slate-50"
               >
-                <td className="py-2.5 pl-4">
+                <td className="py-2.5 pl-4 text-right text-xs font-medium text-slate-400">{i + 1}</td>
+                <td className="py-2.5 pl-3">
                   <Avatar name={client.companyName} photoURL={client.logoUrl} size="lg" />
                 </td>
                 <td className="max-w-[240px] py-2.5 pr-3">
