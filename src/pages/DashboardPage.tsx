@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { OverviewDashboard } from '../components/dashboard/OverviewDashboard'
+import { ProductsCatalogSection } from '../components/dashboard/ProductsCatalogSection'
 
 export function DashboardPage() {
   const todayLabel = useMemo(() => {
@@ -20,6 +21,7 @@ export function DashboardPage() {
       </div>
 
       <OverviewDashboard />
+      <ProductsCatalogSection />
     </div>
   )
 }

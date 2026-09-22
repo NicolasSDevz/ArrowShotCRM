@@ -311,6 +311,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------- products (Catálogo de Produtos e Serviços — tabela de
+    // preços mostrada no Dashboard). Qualquer interno lê; só o Admin
+    // (Bruno) cria/edita/apaga preço, descrição e bônus. ----------
+    match /products/{productId} {
+      allow read: if isInternal();
+      allow write: if isAdmin();
+    }
+
     // ---------- teams / projects ----------
     match /teams/{teamId} {
       allow read: if isInternal();
