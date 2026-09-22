@@ -58,10 +58,10 @@ export function ClientsStatusChart({ clients }: { clients: Client[] }) {
             />
           ))}
         </g>
-        <text x={80} y={76} textAnchor="middle" fontSize={26} fontWeight={800} fill="#0F172A">
+        <text x={80} y={76} textAnchor="middle" fontSize={26} fontWeight={800} fill="var(--chart-ink)">
           {data.total}
         </text>
-        <text x={80} y={94} textAnchor="middle" fontSize={11} fill="#94A3B8">
+        <text x={80} y={94} textAnchor="middle" fontSize={11} fill="var(--chart-ink-muted)">
           clientes
         </text>
       </svg>

@@ -164,7 +164,10 @@ function MetricCard({
         </div>
       </div>
       <p className="mt-3 text-[13px] font-medium text-slate-500">{label}</p>
-      <p className="mt-0.5 text-[26px] font-extrabold leading-tight" style={valueColor ? { color: valueColor } : undefined}>
+      <p
+        className={`mt-0.5 text-[26px] font-extrabold leading-tight ${valueColor ? '' : 'text-slate-900'}`}
+        style={valueColor ? { color: valueColor } : undefined}
+      >
         {value}
       </p>
       <p className="mt-1 text-xs text-slate-400">{subtitle}</p>

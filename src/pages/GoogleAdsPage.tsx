@@ -209,8 +209,8 @@ export function GoogleAdsPage() {
               <InfoTip title={card.label}>{card.tip}</InfoTip>
             </div>
             <p
-              className="mt-1 text-[24px] font-extrabold leading-tight"
-              style={{ color: !totals ? '#94A3B8' : (card.color ?? '#0F172A') }}
+              className={`mt-1 text-[24px] font-extrabold leading-tight ${!totals ? 'text-slate-400' : !card.color ? 'text-slate-900' : ''}`}
+              style={totals && card.color ? { color: card.color } : undefined}
             >
               {card.value}
             </p>

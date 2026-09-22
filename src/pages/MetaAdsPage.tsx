@@ -92,7 +92,10 @@ function MetricCard({
           {tip && <InfoTip title={label}>{tip}</InfoTip>}
         </div>
       </div>
-      <p className="mt-1 text-[24px] font-extrabold leading-tight" style={valueColor ? { color: valueColor } : undefined}>
+      <p
+        className={`mt-1 text-[24px] font-extrabold leading-tight ${valueColor ? '' : 'text-slate-900'}`}
+        style={valueColor ? { color: valueColor } : undefined}
+      >
         {value}
       </p>
       {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}

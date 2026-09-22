@@ -65,11 +65,7 @@ export function MeetingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-[28px] font-extrabold text-slate-900">Reuniões</h1>
-          <p className="text-[15px] text-[#64748B]">Registro de decisões e atas</p>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
           Nova reunião
         </Button>

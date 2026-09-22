@@ -12,9 +12,8 @@ import { ClientsPage } from './pages/ClientsPage'
 import { ClientDetailPage } from './pages/ClientDetailPage'
 import { SocialMediaPage } from './pages/SocialMediaPage'
 import { SocialMediaClientPage } from './pages/SocialMediaClientPage'
-import { CalendarPage } from './pages/CalendarPage'
+import { CalendarMeetingsPage } from './pages/CalendarMeetingsPage'
 import { NotificationsPage } from './pages/NotificationsPage'
-import { MeetingsPage } from './pages/MeetingsPage'
 import { LeadsPage } from './pages/LeadsPage'
 import { MetricsPage } from './pages/MetricsPage'
 import { ReportsPage } from './pages/ReportsPage'
@@ -55,8 +54,8 @@ function App() {
             <Route path="/clientes/:id" element={<ClientDetailPage />} />
             <Route path="/social-media" element={<SocialMediaPage />} />
             <Route path="/social-media/:clientId" element={<SocialMediaClientPage />} />
-            <Route path="/calendario" element={<CalendarPage />} />
-            <Route path="/reunioes" element={<MeetingsPage />} />
+            <Route path="/calendario" element={<CalendarMeetingsPage initialTab="calendario" />} />
+            <Route path="/reunioes" element={<CalendarMeetingsPage initialTab="reunioes" />} />
             <Route path="/leads" element={<LeadsPage />} />
             <Route path="/metricas" element={<MetricsPage />} />
             <Route path="/relatorios" element={<ReportsPage />} />

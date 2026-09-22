@@ -30,9 +30,16 @@
 
 :root {
   color-scheme: light;
+  /* Cor de texto pros gráficos SVG feitos na mão (fill não é alcançado pelo
+     remapeamento de classes do dark-families.css) — usar var(--chart-ink)
+     em vez de hex fixo garante que o texto do gráfico não suma no escuro. */
+  --chart-ink: #0f172a;
+  --chart-ink-muted: #94a3b8;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --chart-ink: #ededef;
+  --chart-ink-muted: #85858b;
 }
 
 /* ---------- Transição suave claro <-> escuro ----------

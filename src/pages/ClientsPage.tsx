@@ -4,6 +4,7 @@ import { Plus, Search, LayoutGrid, List, X } from 'lucide-react'
 import { useClients } from '../hooks/useClients'
 import { useUsers } from '../hooks/useUsers'
 import { useAuth } from '../context/AuthContext'
+import { usePersistedViewMode } from '../hooks/usePersistedViewMode'
 import { ClientsTable } from '../components/clients/ClientsTable'
 import { ClientsGrid } from '../components/clients/ClientsGrid'
 import { ClientFormModal } from '../components/clients/ClientFormModal'
@@ -84,7 +85,7 @@ export function ClientsPage() {
   // começam vendo só os deles). Qualquer escolha do usuário passa a mandar.
   const [managerFilterChoice, setManagerFilterChoice] = useState<string | null>(null)
   const [sort, setSort] = useState<SortOption>('name')
-  const [view, setView] = useState<ViewMode>('table')
+  const [view, setView] = usePersistedViewMode<ViewMode>('clientsView', 'table')
   const [creating, setCreating] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
 

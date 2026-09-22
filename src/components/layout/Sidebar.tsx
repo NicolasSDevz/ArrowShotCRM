@@ -5,7 +5,6 @@ import {
   Users,
   Sparkles,
   CalendarDays,
-  Video,
   Gauge,
   UserPlus,
   BarChart3,
@@ -32,7 +31,6 @@ const mainNav = [
   { to: '/leads', label: 'Leads', icon: UserPlus },
   { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
   { to: '/calendario', label: 'Calendário', icon: CalendarDays },
-  { to: '/reunioes', label: 'Reuniões', icon: Video },
 ]
 
 export function Sidebar({
