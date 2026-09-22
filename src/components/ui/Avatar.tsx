@@ -38,13 +38,22 @@ export function Avatar({
     .join('')
 
   if (photoURL && failedUrl !== photoURL) {
+    // A logo/foto quase nunca é quadrada (wordmark, PNG com fundo
+    // transparente etc). O corte pro círculo não pode depender do <img>
+    // respeitar h-*/w-* sozinho — por isso o tamanho fixo e o
+    // arredondamento ficam num wrapper com overflow-hidden, e a imagem só
+    // preenche esse wrapper (h-full w-full). Mesmo que o <img> tente
+    // renderizar nas proporções originais, o wrapper corta fora do
+    // círculo — nunca vira oval.
     return (
-      <img
-        src={photoURL}
-        alt={name}
-        onError={() => setFailedUrl(photoURL)}
-        className={`${dims} shrink-0 rounded-full object-cover`}
-      />
+      <span className={`${dims} inline-block shrink-0 overflow-hidden rounded-full`}>
+        <img
+          src={photoURL}
+          alt={name}
+          onError={() => setFailedUrl(photoURL)}
+          className="block h-full w-full object-cover"
+        />
+      </span>
     )
   }
 
