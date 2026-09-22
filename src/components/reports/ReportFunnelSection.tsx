@@ -129,7 +129,9 @@ interface FormState {
 function buildForm(report: Report): FormState {
   const f = report.funnel
   return {
-    rede: f?.rede ?? (report.platforms.includes('meta') ? 'meta_ads' : undefined),
+    rede:
+      f?.rede ??
+      (report.platforms.includes('meta') ? 'meta_ads' : report.platforms.includes('google') ? 'google_search' : undefined),
     servico: f?.servico,
     visitasAgendadas: f?.visitasAgendadas,
     visitasRealizadas: f?.visitasRealizadas,
@@ -154,13 +156,30 @@ export function ReportFunnelSection({ report, editable = true }: { report: Repor
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((s) => ({ ...s, [k]: v }))
 
-  // --- dados automáticos (API do Meta) ---
-  const cur = report.meta?.metrics.current ?? {}
-  const investimentoAds = cur.spend
-  const impressoes = cur.impressions
-  const alcance = cur.reach
-  const cliquesLink = cur.linkClicks ?? cur.clicks
-  const conversas = cur.conversations
+  // --- dados automáticos (API do Meta e/ou do Google Ads) ---
+  // Cliente com as duas plataformas: soma os totais num único funil (é a
+  // jornada do anúncio ao contrato do cliente inteiro, não por plataforma).
+  // Antes disso só lia `report.meta` — clientes só-Google ficavam com o
+  // funil inteiro em branco mesmo com a campanha tendo dados reais.
+  const metaCur = report.meta?.metrics.current
+  const googleCur = report.google?.available ? report.google.metrics.current : undefined
+  const hasMeta = !!report.meta
+  const hasGoogle = report.google?.available === true
+
+  const sumOptional = (...vals: (number | undefined)[]): number | undefined => {
+    const defined = vals.filter((v): v is number => v != null)
+    return defined.length > 0 ? defined.reduce((a, b) => a + b, 0) : undefined
+  }
+
+  const investimentoAds = sumOptional(metaCur?.spend, googleCur?.cost)
+  const impressoes = sumOptional(metaCur?.impressions, googleCur?.impressions)
+  // Google Ads (nesta integração) não tem métrica de alcance — a etapa só
+  // existe quando há dado do Meta.
+  const alcance = metaCur?.reach
+  const cliquesLink = sumOptional(metaCur?.linkClicks ?? metaCur?.clicks, googleCur?.clicks)
+  const conversas = sumOptional(metaCur?.conversations, googleCur?.conversions)
+  const cliquesLabel = hasGoogle && !hasMeta ? 'Cliques' : 'Cliques no link'
+  const conversasLabel = hasGoogle && !hasMeta ? 'Conversões' : hasGoogle && hasMeta ? 'Conversas/Conversões' : 'Conversas iniciadas'
 
   // --- dados manuais ---
   const faturamentoTotal = parseCurrencyToNumber(form.faturamentoTotalStr)
@@ -179,9 +198,11 @@ export function ReportFunnelSection({ report, editable = true }: { report: Repor
 
   const stages: StageData[] = [
     { label: 'Impressões', value: impressoes, level: null },
-    { label: 'Alcance', value: alcance, percent: percentOf(alcance, impressoes), level: null },
-    { label: 'Cliques no link', value: cliquesLink, percent: pCliques, level: getBenchmarkLevel(pCliques, th('ctr')) },
-    { label: 'Conversas iniciadas', value: conversas, percent: pConversas, level: getBenchmarkLevel(pConversas, th('conversao')) },
+    // Sem dado de Alcance no Google Ads (nesta integração) — a etapa some em
+    // vez de mostrar "—" pra todo relatório só-Google.
+    ...(hasMeta ? [{ label: 'Alcance', value: alcance, percent: percentOf(alcance, impressoes), level: null }] : []),
+    { label: cliquesLabel, value: cliquesLink, percent: pCliques, level: getBenchmarkLevel(pCliques, th('ctr')) },
+    { label: conversasLabel, value: conversas, percent: pConversas, level: getBenchmarkLevel(pConversas, th('conversao')) },
     { label: 'Visitas agendadas', value: visitasAgendadas, percent: pAgendadas, level: getBenchmarkLevel(pAgendadas, th('qualificacao')) },
     { label: 'Visitas realizadas', value: visitasRealizadas, percent: pRealizadas, level: getBenchmarkLevel(pRealizadas, th('visita')) },
     { label: 'Fechamentos', value: fechamentos, percent: pFechamentos, level: getBenchmarkLevel(pFechamentos, th('fechamento')) },
