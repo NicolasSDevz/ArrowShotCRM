@@ -100,11 +100,60 @@ export interface ReportMetaSnapshot {
   dailySeries?: ReportDailyPoint[]
 }
 
-/** Placeholder até a integração com Google Ads existir (ver
- *  api/google/insights.js). */
-export interface ReportGoogleSnapshot {
-  available: false
+/** Métricas de campanhas do Google Ads — nomes de campo próprios (não reusa
+ *  ReportMetricSet, que é modelado nos termos do Meta: reach/conversas/
+ *  linkClicks não existem no Google Ads, e "conversions"/"custo por
+ *  conversão" lá não tem equivalente direto no Meta). */
+export interface ReportGoogleMetricSet {
+  cost?: number
+  impressions?: number
+  clicks?: number
+  ctr?: number
+  averageCpc?: number
+  conversions?: number
+  costPerConversion?: number
 }
+
+export interface ReportGoogleMetricComparison {
+  current: ReportGoogleMetricSet
+  previous?: ReportGoogleMetricSet
+}
+
+export interface ReportGoogleCampaignSummary {
+  name: string
+  status: string
+  impressions: number
+  clicks: number
+  cost: number
+  ctr: number
+  conversions: number
+}
+
+/** Um dia do período, para o gráfico de evolução do Google Ads (ver
+ *  ReportDailyPoint, a versão Meta). */
+export interface ReportGoogleDailyPoint {
+  /** "yyyy-MM-dd" */
+  date: string
+  cost?: number
+  impressions?: number
+  clicks?: number
+  conversions?: number
+}
+
+/** Snapshot completo do Google Ads no momento em que o relatório foi gerado
+ *  (mesma convenção do `ReportMetaSnapshot`: guardado no Firestore, nunca
+ *  rebatido na API depois). Relatórios salvos antes da integração real
+ *  existir (ver api/google/insights.js) ficaram com `{ available: false }` —
+ *  o union cobre os dois casos sem quebrar o histórico. */
+export type ReportGoogleSnapshot =
+  | { available: false }
+  | {
+      available: true
+      accountId: string
+      metrics: ReportGoogleMetricComparison
+      topCampaigns: ReportGoogleCampaignSummary[]
+      dailySeries?: ReportGoogleDailyPoint[]
+    }
 
 /** Snapshot da aba "Landing Page" do cliente no momento em que o relatório
  *  foi gerado — não é lido ao vivo depois (mesma convenção do Meta Ads: o

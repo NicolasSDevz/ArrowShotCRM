@@ -56,7 +56,19 @@ export function buildWeeklyReportText(params: {
     )
   }
 
-  if (google) {
+  if (google?.available) {
+    const c = google.metrics.current
+    lines.push(
+      '',
+      'Campanhas no Google Ads',
+      `Período: ${periodLabel}`,
+      `Impressões: ${fmtInt(c.impressions)}`,
+      `Cliques: ${fmtInt(c.clicks)}`,
+      `CTR: ${fmtPct(c.ctr)}%`,
+      `Conversões: ${fmtInt(c.conversions)}`,
+      `Valor investido: R$ ${fmtBRL(c.cost)}`
+    )
+  } else if (google) {
     lines.push(
       '',
       'Campanhas no Google Ads',

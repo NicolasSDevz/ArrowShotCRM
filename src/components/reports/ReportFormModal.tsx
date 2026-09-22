@@ -11,9 +11,10 @@ import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
 import { createReport } from '../../services/reportService'
 import { fetchMetaReportSnapshot } from '../../utils/metaReportData'
+import { fetchGoogleReportSnapshot } from '../../utils/googleReportData'
 import { buildWeeklyReportText } from '../../utils/metaWeeklyReportText'
 import { trafficServices } from '../../utils/clientServices'
-import type { ReportLandingPageSnapshot, ReportMetaSnapshot, ReportPlatform, ReportType } from '../../types'
+import type { ReportGoogleSnapshot, ReportLandingPageSnapshot, ReportMetaSnapshot, ReportPlatform, ReportType } from '../../types'
 import type { LandingPage } from '../../types/landingPage'
 
 function buildLandingPageSnapshot(lp?: LandingPage): ReportLandingPageSnapshot | undefined {
@@ -76,6 +77,7 @@ export function ReportFormModal({
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
   const [metaSnapshot, setMetaSnapshot] = useState<ReportMetaSnapshot | null>(null)
+  const [googleSnapshot, setGoogleSnapshot] = useState<ReportGoogleSnapshot | null>(null)
   const [weeklyText, setWeeklyText] = useState('')
   const [generated, setGenerated] = useState(false)
   const [confirmNoData, setConfirmNoData] = useState(false)
@@ -83,11 +85,14 @@ export function ReportFormModal({
   const client = clients.find((c) => c.id === clientId)
   const svc = trafficServices(client)
 
-  // Conta Meta Ads não retornou spend nem impressões no período — não bloqueia
+  // Conta não retornou investimento nem impressões no período — não bloqueia
   // o salvamento, só avisa (o usuário pode ter escolhido um período sem
   // veiculação de propósito, ex: conta pausada).
   const hasNoMetaData = platforms.includes('meta') && !!metaSnapshot &&
     !metaSnapshot.metrics.current?.spend && !metaSnapshot.metrics.current?.impressions
+  const hasNoGoogleData = platforms.includes('google') && !!googleSnapshot && googleSnapshot.available &&
+    !googleSnapshot.metrics.current?.cost && !googleSnapshot.metrics.current?.impressions
+  const hasNoData = hasNoMetaData || hasNoGoogleData
 
   /** Ao escolher um cliente, ajusta as plataformas conforme os serviços
    *  contratados: só Meta / só Google trava na plataforma contratada;
@@ -109,6 +114,7 @@ export function ReportFormModal({
     setStartStr(r.start)
     setEndStr(r.end)
     setMetaSnapshot(null)
+    setGoogleSnapshot(null)
     setWeeklyText('')
     setGenerated(false)
     setSavedOk(false)
@@ -160,15 +166,27 @@ export function ReportFormModal({
       )
       return
     }
+    const googleAccountId = client.campaignPlanning?.acessos?.googleAdsAccountId
+    if (platforms.includes('google') && !googleAccountId) {
+      toast.error(
+        'Este cliente não tem o ID da conta Google Ads cadastrado. Adicione o ID na aba Planejamento de Campanha → Acessos antes de gerar o relatório.'
+      )
+      return
+    }
 
     setLoading(true)
     setGenerated(false)
     setConfirmNoData(false)
     try {
       let meta: ReportMetaSnapshot | null = null
+      let google: ReportGoogleSnapshot | null = null
       if (platforms.includes('meta') && accountId) {
         meta = await fetchMetaReportSnapshot(accountId, start, end, client.id)
         setMetaSnapshot(meta)
+      }
+      if (platforms.includes('google') && googleAccountId) {
+        google = await fetchGoogleReportSnapshot(googleAccountId, start, end)
+        setGoogleSnapshot(google)
       }
 
       if (type === 'weekly') {
@@ -177,7 +195,7 @@ export function ReportFormModal({
           periodStart: start,
           periodEnd: end,
           meta,
-          google: platforms.includes('google') ? { available: false } : null,
+          google,
         })
         setWeeklyText(text)
       }
@@ -187,17 +205,17 @@ export function ReportFormModal({
       setGenerated(true)
     } catch (err) {
       console.error(err)
-      toast.error(err instanceof Error ? err.message : 'Erro ao buscar dados do Meta Ads')
+      toast.error(err instanceof Error ? err.message : 'Erro ao buscar dados das plataformas')
     } finally {
       setLoading(false)
     }
   }
 
-  /** Se a conta Meta Ads não retornou dado nenhum, pede confirmação explícita
+  /** Se alguma conta não retornou dado nenhum, pede confirmação explícita
    *  antes do primeiro clique em vez de salvar direto (aviso não bloqueante:
    *  o usuário pode confirmar e salvar mesmo assim). */
   const handleSaveClick = () => {
-    if (hasNoMetaData && !confirmNoData) {
+    if (hasNoData && !confirmNoData) {
       setConfirmNoData(true)
       return
     }
@@ -216,7 +234,7 @@ export function ReportFormModal({
           periodStart: Timestamp.fromDate(new Date(`${startStr}T00:00:00`)),
           periodEnd: Timestamp.fromDate(new Date(`${endStr}T00:00:00`)),
           meta: metaSnapshot ?? undefined,
-          google: platforms.includes('google') ? { available: false } : undefined,
+          google: googleSnapshot ?? undefined,
           landingPage: platforms.includes('landingPage') ? buildLandingPageSnapshot(client.landingPage) : undefined,
           weeklyText: type === 'weekly' ? weeklyText : undefined,
           generatedBy: profile.id,
@@ -344,7 +362,7 @@ export function ReportFormModal({
           disabled={loading || !clientId}
           className="self-start"
         >
-          {loading ? 'Buscando dados do Meta Ads...' : 'Buscar dados e gerar relatório'}
+          {loading ? 'Buscando dados...' : 'Buscar dados e gerar relatório'}
         </Button>
 
         {generated && type === 'weekly' && (
@@ -362,15 +380,20 @@ export function ReportFormModal({
           </div>
         )}
 
-        {generated && type === 'monthly' && !savedOk && !saving && !hasNoMetaData && (
+        {generated && type === 'monthly' && !savedOk && !saving && !hasNoData && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
             Dados carregados. Clique em "Salvar relatório" para abrir o painel visual.
           </div>
         )}
 
-        {generated && !savedOk && !saving && hasNoMetaData && !confirmNoData && (
+        {generated && !savedOk && !saving && hasNoData && !confirmNoData && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            ⚠️ A conta Meta Ads não retornou investimento nem impressões nesse período. Confira as datas — você ainda pode salvar mesmo assim.
+            ⚠️ {hasNoMetaData && hasNoGoogleData
+              ? 'As contas Meta Ads e Google Ads'
+              : hasNoMetaData
+                ? 'A conta Meta Ads'
+                : 'A conta Google Ads'}{' '}
+            não retornou investimento nem impressões nesse período. Confira as datas — você ainda pode salvar mesmo assim.
           </div>
         )}
 

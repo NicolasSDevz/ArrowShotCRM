@@ -21,9 +21,18 @@ export interface GoogleAdsInsightsCampaign {
   conversions: number
 }
 
+export interface GoogleAdsInsightsDaily {
+  date: string
+  impressions: number
+  clicks: number
+  cost: number
+  conversions: number
+}
+
 export interface GoogleAdsInsights {
   summary: GoogleAdsInsightsSummary
   campaigns: GoogleAdsInsightsCampaign[]
+  daily: GoogleAdsInsightsDaily[]
 }
 
 export function getGoogleAdsInsights(customerId: string, dateFrom: string, dateTo: string): Promise<GoogleAdsInsights>

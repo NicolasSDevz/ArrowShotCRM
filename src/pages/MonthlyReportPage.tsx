@@ -28,8 +28,13 @@ import { ReportLineChart, type ChartSeries } from '../components/reports/ReportL
 import { ReportFunnelSection } from '../components/reports/ReportFunnelSection'
 import { previousPeriod } from '../utils/metaReportData'
 import { buildExecutiveSummary, buildFunnelSentence, pctChange } from '../utils/reportSummary'
-import type { ReportMetaSnapshot, ReportEntitySummary, ReportLandingPageSnapshot } from '../types'
+import type { ReportMetaSnapshot, ReportEntitySummary, ReportLandingPageSnapshot, ReportGoogleSnapshot, ReportGoogleCampaignSummary } from '../types'
 import { LANDING_PAGE_STATUS_LABEL } from '../types/landingPage'
+
+/** Variante "com dados" do snapshot do Google Ads — depois de checar
+ *  `available`, os componentes recebem só esse formato (sem repetir a
+ *  checagem em cada um). */
+type ReportGoogleSnapshotReady = Extract<ReportGoogleSnapshot, { available: true }>
 
 /* ---------- formatters ---------- */
 const fmtInt = (v?: number) => (v == null || Number.isNaN(v) ? '—' : Math.round(v).toLocaleString('pt-BR'))
@@ -423,6 +428,156 @@ function PlatformSection({ meta }: { meta: ReportMetaSnapshot }) {
   )
 }
 
+/* ---------- Seções do Google Ads ---------- */
+const GOOGLE_CAMPAIGN_STATUS_LABEL: Record<string, string> = {
+  ENABLED: 'Ativa',
+  PAUSED: 'Pausada',
+  REMOVED: 'Removida',
+}
+
+function GoogleOverviewSection({ google }: { google: ReportGoogleSnapshotReady }) {
+  const c = google.metrics.current
+  const p = google.metrics.previous
+
+  return (
+    <Section title="Google Ads — Visão Geral">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.cost)} curr={c.cost} prev={p?.cost} goodWhen="down" explanation="Total gasto em anúncios no período" />
+        <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
+        <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
+        <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
+        <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.averageCpc)} curr={c.averageCpc} prev={p?.averageCpc} goodWhen="down" explanation="Custo médio por cada clique" />
+        <MetricCard icon={<Trophy size={18} />} name="Conversões" value={fmtInt(c.conversions)} curr={c.conversions} prev={p?.conversions} explanation="Ações completadas atribuídas aos anúncios" />
+        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversão" value={fmtBRL(c.costPerConversion)} curr={c.costPerConversion} prev={p?.costPerConversion} goodWhen="down" explanation="Quanto custou cada conversão" />
+      </div>
+    </Section>
+  )
+}
+
+const GOOGLE_CHART_METRICS = {
+  impressions: { label: 'Impressões', color: '#2563EB', fmt: fmtInt },
+  clicks: { label: 'Cliques', color: '#7C3AED', fmt: fmtInt },
+  conversions: { label: 'Conversões', color: '#10B981', fmt: fmtInt },
+  cost: { label: 'Investimento', color: '#F59E0B', fmt: (v: number) => fmtBRL(v) },
+} as const
+type GoogleChartMetricKey = keyof typeof GOOGLE_CHART_METRICS
+
+function GoogleEvolutionSection({
+  google,
+  periodStart,
+  periodEnd,
+}: {
+  google: ReportGoogleSnapshotReady
+  periodStart: Date
+  periodEnd: Date
+}) {
+  const [a, setA] = useState<GoogleChartMetricKey>('impressions')
+  const [b, setB] = useState<GoogleChartMetricKey>('conversions')
+
+  const daily = google.dailySeries
+  const chart = useMemo(() => {
+    try {
+      if (!daily || daily.length === 0) return null
+      if (Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd < periodStart) return null
+      const spanDays = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86_400_000)
+      if (spanDays > 400) return null
+      const days = eachDayOfInterval({ start: periodStart, end: periodEnd })
+      const byDate = new Map(daily.map((d) => [d.date, d]))
+      const labels = days.map((d) => format(d, 'dd/MM'))
+      const valuesFor = (key: GoogleChartMetricKey) => days.map((d) => byDate.get(format(d, 'yyyy-MM-dd'))?.[key])
+      return { labels, valuesFor }
+    } catch (err) {
+      console.error('GoogleEvolutionSection chart', err)
+      return null
+    }
+  }, [daily, periodStart, periodEnd])
+
+  const seriesA: ChartSeries = { label: GOOGLE_CHART_METRICS[a].label, color: GOOGLE_CHART_METRICS[a].color, values: chart?.valuesFor(a) ?? [], format: GOOGLE_CHART_METRICS[a].fmt }
+  const seriesB: ChartSeries = { label: GOOGLE_CHART_METRICS[b].label, color: GOOGLE_CHART_METRICS[b].color, values: chart?.valuesFor(b) ?? [], format: GOOGLE_CHART_METRICS[b].fmt }
+
+  return (
+    <Section title="Desempenho ao longo do período — Google Ads">
+      {!chart ? (
+        <Card>
+          <p className="text-sm text-slate-400">Este relatório não tem a série diária do Google Ads para o período.</p>
+        </Card>
+      ) : (
+        <Card>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: GOOGLE_CHART_METRICS[a].color }} />
+              <select value={a} onChange={(e) => setA(e.target.value as GoogleChartMetricKey)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm">
+                {Object.entries(GOOGLE_CHART_METRICS).map(([k, m]) => (
+                  <option key={k} value={k}>{m.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: GOOGLE_CHART_METRICS[b].color }} />
+              <select value={b} onChange={(e) => setB(e.target.value as GoogleChartMetricKey)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm">
+                {Object.entries(GOOGLE_CHART_METRICS).map(([k, m]) => (
+                  <option key={k} value={k}>{m.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <ReportLineChart labels={chart.labels} seriesA={seriesA} seriesB={seriesB} />
+        </Card>
+      )}
+    </Section>
+  )
+}
+
+function GoogleCampaignsSection({ campaigns }: { campaigns: ReportGoogleCampaignSummary[] }) {
+  const withConv = campaigns.filter((c) => c.conversions > 0)
+  const best = withConv.length
+    ? withConv.reduce((a, b) => (a.cost / (a.conversions || 1) <= b.cost / (b.conversions || 1) ? a : b))
+    : undefined
+
+  return (
+    <Section title="Suas campanhas no período — Google Ads">
+      {campaigns.length === 0 ? (
+        <Card><p className="text-sm text-slate-400">Sem dados de campanhas no período.</p></Card>
+      ) : (
+        <>
+          <div className="overflow-x-auto rounded-2xl border border-[#E2E8F0]">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="bg-[#2563EB] text-xs font-semibold uppercase tracking-wide text-white">
+                <tr>
+                  <th className="px-4 py-2.5">Campanha</th>
+                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5">Conversões</th>
+                  <th className="px-4 py-2.5">Investido</th>
+                  <th className="px-4 py-2.5">CTR</th>
+                  <th className="px-4 py-2.5">Impressões</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaigns.map((c, i) => (
+                  <tr key={c.name + i} className={`border-t border-slate-100 text-slate-700 transition-colors hover:bg-[#F8FAFC] ${i % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}`}>
+                    <td className="max-w-[240px] truncate px-4 py-2.5 font-medium text-slate-800">{c.name}</td>
+                    <td className="px-4 py-2.5">{GOOGLE_CAMPAIGN_STATUS_LABEL[c.status] ?? c.status}</td>
+                    <td className="px-4 py-2.5">{fmtInt(c.conversions)}</td>
+                    <td className="px-4 py-2.5">{fmtBRL(c.cost)}</td>
+                    <td className="px-4 py-2.5">{fmtPct(c.ctr)}</td>
+                    <td className="px-4 py-2.5">{fmtInt(c.impressions)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {best && (
+            <p className="mt-3 text-sm text-slate-600">
+              A campanha <span className="font-semibold text-slate-800">{best.name}</span> trouxe mais conversões
+              pelo menor custo no período.
+            </p>
+          )}
+        </>
+      )}
+    </Section>
+  )
+}
+
 function LandingPageSection({ lp }: { lp: ReportLandingPageSnapshot }) {
   const total = lp.checklist.length
   const done = lp.checklist.filter((i) => i.done).length
@@ -512,8 +667,9 @@ export function MonthlyReportPage() {
   const periodEnd = toValidDate(report.periodEnd)
   const prev = previousPeriod(periodStart, periodEnd)
   const meta = report.meta
+  const google: ReportGoogleSnapshotReady | null = report.google?.available ? report.google : null
 
-  // DEBUG — por que os dados do Meta Ads não aparecem no painel mensal.
+  // DEBUG — por que os dados não aparecem no painel mensal.
   console.log('[MonthlyReport] relatório carregado:', {
     id: report.id,
     type: report.type,
@@ -526,13 +682,17 @@ export function MonthlyReportPage() {
     qtdAds: meta?.topAds?.length ?? 0,
     qtdPlataformas: meta?.platformBreakdown?.length ?? 0,
     temSerieDiaria: !!meta?.dailySeries?.length,
+    temGoogle: !!google,
+    googleMetricasCurrent: google?.metrics?.current,
+    googleQtdCampanhas: google?.topCampaigns?.length ?? 0,
     meta,
+    google: report.google,
   })
   if (meta && (!meta.metrics?.current || Object.keys(meta.metrics.current).length === 0)) {
     console.warn('[MonthlyReport] meta.metrics.current está vazio — a API do Meta não retornou métricas para o período.')
   }
-  if (!meta) {
-    console.warn('[MonthlyReport] report.meta ausente — o snapshot não foi salvo na geração do relatório.')
+  if (!meta && !google) {
+    console.warn('[MonthlyReport] report.meta e report.google ausentes — nenhum snapshot foi salvo na geração do relatório.')
   }
 
   const resumoNode = meta ? (
@@ -544,36 +704,45 @@ export function MonthlyReportPage() {
   ) : null
 
   // Sequência de slides do modo apresentação (uma seção por vez). Landing
-  // Page entra mesmo sem dados do Meta — são seções independentes.
+  // Page entra mesmo sem dados de anúncios — são seções independentes. Funil
+  // Comercial entra sempre que houver QUALQUER plataforma de anúncio (é um
+  // formulário manual, não depende de qual plataforma foi contratada).
   const slides: { title: string; node: ReactNode }[] = [
     ...(meta
       ? [
           { title: 'Meta Ads — Visão Geral', node: <OverviewSection meta={meta} /> },
           { title: 'Jornada do Cliente', node: <FunnelSection meta={meta} /> },
-          { title: 'Evolução no tempo', node: <EvolutionSection meta={meta} periodStart={periodStart} periodEnd={periodEnd} /> },
-          { title: 'Campanhas em destaque', node: <CampaignsSection campaigns={meta.topCampaigns} /> },
-          { title: 'Funil Comercial', node: <ReportFunnelSection report={report} editable={false} /> },
-          { title: 'Resumo Executivo', node: resumoNode },
+          { title: 'Evolução no tempo (Meta Ads)', node: <EvolutionSection meta={meta} periodStart={periodStart} periodEnd={periodEnd} /> },
+          { title: 'Campanhas em destaque (Meta Ads)', node: <CampaignsSection campaigns={meta.topCampaigns} /> },
         ]
       : []),
+    ...(google
+      ? [
+          { title: 'Google Ads — Visão Geral', node: <GoogleOverviewSection google={google} /> },
+          { title: 'Evolução no tempo (Google Ads)', node: <GoogleEvolutionSection google={google} periodStart={periodStart} periodEnd={periodEnd} /> },
+          { title: 'Campanhas em destaque (Google Ads)', node: <GoogleCampaignsSection campaigns={google.topCampaigns} /> },
+        ]
+      : []),
+    ...(meta || google ? [{ title: 'Funil Comercial', node: <ReportFunnelSection report={report} editable={false} /> }] : []),
+    ...(meta ? [{ title: 'Resumo Executivo', node: resumoNode }] : []),
     ...(report.landingPage ? [{ title: 'Landing Page', node: <LandingPageSection lp={report.landingPage} /> }] : []),
   ]
 
   const clampedSlide = Math.min(slide, Math.max(0, slides.length - 1))
   const hasAnyData = slides.length > 0
 
+  const emptyStateNode = (
+    <Card><p className="text-sm text-slate-400">Este relatório ainda não tem dados de nenhuma plataforma.</p></Card>
+  )
+
   const body = presenting ? (
     <div className="mx-auto flex min-h-[70vh] max-w-6xl flex-col gap-8 p-6 pb-28">
-      {!hasAnyData ? (
-        <Card><p className="text-sm text-slate-400">Este relatório não tem dados do Meta Ads.</p></Card>
-      ) : (
-        <Section title={slides[clampedSlide].title}>{slides[clampedSlide].node}</Section>
-      )}
+      {!hasAnyData ? emptyStateNode : <Section title={slides[clampedSlide].title}>{slides[clampedSlide].node}</Section>}
     </div>
   ) : (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
       {!hasAnyData ? (
-        <Card><p className="text-sm text-slate-400">Este relatório não tem dados do Meta Ads.</p></Card>
+        emptyStateNode
       ) : (
         <>
           {meta && (
@@ -584,12 +753,21 @@ export function MonthlyReportPage() {
               <CampaignsSection campaigns={meta.topCampaigns} />
               <AdsSection ads={meta.topAds} />
               <PlatformSection meta={meta} />
-              <Section title="Resumo do período">{resumoNode}</Section>
-              <Section title="Funil Comercial" subtitle="Do investimento em anúncios ao contrato assinado">
-                <ReportFunnelSection report={report} editable />
-              </Section>
             </>
           )}
+          {google && (
+            <>
+              <GoogleOverviewSection google={google} />
+              <GoogleEvolutionSection google={google} periodStart={periodStart} periodEnd={periodEnd} />
+              <GoogleCampaignsSection campaigns={google.topCampaigns} />
+            </>
+          )}
+          {(meta || google) && (
+            <Section title="Funil Comercial" subtitle="Do investimento em anúncios ao contrato assinado">
+              <ReportFunnelSection report={report} editable />
+            </Section>
+          )}
+          {meta && <Section title="Resumo do período">{resumoNode}</Section>}
           {report.landingPage && <LandingPageSection lp={report.landingPage} />}
         </>
       )}

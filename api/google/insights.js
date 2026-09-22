@@ -62,16 +62,19 @@ function buildQuery(dateFrom, dateTo) {
 }
 
 /** A GAQL traz 1 linha por campanha+dia (por causa de segments.date) — soma
- *  por campanha e pelo total do período. CTR, CPC médio e custo/conversão
- *  são recalculados a partir dos totais somados, nunca somando ou tirando
- *  média das linhas diárias (isso daria um número matematicamente errado). */
+ *  por campanha, por dia e pelo total do período. CTR, CPC médio e
+ *  custo/conversão são recalculados a partir dos totais somados, nunca
+ *  somando ou tirando média das linhas diárias/por campanha (isso daria um
+ *  número matematicamente errado). */
 function aggregateResults(rows) {
   const byCampaign = new Map()
+  const byDate = new Map()
   const totals = { impressions: 0, clicks: 0, costMicros: 0, conversions: 0 }
 
   for (const row of rows) {
     const name = row.campaign?.name ?? '—'
     const status = row.campaign?.status ?? 'UNKNOWN'
+    const date = row.segments?.date
     const impressions = num(row.metrics?.impressions)
     const clicks = num(row.metrics?.clicks)
     const costMicros = num(row.metrics?.costMicros)
@@ -89,6 +92,15 @@ function aggregateResults(rows) {
     entry.costMicros += costMicros
     entry.conversions += conversions
     byCampaign.set(key, entry)
+
+    if (date) {
+      const dayEntry = byDate.get(date) ?? { impressions: 0, clicks: 0, costMicros: 0, conversions: 0 }
+      dayEntry.impressions += impressions
+      dayEntry.clicks += clicks
+      dayEntry.costMicros += costMicros
+      dayEntry.conversions += conversions
+      byDate.set(date, dayEntry)
+    }
   }
 
   const campaigns = Array.from(byCampaign.values())
@@ -103,6 +115,16 @@ function aggregateResults(rows) {
     }))
     .sort((a, b) => b.cost - a.cost)
 
+  const daily = Array.from(byDate.entries())
+    .map(([date, d]) => ({
+      date,
+      impressions: d.impressions,
+      clicks: d.clicks,
+      cost: d.costMicros / 1_000_000,
+      conversions: d.conversions,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
   const summary = {
     impressions: totals.impressions,
     clicks: totals.clicks,
@@ -113,7 +135,7 @@ function aggregateResults(rows) {
     cost_per_conversion: totals.conversions > 0 ? totals.costMicros / totals.conversions / 1_000_000 : 0,
   }
 
-  return { summary, campaigns }
+  return { summary, campaigns, daily }
 }
 
 export default async function handler(req, res) {
@@ -198,10 +220,10 @@ export default async function handler(req, res) {
     }
 
     const rows = data.results ?? []
-    const { summary, campaigns } = aggregateResults(rows)
+    const { summary, campaigns, daily } = aggregateResults(rows)
 
     console.log(`[google/insights] OK — linhas: ${rows.length} — campanhas: ${campaigns.length}`)
-    return res.status(200).json({ summary, campaigns })
+    return res.status(200).json({ summary, campaigns, daily })
   } catch (err) {
     console.error('[google/insights] erro interno:', err)
     return res.status(500).json({ error: 'Erro interno ao buscar dados do Google Ads' })
