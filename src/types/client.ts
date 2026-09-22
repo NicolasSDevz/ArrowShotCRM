@@ -22,6 +22,24 @@ export type ClientAudience = 'residencial' | 'comercial' | 'ambos'
 
 export type ApprovalChannel = 'whatsapp' | 'email' | 'drive' | 'outro'
 
+export type OnboardingMeetingKey = 'onboarding' | 'briefing' | 'estrategia'
+
+export const ONBOARDING_MEETING_LABEL: Record<OnboardingMeetingKey, string> = {
+  onboarding: 'Reunião de Onboarding',
+  briefing: 'Reunião de Briefing',
+  estrategia: 'Reunião de Estratégia',
+}
+
+/** Uma das 3 reuniões do fluxo inicial de Tráfego Pago (ver
+ *  ClientOnboardingMeetingsSection). Agendar grava data/hora aqui e também
+ *  cria o evento no Calendário + notifica a equipe (mesmo comportamento que
+ *  já existia só para a reunião de Briefing — ver scheduleClientMeeting). */
+export interface OnboardingMeetingRecord {
+  date?: Timestamp
+  time?: string
+  done?: boolean
+}
+
 /** Endereço completo do cliente — separado do `city` (Cidade/Região) livre já
  *  existente no cadastro rápido, que continua servindo de referência curta. */
 export interface ClientAddress {
@@ -163,6 +181,10 @@ export interface Client extends BaseDoc {
     reports?: boolean
     finance?: boolean
   }
+  /** Reuniões do fluxo inicial de Tráfego Pago — a seção só aparece pra
+   *  clientes com `modules.paidTraffic`, mas o campo em si é opcional (fica
+   *  undefined até a primeira reunião ser agendada). */
+  onboardingMeetings?: Partial<Record<OnboardingMeetingKey, OnboardingMeetingRecord>>
 }
 
 export const CLIENT_STATUS_LABEL: Record<ClientStatus, string> = {

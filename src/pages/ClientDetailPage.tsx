@@ -13,6 +13,7 @@ import { ClientCampaignPlanningPanel } from '../components/clients/ClientCampaig
 import { ClientLandingPagePanel } from '../components/clients/ClientLandingPagePanel'
 import { ClientServiceBadges } from '../components/clients/ServiceBadges'
 import { ClientLogoUpload } from '../components/clients/ClientLogoUpload'
+import { ClientOnboardingMeetingsSection } from '../components/clients/ClientOnboardingMeetingsSection'
 import { DeleteClientModal } from '../components/clients/DeleteClientModal'
 import { Badge } from '../components/ui/Badge'
 import { Avatar } from '../components/ui/Avatar'
@@ -203,6 +204,8 @@ export function ClientDetailPage() {
 
         {client.notes && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{client.notes}</p>}
       </div>
+
+      <ClientOnboardingMeetingsSection client={client} />
 
       <div className="rounded-xl border border-slate-100 bg-white">
         <Tabs
