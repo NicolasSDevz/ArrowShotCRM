@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Upload, Kanban, List, ClipboardList } from 'lucide-react'
+import { Plus, Upload, Kanban, List } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
@@ -35,7 +35,8 @@ export function LeadsPage() {
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
-  const [view, setView] = usePersistedViewMode<'kanban' | 'list' | 'forms'>('leadsView', 'kanban')
+  const [view, setView] = usePersistedViewMode<'kanban' | 'list'>('leadsView', 'kanban')
+  const [mainTab, setMainTab] = useState<'pipeline' | 'forms'>('pipeline')
 
   // Fluxos que precisam de confirmação antes de mover no pipeline.
   const [lossPrompt, setLossPrompt] = useState<{ lead: Lead; order: number } | null>(null)
@@ -108,70 +109,74 @@ export function LeadsPage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-[28px] font-extrabold text-slate-900">Leads</h1>
-          <p className="text-[15px] text-[#64748B]">Pipeline de novos clientes</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
-            <button
-              onClick={() => setView('kanban')}
-              title="Visualizar em quadro"
-              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                view === 'kanban' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <Kanban size={15} />
-            </button>
-            <button
-              onClick={() => setView('list')}
-              title="Visualizar em lista"
-              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                view === 'list' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <List size={15} />
-            </button>
-            <button
-              onClick={() => setView('forms')}
-              title="Formulários de captura"
-              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                view === 'forms' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <ClipboardList size={15} />
-            </button>
-          </div>
-          {view !== 'forms' && (
-            <>
-              <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)}>
-                Importar leads
-              </Button>
-              <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
-                Novo lead
-              </Button>
-            </>
-          )}
-        </div>
+      <div>
+        <h1 className="text-[28px] font-extrabold text-slate-900">Leads</h1>
+        <p className="text-[15px] text-[#64748B]">Pipeline de novos clientes e formulários de captura</p>
       </div>
 
-      {view === 'kanban' ? (
-        <div className="flex-1 overflow-hidden">
-          <KanbanBoard<Lead, LeadStatus>
-            columns={columns}
-            items={leads}
-            getStatus={(l) => l.status}
-            renderCard={(l) => (
-              <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} />
-            )}
-            onMove={handleMove}
-          />
-        </div>
-      ) : view === 'list' ? (
-        <LeadsListView leads={leads} userMap={userMap} onOpenLead={setOpenLeadId} />
-      ) : (
+      <div className="flex gap-1 border-b border-slate-200">
+        {(['pipeline', 'forms'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setMainTab(t)}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors duration-150 ease-in-out ${
+              mainTab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            {t === 'pipeline' ? 'Pipeline' : 'Formulários'}
+          </button>
+        ))}
+      </div>
+
+      {mainTab === 'forms' ? (
         <LeadFormsPanel />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+              <button
+                onClick={() => setView('kanban')}
+                title="Visualizar em quadro"
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  view === 'kanban' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <Kanban size={15} />
+              </button>
+              <button
+                onClick={() => setView('list')}
+                title="Visualizar em lista"
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  view === 'list' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <List size={15} />
+              </button>
+            </div>
+            <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)}>
+              Importar leads
+            </Button>
+            <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
+              Novo lead
+            </Button>
+          </div>
+
+          {view === 'kanban' ? (
+            <div className="flex-1 overflow-hidden">
+              <KanbanBoard<Lead, LeadStatus>
+                columns={columns}
+                items={leads}
+                getStatus={(l) => l.status}
+                renderCard={(l) => (
+                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} />
+                )}
+                onMove={handleMove}
+              />
+            </div>
+          ) : (
+            <LeadsListView leads={leads} userMap={userMap} onOpenLead={setOpenLeadId} />
+          )}
+        </>
       )}
 
       <LeadFormModal open={creating} onClose={() => setCreating(false)} />

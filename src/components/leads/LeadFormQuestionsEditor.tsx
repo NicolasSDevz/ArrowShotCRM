@@ -1,5 +1,6 @@
-import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical } from 'lucide-react'
+import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, Check, X as XIcon } from 'lucide-react'
 import { Input, Select } from '../ui/Field'
+import { InfoTip } from '../ui/InfoTip'
 import {
   LEAD_FORM_QUESTION_TYPE_LABEL,
   type LeadFormQuestion,
@@ -76,8 +77,22 @@ export function LeadFormQuestionsEditor({
   const conditionSourceOptions = (index: number) =>
     questions.slice(0, index).filter((q) => q.type === 'single_choice' || q.type === 'multi_choice')
 
+  const hasName = usedRoles.has('name')
+  const hasWhatsapp = usedRoles.has('whatsapp')
+
   return (
     <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400">
+        Clique num tipo abaixo pra adicionar uma pergunta à lista. Toda pergunta aparece na página na ordem em que está aqui —
+        use as setinhas pra reordenar.
+      </p>
+
+      <div className="flex flex-col gap-1.5 rounded-lg bg-slate-50 p-2.5 text-xs">
+        <RequirementRow ok={questions.length > 0} label="Pelo menos uma pergunta" />
+        <RequirementRow ok={hasName} label='Uma pergunta marcada como "Nome do lead"' />
+        <RequirementRow ok={hasWhatsapp} label='Uma pergunta marcada como "WhatsApp do lead"' />
+      </div>
+
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-700">Perguntas</p>
         <div className="flex flex-wrap gap-1.5">
@@ -114,13 +129,14 @@ export function LeadFormQuestionsEditor({
 
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="flex items-center gap-2">
+                    <span className="shrink-0 text-xs font-semibold text-slate-400">#{index + 1}</span>
                     <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
                       {LEAD_FORM_QUESTION_TYPE_LABEL[q.type]}
                     </span>
                     <Input
                       value={q.label}
                       onChange={(e) => updateQuestion(q.id, { label: e.target.value })}
-                      placeholder="Texto da pergunta"
+                      placeholder='Ex: "Qual seu nome completo?"'
                       className="flex-1"
                     />
                     <button type="button" onClick={() => removeQuestion(q.id)} className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500">
@@ -156,25 +172,30 @@ export function LeadFormQuestionsEditor({
                     </label>
 
                     <label className="flex items-center gap-1.5">
-                      Campo:
+                      Essa resposta vira:
                       <Select
                         value={q.role ?? ''}
                         onChange={(e) => updateQuestion(q.id, { role: (e.target.value || null) as LeadFormFieldRole })}
                         className="h-7 w-auto text-xs"
                       >
-                        <option value="">Livre (só fica na resposta)</option>
+                        <option value="">Só resposta (não alimenta nenhum campo)</option>
                         {(Object.entries(ROLE_LABEL) as [NonNullable<LeadFormFieldRole>, string][]).map(([r, l]) => (
                           <option key={r} value={r} disabled={usedRoles.has(r) && q.role !== r}>
                             {l}
                           </option>
                         ))}
                       </Select>
+                      <InfoTip title="Pra que serve isso?">
+                        Marcar uma pergunta como "Nome do lead" ou "WhatsApp do lead" faz a resposta preencher esses campos
+                        direto no cadastro do lead — é assim que ele aparece certinho no Kanban de Leads, em vez de só
+                        ficar guardado como uma resposta solta.
+                      </InfoTip>
                     </label>
                   </div>
 
                   {sources.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2 rounded-md bg-slate-50 p-2 text-xs">
-                      <span className="text-slate-500">Só mostrar se</span>
+                      <span className="text-slate-500">Só mostrar essa pergunta se a resposta de</span>
                       <Select
                         value={q.condition?.questionId ?? ''}
                         onChange={(e) =>
@@ -230,6 +251,15 @@ export function LeadFormQuestionsEditor({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function RequirementRow({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className={`flex items-center gap-1.5 ${ok ? 'text-emerald-600' : 'text-slate-400'}`}>
+      {ok ? <Check size={12} /> : <XIcon size={12} />}
+      {label}
     </div>
   )
 }

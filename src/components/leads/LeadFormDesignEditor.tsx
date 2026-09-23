@@ -152,7 +152,8 @@ export function LeadFormDesignEditor({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <p className="mb-2 text-sm font-semibold text-slate-700">Identidade visual</p>
+        <p className="text-sm font-semibold text-slate-700">Identidade visual</p>
+        <p className="mb-2 text-xs text-slate-400">Tudo aqui é opcional — sem preencher nada, a página usa o visual padrão que já aparece no preview ao lado.</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Título da página">
             <Input value={design.title ?? ''} onChange={(e) => set('title', e.target.value)} placeholder="Usa o nome interno se deixar em branco" />
@@ -188,7 +189,11 @@ export function LeadFormDesignEditor({
       </div>
 
       <div className="border-t border-slate-100 pt-4">
-        <p className="mb-2 text-sm font-semibold text-slate-700">Tela de resultado</p>
+        <p className="text-sm font-semibold text-slate-700">O que o lead vê depois de enviar</p>
+        <p className="mb-2 text-xs text-slate-400">
+          No mais simples, é uma mensagem só. Se quiser diferenciar por qualificação (ex: mostrar algo diferente pra quem
+          respondeu que já investe em marketing), dá pra configurar mais de uma tela abaixo.
+        </p>
 
         {choiceQuestions.length === 0 ? (
           <>
