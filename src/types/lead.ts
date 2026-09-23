@@ -148,6 +148,14 @@ export interface Lead extends BaseDoc {
    *  do Lead. */
   sourceFormId?: string
   formAnswers?: LeadFormAnswer[]
+  /** Serviço(s) já contratado(s) por esse lead (ex: veio de outra área da
+   *  empresa, ou já fechou uma parte e está em negociação por outra) — ids
+   *  do catálogo em types/product.ts (o mesmo catálogo do Dashboard),
+   *  escolhido porque já é editável livremente pelo Admin sem precisar de
+   *  código novo a cada serviço adicionado (ex: Google Meu Negócio). */
+  contractedProductIds?: string[]
+  /** Texto livre — ex: "6 meses", "1 ano", "Indeterminado". */
+  contractedDuration?: string
 }
 
 export type LeadInput = Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'stageChangedAt'>

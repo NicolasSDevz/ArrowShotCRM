@@ -20,6 +20,8 @@ export interface LeadFormState {
   nextActionDateStr: string
   assignedTo: string
   notes: string
+  contractedProductIds: string[]
+  contractedDuration: string
 }
 
 /** O que o formulário edita — nunca inclui status/order/contactHistory/
@@ -55,6 +57,8 @@ export function buildDefaultLeadForm(defaultAssignedTo?: string): LeadFormState 
     nextActionDateStr: '',
     assignedTo: defaultAssignedTo ?? '',
     notes: '',
+    contractedProductIds: [],
+    contractedDuration: '',
   }
 }
 
@@ -77,6 +81,8 @@ export function leadToFormState(lead: Lead): LeadFormState {
     nextActionDateStr: lead.nextActionDate ? toDateStr(lead.nextActionDate.toDate()) : '',
     assignedTo: lead.assignedTo ?? '',
     notes: lead.notes ?? '',
+    contractedProductIds: lead.contractedProductIds ?? [],
+    contractedDuration: lead.contractedDuration ?? '',
   }
 }
 
@@ -101,5 +107,7 @@ export function formStateToLeadFields(state: LeadFormState): LeadEditableFields 
     nextActionDate: state.nextActionDateStr ? Timestamp.fromDate(new Date(`${state.nextActionDateStr}T00:00:00`)) : null,
     assignedTo: state.assignedTo || undefined,
     notes: state.notes.trim() || undefined,
+    contractedProductIds: state.contractedProductIds.length > 0 ? state.contractedProductIds : undefined,
+    contractedDuration: state.contractedDuration.trim() || undefined,
   }
 }

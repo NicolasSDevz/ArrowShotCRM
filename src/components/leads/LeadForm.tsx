@@ -1,5 +1,6 @@
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { maskPhone, maskCurrencyInput } from '../../utils/masks'
+import { useProducts } from '../../hooks/useProducts'
 import { LEAD_SOURCE_LABEL, type AppUser, type LeadSource } from '../../types'
 import type { LeadFormState } from './leadFormState'
 
@@ -12,8 +13,13 @@ export function LeadForm({
   onChange: (next: LeadFormState) => void
   users: AppUser[]
 }) {
+  const { data: products } = useProducts()
   const set = <K extends keyof LeadFormState>(key: K, v: LeadFormState[K]) => onChange({ ...value, [key]: v })
   const internalUsers = users.filter((u) => u.role !== 'client')
+  const activeProducts = products.filter((p) => p.active)
+
+  const toggleProduct = (id: string) =>
+    set('contractedProductIds', value.contractedProductIds.includes(id) ? value.contractedProductIds.filter((v) => v !== id) : [...value.contractedProductIds, id])
 
   return (
     <div className="flex flex-col gap-4">
@@ -106,6 +112,40 @@ export function LeadForm({
             />
             Landing Page
           </label>
+        </div>
+      </div>
+
+      <div>
+        <span className="mb-1.5 block text-xs font-medium text-slate-500">Serviço contratado (se já tiver)</span>
+        <div className="flex flex-col gap-3 rounded-lg border border-slate-200 p-3">
+          {activeProducts.length === 0 ? (
+            <p className="text-xs text-slate-400">
+              Nenhum serviço no catálogo ainda — cadastre em Dashboard → Produtos e Serviços.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {activeProducts.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={value.contractedProductIds.includes(p.id)}
+                    onChange={() => toggleProduct(p.id)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                  />
+                  {p.name}
+                </label>
+              ))}
+            </div>
+          )}
+          {value.contractedProductIds.length > 0 && (
+            <Field label="Tempo de contrato">
+              <Input
+                value={value.contractedDuration}
+                onChange={(e) => set('contractedDuration', e.target.value)}
+                placeholder='Ex: "6 meses", "1 ano"'
+              />
+            </Field>
+          )}
         </div>
       </div>
 
