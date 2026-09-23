@@ -36,7 +36,7 @@ export function BirthdayTodayWidget() {
   if (list.length === 0) return null
 
   return (
-    <div className="rounded-2xl border border-pink-200 bg-pink-50/70 p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+    <div className="h-full rounded-2xl border border-pink-200 bg-pink-50/70 p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
       <p className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-pink-700">
         <Cake size={16} /> Aniversário hoje{list.length > 1 ? ` (${list.length})` : ''}
       </p>

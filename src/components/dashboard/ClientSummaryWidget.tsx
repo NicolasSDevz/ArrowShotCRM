@@ -39,7 +39,7 @@ export function ClientSummaryWidget({
   onNavigateClient: (clientId: string) => void
 }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+    <div className="h-full min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
       <p className="mb-3 text-[16px] font-semibold text-slate-900">Resumo por cliente</p>
       {rows.length === 0 ? (
         <EmptyState title="Nenhum cliente ativo" />

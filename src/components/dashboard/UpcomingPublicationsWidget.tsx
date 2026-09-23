@@ -41,7 +41,7 @@ export function UpcomingPublicationsWidget({
   onOpenContent: (id: string) => void
 }) {
   return (
-    <div className="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+    <div className="flex h-full min-w-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
       <div className="flex items-center gap-2.5 rounded-t-2xl px-6 py-4">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500">
           <CalendarDays size={15} className="text-white" />

@@ -352,9 +352,9 @@ export function OperationalDashboard() {
           </SortableContext>
         </DndContext>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
           {gridWidgets.map((w) => (
-            <div key={w.id} className={w.width === 'full' ? 'lg:col-span-2' : 'lg:col-span-1'}>
+            <div key={w.id} className={`h-full ${w.width === 'full' ? 'lg:col-span-2' : 'lg:col-span-1'}`}>
               {renderDashboardWidget(w.id, sharedData)}
             </div>
           ))}

@@ -168,7 +168,7 @@ export function SocialContentWidget() {
 
   return (
     <div
-      className="rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
+      className="h-full rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
       style={{ borderLeft: '4px solid #EC4899' }}
       data-dash-accent
     >

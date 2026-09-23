@@ -109,7 +109,7 @@ export function TeamTasksWidget() {
   const openTask = tasks.find((t) => t.id === openTaskId) ?? null
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #2563EB' }} data-dash-accent>
+    <div className="h-full rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #2563EB' }} data-dash-accent>
       <div className="flex items-center gap-2">
         <ListTodo size={16} className="text-brand-600" />
         <p className="text-[16px] font-semibold text-slate-900">Tarefas da equipe</p>

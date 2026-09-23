@@ -128,7 +128,7 @@ export function TeamRoutineTodayWidget() {
   if (!canSee) return null
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #A855F7' }} data-dash-accent>
+    <div className="h-full rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #A855F7' }} data-dash-accent>
       <p className="text-[16px] font-semibold text-slate-900">Rotina da equipe — hoje</p>
       <p className="text-[13px] text-[#64748B]">Acompanhamento (somente leitura) da rotina diária do time.</p>
 

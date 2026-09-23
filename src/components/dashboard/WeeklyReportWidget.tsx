@@ -126,7 +126,7 @@ export function WeeklyReportWidget() {
 
   if (justCompleted) {
     return (
-      <div className="rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #2563EB' }} data-dash-accent>
+      <div className="h-full rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #2563EB' }} data-dash-accent>
         <p className="text-center text-[15px] font-semibold text-[#10B981]">✅ Todos os relatórios enviados! Ótimo trabalho! 🎉</p>
       </div>
     )
@@ -140,7 +140,7 @@ export function WeeklyReportWidget() {
   })
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #2563EB' }} data-dash-accent>
+    <div className="h-full rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #2563EB' }} data-dash-accent>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div className="flex items-center gap-2">
           <FileBarChart size={16} className="text-brand-600" />

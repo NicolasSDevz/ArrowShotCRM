@@ -39,7 +39,7 @@ export function WidgetCard({
   return (
     <div
       data-dash-accent
-      className={`flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 border-l-4 ${styles.border} bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-all duration-150 ease-in-out`}
+      className={`flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 border-l-4 ${styles.border} bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-all duration-150 ease-in-out`}
     >
       <div className={`flex min-w-0 items-center gap-2.5 rounded-t-2xl px-6 py-4 ${styles.headerBg ?? ''}`}>
         <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${styles.iconBg}`}>{icon}</div>
