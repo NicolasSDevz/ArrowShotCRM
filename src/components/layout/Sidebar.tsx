@@ -61,8 +61,8 @@ export function Sidebar({
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="relative flex items-center justify-center border-b border-navy-800 px-3 py-4">
-          <img src="/logo-white.png" alt="Arrow Shot" className="h-[76px] w-auto" />
+        <div className="relative flex items-center justify-center border-b border-navy-800 px-3 py-3">
+          <img src="/logo-white.png" alt="Arrow Shot" className="h-[72px] w-auto" />
           <button
             onClick={onCloseMobile}
             className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-white md:hidden"
