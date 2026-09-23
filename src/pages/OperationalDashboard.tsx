@@ -111,9 +111,12 @@ export function OperationalDashboard() {
 
   const buckets = useMemo(() => {
     const openTasks = visibleTasks.filter((t) => t.status !== 'done')
-    // Tarefa sem prazo definido também entra aqui — senão ela nunca aparece
-    // em nenhum bucket (não é "atrasada" nem "próxima") e se perde de vista.
-    const today = openTasks.filter((t) => !t.dueDate || isToday(t.dueDate.toDate()))
+    // Tarefa manual sem prazo definido também entra aqui — senão ela nunca
+    // aparece em nenhum bucket (não é "atrasada" nem "próxima") e se perde
+    // de vista. Tarefa AUTOMÁTICA sem prazo (workflowStep preenchido — ver
+    // clientWorkflowTemplates) fica de fora: são as recorrentes/onboarding
+    // de clientes antigos que nunca ganharam data, e entulhavam a lista.
+    const today = openTasks.filter((t) => (!t.dueDate && !t.workflowStep) || (t.dueDate && isToday(t.dueDate.toDate())))
     const overdue = openTasks
       .filter((t) => t.dueDate && isPast(t.dueDate.toDate()) && !isToday(t.dueDate.toDate()))
       .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis())

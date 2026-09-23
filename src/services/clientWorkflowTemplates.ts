@@ -7,13 +7,17 @@ import { createNotification, notifyAdminsOfAction } from './notificationService'
 import { updateClient } from './clientService'
 import { findUserIdByName } from '../utils/userLookup'
 import { trafficServices } from '../utils/clientServices'
-import { ONBOARDING_MEETING_LABEL, type Client, type OnboardingMeetingKey } from '../types/client'
+import { ONBOARDING_MEETING_LABEL, getClientOwnerIds, type Client, type OnboardingMeetingKey } from '../types/client'
 import type { AppUser } from '../types/user'
 import type { ChecklistItem, TaskPriority, TaskRecurrence, WorkflowStepKey } from '../types/task'
 
 function toChecklist(items: string[]): ChecklistItem[] {
   return items.map((text) => ({ id: crypto.randomUUID(), text, done: false }))
 }
+
+/** Client shape needed to create/advance workflow tasks — inclui
+ *  ownerIds/ownerId pra resolver o assignee 'gestor' (ver StepDef.assignee). */
+type WorkflowClient = Pick<Client, 'id' | 'companyName' | 'modules' | 'ownerIds' | 'ownerId'>
 
 /** Contrato, Drive e grupo de WhatsApp — responsabilidade de Bruno. */
 function onboardingBrunoItems({ companyName }: Pick<Client, 'companyName' | 'modules'>): string[] {
@@ -173,8 +177,12 @@ interface StepDef {
   checklist: string[] | ((client: Pick<Client, 'companyName' | 'modules'>) => string[])
   priority: TaskPriority
   /** 'creator' assigns to whoever triggered the step; a name assigns via
-   *  findUserIdByName (falls back to unassigned if nobody matches yet). */
-  assignee: 'creator' | 'Bruno' | 'Jamilson' | 'Ciane'
+   *  findUserIdByName (falls back to unassigned if nobody matches yet);
+   *  'gestor' assigns to the client's actual owner (client.ownerIds/ownerId)
+   *  instead of a fixed person — for steps split between Ciane/Nicolas by
+   *  portfolio, where hardcoding a name would send every client's task to
+   *  the same person regardless of who really manages it. */
+  assignee: 'creator' | 'gestor' | 'Bruno' | 'Jamilson' | 'Ciane'
   recurrence?: TaskRecurrence
   /** This step's completion only advances the workflow once every one of
    *  these sibling steps (same client) is also done — used to split one
@@ -213,14 +221,14 @@ const STEP_DEFS: Record<WorkflowStepKey, StepDef> = {
     description: 'Checklist padrão de planejamento e subida de campanhas.',
     checklist: PLANEJAMENTO_CAMPANHAS_ITEMS,
     priority: 'high',
-    assignee: 'Ciane',
+    assignee: 'gestor',
   },
   pt_trafego_semanal: {
     title: (name) => `Gestor de Tráfego — Semanal — ${name}`,
     description: 'Tarefa recorrente. Ao concluir, use "Duplicar próxima ocorrência" no card para recriá-la.',
     checklist: trafegoSemanalItems,
     priority: 'normal',
-    assignee: 'Ciane',
+    assignee: 'gestor',
     recurrence: { frequency: 'weekly', weekday: 1 },
   },
   pt_trafego_mensal: {
@@ -228,7 +236,7 @@ const STEP_DEFS: Record<WorkflowStepKey, StepDef> = {
     description: 'Tarefa recorrente. Ao concluir, use "Duplicar próxima ocorrência" no card para recriá-la.',
     checklist: trafegoMensalItems,
     priority: 'normal',
-    assignee: 'Ciane',
+    assignee: 'gestor',
     recurrence: { frequency: 'monthly', dayOfMonth: 1 },
   },
   pt_cs_semanal: {
@@ -325,14 +333,19 @@ function getNextSteps(key: WorkflowStepKey, client: Pick<Client, 'modules'>): Wo
 
 async function createWorkflowStepTask(
   key: WorkflowStepKey,
-  client: Pick<Client, 'id' | 'companyName' | 'modules'>,
+  client: WorkflowClient,
   userId: string,
   userName: string,
   users: AppUser[],
   order: number
 ) {
   const def = STEP_DEFS[key]
-  const assignedTo = def.assignee === 'creator' ? userId : findUserIdByName(users, def.assignee)
+  const assignedTo =
+    def.assignee === 'creator'
+      ? userId
+      : def.assignee === 'gestor'
+        ? getClientOwnerIds(client)[0]
+        : findUserIdByName(users, def.assignee)
   const items = typeof def.checklist === 'function' ? def.checklist(client) : def.checklist
 
   await createTask(
@@ -359,7 +372,7 @@ async function createWorkflowStepTask(
  *  freshly registered client — the rest of each sequence is created
  *  automatically as each step is marked done (see advanceClientWorkflow). */
 export async function createInitialWorkflowTasks(
-  client: Pick<Client, 'id' | 'companyName' | 'modules'>,
+  client: WorkflowClient,
   userId: string,
   userName: string,
   users: AppUser[]
@@ -379,7 +392,7 @@ export async function createInitialWorkflowTasks(
  *  — cria as mesmas duas tarefas que createInitialWorkflowTasks criaria se o
  *  serviço já tivesse sido contratado desde o início. */
 export async function createLandingPageWorkflowTasks(
-  client: Pick<Client, 'id' | 'companyName' | 'modules'>,
+  client: WorkflowClient,
   userId: string,
   userName: string,
   users: AppUser[]
@@ -396,7 +409,7 @@ export async function createLandingPageWorkflowTasks(
  *  getNextSteps). Terminal/recurring tasks are a no-op. */
 export async function advanceClientWorkflow(
   task: { workflowStep?: WorkflowStepKey | null; clientId?: string },
-  client: Pick<Client, 'id' | 'companyName' | 'modules'>,
+  client: WorkflowClient,
   userId: string,
   userName: string,
   users: AppUser[]

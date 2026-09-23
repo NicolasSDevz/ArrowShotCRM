@@ -73,9 +73,10 @@ export function TeamTasksWidget() {
         overdue: mine
           .filter((t) => t.dueDate && isPast(t.dueDate.toDate()) && !isToday(t.dueDate.toDate()))
           .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis()),
-        // Sem prazo definido entra junto com "hoje" — senão fica sem
-        // aparecer em bucket nenhum e se perde de vista.
-        today: mine.filter((t) => !t.dueDate || isToday(t.dueDate.toDate())),
+        // Manual sem prazo entra junto com "hoje" — senão fica sem aparecer
+        // em bucket nenhum. Automática sem prazo (workflowStep) fica de
+        // fora — são as recorrentes/onboarding antigas sem data.
+        today: mine.filter((t) => (!t.dueDate && !t.workflowStep) || (t.dueDate && isToday(t.dueDate.toDate()))),
         upcoming: mine
           .filter((t) => t.dueDate && isWithinInterval(t.dueDate.toDate(), { start: addDays(new Date(), 1), end: addDays(new Date(), 3) }))
           .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis()),

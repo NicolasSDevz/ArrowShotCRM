@@ -253,7 +253,12 @@ export function ClientFormModal({
         // padrão de briefing/desenvolvimento, igual acontece na criação do
         // cliente (ver createInitialWorkflowTasks).
         if (basePayload.modules.landingPage && !client.modules?.landingPage) {
-          const updatedClient = { id: client.id, companyName: basePayload.companyName, modules: basePayload.modules }
+          const updatedClient = {
+            id: client.id,
+            companyName: basePayload.companyName,
+            modules: basePayload.modules,
+            ownerIds: basePayload.ownerIds,
+          }
           await createLandingPageWorkflowTasks(updatedClient, profile.id, profile.name, users)
         }
 
@@ -279,7 +284,12 @@ export function ClientFormModal({
         const newClientId = await createClient({ ...basePayload, status: 'prospect' }, profile.id, profile.name, users)
         targetId = newClientId
         if (createTasks) {
-          const newClient = { id: newClientId, companyName: basePayload.companyName, modules: basePayload.modules }
+          const newClient = {
+            id: newClientId,
+            companyName: basePayload.companyName,
+            modules: basePayload.modules,
+            ownerIds: basePayload.ownerIds,
+          }
           await createInitialWorkflowTasks(newClient, profile.id, profile.name, users)
         }
         toast.success('Cliente cadastrado com sucesso')

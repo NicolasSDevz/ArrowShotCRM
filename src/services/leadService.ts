@@ -220,6 +220,11 @@ export async function convertLeadToClient(lead: Lead, userId: string, userName: 
     landingPage: !!lead.services.landingPage,
   }
 
+  // Leva o responsável do lead pro cliente convertido — sem isso, as tarefas
+  // automáticas de "gestor" (ver clientWorkflowTemplates) nasceriam sem
+  // ninguém atribuído.
+  const ownerIds = lead.assignedTo ? [lead.assignedTo] : undefined
+
   const clientId = await createClient(
     {
       companyName,
@@ -232,13 +237,14 @@ export async function convertLeadToClient(lead: Lead, userId: string, userName: 
       monthlyValue: lead.estimatedValue,
       notes: lead.notes,
       modules,
+      ownerIds,
     },
     userId,
     userName,
     users
   )
 
-  await createInitialWorkflowTasks({ id: clientId, companyName, modules }, userId, userName, users)
+  await createInitialWorkflowTasks({ id: clientId, companyName, modules, ownerIds }, userId, userName, users)
 
   await base.update(lead.id, { convertedClientId: clientId, convertedAt: Timestamp.now() }, userId)
   await logActivity({
