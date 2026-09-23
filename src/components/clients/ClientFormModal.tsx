@@ -5,6 +5,7 @@ import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
+import { useProducts } from '../../hooks/useProducts'
 import { createClient, updateClient } from '../../services/clientService'
 import { createInitialWorkflowTasks, createLandingPageWorkflowTasks } from '../../services/clientWorkflowTemplates'
 import { logActivity } from '../../services/activityService'
@@ -60,6 +61,7 @@ const EMPTY = {
   googleAds: false,
   landingPage: false,
   landingPageType: '' as LandingPageType | '',
+  contractedProductIds: [] as string[],
 }
 
 const toDateInputValue = timestampToDateInput
@@ -105,6 +107,8 @@ export function ClientFormModal({
 }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
+  const { data: products } = useProducts()
+  const activeProducts = products.filter((p) => p.active)
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [createTasks, setCreateTasks] = useState(true)
@@ -141,6 +145,7 @@ export function ClientFormModal({
         googleAds: client.modules?.googleAds ?? false,
         landingPage: client.modules?.landingPage ?? false,
         landingPageType: client.landingPageType ?? '',
+        contractedProductIds: client.contractedProductIds ?? [],
       })
     } else {
       setForm(EMPTY)
@@ -157,6 +162,14 @@ export function ClientFormModal({
     setForm((f) => ({
       ...f,
       ownerIds: f.ownerIds.includes(uid) ? f.ownerIds.filter((id) => id !== uid) : [...f.ownerIds, uid],
+    }))
+
+  const toggleContractedProduct = (id: string) =>
+    setForm((f) => ({
+      ...f,
+      contractedProductIds: f.contractedProductIds.includes(id)
+        ? f.contractedProductIds.filter((pid) => pid !== id)
+        : [...f.contractedProductIds, id],
     }))
 
   const whatsappIncomplete = form.whatsapp.trim() !== '' && !isPhoneComplete(form.whatsapp)
@@ -222,6 +235,7 @@ export function ClientFormModal({
         contractStartDate: dateInputToTimestamp(form.contractStartDate),
         notes: form.notes || undefined,
         churnReason: form.status === 'churned' ? form.churnReason.trim() || undefined : undefined,
+        contractedProductIds: form.contractedProductIds.length > 0 ? form.contractedProductIds : undefined,
         modules: {
           ...client?.modules,
           socialMedia: form.socialMedia,
@@ -530,6 +544,30 @@ export function ClientFormModal({
                   ))}
                 </Select>
               </Field>
+            </div>
+          )}
+
+          {activeProducts.length > 0 && (
+            <div className="border-t border-slate-200 pt-2.5">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Outros serviços (catálogo)
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {activeProducts.map((p) => (
+                  <label key={p.id} className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.contractedProductIds.includes(p.id)}
+                      onChange={() => toggleContractedProduct(p.id)}
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                    />
+                    {p.name}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                Cadastre novos serviços em Dashboard → Produtos e Serviços — eles aparecem aqui sozinhos.
+              </p>
             </div>
           )}
         </div>

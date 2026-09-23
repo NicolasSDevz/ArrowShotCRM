@@ -148,6 +148,11 @@ export interface Client extends BaseDoc {
   monthlyValue?: number
   contractStartDate?: Timestamp | null
   notes?: string
+  /** Serviço(s) do catálogo (types/product.ts, mesmo cadastro do Dashboard)
+   *  contratados por esse cliente, além dos módulos fixos acima — permite
+   *  marcar serviços novos (ex: Google Meu Negócio) sem precisar de código
+   *  novo a cada um. Mesmo campo/mesma ideia do Lead.contractedProductIds. */
+  contractedProductIds?: string[]
   /** Preenchido ao mudar o status para "Encerrado" — mostrado no popup de
    *  Churn Rate do Dashboard (ver OverviewDashboard). */
   churnReason?: string
