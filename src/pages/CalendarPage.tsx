@@ -14,8 +14,7 @@ import {
   format,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Sparkles, CheckSquare, Video, Plus, LogOut, CalendarClock, Cake } from 'lucide-react'
-import { useAllContents } from '../hooks/useContents'
+import { ChevronLeft, ChevronRight, CheckSquare, Video, Plus, LogOut, CalendarClock, Cake } from 'lucide-react'
 import { useAllTasks } from '../hooks/useTasks'
 import { useAllMeetings } from '../hooks/useMeetings'
 import { useClients } from '../hooks/useClients'
@@ -26,7 +25,6 @@ import { birthdayWhatsappLink } from '../utils/birthdayMessage'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 import { MEETING_TYPE_LABEL } from '../types/meeting'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
-import { ContentDrawer } from '../components/content/ContentDrawer'
 import { MeetingDrawer } from '../components/meetings/MeetingDrawer'
 import { NewMeetingModal } from '../components/calendar/NewMeetingModal'
 import { Button } from '../components/ui/Button'
@@ -36,14 +34,15 @@ type CalItem = {
   title: string
   // 'meeting' = evento do Google Calendar sincronizado; 'internalMeeting' =
   // registro do módulo de Reuniões da plataforma (ver types/meeting.ts).
-  kind: 'task' | 'content' | 'meeting' | 'internalMeeting' | 'event' | 'birthday'
+  // Conteúdos de Social Mídia não entram mais aqui — têm calendário próprio
+  // (ver SocialMediaGlobalCalendar, aba "Calendário geral" de Social Mídia).
+  kind: 'task' | 'meeting' | 'internalMeeting' | 'event' | 'birthday'
   date: Date
   clientName?: string
   link?: string
 }
 
 const KIND_STYLE: Record<CalItem['kind'], string> = {
-  content: 'bg-brand-50 text-brand-700',
   task: 'bg-blue-50 text-blue-700',
   meeting: 'bg-amber-50 text-amber-700',
   internalMeeting: 'bg-indigo-50 text-indigo-700',
@@ -55,7 +54,6 @@ export function CalendarPage() {
   const { data: allTasks } = useAllTasks()
   const { canSeeAllTasks, viewerId } = useTaskVisibility()
   const tasks = useMemo(() => filterVisibleTasks(allTasks, canSeeAllTasks, viewerId), [allTasks, canSeeAllTasks, viewerId])
-  const { data: contents } = useAllContents()
   const { data: meetings } = useAllMeetings()
   const { data: clients } = useClients()
   const { data: calendarEvents } = useCalendarEvents()
@@ -63,12 +61,10 @@ export function CalendarPage() {
   const [mode, setMode] = useState<'month' | 'week'>('month')
   const [cursor, setCursor] = useState(new Date())
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
-  const [openContentId, setOpenContentId] = useState<string | null>(null)
   const [openMeetingId, setOpenMeetingId] = useState<string | null>(null)
   const [creatingMeeting, setCreatingMeeting] = useState(false)
 
   const openTask = tasks.find((t) => t.id === openTaskId) ?? null
-  const openContent = contents.find((c) => c.id === openContentId) ?? null
   const openInternalMeeting = meetings.find((m) => m.id === openMeetingId) ?? null
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]))
 
@@ -81,15 +77,6 @@ export function CalendarPage() {
         kind: 'task',
         date: t.dueDate!.toDate(),
         clientName: t.clientId ? clientMap[t.clientId]?.companyName : undefined,
-      }))
-    const fromContents: CalItem[] = contents
-      .filter((c) => c.scheduledDate)
-      .map((c) => ({
-        id: c.id,
-        title: c.title,
-        kind: 'content',
-        date: c.scheduledDate!.toDate(),
-        clientName: clientMap[c.clientId]?.companyName,
       }))
     const fromMeetings: CalItem[] = google.events.map((ev) => ({
       id: ev.id,
@@ -131,8 +118,8 @@ export function CalendarPage() {
         clientName,
       }
     })
-    return [...fromTasks, ...fromContents, ...fromMeetings, ...fromEvents, ...fromBirthdays, ...fromInternalMeetings]
-  }, [tasks, contents, clientMap, google.events, calendarEvents, meetings, cursor])
+    return [...fromTasks, ...fromMeetings, ...fromEvents, ...fromBirthdays, ...fromInternalMeetings]
+  }, [tasks, clientMap, google.events, calendarEvents, meetings, cursor])
 
   const birthdays30 = useMemo(() => upcomingBirthdays(calendarEvents, 30), [calendarEvents])
 
@@ -142,7 +129,6 @@ export function CalendarPage() {
 
   const openItem = (item: CalItem) => {
     if (item.kind === 'task') setOpenTaskId(item.id)
-    else if (item.kind === 'content') setOpenContentId(item.id)
     else if (item.kind === 'internalMeeting') setOpenMeetingId(item.id)
     else if (item.link) window.open(item.link, '_blank', 'noreferrer')
   }
@@ -269,7 +255,6 @@ export function CalendarPage() {
                       className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium ${KIND_STYLE[item.kind]}`}
                       title={item.title}
                     >
-                      {item.kind === 'content' && <Sparkles size={10} />}
                       {item.kind === 'task' && <CheckSquare size={10} />}
                       {item.kind === 'meeting' && <Video size={10} />}
                       {item.kind === 'internalMeeting' && <Video size={10} />}
@@ -289,7 +274,6 @@ export function CalendarPage() {
       </div>
 
       <TaskDrawer key={`task-${openTaskId ?? 'none'}`} task={openTask} onClose={() => setOpenTaskId(null)} />
-      <ContentDrawer key={`content-${openContentId ?? 'none'}`} content={openContent} onClose={() => setOpenContentId(null)} />
       <MeetingDrawer key={`meeting-${openMeetingId ?? 'none'}`} meeting={openInternalMeeting} onClose={() => setOpenMeetingId(null)} />
       <NewMeetingModal open={creatingMeeting} onClose={() => setCreatingMeeting(false)} onCreated={google.refresh} />
     </div>

@@ -95,7 +95,10 @@ function AccountIdCell({ client }: { client: Client }) {
 
 export function GoogleAdsPage() {
   const { data: clients } = useClients()
-  const googleAdsClients = useMemo(() => clients.filter((c) => !!c.modules?.googleAds), [clients])
+  const googleAdsClients = useMemo(
+    () => clients.filter((c) => !!c.modules?.googleAds && c.status !== 'churned'),
+    [clients]
+  )
   const clientsWithAccount = useMemo(
     () => googleAdsClients.filter((c) => !!c.campaignPlanning?.acessos?.googleAdsAccountId),
     [googleAdsClients]

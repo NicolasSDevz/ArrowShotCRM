@@ -68,14 +68,16 @@ export function TeamTasksWidget() {
     const result: Record<string, { overdue: Task[]; today: Task[]; upcoming: Task[] }> = {}
     for (const name of PEOPLE) {
       const userId = findUserIdByName(users, name)
-      const mine = tasks.filter((t) => t.assignedTo === userId && t.status !== 'done' && t.dueDate)
+      const mine = tasks.filter((t) => t.assignedTo === userId && t.status !== 'done')
       result[name] = {
         overdue: mine
-          .filter((t) => isPast(t.dueDate!.toDate()) && !isToday(t.dueDate!.toDate()))
+          .filter((t) => t.dueDate && isPast(t.dueDate.toDate()) && !isToday(t.dueDate.toDate()))
           .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis()),
-        today: mine.filter((t) => isToday(t.dueDate!.toDate())),
+        // Sem prazo definido entra junto com "hoje" — senão fica sem
+        // aparecer em bucket nenhum e se perde de vista.
+        today: mine.filter((t) => !t.dueDate || isToday(t.dueDate.toDate())),
         upcoming: mine
-          .filter((t) => isWithinInterval(t.dueDate!.toDate(), { start: addDays(new Date(), 1), end: addDays(new Date(), 3) }))
+          .filter((t) => t.dueDate && isWithinInterval(t.dueDate.toDate(), { start: addDays(new Date(), 1), end: addDays(new Date(), 3) }))
           .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis()),
       }
     }
@@ -143,8 +145,8 @@ export function TeamTasksWidget() {
                 key={t.id}
                 task={t}
                 clientName={t.clientId ? clientNameById[t.clientId] : undefined}
-                rightLabel="Hoje"
-                rightClass="text-blue-600"
+                rightLabel={t.dueDate ? 'Hoje' : 'Sem data'}
+                rightClass={t.dueDate ? 'text-blue-600' : 'text-amber-500'}
                 onClick={() => setOpenTaskId(t.id)}
               />
             ))

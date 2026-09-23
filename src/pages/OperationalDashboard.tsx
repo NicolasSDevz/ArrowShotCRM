@@ -111,7 +111,9 @@ export function OperationalDashboard() {
 
   const buckets = useMemo(() => {
     const openTasks = visibleTasks.filter((t) => t.status !== 'done')
-    const today = openTasks.filter((t) => t.dueDate && isToday(t.dueDate.toDate()))
+    // Tarefa sem prazo definido também entra aqui — senão ela nunca aparece
+    // em nenhum bucket (não é "atrasada" nem "próxima") e se perde de vista.
+    const today = openTasks.filter((t) => !t.dueDate || isToday(t.dueDate.toDate()))
     const overdue = openTasks
       .filter((t) => t.dueDate && isPast(t.dueDate.toDate()) && !isToday(t.dueDate.toDate()))
       .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis())

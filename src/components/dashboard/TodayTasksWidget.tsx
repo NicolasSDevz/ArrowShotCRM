@@ -17,6 +17,7 @@ function TodayTaskRow({ task, assignee, onClick }: { task: Task; assignee?: Assi
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-slate-900">{task.title}</span>
         {hasTime && <span className="text-xs text-slate-400">{format(due!, 'HH:mm')}</span>}
+        {!due && <span className="text-xs text-amber-500">Sem data definida</span>}
       </span>
       {assignee && <Avatar name={assignee.name} photoURL={assignee.photoURL} size="xs" />}
     </button>

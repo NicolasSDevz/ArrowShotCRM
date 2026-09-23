@@ -174,8 +174,10 @@ async function handle(req, res, user) {
     const [clients, tokenStatuses] = await Promise.all([listDocs('clients'), listAllTokenStatuses()])
     const tokenByClient = new Map(tokenStatuses.map((t) => [t.clientId, t]))
 
-    // Clientes com Meta Ads. Ciane/Nicolas só veem os seus.
-    let eligible = clients.filter((c) => c.modules?.metaAds || c.campaignPlanning?.acessos?.metaAdsAccountId)
+    // Clientes com Meta Ads, exceto encerrados. Ciane/Nicolas só veem os seus.
+    let eligible = clients.filter(
+      (c) => c.status !== 'churned' && (c.modules?.metaAds || c.campaignPlanning?.acessos?.metaAdsAccountId)
+    )
     if (user.role !== 'admin') {
       eligible = eligible.filter((c) => ownerIdsOf(c).includes(user.uid))
     }
