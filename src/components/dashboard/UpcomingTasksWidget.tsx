@@ -33,9 +33,12 @@ function UpcomingTaskRow({
       onClick={onClick}
       className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition-colors duration-150 ease-in-out hover:bg-slate-50"
     >
-      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
-        {task.title}
-        {clientName && <span className="text-slate-400"> — {clientName}</span>}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-slate-900">
+          {task.title}
+          {clientName && <span className="text-slate-400"> — {clientName}</span>}
+        </span>
+        {task.description && <span className="block truncate text-xs text-slate-400">{task.description}</span>}
       </span>
       {assignee && <Avatar name={assignee.name} photoURL={assignee.photoURL} size="xs" />}
     </button>

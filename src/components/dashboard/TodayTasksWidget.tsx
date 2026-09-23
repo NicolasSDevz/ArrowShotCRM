@@ -3,6 +3,7 @@ import { Clock } from 'lucide-react'
 import { WidgetCard, AddTaskAction } from './WidgetCard'
 import { EmptyState } from '../ui/EmptyState'
 import { Avatar } from '../ui/Avatar'
+import { InfoTip } from '../ui/InfoTip'
 import type { Task } from '../../types/task'
 import type { Assignee } from '../../hooks/useAssignees'
 
@@ -15,9 +16,16 @@ function TodayTaskRow({ task, assignee, onClick }: { task: Task; assignee?: Assi
       className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition-colors duration-150 ease-in-out hover:bg-slate-50"
     >
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-slate-900">{task.title}</span>
+        <span className="flex items-center gap-1.5">
+          <span className="block truncate text-sm font-medium text-slate-900">{task.title}</span>
+          {!due && (
+            <InfoTip tone="warning" title="Sem prazo definido">
+              Essa tarefa não tem uma data de vencimento — confirme se está correto.
+            </InfoTip>
+          )}
+        </span>
+        {task.description && <span className="block truncate text-xs text-slate-400">{task.description}</span>}
         {hasTime && <span className="text-xs text-slate-400">{format(due!, 'HH:mm')}</span>}
-        {!due && <span className="text-xs text-amber-500">Sem data definida</span>}
       </span>
       {assignee && <Avatar name={assignee.name} photoURL={assignee.photoURL} size="xs" />}
     </button>

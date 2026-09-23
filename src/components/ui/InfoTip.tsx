@@ -7,7 +7,18 @@ import { Info } from 'lucide-react'
  *  temas, seta apontando pro ícone. Usado nos cards do painel "Visão
  *  Geral" — `children` aceita texto simples ou conteúdo rico (ex: lista de
  *  clientes que deram churn, no popup de Churn Rate). */
-export function InfoTip({ title, children }: { title?: string; children: ReactNode }) {
+export function InfoTip({
+  title,
+  children,
+  tone = 'default',
+}: {
+  title?: string
+  children: ReactNode
+  /** 'warning' pinta o ícone de âmbar — usado pra sinalizar algo que merece
+   *  atenção (ex: tarefa sem prazo definido) sem precisar de um texto fixo
+   *  ocupando espaço na linha. */
+  tone?: 'default' | 'warning'
+}) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
 
@@ -37,7 +48,11 @@ export function InfoTip({ title, children }: { title?: string; children: ReactNo
           e.stopPropagation()
           setOpen((p) => !p)
         }}
-        className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:text-slate-600"
+        className={`flex h-4 w-4 items-center justify-center rounded-full transition-colors ${
+          tone === 'warning'
+            ? 'text-amber-500 hover:text-amber-600 focus-visible:text-amber-600'
+            : 'text-slate-400 hover:text-slate-600 focus-visible:text-slate-600'
+        }`}
       >
         <Info size={14} aria-hidden="true" />
       </button>

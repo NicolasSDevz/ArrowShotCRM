@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import ReactMarkdown from 'react-markdown'
 import { ArrowLeft, CheckCircle2, FileText } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { useModules } from '../hooks/useModules'
 import { useMyProgress } from '../hooks/useProgress'
 import { completeModule } from '../services/progressService'
@@ -18,6 +19,7 @@ export function UniversityModulePage() {
   const { trailId, moduleId } = useParams<{ trailId: string; moduleId: string }>()
   const navigate = useNavigate()
   const { profile } = useAuth()
+  const { theme } = useTheme()
   const { data: modules, loading } = useModules(trailId)
   const { data: progress } = useMyProgress(profile?.id)
 
@@ -98,7 +100,11 @@ export function UniversityModulePage() {
       )}
 
       {module.content && (
-        <div className="prose prose-sm prose-slate max-w-none rounded-xl border border-slate-100 bg-white p-4">
+        <div
+          className={`prose prose-sm max-w-none rounded-xl border border-slate-100 bg-white p-4 ${
+            theme === 'dark' ? 'prose-invert' : 'prose-slate'
+          }`}
+        >
           <ReactMarkdown>{module.content}</ReactMarkdown>
         </div>
       )}

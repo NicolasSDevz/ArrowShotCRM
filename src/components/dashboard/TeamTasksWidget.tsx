@@ -8,6 +8,7 @@ import { useClients } from '../../hooks/useClients'
 import { useAllTasks } from '../../hooks/useTasks'
 import { findUserIdByName } from '../../utils/userLookup'
 import { isAutoRecurringTaskTitle } from '../../services/clientWorkflowTemplates'
+import { InfoTip } from '../ui/InfoTip'
 import { TaskDrawer } from '../tasks/TaskDrawer'
 import type { Task } from '../../types/task'
 
@@ -24,12 +25,14 @@ function TaskRow({
   clientName,
   rightLabel,
   rightClass,
+  noDateWarning,
   onClick,
 }: {
   task: Task
   clientName?: string
   rightLabel: string
   rightClass: string
+  noDateWarning?: boolean
   onClick: () => void
 }) {
   return (
@@ -37,10 +40,18 @@ function TaskRow({
       onClick={onClick}
       className="flex w-full min-w-0 flex-col gap-0.5 rounded-lg px-2 py-1.5 text-left transition-colors duration-150 ease-in-out hover:bg-slate-50"
     >
-      <span className="truncate text-sm font-medium text-slate-900">{task.title}</span>
+      <span className="flex items-center gap-1.5">
+        <span className="truncate text-sm font-medium text-slate-900">{task.title}</span>
+        {noDateWarning && (
+          <InfoTip tone="warning" title="Sem prazo definido">
+            Essa tarefa não tem uma data de vencimento — confirme se está correto.
+          </InfoTip>
+        )}
+      </span>
+      {task.description && <span className="truncate text-xs text-slate-400">{task.description}</span>}
       <span className="flex items-center gap-1.5 text-xs">
         {clientName && <span className="truncate text-slate-400">{clientName}</span>}
-        <span className={`ml-auto shrink-0 font-medium ${rightClass}`}>{rightLabel}</span>
+        {rightLabel && <span className={`ml-auto shrink-0 font-medium ${rightClass}`}>{rightLabel}</span>}
       </span>
     </button>
   )
@@ -152,8 +163,9 @@ export function TeamTasksWidget() {
                 key={t.id}
                 task={t}
                 clientName={t.clientId ? clientNameById[t.clientId] : undefined}
-                rightLabel={t.dueDate ? 'Hoje' : 'Sem data'}
-                rightClass={t.dueDate ? 'text-blue-600' : 'text-amber-500'}
+                rightLabel={t.dueDate ? 'Hoje' : ''}
+                rightClass="text-blue-600"
+                noDateWarning={!t.dueDate}
                 onClick={() => setOpenTaskId(t.id)}
               />
             ))
