@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Users2, CalendarClock } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Plus, Users2, CalendarClock, Briefcase } from 'lucide-react'
 import { useTeamMembers } from '../hooks/useTeamMembers'
 import { TeamMemberFormModal } from '../components/team/TeamMemberFormModal'
 import { TeamMemberDrawer } from '../components/team/TeamMemberDrawer'
@@ -10,11 +10,28 @@ import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/FullPageSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
-import { TEAM_PERMISSION_LABEL, TEAM_MEETINGS, FUTURE_ROLES, type TeamMember } from '../types'
+import { StatCard } from '../components/ui/StatCard'
+import { TEAM_PERMISSION_LABEL, TEAM_MEETINGS, FUTURE_ROLES, type TeamMember, type TeamPermission } from '../types'
 
 const STATUS_BADGE: Record<TeamMember['status'], string> = {
   active: 'bg-emerald-100 text-emerald-700',
   inactive: 'bg-slate-100 text-slate-500',
+}
+
+const PERMISSION_BADGE: Record<TeamPermission, string> = {
+  admin: 'bg-indigo-50 text-indigo-600',
+  gestor: 'bg-blue-50 text-blue-600',
+  cs: 'bg-emerald-50 text-emerald-600',
+  visualizador: 'bg-slate-100 text-slate-500',
+}
+
+function SectionTitle({ icon, iconBg, children }: { icon: ReactNode; iconBg: string; children: ReactNode }) {
+  return (
+    <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${iconBg}`}>{icon}</span>
+      {children}
+    </h2>
+  )
 }
 
 export function TeamPage() {
@@ -49,23 +66,30 @@ export function TeamPage() {
           description='Clique em "Novo membro" para montar o time.'
         />
       ) : (
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <StatCard label="Membros ativos" value={activeMembers.length} />
+            <StatCard label="Com acesso à plataforma" value={members.filter((m) => !!m.userId).length} />
+            <StatCard label="Cargos futuros em aberto" value={FUTURE_ROLES.length} />
+          </div>
+
         <section className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-            <Users2 size={15} className="text-slate-400" /> Equipe ativa
-          </h2>
+          <SectionTitle icon={<Users2 size={13} className="text-white" />} iconBg="bg-brand-500">
+            Equipe ativa
+          </SectionTitle>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {activeMembers.map((m) => (
               <button
                 key={m.id}
                 onClick={() => setOpenMemberId(m.id)}
-                className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3.5 text-left shadow-sm transition-shadow hover:shadow-md"
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition-all duration-150 ease-in-out hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md"
               >
-                <Avatar name={m.name} photoURL={m.photoURL} size="md" />
+                <Avatar name={m.name} photoURL={m.photoURL} size="lg" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-slate-800">{m.name}</p>
                   <p className="truncate text-xs text-slate-400">{m.jobTitle || '—'}</p>
                   <div className="mt-1.5 flex flex-wrap gap-1">
-                    <Badge className="bg-brand-50 text-brand-600">{TEAM_PERMISSION_LABEL[m.permission]}</Badge>
+                    <Badge className={PERMISSION_BADGE[m.permission]}>{TEAM_PERMISSION_LABEL[m.permission]}</Badge>
                     {!m.userId && <Badge className="bg-slate-100 text-slate-500">Sem login</Badge>}
                   </div>
                 </div>
@@ -95,10 +119,13 @@ export function TeamPage() {
             </>
           )}
         </section>
+        </>
       )}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-slate-700">Cargos futuros</h2>
+        <SectionTitle icon={<Briefcase size={13} className="text-white" />} iconBg="bg-slate-400">
+          Cargos futuros
+        </SectionTitle>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {FUTURE_ROLES.map((role) => (
             <div
@@ -120,10 +147,10 @@ export function TeamPage() {
       <OptimizationScheduleSection />
 
       <section className="flex flex-col gap-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-          <CalendarClock size={15} className="text-slate-400" /> Reuniões recorrentes da equipe
-        </h2>
-        <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
+        <SectionTitle icon={<CalendarClock size={13} className="text-white" />} iconBg="bg-amber-500">
+          Reuniões recorrentes da equipe
+        </SectionTitle>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-[15px]">
               <thead className="border-b border-slate-100 bg-slate-50 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
@@ -135,7 +162,7 @@ export function TeamPage() {
               </thead>
               <tbody>
                 {TEAM_MEETINGS.map((meeting, i) => (
-                  <tr key={i} className="border-b border-slate-50 last:border-0">
+                  <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
                     <td className="px-4 py-2.5 font-medium text-slate-700">{meeting.title}</td>
                     <td className="px-4 py-2.5 text-slate-600">{meeting.schedule}</td>
                     <td className="px-4 py-2.5 text-slate-500">{meeting.participants}</td>

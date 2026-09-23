@@ -15,6 +15,7 @@ import { ReportFormModal } from '../components/reports/ReportFormModal'
 import { ReportViewModal } from '../components/reports/ReportViewModal'
 import { ReportsClientCard } from '../components/reports/ReportsClientCard'
 import { ClientReportsDrawer } from '../components/reports/ClientReportsDrawer'
+import { StatCard } from '../components/ui/StatCard'
 import { generateWeeklyReportPdf } from '../utils/weeklyReportPdf'
 import { deleteReport } from '../services/reportService'
 import { REPORT_TYPE_LABEL, type Report, type ReportType } from '../types'
@@ -24,15 +25,6 @@ const TYPE_OPTIONS: { value: ReportType | ''; label: string }[] = [
   { value: 'monthly', label: 'Mensal' },
   { value: 'weekly', label: 'Semanal' },
 ]
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-      <p className="text-[13px] font-medium text-slate-500">{label}</p>
-      <p className="mt-1 text-[22px] font-extrabold leading-tight text-slate-900">{value}</p>
-    </div>
-  )
-}
 
 export function ReportsPage() {
   const navigate = useNavigate()
