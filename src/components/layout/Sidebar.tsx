@@ -57,12 +57,12 @@ export function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[220px] shrink-0 flex-col bg-navy-950 transition-transform duration-200 md:static md:z-auto md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[300px] shrink-0 flex-col bg-navy-950 transition-transform duration-200 md:static md:z-auto md:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between border-b border-navy-800 px-3 py-3">
-          <img src="/logo-white.png" alt="Arrow Shot" className="h-[76px] w-auto" />
+        <div className="flex items-center justify-between border-b border-navy-800 px-4 py-4">
+          <img src="/logo-white.png" alt="Arrow Shot" className="h-auto w-[260px]" />
           <button onClick={onCloseMobile} className="rounded-md p-1 text-slate-400 hover:text-white md:hidden">
             <X size={18} />
           </button>
