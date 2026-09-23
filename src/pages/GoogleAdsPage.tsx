@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { format, subDays } from 'date-fns'
+import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ExternalLink, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useClients } from '../hooks/useClients'
+import { useUsers } from '../hooks/useUsers'
 import { useAuth } from '../context/AuthContext'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
@@ -13,8 +14,20 @@ import { InfoTip } from '../components/ui/InfoTip'
 import { updateClient } from '../services/clientService'
 import { getGoogleAdsInsights, type GoogleAdsInsightsSummary } from '../services/googleAdsApi'
 import { maskGoogleAdsId } from '../utils/masks'
+import { findUserIdByName } from '../utils/userLookup'
 import { EMPTY_CAMPAIGN_PLANNING, EMPTY_CAMPAIGN_PLANNING_ACCESS } from '../types/campaignPlanning'
-import type { Client } from '../types/client'
+import { getClientOwnerIds, type Client } from '../types/client'
+
+type PeriodPreset = 'last_7d' | 'last_14d' | 'last_30d' | 'this_month' | 'last_month' | 'custom'
+
+const PERIOD_LABEL: Record<Exclude<PeriodPreset, 'custom'>, string> = {
+  last_7d: 'Últimos 7 dias',
+  last_14d: 'Últimos 14 dias',
+  last_30d: 'Últimos 30 dias',
+  this_month: 'Este mês',
+  last_month: 'Mês passado',
+}
+const PRESETS: Exclude<PeriodPreset, 'custom'>[] = ['last_7d', 'last_14d', 'last_30d', 'this_month', 'last_month']
 
 const BRL = (v: number) => (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const INT = (v: number) => (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })
@@ -33,10 +46,24 @@ type ClientResult =
   | { status: 'ok'; summary: GoogleAdsInsightsSummary }
   | { status: 'error'; message: string }
 
-function periodRange() {
-  const to = subDays(new Date(), 1)
-  const from = subDays(to, 29)
-  return { dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(to, 'yyyy-MM-dd') }
+function periodRange(preset: PeriodPreset, customSince: string, customUntil: string) {
+  if (preset === 'custom' && customSince && customUntil) return { dateFrom: customSince, dateTo: customUntil }
+  const yesterday = subDays(new Date(), 1)
+  switch (preset) {
+    case 'last_14d':
+      return { dateFrom: format(subDays(yesterday, 13), 'yyyy-MM-dd'), dateTo: format(yesterday, 'yyyy-MM-dd') }
+    case 'last_30d':
+      return { dateFrom: format(subDays(yesterday, 29), 'yyyy-MM-dd'), dateTo: format(yesterday, 'yyyy-MM-dd') }
+    case 'this_month':
+      return { dateFrom: format(startOfMonth(new Date()), 'yyyy-MM-dd'), dateTo: format(yesterday, 'yyyy-MM-dd') }
+    case 'last_month': {
+      const lastMonth = subMonths(new Date(), 1)
+      return { dateFrom: format(startOfMonth(lastMonth), 'yyyy-MM-dd'), dateTo: format(endOfMonth(lastMonth), 'yyyy-MM-dd') }
+    }
+    case 'last_7d':
+    default:
+      return { dateFrom: format(subDays(yesterday, 6), 'yyyy-MM-dd'), dateTo: format(yesterday, 'yyyy-MM-dd') }
+  }
 }
 
 function AccountIdCell({ client }: { client: Client }) {
@@ -95,6 +122,7 @@ function AccountIdCell({ client }: { client: Client }) {
 
 export function GoogleAdsPage() {
   const { data: clients } = useClients()
+  const { data: users } = useUsers()
   const googleAdsClients = useMemo(
     () => clients.filter((c) => !!c.modules?.googleAds && c.status !== 'churned'),
     [clients]
@@ -107,12 +135,26 @@ export function GoogleAdsPage() {
   const [results, setResults] = useState<Record<string, ClientResult>>({})
   const [loading, setLoading] = useState(false)
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null)
+  const [preset, setPreset] = useState<PeriodPreset>('last_30d')
+  const [customSince, setCustomSince] = useState('')
+  const [customUntil, setCustomUntil] = useState('')
+  const [gestor, setGestor] = useState<'all' | 'ciane' | 'nicolas'>('all')
+
+  const cianeId = useMemo(() => findUserIdByName(users, 'Ciane'), [users])
+  const nicolasId = useMemo(() => findUserIdByName(users, 'Nicolas'), [users])
+
+  const visibleClients = useMemo(() => {
+    if (gestor === 'all') return googleAdsClients
+    const id = gestor === 'ciane' ? cianeId : nicolasId
+    return id ? googleAdsClients.filter((c) => getClientOwnerIds(c).includes(id)) : googleAdsClients
+  }, [googleAdsClients, gestor, cianeId, nicolasId])
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (clientsWithAccount.length === 0) return
+      if (preset === 'custom' && (!customSince || !customUntil)) return
       setLoading(true)
-      const { dateFrom, dateTo } = periodRange()
+      const { dateFrom, dateTo } = periodRange(preset, customSince, customUntil)
       setResults((prev) => {
         const next = { ...prev }
         for (const c of clientsWithAccount) next[c.id] = { status: 'loading' }
@@ -138,13 +180,12 @@ export function GoogleAdsPage() {
       setFetchedAt(new Date())
       if (!opts?.silent) toast.success('Dados atualizados')
     },
-    [clientsWithAccount]
+    [clientsWithAccount, preset, customSince, customUntil]
   )
 
   useEffect(() => {
     void load({ silent: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientsWithAccount.length])
+  }, [load])
 
   const successResults = Object.values(results).filter((r): r is Extract<ClientResult, { status: 'ok' }> => r.status === 'ok')
   const hasAnyData = successResults.length > 0
@@ -192,9 +233,39 @@ export function GoogleAdsPage() {
             </Button>
           </div>
         </div>
-        <div className="mt-4 border-t border-slate-100 pt-4">
-          <p className="text-xs font-medium text-slate-500">Período</p>
-          <p className="mt-1 text-sm text-slate-700">Últimos 30 dias</p>
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+          {PRESETS.map((pk) => (
+            <button
+              key={pk}
+              onClick={() => setPreset(pk)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                preset === pk ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {PERIOD_LABEL[pk]}
+            </button>
+          ))}
+          <div className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1">
+            <input
+              type="date"
+              value={customSince}
+              onChange={(e) => {
+                setCustomSince(e.target.value)
+                setPreset('custom')
+              }}
+              className="bg-transparent text-sm outline-none"
+            />
+            <span className="text-slate-400">–</span>
+            <input
+              type="date"
+              value={customUntil}
+              onChange={(e) => {
+                setCustomUntil(e.target.value)
+                setPreset('custom')
+              }}
+              className="bg-transparent text-sm outline-none"
+            />
+          </div>
         </div>
       </div>
 
@@ -221,7 +292,23 @@ export function GoogleAdsPage() {
         ))}
       </div>
 
-      {/* Seção 2 — tabela de clientes */}
+      {/* Seção 2 — filtro por gestor + tabela de clientes */}
+      {googleAdsClients.length > 0 && (
+        <div className="flex items-center gap-1.5">
+          {(['all', 'ciane', 'nicolas'] as const).map((g) => (
+            <button
+              key={g}
+              onClick={() => setGestor(g)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                gestor === g ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {g === 'all' ? 'Todos' : g === 'ciane' ? 'Ciane' : 'Nicolas'}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
@@ -238,14 +325,14 @@ export function GoogleAdsPage() {
               </tr>
             </thead>
             <tbody>
-              {googleAdsClients.length === 0 ? (
+              {visibleClients.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-3 py-6 text-center text-slate-400">
-                    Nenhum cliente com Google Ads contratado
+                    {googleAdsClients.length === 0 ? 'Nenhum cliente com Google Ads contratado' : 'Nenhum cliente com Google Ads para este gestor'}
                   </td>
                 </tr>
               ) : (
-                googleAdsClients.map((client) => {
+                visibleClients.map((client) => {
                   const result = results[client.id]
                   const hasAccount = !!client.campaignPlanning?.acessos?.googleAdsAccountId
                   const status = !hasAccount
