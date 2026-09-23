@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Send } from 'lucide-react'
 import { Spinner } from '../ui/FullPageSpinner'
-import type { LeadForm, LeadFormQuestion } from '../../types/leadForm'
+import type { LeadForm, LeadFormDesign, LeadFormOutcome, LeadFormQuestion } from '../../types/leadForm'
 
 type Phase = 'form' | 'submitting' | 'done'
 
@@ -55,14 +55,17 @@ export function LeadFormRenderer({
     setAnswer(q.id, current.includes(optId) ? current.filter((v) => v !== optId) : [...current, optId])
   }
 
-  const resolveOutcomeMessage = (): string => {
+  const resolveOutcome = (): LeadFormOutcome | null => {
     const outcomes = form.outcomes ?? []
-    if (outcomes.length === 0 || !form.qualificationQuestionId) return form.thankYouMessage
-    const raw = answers[form.qualificationQuestionId]
-    const values = Array.isArray(raw) ? raw : raw ? [raw] : []
+    if (outcomes.length === 0) return null
+    const values = form.qualificationQuestionId
+      ? (() => {
+          const raw = answers[form.qualificationQuestionId!]
+          return Array.isArray(raw) ? raw : raw ? [raw] : []
+        })()
+      : []
     const matched = outcomes.find((o) => !o.isDefault && o.matchValues.some((v) => values.includes(v)))
-    const fallback = outcomes.find((o) => o.isDefault)
-    return (matched ?? fallback)?.message || form.thankYouMessage
+    return matched ?? outcomes.find((o) => o.isDefault) ?? outcomes[0]
   }
 
   const handleSubmit = async () => {
@@ -99,9 +102,24 @@ export function LeadFormRenderer({
     }
   }
 
-  const design = form.design ?? {}
+  const formDesign = form.design ?? {}
+  const matchedOutcome = phase === 'done' ? resolveOutcome() : null
+  // A tela de resultado herda o Design do formulário e só sobrescreve o que
+  // a tela em si define — assim ela não precisa repetir banner/cor se não
+  // quiser mudar nada.
+  const design: LeadFormDesign = phase === 'done' ? { ...formDesign, ...matchedOutcome?.design } : formDesign
   const primaryColor = design.primaryColor || '#2563EB'
   const backgroundColor = design.backgroundColor || '#F8FAFC'
+
+  // Redireciona de verdade só na página pública real (onSubmitted definido)
+  // — no preview do construtor isso só mostraria uma nota, pra não navegar
+  // pra fora do construtor sem querer.
+  useEffect(() => {
+    if (phase === 'done' && onSubmitted && matchedOutcome?.redirectUrl) {
+      window.location.href = matchedOutcome.redirectUrl
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
 
   return (
     <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} items-center justify-center px-4 py-10`} style={{ backgroundColor }}>
@@ -113,7 +131,16 @@ export function LeadFormRenderer({
           )}
 
           {phase === 'done' ? (
-            <p className="text-center text-[15px] text-slate-700">{resolveOutcomeMessage()}</p>
+            matchedOutcome?.redirectUrl ? (
+              <p className="text-center text-sm text-slate-400">
+                {onSubmitted ? 'Redirecionando…' : `Preview: essa tela redirecionaria para ${matchedOutcome.redirectUrl}`}
+              </p>
+            ) : (
+              <>
+                {design.title && <h1 className="mb-1 text-center text-xl font-bold text-slate-900">{design.title}</h1>}
+                <p className="text-center text-[15px] text-slate-700">{matchedOutcome?.message || form.thankYouMessage}</p>
+              </>
+            )
           ) : (
             <>
               <h1 className="mb-1 text-xl font-bold text-slate-900">{design.title || form.name}</h1>

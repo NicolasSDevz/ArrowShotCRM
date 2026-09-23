@@ -53,16 +53,23 @@ export interface LeadFormDesign {
 }
 
 /** Uma "tela de resultado" mostrada depois do envio — ex: "Lead qualificado"
- *  vs "Lead padrão". `matchValues` são ids de opção da pergunta de
- *  qualificação (`LeadForm.qualificationQuestionId`) que levam a essa tela;
- *  a entrada com `isDefault: true` é usada quando a resposta não bate com
- *  nenhuma outra, ou quando não há pergunta de qualificação configurada. */
+ *  vs "Padrão". `matchValues` são ids de opção da pergunta de qualificação
+ *  (`LeadForm.qualificationQuestionId`) que levam a essa tela; a entrada com
+ *  `isDefault: true` é o fallback — usada sempre que a resposta do lead não
+ *  bate com nenhuma outra tela configurada (por isso toda pergunta de
+ *  qualificação sempre tem uma tela padrão: sem ela, uma resposta
+ *  "estranha" ficaria sem nenhuma tela pra cair). `design` sobrescreve, só
+ *  pra essa tela, os campos equivalentes de `LeadForm.design` — quando não
+ *  preenchido aqui, usa o valor do formulário. `redirectUrl`, se
+ *  preenchido, manda o navegador pra essa URL em vez de mostrar `message`. */
 export interface LeadFormOutcome {
   id: string
   label: string
   message: string
   matchValues: string[]
   isDefault?: boolean
+  design?: LeadFormDesign
+  redirectUrl?: string
 }
 
 /** Um formulário de captura de leads (link público em /captura/:id — o id

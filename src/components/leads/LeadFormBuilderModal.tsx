@@ -129,9 +129,9 @@ export function LeadFormBuilderModal({
   const previewForm = { name: name || 'Formulário', questions, thankYouMessage: thankYouMessage || DEFAULT_THANK_YOU, design, outcomes, qualificationQuestionId }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative z-50 flex h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+      <div className="relative z-50 flex h-[96vh] w-full max-w-[1440px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div className="text-base font-semibold text-slate-800">{isEditing ? 'Editar formulário' : 'Novo formulário de captura'}</div>
           <button onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
