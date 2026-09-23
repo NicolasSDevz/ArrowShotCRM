@@ -37,6 +37,19 @@ service firebase.storage {
       allow delete: if isSignedIn();
     }
 
+    // /leadForms/{formId}/{fileName} — banner/logo do Design do formulário de
+    // captura público (ver src/pages/LeadCapturePage.tsx). Leitura pública
+    // (sem isso a imagem quebra pra quem só tem o link, sem login) — só a
+    // escrita exige sessão interna. Diferente do resto deste arquivo, que é
+    // "qualquer logado" porque tudo aqui dentro já era só pra uso interno.
+    match /leadForms/{formId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn()
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size < 5 * 1024 * 1024; // 5MB cap
+      allow delete: if isSignedIn();
+    }
+
     // Deny everything else by default.
     match /{allPaths=**} {
       allow read, write: if false;

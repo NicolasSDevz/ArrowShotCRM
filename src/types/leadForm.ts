@@ -41,6 +41,30 @@ export interface LeadFormQuestion {
   condition?: LeadFormCondition | null
 }
 
+/** Aparência da página pública — aba "Design" do construtor. Tudo opcional:
+ *  sem nada preenchido a página usa o visual padrão (mesmo de hoje). */
+export interface LeadFormDesign {
+  bannerUrl?: string | null
+  logoUrl?: string | null
+  title?: string
+  subtitle?: string
+  primaryColor?: string
+  backgroundColor?: string
+}
+
+/** Uma "tela de resultado" mostrada depois do envio — ex: "Lead qualificado"
+ *  vs "Lead padrão". `matchValues` são ids de opção da pergunta de
+ *  qualificação (`LeadForm.qualificationQuestionId`) que levam a essa tela;
+ *  a entrada com `isDefault: true` é usada quando a resposta não bate com
+ *  nenhuma outra, ou quando não há pergunta de qualificação configurada. */
+export interface LeadFormOutcome {
+  id: string
+  label: string
+  message: string
+  matchValues: string[]
+  isDefault?: boolean
+}
+
 /** Um formulário de captura de leads (link público em /captura/:id — o id
  *  do documento é o próprio identificador da URL, sem precisar de query por
  *  slug). Criado e editado só por usuários internos; a página pública só
@@ -50,7 +74,15 @@ export interface LeadForm extends BaseDoc {
   name: string
   active: boolean
   questions: LeadFormQuestion[]
+  /** Mensagem padrão de agradecimento — usada quando `outcomes` está vazio
+   *  (formulários antigos, ou quem não configurou telas de resultado). */
   thankYouMessage: string
+  design?: LeadFormDesign
+  /** Telas de resultado configuráveis (opcional — ver LeadFormOutcome). Vazio
+   *  = comportamento simples de sempre (só `thankYouMessage`). */
+  outcomes?: LeadFormOutcome[]
+  /** Qual pergunta de escolha única decide a tela de resultado. */
+  qualificationQuestionId?: string | null
 }
 
 export type LeadFormInput = Omit<LeadForm, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'>
