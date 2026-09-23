@@ -310,6 +310,23 @@ const STEP_DEFS: Record<WorkflowStepKey, StepDef> = {
   },
 }
 
+/** Prefixo fixo (texto antes do nome do cliente) de cada tarefa recorrente
+ *  automática — ex. "Gestor de Tráfego — Semanal — ". Usado como reforço na
+ *  detecção de "tarefa automática sem prazo" (ver isAutoRecurringTaskTitle):
+ *  tarefas antigas, criadas antes do campo `workflowStep` existir, não têm
+ *  esse campo gravado no Firestore, então checar só `workflowStep` não é
+ *  suficiente para escondê-las de "Tarefas de hoje". */
+const RECURRING_STEP_TITLE_PREFIXES: string[] = Object.values(STEP_DEFS)
+  .filter((def) => !!def.recurrence)
+  .map((def) => def.title(''))
+
+/** true quando o título bate com uma tarefa recorrente automática (Gestor de
+ *  Tráfego, CS, Produção/Aprovação de Conteúdo semanal/mensal) — mesmo em
+ *  tarefas antigas sem `workflowStep` gravado. */
+export function isAutoRecurringTaskTitle(title: string): boolean {
+  return RECURRING_STEP_TITLE_PREFIXES.some((prefix) => title.startsWith(prefix))
+}
+
 /** Which step(s) get created automatically once `key` is marked done.
  *  Terminal/recurring steps return []. When a client has both services, the
  *  Social Media activation step skips CS Semanal/Mensal — the Tráfego Pago

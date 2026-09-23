@@ -25,6 +25,7 @@ import { TaskFormModal } from '../components/tasks/TaskFormModal'
 import { ContentDrawer } from '../components/content/ContentDrawer'
 import { ContentFormModal } from '../components/content/ContentFormModal'
 import { getClientOwnerIds } from '../types/client'
+import { isAutoRecurringTaskTitle } from '../services/clientWorkflowTemplates'
 import { saveUserDashboard } from '../services/userDashboardService'
 import { getDefaultLayout } from '../utils/dashboardDefaults'
 import type { Task } from '../types/task'
@@ -113,10 +114,15 @@ export function OperationalDashboard() {
     const openTasks = visibleTasks.filter((t) => t.status !== 'done')
     // Tarefa manual sem prazo definido também entra aqui — senão ela nunca
     // aparece em nenhum bucket (não é "atrasada" nem "próxima") e se perde
-    // de vista. Tarefa AUTOMÁTICA sem prazo (workflowStep preenchido — ver
-    // clientWorkflowTemplates) fica de fora: são as recorrentes/onboarding
-    // de clientes antigos que nunca ganharam data, e entulhavam a lista.
-    const today = openTasks.filter((t) => (!t.dueDate && !t.workflowStep) || (t.dueDate && isToday(t.dueDate.toDate())))
+    // de vista. Tarefa AUTOMÁTICA sem prazo fica de fora — são as
+    // recorrentes/onboarding de clientes antigos que nunca ganharam data e
+    // entulhavam a lista. Checa tanto `workflowStep` (tarefas novas) quanto o
+    // título (tarefas antigas, criadas antes desse campo existir no Firestore).
+    const today = openTasks.filter(
+      (t) =>
+        (!t.dueDate && !t.workflowStep && !isAutoRecurringTaskTitle(t.title)) ||
+        (t.dueDate && isToday(t.dueDate.toDate()))
+    )
     const overdue = openTasks
       .filter((t) => t.dueDate && isPast(t.dueDate.toDate()) && !isToday(t.dueDate.toDate()))
       .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis())

@@ -7,6 +7,7 @@ import { useUsers } from '../../hooks/useUsers'
 import { useClients } from '../../hooks/useClients'
 import { useAllTasks } from '../../hooks/useTasks'
 import { findUserIdByName } from '../../utils/userLookup'
+import { isAutoRecurringTaskTitle } from '../../services/clientWorkflowTemplates'
 import { TaskDrawer } from '../tasks/TaskDrawer'
 import type { Task } from '../../types/task'
 
@@ -74,9 +75,14 @@ export function TeamTasksWidget() {
           .filter((t) => t.dueDate && isPast(t.dueDate.toDate()) && !isToday(t.dueDate.toDate()))
           .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis()),
         // Manual sem prazo entra junto com "hoje" — senão fica sem aparecer
-        // em bucket nenhum. Automática sem prazo (workflowStep) fica de
-        // fora — são as recorrentes/onboarding antigas sem data.
-        today: mine.filter((t) => (!t.dueDate && !t.workflowStep) || (t.dueDate && isToday(t.dueDate.toDate()))),
+        // em bucket nenhum. Automática sem prazo fica de fora — são as
+        // recorrentes/onboarding antigas sem data (checa workflowStep e,
+        // pra tarefas antigas sem esse campo, o título também).
+        today: mine.filter(
+          (t) =>
+            (!t.dueDate && !t.workflowStep && !isAutoRecurringTaskTitle(t.title)) ||
+            (t.dueDate && isToday(t.dueDate.toDate()))
+        ),
         upcoming: mine
           .filter((t) => t.dueDate && isWithinInterval(t.dueDate.toDate(), { start: addDays(new Date(), 1), end: addDays(new Date(), 3) }))
           .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis()),
