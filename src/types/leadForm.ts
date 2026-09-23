@@ -1,3 +1,4 @@
+import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
 
 export type LeadFormQuestionType = 'short_text' | 'long_text' | 'single_choice' | 'multi_choice' | 'phone' | 'email'
@@ -42,7 +43,9 @@ export interface LeadFormQuestion {
 }
 
 /** Aparência da página pública — aba "Design" do construtor. Tudo opcional:
- *  sem nada preenchido a página usa o visual padrão (mesmo de hoje). */
+ *  sem nada preenchido a página usa o visual padrão (mesmo de hoje).
+ *  `subtitle` dobra como o parágrafo de descrição da tela de boas-vindas
+ *  (a primeira tela, antes da primeira pergunta — estilo Typeform/YayForms). */
 export interface LeadFormDesign {
   bannerUrl?: string | null
   logoUrl?: string | null
@@ -50,6 +53,8 @@ export interface LeadFormDesign {
   subtitle?: string
   primaryColor?: string
   backgroundColor?: string
+  /** Texto do botão da tela de boas-vindas. Default: "Começar". */
+  welcomeButtonLabel?: string
 }
 
 /** Uma "tela de resultado" mostrada depois do envio — ex: "Lead qualificado"
@@ -101,4 +106,29 @@ export interface LeadFormAnswer {
   questionId: string
   label: string
   value: string
+}
+
+/** Evento de analytics da página pública — cada visitante gera um
+ *  `sessionId` novo (aleatório, só em memória) ao carregar a página; todo
+ *  evento durante aquela visita carrega o mesmo id, o que permite calcular
+ *  o funil (quantas sessões chegaram em cada pergunta) sem guardar nenhum
+ *  dado pessoal do visitante. Gravado anonimamente (ver firestore.rules),
+ *  só leitura por usuário interno — vira as métricas da aba "Métricas" de
+ *  cada formulário (visualizações, início, respostas, taxa de conclusão,
+ *  tempo médio e desistência por pergunta). */
+export type LeadFormEventType = 'view' | 'start' | 'question_view' | 'submit'
+
+export interface LeadFormEvent {
+  id: string
+  formId: string
+  sessionId: string
+  type: LeadFormEventType
+  /** Só em 'question_view' — qual pergunta e em que posição (0-based). */
+  questionId?: string
+  stepIndex?: number
+  /** Só em 'submit' — tempo entre sair da tela de boas-vindas e enviar,
+   *  medido no navegador do visitante (evita depender de dois
+   *  serverTimestamp() em documentos diferentes pra calcular a diferença). */
+  durationMs?: number
+  createdAt: Timestamp
 }

@@ -50,6 +50,10 @@ export interface PaidTrafficBriefing {
   canalQueMaisVende?: string
   tempoDeMercado?: string
   percepcaoMercado?: string
+  /** Prova social pra usar na criação dos anúncios — quantos clientes já
+   *  atendeu e quais marcas conhecidas da região já foram clientes. */
+  clientesAtendidos?: string
+  marcasAtendidasRegiao?: string
   desafiosAtuais?: string
   /** Puxado automaticamente pelo Planejamento de Campanha (Seção 4 —
    *  Público-alvo). */

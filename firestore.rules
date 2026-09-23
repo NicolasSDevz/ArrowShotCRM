@@ -267,6 +267,25 @@ service cloud.firestore {
       allow delete: if isInternal();
     }
 
+    // ---------- leadFormEvents (analytics anônimo da página pública — ver
+    // src/services/leadFormAnalyticsService.ts). Escrita aberta (sem
+    // createdBy/updatedBy: não tem "dono", é telemetria) mas travada num
+    // shape fixo; leitura só interna, vira o funil de visualização/
+    // desistência por pergunta na aba Métricas de cada formulário. ----------
+    function isValidLeadFormEvent() {
+      return request.resource.data.formId is string
+        && request.resource.data.sessionId is string
+        && request.resource.data.type in ['view', 'start', 'question_view', 'submit']
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly(['formId', 'sessionId', 'type', 'questionId', 'stepIndex', 'durationMs', 'createdAt']);
+    }
+
+    match /leadFormEvents/{eventId} {
+      allow read: if isInternal();
+      allow create: if isValidLeadFormEvent();
+      allow update, delete: if false;
+    }
+
     // ---------- meetings (Registro de Reuniões) ----------
     match /meetings/{meetingId} {
       allow read: if isInternal();

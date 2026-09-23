@@ -34,8 +34,12 @@ function moneyToMasked(v?: number): string {
   return maskCurrencyInput(String(Math.round(v * 100)))
 }
 
+// text-slate-600 (não -400) pra manter contraste suficiente pra leitura de
+// tela/baixa visão — e um <h3> de verdade, não um <p>, pra dar pra navegar
+// entre as 6 seções do briefing pelas teclas de navegação por título de um
+// leitor de tela (isso não é possível com texto que só "parece" um título).
 function SectionTitle({ children }: { children: string }) {
-  return <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{children}</p>
+  return <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">{children}</h3>
 }
 
 function ContactListField({
@@ -53,11 +57,16 @@ function ContactListField({
   const remove = (id: string) => onChange(contacts.filter((c) => c.id !== id))
 
   return (
-    <div className="rounded-lg border border-slate-200 p-3">
-      <p className="mb-2 text-sm font-medium text-slate-700">{label}</p>
+    <fieldset className="rounded-lg border border-slate-200 p-3">
+      <legend className="mb-2 px-1 text-sm font-medium text-slate-700">{label}</legend>
       <div className="flex flex-col gap-2">
         {contacts.map((c, i) => (
-          <div key={c.id} className="grid grid-cols-1 items-end gap-2 rounded-md bg-slate-50 p-2 sm:grid-cols-[1fr_1fr_150px_150px_auto]">
+          // <fieldset> por contato — sem isso, um leitor de tela anuncia
+          // "Nome", "E-mail"... repetido e idêntico pra cada pessoa da
+          // lista, sem dar pra saber a quem cada grupo de campos pertence
+          // quando há mais de um (ex: dois sócios).
+          <fieldset key={c.id} className="grid grid-cols-1 items-end gap-2 rounded-md bg-slate-50 p-2 sm:grid-cols-[1fr_1fr_150px_150px_auto]">
+            <legend className="sr-only">{contacts.length > 1 ? `${label} ${i + 1}` : label}</legend>
             <Field label="Nome">
               <Input value={c.name} onChange={(e) => update(c.id, { name: e.target.value })} />
             </Field>
@@ -81,19 +90,19 @@ function ContactListField({
             {i > 0 && (
               <button
                 onClick={() => remove(c.id)}
-                aria-label="Remover contato"
+                aria-label={`Remover ${label.toLowerCase()} ${i + 1}`}
                 className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
               >
                 <X size={15} />
               </button>
             )}
-          </div>
+          </fieldset>
         ))}
       </div>
       <Button variant="ghost" size="sm" icon={<Plus size={13} />} onClick={add} className="mt-2">
-        Adicionar outro
+        Adicionar outro {label.toLowerCase()}
       </Button>
-    </div>
+    </fieldset>
   )
 }
 
@@ -138,7 +147,7 @@ export function ClientPaidTrafficBriefingPanel({ client }: { client: Client }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         Preenchido pelo CS durante ou logo após a call de briefing com o cliente.
         {lastFilled && (
           <>
@@ -186,9 +195,26 @@ export function ClientPaidTrafficBriefingPanel({ client }: { client: Client }) {
           <Field label="Tempo de mercado da empresa">
             <Input value={form.tempoDeMercado ?? ''} onChange={(e) => set('tempoDeMercado', e.target.value)} />
           </Field>
+          <Field label="Número de clientes já atendidos">
+            <Input
+              value={form.clientesAtendidos ?? ''}
+              onChange={(e) => set('clientesAtendidos', e.target.value)}
+              placeholder='Ex: "mais de 500 clientes"'
+            />
+          </Field>
           <div className="sm:col-span-2">
             <Field label="Percepção da empresa perante o mercado">
               <Textarea rows={2} value={form.percepcaoMercado ?? ''} onChange={(e) => set('percepcaoMercado', e.target.value)} />
+            </Field>
+          </div>
+          <div className="sm:col-span-2">
+            <Field label="Marcas conhecidas da região que já foram clientes">
+              <Textarea
+                rows={2}
+                value={form.marcasAtendidasRegiao ?? ''}
+                onChange={(e) => set('marcasAtendidasRegiao', e.target.value)}
+                placeholder="Ex: rede X, loja Y, restaurante Z — nomes que o público local reconhece, pra usar como prova social nos anúncios"
+              />
             </Field>
           </div>
           <div className="sm:col-span-2">

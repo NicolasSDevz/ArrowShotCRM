@@ -6,6 +6,47 @@ import { Spinner } from '../ui/FullPageSpinner'
 import { uploadLeadFormImage, LEAD_FORM_IMAGE_ACCEPT_ATTR } from '../../services/leadFormAssetService'
 import type { LeadFormDesign, LeadFormOutcome, LeadFormQuestion } from '../../types/leadForm'
 
+/** Modelos prontos de cor (fundo + destaque) — um atalho pra quem não quer
+ *  escolher cor por cor, sem tirar a opção de personalizar tudo à mão logo
+ *  abaixo (os dois seletores de cor continuam livres pra qualquer valor). */
+const COLOR_PRESETS: { name: string; backgroundColor: string; primaryColor: string }[] = [
+  { name: 'Azul (padrão)', backgroundColor: '#F8FAFC', primaryColor: '#2563EB' },
+  { name: 'Verde', backgroundColor: '#F0FDF4', primaryColor: '#16A34A' },
+  { name: 'Roxo', backgroundColor: '#FAF5FF', primaryColor: '#9333EA' },
+  { name: 'Laranja', backgroundColor: '#FFF7ED', primaryColor: '#EA580C' },
+  { name: 'Rosa', backgroundColor: '#FDF2F8', primaryColor: '#DB2777' },
+  { name: 'Vermelho', backgroundColor: '#FEF2F2', primaryColor: '#DC2626' },
+  { name: 'Cinza', backgroundColor: '#F1F5F9', primaryColor: '#475569' },
+  { name: 'Escuro', backgroundColor: '#0F172A', primaryColor: '#38BDF8' },
+]
+
+function ColorPresetPicker({ design, onDesignChange }: { design: LeadFormDesign; onDesignChange: (next: LeadFormDesign) => void }) {
+  return (
+    <div>
+      <span className="mb-1.5 block text-xs font-medium text-slate-500">Modelos prontos (clique pra aplicar, depois ajuste à vontade)</span>
+      <div className="flex flex-wrap gap-2">
+        {COLOR_PRESETS.map((preset) => {
+          const active = design.backgroundColor === preset.backgroundColor && design.primaryColor === preset.primaryColor
+          return (
+            <button
+              key={preset.name}
+              type="button"
+              title={preset.name}
+              onClick={() => onDesignChange({ ...design, backgroundColor: preset.backgroundColor, primaryColor: preset.primaryColor })}
+              className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 transition-colors ${
+                active ? 'border-brand-600' : 'border-slate-200 hover:border-slate-300'
+              }`}
+              style={{ backgroundColor: preset.backgroundColor }}
+            >
+              <span className="h-4 w-4 rounded-full" style={{ backgroundColor: preset.primaryColor }} />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function ImageUploadField({
   label,
   url,
@@ -198,6 +239,9 @@ export function LeadFormDesignEditor({
           <Field label="Subtítulo (opcional)">
             <Input value={design.subtitle ?? ''} onChange={(e) => set('subtitle', e.target.value)} />
           </Field>
+          <Field label="Texto do botão de início">
+            <Input value={design.welcomeButtonLabel ?? ''} onChange={(e) => set('welcomeButtonLabel', e.target.value)} placeholder="Começar" />
+          </Field>
         </div>
 
         {canUploadImages ? (
@@ -208,6 +252,10 @@ export function LeadFormDesignEditor({
         ) : (
           <p className="mt-3 text-xs text-slate-400">Defina o link do formulário na aba anterior pra poder enviar banner e foto.</p>
         )}
+
+        <div className="mt-3">
+          <ColorPresetPicker design={design} onDesignChange={onDesignChange} />
+        </div>
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Cor de destaque">

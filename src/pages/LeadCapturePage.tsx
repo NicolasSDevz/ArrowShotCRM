@@ -56,5 +56,5 @@ export function LeadCapturePage() {
     )
   }
 
-  return <LeadFormRenderer form={form} onSubmitted={(answers) => submitLeadFormResponse(form, answers)} fillViewport />
+  return <LeadFormRenderer form={form} formId={form.id} onSubmitted={(answers) => submitLeadFormResponse(form, answers)} fillViewport />
 }
