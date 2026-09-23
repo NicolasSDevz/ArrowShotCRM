@@ -57,6 +57,19 @@ function InfoTab({ lead }: { lead: Lead }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {lead.formAnswers && lead.formAnswers.length > 0 && (
+        <div className="rounded-lg border border-slate-200 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Respostas do formulário</p>
+          <div className="flex flex-col gap-2">
+            {lead.formAnswers.map((a) => (
+              <div key={a.questionId}>
+                <p className="text-xs text-slate-400">{a.label}</p>
+                <p className="text-sm text-slate-700">{a.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <LeadForm value={form} onChange={setForm} users={users} />
       <Button onClick={handleSave} loading={saving} className="self-start">
         Salvar alterações

@@ -20,6 +20,7 @@ import { ReportsPage } from './pages/ReportsPage'
 import { MonthlyReportPage } from './pages/MonthlyReportPage'
 import { TeamPage } from './pages/TeamPage'
 import { PublicApprovalPage } from './pages/PublicApprovalPage'
+import { LeadCapturePage } from './pages/LeadCapturePage'
 import { PrivacyPolicyPage, TermsOfServicePage } from './pages/LegalPages'
 import { MetaTokensPage } from './pages/MetaTokensPage'
 import { UniversityPage } from './pages/UniversityPage'
@@ -38,6 +39,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/aprovar/:contentId/:token" element={<PublicApprovalPage />} />
+          <Route path="/captura/:formId" element={<LeadCapturePage />} />
           <Route path="/privacidade" element={<PrivacyPolicyPage />} />
           <Route path="/termos" element={<TermsOfServicePage />} />
           <Route

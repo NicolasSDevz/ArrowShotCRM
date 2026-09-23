@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Upload, Kanban, List } from 'lucide-react'
+import { Plus, Upload, Kanban, List, ClipboardList } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
@@ -12,6 +12,7 @@ import { LeadFormModal } from '../components/leads/LeadFormModal'
 import { ImportLeadsModal } from '../components/leads/ImportLeadsModal'
 import { LeadDrawer } from '../components/leads/LeadDrawer'
 import { LeadsListView } from '../components/leads/LeadsListView'
+import { LeadFormsPanel } from '../components/leads/LeadFormsPanel'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Field, Select, Textarea } from '../components/ui/Field'
@@ -34,7 +35,7 @@ export function LeadsPage() {
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
-  const [view, setView] = usePersistedViewMode<'kanban' | 'list'>('leadsView', 'kanban')
+  const [view, setView] = usePersistedViewMode<'kanban' | 'list' | 'forms'>('leadsView', 'kanban')
 
   // Fluxos que precisam de confirmação antes de mover no pipeline.
   const [lossPrompt, setLossPrompt] = useState<{ lead: Lead; order: number } | null>(null)
@@ -132,13 +133,26 @@ export function LeadsPage() {
             >
               <List size={15} />
             </button>
+            <button
+              onClick={() => setView('forms')}
+              title="Formulários de captura"
+              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                view === 'forms' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <ClipboardList size={15} />
+            </button>
           </div>
-          <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)}>
-            Importar leads
-          </Button>
-          <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
-            Novo lead
-          </Button>
+          {view !== 'forms' && (
+            <>
+              <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)}>
+                Importar leads
+              </Button>
+              <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
+                Novo lead
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -154,8 +168,10 @@ export function LeadsPage() {
             onMove={handleMove}
           />
         </div>
-      ) : (
+      ) : view === 'list' ? (
         <LeadsListView leads={leads} userMap={userMap} onOpenLead={setOpenLeadId} />
+      ) : (
+        <LeadFormsPanel />
       )}
 
       <LeadFormModal open={creating} onClose={() => setCreating(false)} />

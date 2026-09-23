@@ -226,8 +226,42 @@ service cloud.firestore {
     }
 
     // ---------- leads (Pipeline de novos clientes) ----------
+    // Além do fluxo interno normal, uma resposta anônima de um formulário de
+    // captura público (ver /leadForms abaixo e src/pages/LeadCapturePage.tsx)
+    // também pode criar um lead — nunca ler, listar, editar ou apagar. O
+    // formulário referenciado precisa existir e estar ativo, e o payload é
+    // travado num conjunto fixo de campos (nada de assignedTo, notes livres
+    // etc. injetados por quem só tem o link público).
+    function isPublicLeadSubmission() {
+      return request.resource.data.createdBy == 'lead-form'
+        && request.resource.data.updatedBy == 'lead-form'
+        && request.resource.data.status == 'new'
+        && request.resource.data.source == 'form'
+        && request.resource.data.sourceFormId is string
+        && get(/databases/$(database)/documents/leadForms/$(request.resource.data.sourceFormId)).data.active == true
+        && request.resource.data.contactName is string
+        && request.resource.data.contactName.size() > 0
+        && request.resource.data.contactName.size() <= 200
+        && request.resource.data.whatsapp is string
+        && request.resource.data.keys().hasOnly(['contactName', 'companyName', 'whatsapp', 'email', 'services',
+              'source', 'status', 'order', 'stageChangedAt', 'contactHistory', 'sourceFormId', 'formAnswers',
+              'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
+    }
+
     match /leads/{leadId} {
       allow read: if isInternal();
+      allow create: if (isInternal() && createdBySelf() && updatedBySelf()) || isPublicLeadSubmission();
+      allow update: if isInternal() && updatedBySelf();
+      allow delete: if isInternal();
+    }
+
+    // ---------- leadForms (formulários de captura pra colar em anúncios —
+    // ver src/services/leadFormService.ts). O id do doc é o próprio slug da
+    // URL pública (/captura/{id}), então a página pública faz um `get` direto
+    // por id — nunca lista, então nunca consegue enumerar outros formulários. ----------
+    match /leadForms/{formId} {
+      allow get: if isInternal() || resource.data.active == true;
+      allow list: if isInternal();
       allow create: if isInternal() && createdBySelf() && updatedBySelf();
       allow update: if isInternal() && updatedBySelf();
       allow delete: if isInternal();

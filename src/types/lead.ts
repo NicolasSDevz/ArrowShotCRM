@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
+import type { LeadFormAnswer } from './leadForm'
 
 export type LeadStatus =
   | 'new'
@@ -42,7 +43,7 @@ export const LEAD_STATUS_COLOR: Record<LeadStatus, string> = {
   lost: '#EF4444',
 }
 
-export type LeadSource = 'instagram_organic' | 'instagram_ad' | 'google_ad' | 'referral' | 'whatsapp' | 'website' | 'other'
+export type LeadSource = 'instagram_organic' | 'instagram_ad' | 'google_ad' | 'referral' | 'whatsapp' | 'website' | 'form' | 'other'
 
 export const LEAD_SOURCE_LABEL: Record<LeadSource, string> = {
   instagram_organic: 'Instagram (orgânico)',
@@ -51,6 +52,7 @@ export const LEAD_SOURCE_LABEL: Record<LeadSource, string> = {
   referral: 'Indicação',
   whatsapp: 'WhatsApp direto',
   website: 'Site',
+  form: 'Formulário de captura',
   other: 'Outro',
 }
 
@@ -140,6 +142,12 @@ export interface Lead extends BaseDoc {
   lostReason?: LeadLostReason | null
   lostReasonNote?: string | null
   lostAt?: Timestamp | null
+  /** Preenchidos quando o lead veio de um formulário público (ver
+   *  types/leadForm.ts e services/leadFormService.ts) — id do formulário e
+   *  as respostas dadas, incluindo as que não mapeiam pra nenhum campo fixo
+   *  do Lead. */
+  sourceFormId?: string
+  formAnswers?: LeadFormAnswer[]
 }
 
 export type LeadInput = Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'stageChangedAt'>
