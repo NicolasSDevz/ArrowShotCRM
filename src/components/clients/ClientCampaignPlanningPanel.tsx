@@ -503,7 +503,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
             <SubTitle>Token de Acesso Meta Ads</SubTitle>
             <p className="mb-2 text-xs text-slate-400">
               Necessário quando a conta de anúncios deste cliente fica no Business Manager DELE, fora do alcance do
-              usuário automático da Arrow Shot. Gere um token no{' '}
+              usuário automático da Quiver. Gere um token no{' '}
               <a
                 href="https://developers.facebook.com/tools/explorer/"
                 target="_blank"

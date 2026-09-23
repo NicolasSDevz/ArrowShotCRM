@@ -57,7 +57,7 @@ const PIPELINE_STAGES: LeadStatus[] = ['new', 'contacted', 'meeting_scheduled', 
 const TIPS = {
   mrr: {
     title: 'MRR — Receita Recorrente Mensal',
-    body: 'É a soma de todos os contratos mensais ativos. Representa o quanto a Arrow Shot fatura de forma previsível todo mês.',
+    body: 'É a soma de todos os contratos mensais ativos. Representa o quanto a Quiver fatura de forma previsível todo mês.',
   },
   activeClients: {
     body: 'Total de clientes com contrato ativo no momento. Não inclui clientes em onboarding, pausados ou encerrados.',

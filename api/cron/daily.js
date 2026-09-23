@@ -109,10 +109,10 @@ function birthdayMessage(name) {
   const first = String(name || '').trim().split(/\s+/)[0] || 'você'
   return (
     `Olá, ${first}! 🎂\n\n` +
-    `A equipe Arrow Shot veio te desejar um feliz aniversário! 🎉\n\n` +
+    `A equipe Quiver veio te desejar um feliz aniversário! 🎉\n\n` +
     `Que este novo ano seja repleto de muito sucesso, conquistas e ótimos negócios!\n\n` +
     `Obrigado por confiar no nosso trabalho. É um prazer fazer parte da sua jornada! 🚀\n\n` +
-    `— Equipe Arrow Shot`
+    `— Equipe Quiver`
   )
 }
 

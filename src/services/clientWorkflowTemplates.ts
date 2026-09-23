@@ -29,7 +29,7 @@ function onboardingBrunoItems({ companyName }: Pick<Client, 'companyName' | 'mod
     'Criar grupo de WhatsApp com o cliente',
     'Adicionar todos os responsáveis no grupo (gestor + CS + cliente)',
     'Colocar o cliente como ADM do grupo',
-    `Renomear o grupo para "Arrow Shot & ${companyName}"`,
+    `Renomear o grupo para "Quiver & ${companyName}"`,
     'Compartilhar link da pasta Drive no grupo',
   ]
 }

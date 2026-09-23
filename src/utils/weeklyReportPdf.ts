@@ -24,7 +24,7 @@ export function generateWeeklyReportPdf(clientName: string, text: string): void 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
   doc.setTextColor(BLUE[0], BLUE[1], BLUE[2])
-  doc.text('Arrow Shot — Relatório Semanal', marginX, 22)
+  doc.text('Quiver — Relatório Semanal', marginX, 22)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   doc.setTextColor(DARK[0], DARK[1], DARK[2])

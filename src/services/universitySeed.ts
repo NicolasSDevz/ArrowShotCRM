@@ -85,7 +85,7 @@ export async function seedInitialTrails(userId: string) {
           trailId,
           title,
           description: 'Conteúdo a ser preenchido pelo time.',
-          content: `# ${title}\n\nConteúdo ainda não escrito — edite este módulo no painel admin da Universidade Arrow Shot.`,
+          content: `# ${title}\n\nConteúdo ainda não escrito — edite este módulo no painel admin da Universidade Quiver.`,
           checklist: [{ id: crypto.randomUUID(), text: 'Revisar o conteúdo deste módulo', done: false }],
           quiz: placeholderQuiz(title),
           order: m,

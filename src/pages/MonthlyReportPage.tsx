@@ -798,7 +798,7 @@ export function MonthlyReportPage() {
 
   const header = (
     <div className="flex flex-wrap items-center gap-4 bg-[#0F172A] px-6 py-5 text-white">
-      <img src="/favicon.png" alt="Arrow Shot" className="h-9 w-9 rounded-lg" />
+      <img src="/favicon.png" alt="Quiver" className="h-9 w-9 rounded-lg" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[24px] font-bold leading-tight">{clientName}</p>
         <p className="text-xs text-slate-300">

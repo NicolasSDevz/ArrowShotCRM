@@ -2,7 +2,7 @@
 //
 // Gerencia o token de acesso do Meta Ads de UM cliente específico (para
 // contas que vivem no Business Manager do cliente, fora do alcance do
-// usuário "automacaoads" da Arrow Shot). O token em claro nunca é gravado
+// usuário "automacaoads" da Quiver). O token em claro nunca é gravado
 // no Firestore nem devolvido depois de salvo — só entra e sai criptografado
 // (ver api/_lib/tokenCrypto.js e api/_lib/metaTokenStore.js), e todas as
 // rotas aqui exigem um usuário interno autenticado (ver api/_lib/auth.js).

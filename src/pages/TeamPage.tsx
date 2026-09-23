@@ -34,7 +34,7 @@ export function TeamPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[28px] font-extrabold text-slate-900">Equipe</h1>
-          <p className="text-[15px] text-[#64748B]">Perfis, cargos, rotinas e reuniões da equipe Arrow Shot.</p>
+          <p className="text-[15px] text-[#64748B]">Perfis, cargos, rotinas e reuniões da equipe Quiver.</p>
         </div>
         <Button size="sm" icon={<Plus size={14} />} onClick={() => setCreating(true)}>
           Novo membro

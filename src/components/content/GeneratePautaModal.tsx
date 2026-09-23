@@ -55,7 +55,7 @@ export function GeneratePautaModal({ open, onClose }: { open: boolean; onClose: 
       <div className="flex flex-col gap-3">
         <p className="text-xs text-slate-500">
           Cria os conteúdos da semana (ou dos 4 blocos do mês) direto na coluna "Produzir", já com pilar, formato e
-          legenda-base preenchidos conforme o roteiro padrão da Arrow Shot.
+          legenda-base preenchidos conforme o roteiro padrão da Quiver.
         </p>
 
         <Field label="Cliente" required>

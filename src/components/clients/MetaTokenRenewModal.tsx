@@ -86,7 +86,7 @@ export function MetaTokenRenewModal({
                 </a>
               </li>
               <li>
-                Selecione o app <strong>Arrow Shot CRM</strong>
+                Selecione o app <strong>Quiver</strong>
               </li>
               <li>
                 Clique em <strong>Generate Access Token</strong>

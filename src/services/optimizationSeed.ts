@@ -1,7 +1,7 @@
 import type { AppUser, Client, OptimizationScheduleRow } from '../types'
 import { getOptimizationSchedule, setOptimizationSchedule } from './optimizationService'
 
-/** Calendário fixo de otimizações da Arrow Shot (spec do módulo). Nomes de
+/** Calendário fixo de otimizações da Quiver (spec do módulo). Nomes de
  *  gestor e cliente são resolvidos para ids ao importar. "Grupo Ferreira" não
  *  está na base de clientes — é ignorado e reportado. */
 const DEFAULT_SCHEDULE: { gestor: string; weekdays: number[]; clients: string[] }[] = [

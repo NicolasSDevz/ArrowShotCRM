@@ -68,7 +68,7 @@ export function PublicApprovalPage() {
     <div className="flex min-h-screen items-center justify-center bg-navy-950 px-4 py-10">
       <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-navy-900 p-8 shadow-2xl">
         <div className="mb-6 flex flex-col items-center gap-2">
-          <img src="/favicon.png" alt="Arrow Shot" className="h-12 w-12 rounded-lg" />
+          <img src="/favicon.png" alt="Quiver" className="h-12 w-12 rounded-lg" />
           <h1 className="font-display text-xl font-semibold text-white">Aprovação de conteúdo</h1>
           {content?.clientNameSnapshot && <p className="text-xs text-slate-400">{content.clientNameSnapshot}</p>}
         </div>
@@ -81,7 +81,7 @@ export function PublicApprovalPage() {
 
         {phase === 'invalid' && (
           <p className="rounded-lg bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">
-            Este link não é válido ou já expirou. Fale com a equipe da Arrow Shot para receber um novo.
+            Este link não é válido ou já expirou. Fale com a equipe da Quiver para receber um novo.
           </p>
         )}
 
@@ -94,7 +94,7 @@ export function PublicApprovalPage() {
         {phase === 'already_handled' && (
           <p className="rounded-lg bg-slate-500/10 px-4 py-6 text-center text-sm text-slate-300">
             Este conteúdo já foi processado e não está mais aguardando aprovação. Se precisar de
-            ajustes, fale com a equipe da Arrow Shot.
+            ajustes, fale com a equipe da Quiver.
           </p>
         )}
 

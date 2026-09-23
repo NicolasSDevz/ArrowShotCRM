@@ -17,7 +17,7 @@ import { metaTotals, googleTotals, linesToList, type PlanningTotals } from './ca
 
 type RGB = [number, number, number]
 
-/* Identidade visual Arrow Shot. */
+/* Identidade visual Quiver. */
 const BLUE: RGB = [37, 99, 235] // #2563EB — primário
 const DARK_BLUE: RGB = [30, 64, 175] // #1E40AF — capa e headers
 const DARK: RGB = [15, 23, 42] // #0F172A — texto principal
@@ -352,7 +352,7 @@ function addFooters(doc: jsPDF, clientName: string): void {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2])
-    doc.text(`Arrow Shot — Marketing Digital  |  ${name}  |  Página ${i - 1} de ${total - 1}`, PAGE_W / 2, PAGE_H - 8, {
+    doc.text(`Quiver — Marketing Digital  |  ${name}  |  Página ${i - 1} de ${total - 1}`, PAGE_W / 2, PAGE_H - 8, {
       align: 'center',
     })
   }
@@ -580,7 +580,7 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
     doc.roundedRect(logoX - 3, 28, logoSize + 6, logoSize + 6, 3, 3, 'F')
     doc.addImage(logo, 'PNG', logoX, 31, logoSize, logoSize)
   }
-  centerText(doc, 'ARROW SHOT', logo ? 68 : 55, 26, 'bold', WHITE)
+  centerText(doc, 'QUIVER', logo ? 68 : 55, 26, 'bold', WHITE)
   centerText(doc, 'Marketing Digital', logo ? 78 : 65, 12, 'normal', LIGHT_BLUE_TEXT)
 
   const dividerColor = blend(WHITE, DARK_BLUE, 0.4)
@@ -601,7 +601,7 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
   centerText(doc, `${monthName} de ${year}`, cy + 19, 12, 'normal', WHITE)
 
   const footerColor = blend(WHITE, DARK_BLUE, 0.6)
-  centerText(doc, 'Documento confidencial — Arrow Shot', PAGE_H - 14, 9, 'normal', footerColor)
+  centerText(doc, 'Documento confidencial — Quiver', PAGE_H - 14, 9, 'normal', footerColor)
 
   // ---------- VISÃO GERAL (ACESSOS) ----------
   let y = newSlide(doc, clientName, 'Visão geral', DARK)

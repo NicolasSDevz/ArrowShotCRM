@@ -37,7 +37,7 @@ export function ProtectedRoute({
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
         <p className="text-lg font-semibold text-slate-800">Acesso restrito</p>
         <p className="max-w-sm text-sm text-slate-500">
-          Sua conta não tem acesso ao CRM da Arrow Shot. Fale com um administrador se acha que isso é um engano.
+          Sua conta não tem acesso ao Quiver. Fale com um administrador se acha que isso é um engano.
         </p>
         <button
           onClick={() => signOut()}

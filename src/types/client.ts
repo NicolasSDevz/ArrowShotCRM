@@ -14,7 +14,7 @@ export type ClientCategory = 'A' | 'B'
 /** Social Media service tier — drives which content cadence template applies. */
 export type ClientPackage = 'weekly' | 'monthly'
 
-/** Fixed visual style catalogs clients pick at contract time (Arrow Shot's
+/** Fixed visual style catalogs clients pick at contract time (Quiver's
  *  standardized Social Media offering). Chosen once, applies to all production. */
 export type StyleCatalog = 1 | 2 | 3
 
