@@ -572,7 +572,7 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
   doc.rect(0, 0, PAGE_W, PAGE_H, 'F')
 
   const baseUrl = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'
-  const logo = await loadPngDataUrl(`${baseUrl}favicon.png`)
+  const logo = await loadPngDataUrl(`${baseUrl}favicon-dark.png`)
   if (logo) {
     const logoSize = 20
     const logoX = (PAGE_W - logoSize) / 2

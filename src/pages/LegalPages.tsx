@@ -8,7 +8,7 @@ function LegalLayout({ title, children }: { title: string; children: ReactNode }
     <div className="min-h-screen bg-slate-50 px-4 py-10 text-slate-700">
       <div className="mx-auto w-full max-w-2xl">
         <header className="mb-8 flex items-center gap-3">
-          <img src="/favicon.png" alt="Quiver" className="h-10 w-10 rounded-lg" />
+          <img src="/favicon-dark.png" alt="Quiver" className="h-10 w-10 rounded-lg" />
           <span className="font-display text-lg font-semibold text-slate-900">Quiver</span>
         </header>
 
