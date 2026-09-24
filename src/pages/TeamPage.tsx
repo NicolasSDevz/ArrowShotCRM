@@ -9,13 +9,14 @@ import { TeamMemberFormModal } from '../components/team/TeamMemberFormModal'
 import { TeamMemberDrawer } from '../components/team/TeamMemberDrawer'
 import { EmergencyInfoModal } from '../components/team/EmergencyInfoModal'
 import { OptimizationScheduleSection } from '../components/team/OptimizationScheduleSection'
+import { TeamMeetingsSection } from '../components/team/TeamMeetingsSection'
 import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/FullPageSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { StatCard } from '../components/ui/StatCard'
-import { TEAM_PERMISSION_LABEL, TEAM_MEETINGS, FUTURE_ROLES, type TeamMember, type TeamPermission } from '../types'
+import { TEAM_PERMISSION_LABEL, FUTURE_ROLES, type TeamMember, type TeamPermission } from '../types'
 
 const STATUS_BADGE: Record<TeamMember['status'], string> = {
   active: 'bg-emerald-100 text-emerald-700',
@@ -53,7 +54,7 @@ export function TeamPage() {
   // Presença vem do perfil de login (users/{uid}.lastSeenAt) ligado ao membro.
   const presenceOf = (m: TeamMember) => {
     const u = m.userId ? users.find((x) => x.id === m.userId) : undefined
-    return m.userId ? getPresence(u?.lastSeenAt, now) : null
+    return m.userId ? getPresence(u ?? {}, now) : null
   }
   // Estilo WhatsApp: quem está online aparece primeiro.
   const activeMembers = members
@@ -179,33 +180,13 @@ export function TeamPage() {
 
       <OptimizationScheduleSection />
 
-      <section className="flex flex-col gap-3">
-        <SectionTitle icon={<CalendarClock size={13} className="text-white" />} iconBg="bg-amber-500">
-          Reuniões recorrentes da equipe
-        </SectionTitle>
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-[15px]">
-              <thead className="border-b border-slate-100 bg-slate-50 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th className="px-4 py-2.5 font-semibold">Reunião</th>
-                  <th className="px-4 py-2.5 font-semibold">Quando</th>
-                  <th className="px-4 py-2.5 font-semibold">Participantes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {TEAM_MEETINGS.map((meeting, i) => (
-                  <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-slate-700">{meeting.title}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{meeting.schedule}</td>
-                    <td className="px-4 py-2.5 text-slate-500">{meeting.participants}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      <TeamMeetingsSection
+        title={
+          <SectionTitle icon={<CalendarClock size={13} className="text-white" />} iconBg="bg-amber-500">
+            Reuniões recorrentes da equipe
+          </SectionTitle>
+        }
+      />
 
       <TeamMemberDrawer
         key={`member-${openMemberId ?? 'none'}`}
