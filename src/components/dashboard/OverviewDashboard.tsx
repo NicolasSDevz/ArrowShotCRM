@@ -32,7 +32,8 @@ import { ChurnDetailModal } from './ChurnDetailModal'
 import { ClientsStatusChart } from './ClientsStatusChart'
 import { UpsellRevenueChart } from './UpsellRevenueChart'
 import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
-import { LEAD_STATUS_LABEL, leadPipelineId, DEFAULT_PIPELINE_ID, type Activity, type LeadStatus } from '../../types'
+import { leadPipelineId, DEFAULT_PIPELINE_ID, type Activity } from '../../types'
+import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 
 const BRL = (v: number) =>
   (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
@@ -51,7 +52,6 @@ function formatWhen(v: unknown): string | null {
 }
 
 const CHART_COLOR = '#2563EB'
-const PIPELINE_STAGES: LeadStatus[] = ['new', 'contacted', 'meeting_scheduled', 'proposal_sent', 'negotiation']
 
 /** Textos explicativos exibidos no tooltip de informação de cada métrica. */
 const TIPS = {
@@ -267,6 +267,7 @@ export function OverviewDashboard() {
   const navigate = useNavigate()
   const { data: clients } = useClients()
   const { data: leads } = useLeads()
+  const { pipelines: leadPipelines } = useLeadPipelines()
   const { data: tasks } = useAllTasks()
   const { data: users } = useUsers()
   const { data: recentOptimizations } = useRecentOptimizations(30)
@@ -320,15 +321,18 @@ export function OverviewDashboard() {
   // ---- Pipeline de Leads (ao vivo) ----
   const pipeline = useMemo(() => {
     // O funil do Dashboard é o do pipeline padrão — leads de pipelines criados pelo time não entram.
-    const activeLeads = leads.filter((l) => leadPipelineId(l) === DEFAULT_PIPELINE_ID && PIPELINE_STAGES.includes(l.status as LeadStatus))
-    const byStage = PIPELINE_STAGES.map((s) => ({
-      status: s,
-      label: LEAD_STATUS_LABEL[s],
-      count: activeLeads.filter((l) => l.status === s).length,
+    // As etapas "em aberto" do pipeline padrão (ganho e perdido ficam de fora), com o nome que estiver configurado.
+    const openStages = (leadPipelines.find((p) => p.id === DEFAULT_PIPELINE_ID)?.stages ?? []).filter((st) => st.kind === 'open')
+    const openIds = new Set(openStages.map((st) => st.id))
+    const activeLeads = leads.filter((l) => leadPipelineId(l) === DEFAULT_PIPELINE_ID && openIds.has(l.status))
+    const byStage = openStages.map((st) => ({
+      status: st.id,
+      label: st.label,
+      count: activeLeads.filter((l) => l.status === st.id).length,
     }))
     const potentialMrr = activeLeads.reduce((sum, l) => sum + (l.estimatedValue ?? 0), 0)
     return { byStage, potentialMrr }
-  }, [leads])
+  }, [leads, leadPipelines])
 
   // ---- Upsell no mês ----
   const monthStart = useMemo(() => {

@@ -181,9 +181,9 @@ export function LeadsPage() {
                 type="button"
                 onClick={() => setPipelineModal('edit')}
                 title="Configurar este pipeline (etapas e campos)"
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
               >
-                <Settings2 size={16} />
+                <Settings2 size={15} /> Editar etapas e campos
               </button>
             </div>
             <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
