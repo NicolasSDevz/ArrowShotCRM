@@ -255,6 +255,16 @@ service cloud.firestore {
       allow delete: if isInternal();
     }
 
+    // ---------- leadPipelines (quadros de leads criados pelo time, com etapas e
+    // campos próprios — ver src/types/leadPipeline.ts). O id `default` guarda só
+    // nome/campos do pipeline padrão "Vendas". ----------
+    match /leadPipelines/{pipelineId} {
+      allow read: if isInternal();
+      allow create: if isInternal() && createdBySelf() && updatedBySelf();
+      allow update: if isInternal() && updatedBySelf();
+      allow delete: if isInternal();
+    }
+
     // ---------- leadForms (formulários de captura pra colar em anúncios —
     // ver src/services/leadFormService.ts). O id do doc é o próprio slug da
     // URL pública (/captura/{id}), então a página pública faz um `get` direto
