@@ -49,6 +49,16 @@ function last30dRange() {
   return { dateFrom: iso(from), dateTo: iso(to) }
 }
 
+/** Cache em módulo (sobrevive a re-renders e a fechar/reabrir o painel,
+ *  porque é sobre a agência inteira, não sobre uma conversa específica) —
+ *  sem isso, cada pergunta buscaria de novo o Meta Ads (que já tem cache no
+ *  próprio servidor) e, pior, o Google Ads (que não tem: seria 1 chamada de
+ *  API por cliente configurado a cada mensagem). 5 minutos é fresco o
+ *  suficiente pra uma pergunta de "como está a campanha" sem martelar a API
+ *  do Google a cada mensagem da mesma conversa. */
+let liveCampaignCache: { data: Record<string, unknown>; fetchedAt: number } | null = null
+const LIVE_CACHE_TTL_MS = 5 * 60 * 1000
+
 /** Monta o contexto automático da página atual pro assistente de IA —
  *  reaproveita hooks já usados em outros pontos do app (mesmos listeners do
  *  Firestore, sem nenhuma leitura nova) pra não duplicar custo/latência.
@@ -57,9 +67,12 @@ function last30dRange() {
  *  a rota não é de cliente — retornam listas vazias nesse caso, sem erro.
  *
  *  `context` já vem pronto (síncrono, dados que o app já tem carregados).
- *  `resolveContext()` é chamado na hora de mandar a mensagem — só ele busca
- *  dado "ao vivo" (Meta/Google Ads Insights), porque isso custa uma chamada
- *  de rede de verdade e não faz sentido repetir a cada re-render. */
+ *  `resolveContext()` é chamado na hora de mandar a mensagem — busca o dado
+ *  "ao vivo" (Meta/Google Ads Insights, últimos 30 dias) e mistura no
+ *  contexto, sempre, não importa a página — uma pergunta sobre campanha pode
+ *  vir de qualquer lugar (ex: perguntar da Dashboard sobre um cliente
+ *  específico). Isso é cacheado por alguns minutos (ver liveCampaignCache)
+ *  pra não repetir a busca a cada mensagem da mesma conversa. */
 export function useAiPageContext(): { context: AiPageContext; resolveContext: () => Promise<AiPageContext> } {
   const location = useLocation()
   const { data: clients } = useClients()
@@ -139,7 +152,6 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
         label: 'Métricas',
         data: {
           agencia: agencyOverview,
-          nota: 'Números de performance ao vivo (Meta/Google Ads, últimos 30 dias) são buscados só quando você manda a pergunta — podem levar alguns segundos a mais pra responder.',
           clientesMetaAds: metaClients.map((c) => c.companyName),
           clientesGoogleAds: googleClients.map((c) => c.companyName),
         },
@@ -183,46 +195,56 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, clients, tasks, optimizations, successEvaluations, clientId, canSeeAllTasks, viewerId, agencyOverview])
 
+  // Busca dado "ao vivo" de campanha (Meta/Google Ads, últimos 30 dias) SEMPRE
+  // — não só quando a pergunta parte da aba Métricas. Uma pergunta tipo "como
+  // está a campanha do cliente X" pode vir de qualquer página (Dashboard,
+  // ficha de outro cliente, etc.), e o assistente precisa desses números
+  // independente de onde a pergunta foi feita.
   const resolveContext = useCallback(async (): Promise<AiPageContext> => {
-    if (context.type !== 'meta_ads') return context
+    const now = Date.now()
+    if (!liveCampaignCache || now - liveCampaignCache.fetchedAt > LIVE_CACHE_TTL_MS) {
+      const { dateFrom, dateTo } = last30dRange()
+      const googleClients = clients.filter((c) => c.status !== 'churned' && c.campaignPlanning?.acessos?.googleAdsAccountId)
 
-    const { dateFrom, dateTo } = last30dRange()
-    const googleClients = clients.filter((c) => c.status !== 'churned' && c.campaignPlanning?.acessos?.googleAdsAccountId)
+      const [metaResult, googleResults] = await Promise.allSettled([
+        fetchMetaAgencyOverview({ preset: 'last_30d' }),
+        Promise.all(
+          googleClients.map(async (c) => {
+            try {
+              const insights = await getGoogleAdsInsights(c.campaignPlanning!.acessos!.googleAdsAccountId!, dateFrom, dateTo)
+              return { cliente: c.companyName, ...insights.summary }
+            } catch {
+              return { cliente: c.companyName, erro: 'falha ao buscar' }
+            }
+          })
+        ),
+      ])
 
-    const [metaResult, googleResults] = await Promise.allSettled([
-      fetchMetaAgencyOverview({ preset: 'last_30d' }),
-      Promise.all(
-        googleClients.map(async (c) => {
-          try {
-            const insights = await getGoogleAdsInsights(c.campaignPlanning!.acessos!.googleAdsAccountId!, dateFrom, dateTo)
-            return { cliente: c.companyName, ...insights.summary }
-          } catch {
-            return { cliente: c.companyName, erro: 'falha ao buscar' }
-          }
-        })
-      ),
-    ])
+      liveCampaignCache = {
+        fetchedAt: now,
+        data: {
+          metaAdsUltimos30Dias:
+            metaResult.status === 'fulfilled'
+              ? {
+                  totais: metaResult.value.totals,
+                  porCliente: metaResult.value.rows.map((r) => ({
+                    cliente: r.companyName,
+                    investido: r.metrics?.spend ?? null,
+                    conversas: r.metrics?.conversations ?? null,
+                    custoPorConversa: r.metrics?.costPerConversation ?? null,
+                    ctr: r.metrics?.ctr ?? null,
+                  })),
+                }
+              : { erro: 'Não consegui buscar os dados do Meta Ads agora.' },
+          googleAdsUltimos30Dias:
+            googleResults.status === 'fulfilled' ? googleResults.value : { erro: 'Não consegui buscar os dados do Google Ads agora.' },
+        },
+      }
+    }
 
     return {
       ...context,
-      data: {
-        ...context.data,
-        nota: undefined,
-        metaAdsUltimos30Dias:
-          metaResult.status === 'fulfilled'
-            ? {
-                totais: metaResult.value.totals,
-                porCliente: metaResult.value.rows.map((r) => ({
-                  cliente: r.companyName,
-                  investido: r.metrics?.spend ?? null,
-                  conversas: r.metrics?.conversations ?? null,
-                  custoPorConversa: r.metrics?.costPerConversation ?? null,
-                  ctr: r.metrics?.ctr ?? null,
-                })),
-              }
-            : { erro: 'Não consegui buscar os dados do Meta Ads agora.' },
-        googleAdsUltimos30Dias: googleResults.status === 'fulfilled' ? googleResults.value : { erro: 'Não consegui buscar os dados do Google Ads agora.' },
-      },
+      data: { ...context.data, ...liveCampaignCache.data },
     }
   }, [context, clients])
 
