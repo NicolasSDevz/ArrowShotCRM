@@ -37,7 +37,8 @@ function RailButton({ selected, onClick, icon, children, badge }: { selected: bo
 export function LeadFormStructureRail({
   questions,
   outcomes,
-  hasQualification,
+  hasRouting,
+  onEnableRouting,
   selection,
   onSelect,
   onAddQuestion,
@@ -47,7 +48,8 @@ export function LeadFormStructureRail({
 }: {
   questions: LeadFormQuestion[]
   outcomes: LeadFormOutcome[]
-  hasQualification: boolean
+  hasRouting: boolean
+  onEnableRouting: () => void
   selection: BuilderSelection
   onSelect: (s: BuilderSelection) => void
   onAddQuestion: (type: LeadFormQuestionType) => void
@@ -254,8 +256,8 @@ export function LeadFormStructureRail({
         </button>
       )}
 
-      <SectionLabel>{hasQualification ? 'Telas finais' : 'Final'}</SectionLabel>
-      {hasQualification ? (
+      <SectionLabel>{hasRouting ? 'Telas finais' : 'Final'}</SectionLabel>
+      {hasRouting ? (
         <>
           {outcomes.map((o) => (
             <RailButton
@@ -273,9 +275,14 @@ export function LeadFormStructureRail({
           </button>
         </>
       ) : (
-        <RailButton selected={selection.kind === 'end'} onClick={() => onSelect({ kind: 'end', id: null })} icon={<Flag size={14} />}>
-          Tela final
-        </RailButton>
+        <>
+          <RailButton selected={selection.kind === 'end'} onClick={() => onSelect({ kind: 'end', id: null })} icon={<Flag size={14} />}>
+            Tela final
+          </RailButton>
+          <button type="button" onClick={onEnableRouting} title="Ex: uma tela pra lead qualificado e outra pra desqualificado" className="mt-1 flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-brand-600 hover:bg-brand-50">
+            <Plus size={12} className="shrink-0" /> Separar por resposta (qualificado / desqualificado)
+          </button>
+        </>
       )}
 
       <SectionLabel>Aparência</SectionLabel>

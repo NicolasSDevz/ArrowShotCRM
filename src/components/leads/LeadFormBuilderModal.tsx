@@ -12,13 +12,32 @@ import { EndScreenEditor, ThemeEditor, WelcomeScreenEditor } from './LeadFormScr
 import { LeadFormRenderer } from './LeadFormRenderer'
 import { Toggle } from './LeadFormBuilderParts'
 import { conditionProblem, isChoiceType, newQuestion, visibleOptions } from './leadFormMeta'
-import type { BuilderSelection, LeadFormPreviewScreen } from './leadFormUtils'
-import type { LeadForm, LeadFormQuestion, LeadFormDesign, LeadFormOutcome, LeadFormFieldRole } from '../../types/leadForm'
+import { effectiveEndBlocks, normalizeUrl, outcomeRules, type BuilderSelection, type LeadFormPreviewScreen } from './leadFormUtils'
+import type { LeadForm, LeadFormBlock, LeadFormQuestion, LeadFormDesign, LeadFormOutcome, LeadFormFieldRole } from '../../types/leadForm'
 
 const DEFAULT_THANK_YOU = 'Obrigado! Recebemos suas informações e vamos entrar em contato em breve.'
 
 function newOutcome(label: string, message: string, isDefault = false): LeadFormOutcome {
   return { id: crypto.randomUUID(), label, message, matchValues: [], isDefault }
+}
+
+/** Telas de formulários antigos guardavam só `matchValues` da pergunta de
+ *  qualificação; ao abrir no construtor viram `rules` (uma regra por tela). */
+function migrateOutcomes(list: LeadFormOutcome[], legacyQuestionId: string | null): LeadFormOutcome[] {
+  return list.map((o) =>
+    o.rules
+      ? o
+      : { ...o, rules: legacyQuestionId && o.matchValues.length > 0 ? [{ questionId: legacyQuestionId, values: o.matchValues }] : [], matchValues: [] }
+  )
+}
+
+function cloneBlocks(blocks: LeadFormBlock[]): LeadFormBlock[] {
+  return blocks.map((b) => ({ ...b, id: crypto.randomUUID() }))
+}
+
+/** Tira das regras das telas finais qualquer referência a uma pergunta. */
+function pruneRules(list: LeadFormOutcome[], questionId: string): LeadFormOutcome[] {
+  return list.map((o) => (o.rules?.some((r) => r.questionId === questionId) ? { ...o, rules: o.rules.filter((r) => r.questionId !== questionId) } : o))
 }
 
 function snapshotOf(v: {
@@ -27,8 +46,8 @@ function snapshotOf(v: {
   thankYouMessage: string
   questions: LeadFormQuestion[]
   design: LeadFormDesign
-  qualificationQuestionId: string | null
   outcomes: LeadFormOutcome[]
+  endBlocks?: LeadFormBlock[]
 }) {
   return JSON.stringify(v)
 }
@@ -57,8 +76,8 @@ export function LeadFormBuilderModal({
   const [thankYouMessage, setThankYouMessage] = useState(DEFAULT_THANK_YOU)
   const [questions, setQuestions] = useState<LeadFormQuestion[]>([])
   const [design, setDesign] = useState<LeadFormDesign>({})
-  const [qualificationQuestionId, setQualificationQuestionId] = useState<string | null>(null)
   const [outcomes, setOutcomes] = useState<LeadFormOutcome[]>([])
+  const [endBlocks, setEndBlocks] = useState<LeadFormBlock[] | undefined>(undefined)
   const [saving, setSaving] = useState(false)
 
   const [selection, setSelection] = useState<BuilderSelection>({ kind: 'welcome' })
@@ -84,10 +103,10 @@ export function LeadFormBuilderModal({
           thankYouMessage: form.thankYouMessage,
           questions: form.questions,
           design: form.design ?? {},
-          qualificationQuestionId: form.qualificationQuestionId ?? null,
-          outcomes: form.outcomes ?? [],
+          outcomes: migrateOutcomes(form.outcomes ?? [], form.qualificationQuestionId ?? null),
+          endBlocks: form.endBlocks,
         }
-      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: {}, qualificationQuestionId: null, outcomes: [] }
+      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: {}, outcomes: [], endBlocks: undefined }
     setName(initial.name)
     setSlug(form ? form.id : '')
     setSlugTouched(!!form)
@@ -95,8 +114,8 @@ export function LeadFormBuilderModal({
     setThankYouMessage(initial.thankYouMessage)
     setQuestions(initial.questions)
     setDesign(initial.design)
-    setQualificationQuestionId(initial.qualificationQuestionId)
     setOutcomes(initial.outcomes)
+    setEndBlocks(initial.endBlocks)
     setSelection({ kind: 'welcome' })
     setPreviewMode('screen')
     initialSnapshot.current = snapshotOf(initial)
@@ -104,7 +123,7 @@ export function LeadFormBuilderModal({
 
   const dirty =
     open &&
-    snapshotOf({ name, active, thankYouMessage, questions, design, qualificationQuestionId, outcomes }) !== initialSnapshot.current
+    snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks }) !== initialSnapshot.current
 
   const requestClose = () => {
     if (dirty && !confirm('Você tem alterações não salvas. Fechar mesmo assim?')) return
@@ -118,10 +137,10 @@ export function LeadFormBuilderModal({
 
   // ---------- perguntas ----------
 
-  const clearQualification = () => {
+  const collapseToSingleEnd = () => {
     const def = outcomes.find((o) => o.isDefault) ?? outcomes[0]
     if (def?.message.trim()) setThankYouMessage(def.message)
-    setQualificationQuestionId(null)
+    if (def) setEndBlocks(effectiveEndBlocks({ thankYouMessage: def.message || thankYouMessage, design, endBlocks }, def))
     setOutcomes([])
   }
 
@@ -137,14 +156,14 @@ export function LeadFormBuilderModal({
       if (patch.type && !isChoiceType(patch.type)) next = next.map((q) => (q.condition?.questionId === id ? { ...q, condition: null } : q))
       return next
     })
-    if (patch.type && patch.type !== 'single_choice' && qualificationQuestionId === id) clearQualification()
+    if (patch.type && !isChoiceType(patch.type)) setOutcomes((prev) => pruneRules(prev, id))
   }
 
   const removeQuestion = (id: string) => {
     const index = questions.findIndex((q) => q.id === id)
     const rest = questions.filter((q) => q.id !== id).map((q) => (q.condition?.questionId === id ? { ...q, condition: null } : q))
     setQuestions(rest)
-    if (qualificationQuestionId === id) clearQualification()
+    setOutcomes((prev) => pruneRules(prev, id))
     const neighbor = rest[Math.min(index, rest.length - 1)]
     setSelection(neighbor ? { kind: 'question', id: neighbor.id } : { kind: 'welcome' })
   }
@@ -173,29 +192,36 @@ export function LeadFormBuilderModal({
 
   // ---------- telas finais ----------
 
-  const setQualification = (id: string) => {
-    if (!id) {
-      if (outcomes.length > 1 && !confirm('Isso apaga as telas finais separadas e deixa só uma mensagem pra todo mundo. Continuar?')) return
-      clearQualification()
-      setSelection({ kind: 'end', id: null })
-      return
-    }
-    if (id === qualificationQuestionId) return
-    setQualificationQuestionId(id)
-    if (outcomes.length === 0) {
-      const def = newOutcome('Padrão', thankYouMessage, true)
-      setOutcomes([def])
-      setSelection({ kind: 'end', id: def.id })
-    } else {
-      // Outra pergunta = outras opções: as respostas ligadas às telas deixam de valer.
-      setOutcomes(outcomes.map((o) => ({ ...o, matchValues: [] })))
-    }
+  /** Passa de "uma tela final só" pra "telas escolhidas pelas respostas": a
+   *  tela única vira a tela Padrão e já nasce uma segunda pra configurar. */
+  const enableRouting = () => {
+    const def = { ...newOutcome('Padrão', thankYouMessage, true), blocks: effectiveEndBlocks({ thankYouMessage, design, endBlocks }, null), rules: [] }
+    // Nasce com o mesmo conteúdo da tela atual (copiado) pra não abrir vazia.
+    const extra = { ...newOutcome('Lead qualificado', ''), blocks: cloneBlocks(def.blocks), rules: [] }
+    setOutcomes([extra, def])
+    setSelection({ kind: 'end', id: extra.id })
+  }
+
+  const disableRouting = () => {
+    if (outcomes.length > 1 && !confirm('Isso apaga as telas finais separadas e deixa só uma tela pra todo mundo (fica o conteúdo da tela padrão). Continuar?')) return
+    collapseToSingleEnd()
+    setSelection({ kind: 'end', id: null })
+  }
+
+  const moveOutcome = (id: string, dir: -1 | 1) => {
+    const from = outcomes.findIndex((o) => o.id === id)
+    const to = from + dir
+    if (from < 0 || to < 0 || to >= outcomes.length) return
+    const next = [...outcomes]
+    ;[next[from], next[to]] = [next[to], next[from]]
+    setOutcomes(next)
   }
 
   const updateOutcome = (id: string, patch: Partial<LeadFormOutcome>) => setOutcomes((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)))
 
   const addOutcome = () => {
-    const o = newOutcome('Nova tela', '')
+    const base = outcomes.find((x) => x.isDefault) ?? outcomes[0]
+    const o = { ...newOutcome('Nova tela', ''), blocks: cloneBlocks(effectiveEndBlocks({ thankYouMessage, design, endBlocks }, base ?? null)), rules: [] }
     setOutcomes((prev) => [...prev, o])
     setSelection({ kind: 'end', id: o.id })
   }
@@ -240,15 +266,35 @@ export function LeadFormBuilderModal({
     if (badVideo(design.welcomeVideoUrl)) return fail('O link do vídeo da tela de início não é um link válido do YouTube', { kind: 'welcome' })
     if (badVideo(design.resultVideoUrl)) return fail('O link do vídeo da tela final não é um link válido do YouTube', { kind: 'end', id: null })
 
-    if (qualificationQuestionId) {
-      const qq = questions.find((q) => q.id === qualificationQuestionId)
-      if (!qq || qq.type !== 'single_choice') return fail('A pergunta que decide a tela final precisa ser de escolha única')
-      if (outcomes.length === 0) return fail('Configure pelo menos uma tela final')
+    if (outcomes.length > 0) {
       for (const o of outcomes) {
         const sel: BuilderSelection = { kind: 'end', id: o.id }
-        if (!o.isDefault && o.matchValues.length === 0) return fail(`A tela final "${o.label || 'sem nome'}" não tem nenhuma resposta ligada a ela`, sel)
-        if (badVideo(o.design?.resultVideoUrl)) return fail(`O link do vídeo da tela final "${o.label}" não é válido`, sel)
+        const name = o.label || 'sem nome'
+        const rules = outcomeRules({ qualificationQuestionId: null }, o)
+        if (!o.isDefault) {
+          if (rules.length === 0) return fail(`A tela final "${name}" ainda não tem nenhuma regra — escolha qual pergunta e quais respostas levam a ela`, sel)
+          for (const r of rules) {
+            const rq = questions.find((q) => q.id === r.questionId)
+            if (!rq || !isChoiceType(rq.type)) return fail(`A tela final "${name}" usa uma pergunta que não existe mais`, sel)
+            if (r.values.length === 0) return fail(`Na tela final "${name}", marque pelo menos uma resposta em cada regra`, sel)
+          }
+        }
+        if (badVideo(o.design?.resultVideoUrl)) return fail(`O link do vídeo da tela final "${name}" não é válido`, sel)
       }
+      if (!outcomes.some((o) => o.isDefault)) return fail('Uma das telas finais precisa ser a padrão')
+    }
+
+    const checkBlocks = (blocks: LeadFormBlock[] | undefined, sel: BuilderSelection, where: string) => {
+      for (const b of blocks ?? []) {
+        if (b.type === 'button' && (!b.label?.trim() || !normalizeUrl(b.url))) return fail(`${where}: o botão precisa de um texto e de um link válido`, sel)
+        if (b.type === 'image' && !b.url) return fail(`${where}: tem um bloco de imagem sem imagem`, sel)
+        if (b.type === 'video' && !parseYouTubeId(b.url)) return fail(`${where}: o bloco de vídeo precisa de um link válido do YouTube`, sel)
+      }
+      return null
+    }
+    if (outcomes.length === 0 && checkBlocks(endBlocks, { kind: 'end', id: null }, 'Tela final') !== null) return
+    for (const o of outcomes) {
+      if (checkBlocks(o.blocks, { kind: 'end', id: o.id }, `Tela final "${o.label || 'sem nome'}"`) !== null) return
     }
 
     setSaving(true)
@@ -263,8 +309,10 @@ export function LeadFormBuilderModal({
         ),
         thankYouMessage: thankYouMessage.trim() || DEFAULT_THANK_YOU,
         design,
-        qualificationQuestionId,
+        // Legado: as regras agora ficam em cada tela final (outcome.rules).
+        qualificationQuestionId: null,
         outcomes,
+        endBlocks: outcomes.length > 0 ? undefined : endBlocks,
       }
       if (isEditing) {
         await updateLeadForm(form!.id, payload, profile.id)
@@ -278,7 +326,7 @@ export function LeadFormBuilderModal({
         }
         toast.success('Formulário criado')
       }
-      initialSnapshot.current = snapshotOf({ name, active, thankYouMessage, questions, design, qualificationQuestionId, outcomes })
+      initialSnapshot.current = snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks })
       onClose()
     } catch (err) {
       console.error(err)
@@ -295,7 +343,7 @@ export function LeadFormBuilderModal({
   const sel: BuilderSelection = (() => {
     if (selection.kind === 'question') return questions.some((q) => q.id === selection.id) ? selection : { kind: 'welcome' }
     if (selection.kind === 'end') {
-      if (!qualificationQuestionId) return { kind: 'end', id: null }
+      if (outcomes.length === 0) return { kind: 'end', id: null }
       const found = outcomes.find((o) => o.id === selection.id) ?? outcomes.find((o) => o.isDefault) ?? outcomes[0]
       return { kind: 'end', id: found?.id ?? null }
     }
@@ -304,8 +352,6 @@ export function LeadFormBuilderModal({
 
   const selectedQuestionIndex = sel.kind === 'question' ? questions.findIndex((q) => q.id === sel.id) : -1
   const selectedOutcome = sel.kind === 'end' && sel.id ? outcomes.find((o) => o.id === sel.id) ?? null : null
-  const choiceQuestions = questions.filter((q) => q.type === 'single_choice' && q.label.trim())
-  const qualificationQuestion = questions.find((q) => q.id === qualificationQuestionId)
   const canUpload = !!slug
 
   const previewScreen: LeadFormPreviewScreen | null =
@@ -324,7 +370,8 @@ export function LeadFormBuilderModal({
     thankYouMessage: thankYouMessage || DEFAULT_THANK_YOU,
     design,
     outcomes,
-    qualificationQuestionId,
+    qualificationQuestionId: null,
+    endBlocks,
   }
 
   const copyLink = () =>
@@ -394,7 +441,8 @@ export function LeadFormBuilderModal({
             <LeadFormStructureRail
               questions={questions}
               outcomes={outcomes}
-              hasQualification={!!qualificationQuestionId}
+              hasRouting={outcomes.length > 0}
+              onEnableRouting={enableRouting}
               selection={sel}
               onSelect={setSelection}
               onAddQuestion={(type) => addQuestion(newQuestion(type))}
@@ -482,12 +530,12 @@ export function LeadFormBuilderModal({
                   outcome={selectedOutcome}
                   outcomes={outcomes}
                   design={design}
-                  onDesignChange={setDesign}
-                  thankYouMessage={thankYouMessage}
-                  onThankYouMessageChange={setThankYouMessage}
-                  choiceQuestions={choiceQuestions}
-                  qualificationQuestion={qualificationQuestion}
-                  onQualificationChange={setQualification}
+                  blocks={effectiveEndBlocks({ thankYouMessage, design, endBlocks }, selectedOutcome)}
+                  onBlocksChange={(next) => (selectedOutcome ? updateOutcome(selectedOutcome.id, { blocks: next }) : setEndBlocks(next))}
+                  questions={questions}
+                  onEnableRouting={enableRouting}
+                  onDisableRouting={disableRouting}
+                  onMoveOutcome={(dir) => selectedOutcome && moveOutcome(selectedOutcome.id, dir)}
                   onOutcomeChange={(patch) => selectedOutcome && updateOutcome(selectedOutcome.id, patch)}
                   onSetDefault={() => selectedOutcome && setDefaultOutcome(selectedOutcome.id)}
                   onRemoveOutcome={() => selectedOutcome && removeOutcome(selectedOutcome.id)}
