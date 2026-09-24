@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Sparkles, Minus, X, Send } from 'lucide-react'
 import type { AiChatMessage } from '../../types/ai'
 
@@ -25,13 +27,15 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
           <Sparkles size={12} />
         </span>
       )}
-      <div
-        className={`max-w-[78%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-          isUser ? 'bg-brand-600 text-white' : 'border border-slate-200 bg-white text-slate-900'
-        }`}
-      >
-        {message.content}
-      </div>
+      {isUser ? (
+        <div className="max-w-[78%] whitespace-pre-wrap rounded-2xl bg-brand-600 px-3.5 py-2.5 text-sm leading-relaxed text-white">
+          {message.content}
+        </div>
+      ) : (
+        <div className="ai-md max-w-[92%] overflow-x-auto rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-slate-900">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+        </div>
+      )}
     </div>
   )
 }
@@ -72,7 +76,22 @@ export function AiChatPanel({
       className="fixed bottom-[92px] right-6 z-50 flex w-[380px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
       style={{ height: 520, animation: 'ai-panel-in 180ms ease-out' }}
     >
-      <style>{`@keyframes ai-panel-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+      <style>{`
+        @keyframes ai-panel-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        .ai-md > *:first-child { margin-top: 0; }
+        .ai-md > *:last-child { margin-bottom: 0; }
+        .ai-md p { margin: 0 0 8px; }
+        .ai-md h1, .ai-md h2, .ai-md h3 { font-size: 13.5px; font-weight: 700; margin: 10px 0 6px; color: #0F172A; }
+        .ai-md strong { font-weight: 700; color: #0F172A; }
+        .ai-md ul, .ai-md ol { margin: 0 0 8px; padding-left: 18px; }
+        .ai-md li { margin: 2px 0; }
+        .ai-md a { color: #2563EB; text-decoration: underline; }
+        .ai-md code { background: #F1F5F9; border-radius: 4px; padding: 1px 4px; font-size: 12px; }
+        .ai-md table { border-collapse: collapse; width: 100%; margin: 6px 0 10px; font-size: 12px; }
+        .ai-md th, .ai-md td { border: 1px solid #E2E8F0; padding: 4px 7px; text-align: left; }
+        .ai-md th { background: #F8FAFC; font-weight: 700; }
+        .ai-md hr { border: none; border-top: 1px solid #E2E8F0; margin: 10px 0; }
+      `}</style>
 
       <div className="flex shrink-0 items-center justify-between bg-[#0F172A] px-4 py-3.5">
         <div className="flex items-center gap-2">
