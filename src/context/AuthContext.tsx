@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth'
 import { auth } from '../firebase/config'
 import { ensureUserProfile, getUserProfile } from '../services/userService'
+import { usePresenceHeartbeat } from '../hooks/usePresenceHeartbeat'
 import type { AppUser } from '../types'
 
 interface AuthContextValue {
@@ -47,6 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     return unsub
   }, [])
+
+  // Só a equipe interna aparece como "online" — usuários-cliente do portal não.
+  usePresenceHeartbeat(profile && profile.role !== 'client' ? profile.id : null)
 
   const signIn = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password)

@@ -471,3 +471,8 @@ body {
   border: 1px solid var(--dk-line-2);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.5) !important;
 }
+
+/* Bolinha de presença (Equipe): a borda acompanha o fundo do card no modo escuro. */
+:root[data-theme="dark"] .presence-dot {
+  border-color: var(--dk-surface);
+}

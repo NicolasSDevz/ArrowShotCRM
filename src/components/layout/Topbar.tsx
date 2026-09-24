@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { Avatar } from '../ui/Avatar'
 import { NotificationBell } from './NotificationBell'
+import { TeamPresence } from './TeamPresence'
 import { compressImageToDataUrl } from '../../utils/imageToDataUrl'
 import { updateUserPhoto } from '../../services/userService'
 
@@ -70,6 +71,8 @@ export function Topbar({
         >
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
+
+        <TeamPresence />
 
         <NotificationBell />
 
