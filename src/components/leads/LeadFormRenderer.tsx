@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Send } from 'lucide-react'
 import { Spinner } from '../ui/FullPageSpinner'
 import { trackLeadFormEvent } from '../../services/leadFormAnalyticsService'
-import { youTubeEmbedUrl } from '../../utils/youtube'
-import { OTHER_OPTION_ID, type LeadFormQuestion } from '../../types/leadForm'
+import { OTHER_OPTION_ID, type LeadFormAlign, type LeadFormQuestion } from '../../types/leadForm'
+import { JUSTIFY_CLASS, LeadFormBlocksView, TEXT_ALIGN_CLASS, VideoEmbed } from './LeadFormBlocksView'
 import {
+  effectiveEndBlocks,
   isQuestionVisible,
   mergeDesign,
+  normalizeUrl,
   resolveOutcome,
   type LeadFormAnswers,
   type LeadFormContent,
@@ -15,23 +17,6 @@ import {
 
 type Phase = 'welcome' | 'question' | 'submitting' | 'done'
 type FieldError = 'required' | 'other'
-
-function VideoEmbed({ url }: { url?: string }) {
-  const src = youTubeEmbedUrl(url)
-  if (!src) return null
-  return (
-    <div className="my-4 aspect-video w-full overflow-hidden rounded-xl bg-black">
-      <iframe
-        src={src}
-        title="Vídeo"
-        className="h-full w-full"
-        allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-        allowFullScreen
-        loading="lazy"
-      />
-    </div>
-  )
-}
 
 /** Renderiza a página de um formulário de captura no estilo Typeform/
  *  YayForms — uma tela de boas-vindas, depois uma pergunta por tela (com
@@ -182,31 +167,40 @@ export function LeadFormRenderer({
   }
 
   const formDesign = form.design ?? {}
+  // Resposta de pergunta que acabou pulada (lógica condicional) não conta.
+  const visibleAnswers = Object.fromEntries(Object.entries(answers).filter(([id]) => visibleQuestions.some((q) => q.id === id)))
   const matchedOutcome =
     shownPhase !== 'done'
       ? null
       : forced?.kind === 'end' && forced.outcomeId
         ? (form.outcomes ?? []).find((o) => o.id === forced.outcomeId) ?? resolveOutcome(form, {})
-        : resolveOutcome(form, forced ? {} : answers)
+        : resolveOutcome(form, forced ? {} : visibleAnswers)
   // A tela de resultado herda o Design do formulário e só sobrescreve o que
   // a tela em si define — assim ela não precisa repetir banner/cor se não
   // quiser mudar nada.
   const design = shownPhase === 'done' ? mergeDesign(formDesign, matchedOutcome?.design) : formDesign
-  // O título da tela final é próprio dela — nunca herda o da tela de início
-  // (`design.title`), senão a mesma frase de abertura reaparece no fim.
-  // `outcome.design.title` só vale por compatibilidade com telas já salvas.
-  const endTitle = shownPhase === 'done' ? design.resultTitle || matchedOutcome?.design?.title : undefined
+  // O conteúdo da tela final é uma pilha de blocos própria dela — nunca herda
+  // o título da tela de início (senão a frase de abertura reaparece no fim).
+  const endBlocks = shownPhase === 'done' ? effectiveEndBlocks({ thankYouMessage: form.thankYouMessage, design: form.design, endBlocks: form.endBlocks }, matchedOutcome) : []
   const primaryColor = design.primaryColor || '#2563EB'
   const backgroundColor = design.backgroundColor || '#F8FAFC'
   const isLast = questionIndex >= visibleQuestions.length - 1
+  const align: LeadFormAlign = design.textAlign ?? 'left'
+  const alignText = TEXT_ALIGN_CLASS[align]
+  const alignFlex = JUSTIFY_CLASS[align]
 
   // Redireciona de verdade só na página pública real (onSubmitted definido)
   // — no preview do construtor isso só mostraria uma nota, pra não navegar
-  // pra fora do construtor sem querer.
+  // pra fora do construtor sem querer. Sem atraso = na hora (comportamento
+  // antigo, o conteúdo nem aparece); com atraso mostra o conteúdo antes.
+  const redirectTarget = normalizeUrl(matchedOutcome?.redirectUrl)
+  const redirectDelay = Math.max(0, matchedOutcome?.redirectDelay ?? 0)
   useEffect(() => {
-    if (phase === 'done' && onSubmitted && matchedOutcome?.redirectUrl) {
-      window.location.href = matchedOutcome.redirectUrl
-    }
+    if (phase !== 'done' || !onSubmitted || !redirectTarget) return
+    const timer = setTimeout(() => {
+      window.location.href = redirectTarget
+    }, redirectDelay * 1000)
+    return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
 
@@ -218,15 +212,17 @@ export function LeadFormRenderer({
         )}
         <div className="p-6 sm:p-8">
           {(shownPhase === 'welcome' || shownPhase === 'done') && design.logoUrl && (
-            <img src={design.logoUrl} alt="" className="mb-4 h-14 w-14 rounded-full object-cover" />
+            <div className={`mb-4 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`}>
+              <img src={design.logoUrl} alt="" className="h-14 w-14 rounded-full object-cover" />
+            </div>
           )}
 
           {shownPhase === 'welcome' && (
             <>
-              <h1 className="mb-1 text-xl font-bold text-slate-900">{design.title || form.name}</h1>
-              {design.subtitle && <p className="text-sm text-slate-500">{design.subtitle}</p>}
+              <h1 className={`mb-1 whitespace-pre-wrap text-xl font-bold text-slate-900 ${alignText}`}>{design.title || form.name}</h1>
+              {design.subtitle && <p className={`whitespace-pre-wrap text-sm text-slate-500 ${alignText}`}>{design.subtitle}</p>}
               <VideoEmbed url={design.welcomeVideoUrl} />
-              <div className="mt-5">
+              <div className={`mt-5 flex ${alignFlex}`}>
                 <button
                   type="button"
                   onClick={handleStart}
@@ -262,6 +258,7 @@ export function LeadFormRenderer({
                 otherText={otherTexts[currentQuestion.id] ?? ''}
                 error={errors[currentQuestion.id]}
                 autoFocus={!forced}
+                align={align}
                 onChange={(v) => handleAnswerChange(currentQuestion, v)}
                 onToggleOption={(optId) => toggleMultiOption(currentQuestion, optId)}
                 onOtherTextChange={(t) => handleOtherText(currentQuestion, t)}
@@ -295,15 +292,18 @@ export function LeadFormRenderer({
           )}
 
           {shownPhase === 'done' &&
-            (matchedOutcome?.redirectUrl ? (
+            (redirectTarget && redirectDelay === 0 ? (
               <p className="text-center text-sm text-slate-400">
-                {onSubmitted ? 'Redirecionando…' : `Preview: essa tela redirecionaria para ${matchedOutcome.redirectUrl}`}
+                {onSubmitted ? 'Redirecionando…' : `Preview: essa tela redirecionaria para ${redirectTarget}`}
               </p>
             ) : (
               <>
-                {endTitle && <h1 className="mb-1 text-center text-xl font-bold text-slate-900">{endTitle}</h1>}
-                <p className="text-center text-[15px] text-slate-700">{matchedOutcome?.message || form.thankYouMessage}</p>
-                <VideoEmbed url={design.resultVideoUrl} />
+                <LeadFormBlocksView blocks={endBlocks} primaryColor={primaryColor} interactive={!!onSubmitted} />
+                {redirectTarget && !onSubmitted && (
+                  <p className="mt-4 text-center text-xs text-slate-400">
+                    Preview: depois de {redirectDelay}s o lead seria levado para {redirectTarget}
+                  </p>
+                )}
               </>
             ))}
         </div>
@@ -318,6 +318,7 @@ function QuestionField({
   otherText,
   error,
   autoFocus,
+  align,
   onChange,
   onToggleOption,
   onOtherTextChange,
@@ -328,6 +329,7 @@ function QuestionField({
   otherText: string
   error?: FieldError
   autoFocus: boolean
+  align: LeadFormAlign
   onChange: (v: string) => void
   onToggleOption: (optionId: string) => void
   onOtherTextChange: (text: string) => void
@@ -335,11 +337,11 @@ function QuestionField({
 }) {
   const heading = (
     <>
-      <span className="mb-1.5 block text-base font-medium text-slate-800">
+      <span className={`mb-1.5 block text-base font-medium text-slate-800 ${TEXT_ALIGN_CLASS[align]}`}>
         {question.label || <span className="text-slate-300">Texto da pergunta</span>}
         {question.required && <span className="text-red-400"> *</span>}
       </span>
-      {question.description && <span className="mb-2.5 block text-sm text-slate-500">{question.description}</span>}
+      {question.description && <span className={`mb-2.5 block whitespace-pre-wrap text-sm text-slate-500 ${TEXT_ALIGN_CLASS[align]}`}>{question.description}</span>}
     </>
   )
   const inputClass = `w-full rounded-lg border px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${

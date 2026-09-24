@@ -59,6 +59,28 @@ export interface LeadFormQuestion {
   condition?: LeadFormCondition | null
 }
 
+export type LeadFormAlign = 'left' | 'center' | 'right'
+
+export type LeadFormBlockType = 'heading' | 'text' | 'image' | 'video' | 'button' | 'divider' | 'spacer'
+
+/** Um pedaço do conteúdo de uma tela final — a tela é uma pilha de blocos,
+ *  no estilo de uma página de checkout/Canva. Só os campos que fazem sentido
+ *  pro `type` são usados: heading/text usam `text` (com quebras de linha),
+ *  image usa `url` + `width`, video usa `url` (YouTube), button usa
+ *  `label` + `url`, spacer usa `size`. */
+export interface LeadFormBlock {
+  id: string
+  type: LeadFormBlockType
+  text?: string
+  url?: string | null
+  label?: string
+  align?: LeadFormAlign
+  size?: 'sm' | 'md' | 'lg' | 'xl'
+  bold?: boolean
+  color?: 'default' | 'muted' | 'primary'
+  width?: 'sm' | 'md' | 'full'
+}
+
 /** Aparência da página pública — aba "Design" do construtor. Tudo opcional:
  *  sem nada preenchido a página usa o visual padrão (mesmo de hoje).
  *  `subtitle` dobra como o parágrafo de descrição da tela de boas-vindas
@@ -72,6 +94,8 @@ export interface LeadFormDesign {
   backgroundColor?: string
   /** Texto do botão da tela de boas-vindas. Default: "Começar". */
   welcomeButtonLabel?: string
+  /** Alinhamento dos textos da tela de início e das perguntas. Default: esquerda. */
+  textAlign?: LeadFormAlign
   /** Link do YouTube exibido na tela de início (VSL). */
   welcomeVideoUrl?: string
   /** Link do YouTube exibido na tela final — sobrescrevível por tela de
@@ -92,14 +116,36 @@ export interface LeadFormDesign {
  *  pra essa tela, os campos equivalentes de `LeadForm.design` — quando não
  *  preenchido aqui, usa o valor do formulário. `redirectUrl`, se
  *  preenchido, manda o navegador pra essa URL em vez de mostrar `message`. */
+/** "A resposta da pergunta `questionId` é uma destas `values`" (ids de opção,
+ *  incluindo o "Outro"). */
+export interface LeadFormOutcomeRule {
+  questionId: string
+  values: string[]
+}
+
 export interface LeadFormOutcome {
   id: string
   label: string
   message: string
+  /** @deprecated formulários antigos: ids de opção da `qualificationQuestionId`.
+   *  Use `rules` (o construtor converte ao abrir o formulário). */
   matchValues: string[]
+  /** Quando essa tela aparece: cada regra olha a resposta de UMA pergunta de
+   *  escolha. Sem regras (e sem `isDefault`) a tela nunca aparece. */
+  rules?: LeadFormOutcomeRule[]
+  /** true = só aparece se TODAS as regras baterem; padrão = qualquer uma. */
+  matchAll?: boolean
   isDefault?: boolean
   design?: LeadFormDesign
   redirectUrl?: string
+  /** Segundos até redirecionar. Sem valor (ou 0) = redireciona na hora, sem
+   *  mostrar o conteúdo (comportamento antigo); com valor > 0 mostra o
+   *  conteúdo e redireciona depois desse tempo. */
+  redirectDelay?: number
+  /** Conteúdo da tela (título, texto, imagem, vídeo, botão…). Sem valor =
+   *  formulário antigo: o conteúdo é montado a partir de `message` + título
+   *  + vídeo (ver effectiveEndBlocks). */
+  blocks?: LeadFormBlock[]
 }
 
 /** Um formulário de captura de leads (link público em /captura/:id — o id
@@ -118,6 +164,8 @@ export interface LeadForm extends BaseDoc {
   /** Telas de resultado configuráveis (opcional — ver LeadFormOutcome). Vazio
    *  = comportamento simples de sempre (só `thankYouMessage`). */
   outcomes?: LeadFormOutcome[]
+  /** Conteúdo da tela final única (quando não há `outcomes`). */
+  endBlocks?: LeadFormBlock[]
   /** Qual pergunta de escolha única decide a tela de resultado. */
   qualificationQuestionId?: string | null
 }
