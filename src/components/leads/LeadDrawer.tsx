@@ -13,13 +13,13 @@ import { Tabs } from '../ui/Tabs'
 import { CommentsPanel } from '../comments/CommentsPanel'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
-import { updateLead, deleteLead, convertLeadToClient, addLeadContact } from '../../services/leadService'
+import { updateLead, deleteLead, convertLeadToClient, addLeadContact, moveLeadToPipeline } from '../../services/leadService'
 import { LeadForm } from './LeadForm'
 import { useProducts } from '../../hooks/useProducts'
+import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { leadToFormState, formStateToLeadFields, type LeadFormState } from './leadFormState'
 import {
-  LEAD_STATUS_LABEL,
-  LEAD_STATUS_COLOR,
+  locateLead,
   LEAD_CONTACT_TYPE_LABEL,
   LEAD_CONTACT_OUTCOME_LABEL,
   LEAD_LOST_REASON_LABEL,
@@ -40,6 +40,7 @@ function InfoTab({ lead }: { lead: Lead }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
   const { data: products } = useProducts()
+  const { pipelines } = useLeadPipelines()
   const [form, setForm] = useState<LeadFormState>(() => leadToFormState(lead))
   const [saving, setSaving] = useState(false)
 
@@ -72,7 +73,7 @@ function InfoTab({ lead }: { lead: Lead }) {
           </div>
         </div>
       )}
-      <LeadForm value={form} onChange={setForm} users={users} originalProductIds={lead.contractedProductIds ?? []} />
+      <LeadForm value={form} onChange={setForm} users={users} originalProductIds={lead.contractedProductIds ?? []} pipelineFields={locateLead(pipelines, lead).pipeline.fields} />
       <Button onClick={handleSave} loading={saving} className="self-start">
         Salvar alterações
       </Button>
@@ -196,8 +197,23 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
   const { data: users } = useUsers()
   const navigate = useNavigate()
   const [converting, setConverting] = useState(false)
+  const { pipelines } = useLeadPipelines()
 
   if (!lead || !profile) return null
+  const { pipeline: leadPipeline, stage: leadStage } = locateLead(pipelines, lead)
+
+  const handlePipelineChange = async (id: string) => {
+    const target = pipelines.find((p) => p.id === id)
+    if (!target || target.id === leadPipeline.id) return
+    if (!confirm(`Mover "${lead.contactName}" para o pipeline "${target.name}"? Ele volta pra primeira etapa (${target.stages[0].label}).`)) return
+    try {
+      await moveLeadToPipeline(lead, target, profile.id, profile.name)
+      toast.success(`Lead movido para ${target.name}`)
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao mover o lead de pipeline')
+    }
+  }
 
   const handleDelete = async () => {
     if (!confirm(`Excluir o lead "${lead.contactName}"?`)) return
@@ -234,10 +250,24 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
     >
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <Badge style={{ backgroundColor: `${LEAD_STATUS_COLOR[lead.status]}1A`, color: LEAD_STATUS_COLOR[lead.status] }}>
-            {LEAD_STATUS_LABEL[lead.status]}
-          </Badge>
-          {lead.status === 'lost' && lead.lostReason && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge style={{ backgroundColor: `${leadStage.color}1A`, color: leadStage.color }}>{leadStage.label}</Badge>
+            {pipelines.length > 1 && (
+              <select
+                value={leadPipeline.id}
+                onChange={(e) => void handlePipelineChange(e.target.value)}
+                title="Mover o lead pra outro pipeline"
+                className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-xs text-slate-600 focus:border-brand-600 focus:outline-none"
+              >
+                {pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          {leadStage.kind === 'lost' && lead.lostReason && (
             <p className="text-xs text-slate-400">
               Motivo: {LEAD_LOST_REASON_LABEL[lead.lostReason]}
               {lead.lostReasonNote ? ` — ${lead.lostReasonNote}` : ''}
@@ -245,7 +275,7 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          {lead.status === 'closed' &&
+          {leadStage.kind === 'won' &&
             (lead.convertedClientId ? (
               <Button size="sm" variant="secondary" onClick={() => navigate(`/clientes/${lead.convertedClientId}`)}>
                 Ver cliente

@@ -2,7 +2,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Avatar } from '../ui/Avatar'
 import { Badge } from '../ui/Badge'
-import { LEAD_SOURCE_LABEL, LEAD_STATUS_COLOR, LEAD_STATUS_LABEL, type AppUser, type Lead } from '../../types'
+import { LEAD_SOURCE_LABEL, locateLead, type AppUser, type Lead, type ResolvedPipeline } from '../../types'
 
 function leadServiceLabel(lead: Lead): string {
   const parts: string[] = []
@@ -21,7 +21,9 @@ export function LeadsListView({
   leads,
   userMap,
   onOpenLead,
+  pipelines,
 }: {
+  pipelines: ResolvedPipeline[]
   leads: Lead[]
   userMap: Record<string, AppUser>
   onOpenLead: (id: string) => void
@@ -64,8 +66,8 @@ export function LeadsListView({
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-600">
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: LEAD_STATUS_COLOR[lead.status] }} />
-                        {LEAD_STATUS_LABEL[lead.status]}
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: locateLead(pipelines, lead).stage.color }} />
+                        {locateLead(pipelines, lead).stage.label}
                       </span>
                     </td>
                     <td className="px-4 py-3">
