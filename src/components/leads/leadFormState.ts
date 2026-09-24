@@ -23,12 +23,14 @@ export interface LeadFormState {
   notes: string
   contractedProductIds: string[]
   contractedDuration: string
+  /** Valores dos campos extras do pipeline (por id do campo). */
+  customFields: Record<string, string | number | boolean | null>
 }
 
 /** O que o formulário edita — nunca inclui status/order/contactHistory/
  *  convertedClientId/convertedAt, que são geridos pelo Kanban, pelo mini-form
  *  de contato e pela conversão em cliente, não pela aba Informações. */
-export type LeadEditableFields = Omit<LeadInput, 'status' | 'order' | 'contactHistory' | 'convertedClientId' | 'convertedAt'>
+export type LeadEditableFields = Omit<LeadInput, 'status' | 'order' | 'contactHistory' | 'convertedClientId' | 'convertedAt' | 'pipelineId'>
 
 function toDateStr(d: Date) {
   return d.toISOString().slice(0, 10)
@@ -60,6 +62,7 @@ export function buildDefaultLeadForm(defaultAssignedTo?: string): LeadFormState 
     notes: '',
     contractedProductIds: [],
     contractedDuration: '',
+    customFields: {},
   }
 }
 
@@ -84,6 +87,7 @@ export function leadToFormState(lead: Lead): LeadFormState {
     notes: lead.notes ?? '',
     contractedProductIds: lead.contractedProductIds ?? [],
     contractedDuration: lead.contractedDuration ?? '',
+    customFields: lead.customFields ?? {},
   }
 }
 
@@ -115,5 +119,6 @@ export function formStateToLeadFields(state: LeadFormState, catalog: Product[] =
     notes: state.notes.trim() || undefined,
     contractedProductIds: state.contractedProductIds.length > 0 ? state.contractedProductIds : undefined,
     contractedDuration: state.contractedDuration.trim() || undefined,
+    customFields: state.customFields,
   }
 }

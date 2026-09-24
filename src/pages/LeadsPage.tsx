@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Upload, Kanban, List } from 'lucide-react'
+import { Plus, Upload, Kanban, List, Settings2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
+import { useLeadPipelines } from '../hooks/useLeadPipelines'
 import { useAuth } from '../context/AuthContext'
 import { usePersistedViewMode } from '../hooks/usePersistedViewMode'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
@@ -12,34 +13,46 @@ import { LeadFormModal } from '../components/leads/LeadFormModal'
 import { ImportLeadsModal } from '../components/leads/ImportLeadsModal'
 import { LeadDrawer } from '../components/leads/LeadDrawer'
 import { LeadsListView } from '../components/leads/LeadsListView'
+import { LeadPipelineModal } from '../components/leads/LeadPipelineModal'
 import { LeadFormsPanel } from '../components/leads/LeadFormsPanel'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Field, Select, Textarea } from '../components/ui/Field'
 import { moveLeadStatus, convertLeadToClient } from '../services/leadService'
-import {
-  LEAD_STATUS_LABEL,
-  LEAD_STATUS_ORDER,
-  LEAD_STATUS_COLOR,
-  LEAD_LOST_REASON_LABEL,
-  type Lead,
-  type LeadStatus,
-  type LeadLostReason,
-} from '../types'
+import { LEAD_LOST_REASON_LABEL, DEFAULT_PIPELINE_ID, leadPipelineId, stageOfLead, type Lead, type LeadLostReason } from '../types'
 
 export function LeadsPage() {
   const { profile } = useAuth()
   const { data: leads } = useLeads()
   const { data: users } = useUsers()
+  const { pipelines } = useLeadPipelines()
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
   const [view, setView] = usePersistedViewMode<'kanban' | 'list'>('leadsView', 'kanban')
   const [mainTab, setMainTab] = useState<'pipeline' | 'forms'>('pipeline')
+  // Pipeline aberto agora (lembrado entre visitas). Se o salvo não existe mais, cai no padrão.
+  const [pipelineChoice, setPipelineChoice] = useState<string>(() => {
+    try {
+      return localStorage.getItem('leadsPipeline') || DEFAULT_PIPELINE_ID
+    } catch {
+      return DEFAULT_PIPELINE_ID
+    }
+  })
+  const [pipelineModal, setPipelineModal] = useState<'closed' | 'new' | 'edit'>('closed')
+  const activePipeline = pipelines.find((p) => p.id === pipelineChoice) ?? pipelines[0]
+  const choosePipeline = (id: string) => {
+    setPipelineChoice(id)
+    try {
+      localStorage.setItem('leadsPipeline', id)
+    } catch {
+      /* sem storage: só não lembra */
+    }
+  }
 
   // Fluxos que precisam de confirmação antes de mover no pipeline.
-  const [lossPrompt, setLossPrompt] = useState<{ lead: Lead; order: number } | null>(null)
+  const [lossPrompt, setLossPrompt] = useState<{ lead: Lead; order: number; stageId: string } | null>(null)
   const [lossReason, setLossReason] = useState<LeadLostReason>('price')
   const [lossNote, setLossNote] = useState('')
   const [convertPrompt, setConvertPrompt] = useState<Lead | null>(null)
@@ -48,27 +61,32 @@ export function LeadsPage() {
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
   const openLead = leads.find((l) => l.id === openLeadId) ?? null
 
-  const columns = LEAD_STATUS_ORDER.map((s) => ({
-    id: s,
-    label: LEAD_STATUS_LABEL[s],
-    accentColor: LEAD_STATUS_COLOR[s],
-  }))
+  const pipelineLeads = leads.filter((l) => leadPipelineId(l) === activePipeline.id)
+  const countByPipeline = (id: string) => leads.filter((l) => leadPipelineId(l) === id).length
+  const leadCountByStage: Record<string, number> = {}
+  for (const l of pipelineLeads) {
+    const id = stageOfLead(activePipeline, l.status).id
+    leadCountByStage[id] = (leadCountByStage[id] ?? 0) + 1
+  }
 
-  const handleMove = (lead: Lead, newStatus: LeadStatus, newOrder: number) => {
+  const columns = activePipeline.stages.map((s) => ({ id: s.id, label: s.label, accentColor: s.color }))
+  const stageKind = (id: string) => activePipeline.stages.find((st) => st.id === id)?.kind ?? 'open'
+
+  const handleMove = (lead: Lead, newStatus: string, newOrder: number) => {
     if (!profile) return
 
     // Arrastou para "Perdido": pede o motivo antes de efetivar.
-    if (newStatus === 'lost' && lead.status !== 'lost') {
+    if (stageKind(newStatus) === 'lost' && lead.status !== newStatus) {
       setLossReason('price')
       setLossNote('')
-      setLossPrompt({ lead, order: newOrder })
+      setLossPrompt({ lead, order: newOrder, stageId: newStatus })
       return
     }
 
-    void moveLeadStatus(lead, newStatus, newOrder, profile.id, profile.name).then(() => {
-      // Arrastou para "Fechado": oferece converter em cliente na hora.
-      if (newStatus === 'closed' && lead.status !== 'closed' && !lead.convertedClientId) {
-        setConvertPrompt({ ...lead, status: 'closed' })
+    void moveLeadStatus(lead, newStatus, newOrder, profile.id, profile.name, undefined, activePipeline).then(() => {
+      // Arrastou para uma etapa de ganho: oferece converter em cliente na hora.
+      if (stageKind(newStatus) === 'won' && lead.status !== newStatus && !lead.convertedClientId) {
+        setConvertPrompt({ ...lead, status: newStatus })
       }
     })
   }
@@ -77,10 +95,15 @@ export function LeadsPage() {
     if (!profile || !lossPrompt) return
     setBusy(true)
     try {
-      await moveLeadStatus(lossPrompt.lead, 'lost', lossPrompt.order, profile.id, profile.name, {
-        lostReason: lossReason,
-        lostReasonNote: lossNote,
-      })
+      await moveLeadStatus(
+        lossPrompt.lead,
+        lossPrompt.stageId,
+        lossPrompt.order,
+        profile.id,
+        profile.name,
+        { lostReason: lossReason, lostReasonNote: lossNote },
+        activePipeline
+      )
       toast.success('Lead marcado como perdido')
       setLossPrompt(null)
     } catch (err) {
@@ -132,7 +155,37 @@ export function LeadsPage() {
         <LeadFormsPanel />
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+              {pipelines.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => choosePipeline(p.id)}
+                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    p.id === activePipeline.id ? 'border-brand-200 bg-brand-50 text-brand-700' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  {p.name}
+                  <span className="rounded-full bg-white/70 px-1.5 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200">{countByPipeline(p.id)}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setPipelineModal('new')}
+                className="flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-500 hover:border-brand-400 hover:text-brand-600"
+              >
+                <Plus size={13} /> Novo pipeline
+              </button>
+              <button
+                type="button"
+                onClick={() => setPipelineModal('edit')}
+                title="Configurar este pipeline (etapas e campos)"
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <Settings2 size={16} />
+              </button>
+            </div>
             <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
               <button
                 onClick={() => setView('kanban')}
@@ -163,24 +216,34 @@ export function LeadsPage() {
 
           {view === 'kanban' ? (
             <div className="flex-1 overflow-hidden">
-              <KanbanBoard<Lead, LeadStatus>
+              <KanbanBoard<Lead, string>
+                key={activePipeline.id}
                 columns={columns}
-                items={leads}
-                getStatus={(l) => l.status}
+                items={pipelineLeads}
+                getStatus={(l) => stageOfLead(activePipeline, l.status).id}
                 renderCard={(l) => (
-                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} />
+                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} />
                 )}
                 onMove={handleMove}
               />
             </div>
           ) : (
-            <LeadsListView leads={leads} userMap={userMap} onOpenLead={setOpenLeadId} />
+            <LeadsListView leads={pipelineLeads} userMap={userMap} onOpenLead={setOpenLeadId} pipelines={pipelines} />
           )}
         </>
       )}
 
-      <LeadFormModal open={creating} onClose={() => setCreating(false)} />
-      <ImportLeadsModal open={importing} onClose={() => setImporting(false)} />
+      <LeadFormModal open={creating} onClose={() => setCreating(false)} pipeline={activePipeline} />
+      <ImportLeadsModal open={importing} onClose={() => setImporting(false)} pipeline={activePipeline} />
+      <LeadPipelineModal
+        open={pipelineModal !== 'closed'}
+        onClose={() => setPipelineModal('closed')}
+        pipeline={pipelineModal === 'edit' ? activePipeline : null}
+        leadCountByStage={leadCountByStage}
+        totalLeads={pipelineLeads.length}
+        nextOrder={pipelines.length}
+        onSaved={choosePipeline}
+      />
       <LeadDrawer key={`lead-${openLeadId ?? 'none'}`} lead={openLead} onClose={() => setOpenLeadId(null)} />
 
       <Modal open={!!lossPrompt} onClose={() => setLossPrompt(null)} title="Motivo da perda">
@@ -215,7 +278,7 @@ export function LeadsPage() {
         <div className="flex flex-col gap-4">
           <p className="text-sm text-slate-500">
             <span className="font-semibold text-slate-700">{convertPrompt?.companyName?.trim() || convertPrompt?.contactName}</span> foi movido para{' '}
-            <span className="font-semibold text-slate-700">Fechado</span>. Deseja criar o cliente agora? As tarefas de onboarding serão geradas automaticamente.
+            <span className="font-semibold text-slate-700">{stageOfLead(activePipeline, convertPrompt?.status ?? '').label}</span>. Deseja criar o cliente agora? As tarefas de onboarding serão geradas automaticamente.
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setConvertPrompt(null)} disabled={busy}>

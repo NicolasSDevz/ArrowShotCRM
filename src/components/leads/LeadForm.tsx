@@ -5,18 +5,23 @@ import { useProducts } from '../../hooks/useProducts'
 import { modulesFromProducts, productModules, resolveServices, PRODUCT_MODULE_SHORT } from '../../utils/productModules'
 import { LEAD_SOURCE_LABEL, type AppUser, type LeadSource } from '../../types'
 import type { LeadFormState } from './leadFormState'
+import { LeadCustomFields } from './LeadCustomFields'
+import type { PipelineField } from '../../types'
 
 export function LeadForm({
   value,
   onChange,
   users,
   originalProductIds = [],
+  pipelineFields = [],
 }: {
   value: LeadFormState
   onChange: (next: LeadFormState) => void
   users: AppUser[]
   /** Produtos que o lead já tinha salvos — desmarcar um deles desliga o serviço. */
   originalProductIds?: string[]
+  /** Campos extras do pipeline em que o lead está. */
+  pipelineFields?: PipelineField[]
 }) {
   const { data: products, loading: productsLoading } = useProducts()
   const set = <K extends keyof LeadFormState>(key: K, v: LeadFormState[K]) => onChange({ ...value, [key]: v })
@@ -238,6 +243,8 @@ export function LeadForm({
           <Input type="date" value={value.nextActionDateStr} onChange={(e) => set('nextActionDateStr', e.target.value)} />
         </Field>
       </div>
+
+      <LeadCustomFields fields={pipelineFields} values={value.customFields} onChange={(next) => set('customFields', next)} />
 
       <Field label="Observações">
         <Textarea rows={3} value={value.notes} onChange={(e) => set('notes', e.target.value)} />
