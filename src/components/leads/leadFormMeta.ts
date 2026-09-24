@@ -1,4 +1,4 @@
-import { Type, AlignLeft, CircleDot, ListChecks, Phone, Mail, type LucideIcon } from 'lucide-react'
+import { Type, AlignLeft, CircleDot, ListChecks, Phone, Mail, MapPin, type LucideIcon } from 'lucide-react'
 import type { LeadFormFieldRole, LeadFormQuestion, LeadFormQuestionType } from '../../types/leadForm'
 import { OTHER_OPTION_ID } from '../../types/leadForm'
 
@@ -9,6 +9,7 @@ export const QUESTION_TYPE_META: Record<LeadFormQuestionType, { icon: LucideIcon
   multi_choice: { icon: ListChecks, label: 'Múltipla escolha', hint: 'O lead marca várias' },
   phone: { icon: Phone, label: 'Telefone / WhatsApp', hint: 'Campo de telefone' },
   email: { icon: Mail, label: 'E-mail', hint: 'Campo de e-mail' },
+  address: { icon: MapPin, label: 'Endereço', hint: 'CEP, rua, número, bairro e cidade (o CEP preenche o resto)' },
 }
 
 export const ROLE_LABEL: Record<NonNullable<LeadFormFieldRole>, string> = {

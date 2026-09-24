@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Send } from 'lucide-react'
 import { Spinner } from '../ui/FullPageSpinner'
 import { trackLeadFormEvent } from '../../services/leadFormAnalyticsService'
-import { OTHER_OPTION_ID, type LeadFormAlign, type LeadFormQuestion } from '../../types/leadForm'
+import { ADDRESS_PARTS, ADDRESS_REQUIRED_PARTS, OTHER_OPTION_ID, type AddressPart, type LeadFormAlign, type LeadFormQuestion } from '../../types/leadForm'
+import { AddressQuestionField } from './AddressQuestionField'
 import { JUSTIFY_CLASS, LeadFormBlocksView, TEXT_ALIGN_CLASS, VideoEmbed } from './LeadFormBlocksView'
 import {
   effectiveEndBlocks,
@@ -119,7 +120,10 @@ export function LeadFormRenderer({
     const q = currentQuestion
     if (q) {
       const v = answers[q.id]
-      const empty = v === undefined || (Array.isArray(v) ? v.length === 0 : !v.trim())
+      const empty =
+        q.type === 'address'
+          ? !Array.isArray(v) || ADDRESS_REQUIRED_PARTS.some((p) => !(v[ADDRESS_PARTS.indexOf(p as AddressPart)] ?? '').trim())
+          : v === undefined || (Array.isArray(v) ? v.length === 0 : !v.trim())
       if (q.required && empty) {
         setErrors((prev) => ({ ...prev, [q.id]: 'required' }))
         return
@@ -330,7 +334,7 @@ function QuestionField({
   error?: FieldError
   autoFocus: boolean
   align: LeadFormAlign
-  onChange: (v: string) => void
+  onChange: (v: string | string[]) => void
   onToggleOption: (optionId: string) => void
   onOtherTextChange: (text: string) => void
   onEnter: () => void
@@ -414,6 +418,16 @@ function QuestionField({
         )}
         {error === 'required' && <p className="mt-1 text-xs text-red-500">{isMulti ? 'Escolha ao menos uma opção' : 'Escolha uma opção'}</p>}
         {error === 'other' && <p className="mt-1 text-xs text-red-500">Conte pra gente o que é</p>}
+      </div>
+    )
+  }
+
+  if (question.type === 'address') {
+    return (
+      <div>
+        {heading}
+        <AddressQuestionField value={Array.isArray(value) ? value : []} onChange={onChange as unknown as (v: string[]) => void} autoFocus={autoFocus} invalid={error === 'required'} />
+        {error === 'required' && <p className="mt-1 text-xs text-red-500">Preencha CEP, rua, número, bairro e cidade</p>}
       </div>
     )
   }

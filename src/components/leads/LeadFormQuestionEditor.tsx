@@ -42,7 +42,7 @@ export function LeadFormQuestionEditor({
         { id: crypto.randomUUID(), label: '' },
       ]
     }
-    if (isChoiceType(type)) patch.role = null
+    if (isChoiceType(type) || type === 'address') patch.role = null
     onChange(patch)
   }
 
@@ -207,7 +207,7 @@ export function LeadFormQuestionEditor({
         <Toggle checked={q.required} onChange={(v) => onChange({ required: v })} label="Resposta obrigatória" hint="O lead não avança sem responder." />
         <Field label="Guardar essa resposta no cadastro do lead como">
           <div className="flex items-center gap-1.5">
-            <Select value={q.role ?? ''} onChange={(e) => onChange({ role: (e.target.value || null) as LeadFormFieldRole })} disabled={isChoice}>
+            <Select value={q.role ?? ''} onChange={(e) => onChange({ role: (e.target.value || null) as LeadFormFieldRole })} disabled={isChoice || q.type === 'address'}>
               <option value="">Só resposta (fica na ficha do lead)</option>
               {(Object.entries(ROLE_LABEL) as [NonNullable<LeadFormFieldRole>, string][]).map(([r, l]) => (
                 <option key={r} value={r} disabled={usedRoles.has(r) && q.role !== r}>

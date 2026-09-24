@@ -1,7 +1,7 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
 
-export type LeadFormQuestionType = 'short_text' | 'long_text' | 'single_choice' | 'multi_choice' | 'phone' | 'email'
+export type LeadFormQuestionType = 'short_text' | 'long_text' | 'single_choice' | 'multi_choice' | 'phone' | 'email' | 'address'
 
 export const LEAD_FORM_QUESTION_TYPE_LABEL: Record<LeadFormQuestionType, string> = {
   short_text: 'Texto curto',
@@ -10,6 +10,34 @@ export const LEAD_FORM_QUESTION_TYPE_LABEL: Record<LeadFormQuestionType, string>
   multi_choice: 'Múltipla escolha',
   phone: 'Telefone / WhatsApp',
   email: 'E-mail',
+  address: 'Endereço',
+}
+
+/** Partes de uma resposta do tipo Endereço, nessa ordem — a resposta é
+ *  guardada como string[] com uma posição por parte. */
+export const ADDRESS_PARTS = ['cep', 'street', 'number', 'complement', 'neighborhood', 'city', 'state'] as const
+export type AddressPart = (typeof ADDRESS_PARTS)[number]
+
+export const ADDRESS_PART_LABEL: Record<AddressPart, string> = {
+  cep: 'CEP',
+  street: 'Rua',
+  number: 'Número',
+  complement: 'Complemento',
+  neighborhood: 'Bairro',
+  city: 'Cidade',
+  state: 'Estado',
+}
+
+/** Partes obrigatórias quando a pergunta de endereço é obrigatória. */
+export const ADDRESS_REQUIRED_PARTS: AddressPart[] = ['cep', 'street', 'number', 'neighborhood', 'city']
+
+/** "Rua X, 123 (apto 4) - Bairro, Cidade/UF - CEP 00000-000" — como o
+ *  endereço aparece na ficha do lead. */
+export function formatAddressAnswer(parts: string[]): string {
+  const get = (p: AddressPart) => (parts[ADDRESS_PARTS.indexOf(p)] ?? '').trim()
+  const line1 = [get('street'), get('number')].filter(Boolean).join(', ') + (get('complement') ? ` (${get('complement')})` : '')
+  const cityUf = [get('city'), get('state')].filter(Boolean).join('/')
+  return [line1, get('neighborhood'), cityUf, get('cep') && `CEP ${get('cep')}`].filter(Boolean).join(' - ')
 }
 
 /** Marca uma pergunta como um dos campos fixos do Lead — a resposta alimenta
