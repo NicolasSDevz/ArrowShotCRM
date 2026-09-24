@@ -133,11 +133,32 @@ export function ThemeEditor({
         <p className="text-sm font-semibold text-slate-800">Cores e tema</p>
         <p className="text-xs text-slate-400">Cores gerais do formulário e, se quiser, cores diferentes no início, nas perguntas e no final.</p>
       </div>
+      <EditorSection title="Layout" hint="Tela inteira: o formulário ocupa a página toda, sem quadrado (estilo Typeform). Cartão: dentro de um quadro no meio da página.">
+        <div className="flex rounded-lg bg-slate-100 p-0.5">
+          {(
+            [
+              ['full', 'Tela inteira'],
+              ['card', 'Cartão no meio'],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => set('layout', k)}
+              className={`h-8 flex-1 rounded-md text-xs font-semibold transition-colors ${
+                (design.layout ?? 'full') === k ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </EditorSection>
       <EditorSection title="Modelos prontos" hint="Clique pra aplicar e depois ajuste as cores abaixo se quiser.">
         <ColorPresetPicker design={design} onDesignChange={onDesignChange} />
       </EditorSection>
       <EditorSection title="Cores gerais" hint="Valem pra todas as telas.">
-        {COLOR_FIELDS.map((f) => (
+        {COLOR_FIELDS.filter((f) => f.key !== 'cardColor' || design.layout === 'card').map((f) => (
           <ColorField key={f.key} label={f.label} hint={f.hint} value={design[f.key]} fallback={f.fallback} onChange={(v) => set(f.key, v)} />
         ))}
       </EditorSection>
@@ -157,7 +178,7 @@ export function ThemeEditor({
             </button>
           ))}
         </div>
-        {COLOR_FIELDS.map((f) => (
+        {COLOR_FIELDS.filter((f) => f.key !== 'cardColor' || design.layout === 'card').map((f) => (
           <OverrideColorField
             key={`${screen}-${f.key}`}
             label={f.label}

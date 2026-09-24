@@ -153,7 +153,10 @@ export interface LeadFormDesign {
   welcomeButtonLabel?: string
   /** Alinhamento dos textos da tela de início e das perguntas. Default: esquerda. */
   textAlign?: LeadFormAlign
-  /** Fundo do cartão onde fica o conteúdo. Default: branco. */
+  /** 'full' (padrão) = o formulário ocupa a tela inteira, sem quadrado;
+   *  'card' = conteúdo dentro de um cartão no meio da página. */
+  layout?: 'full' | 'card'
+  /** Fundo do cartão onde fica o conteúdo (só no layout 'card'). Default: branco. */
   cardColor?: string
   /** Cor do texto dos botões. Default: branco. */
   buttonTextColor?: string

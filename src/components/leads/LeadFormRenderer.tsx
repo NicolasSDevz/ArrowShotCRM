@@ -222,13 +222,26 @@ export function LeadFormRenderer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
 
+  // Tela inteira (padrão): sem cartão, o conteúdo fica solto na página e o
+  // banner ocupa a largura toda. Cartão: o layout antigo, num quadro no meio.
+  const fullScreen = (formDesign.layout ?? 'full') === 'full'
+  const showBanner = (shownPhase === 'welcome' || shownPhase === 'done') && !!design.bannerUrl
+  // Banner sempre inteiro (nunca cortado): largura total, altura natural,
+  // limitada pra não empurrar o conteúdo pra fora da tela.
+  const banner = showBanner ? (
+    <img src={design.bannerUrl!} alt="" className={fullScreen ? 'block h-auto max-h-[45vh] w-full object-contain' : 'block h-auto max-h-72 w-full object-contain'} />
+  ) : null
+
   return (
-    <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} items-center justify-center px-4 py-8`} style={{ backgroundColor }}>
-      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 shadow-sm" style={{ backgroundColor: theme.card }}>
-        {(shownPhase === 'welcome' || shownPhase === 'done') && design.bannerUrl && (
-          <img src={design.bannerUrl} alt="" className="h-36 w-full object-cover" />
-        )}
-        <div className="p-6 sm:p-8">
+    <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} flex-col`} style={{ backgroundColor }}>
+      {fullScreen && banner}
+      <div className={`flex flex-1 items-center justify-center ${fullScreen ? 'px-5 py-10 sm:px-8' : 'px-4 py-8'}`}>
+      <div
+        className={fullScreen ? 'w-full max-w-2xl' : 'w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 shadow-sm'}
+        style={fullScreen ? undefined : { backgroundColor: theme.card }}
+      >
+        {!fullScreen && banner}
+        <div className={fullScreen ? '' : 'p-6 sm:p-8'}>
           {(shownPhase === 'welcome' || shownPhase === 'done') && design.logoUrl && (
             <div className={`mb-4 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`}>
               <img src={design.logoUrl} alt="" className="h-14 w-14 rounded-full object-cover" />
@@ -237,7 +250,7 @@ export function LeadFormRenderer({
 
           {shownPhase === 'welcome' && (
             <>
-              <h1 className={`mb-1 whitespace-pre-wrap text-xl font-bold text-slate-900 ${alignText}`} style={textStyle}>{design.title || form.name}</h1>
+              <h1 className={`mb-1 whitespace-pre-wrap font-bold text-slate-900 ${fullScreen ? 'text-2xl sm:text-3xl' : 'text-xl'} ${alignText}`} style={textStyle}>{design.title || form.name}</h1>
               {design.subtitle && <p className={`whitespace-pre-wrap text-sm text-slate-500 ${alignText}`} style={mutedStyle}>{design.subtitle}</p>}
               <VideoEmbed url={design.welcomeVideoUrl} />
               <div className={`mt-5 flex ${alignFlex}`}>
@@ -256,7 +269,7 @@ export function LeadFormRenderer({
 
           {(shownPhase === 'question' || shownPhase === 'submitting') && currentQuestion && (
             <div>
-              <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-slate-100" style={theme.text ? { backgroundColor: `${theme.text}26` } : undefined}>
                 <div
                   className="h-full rounded-full transition-all duration-300 ease-in-out"
                   style={{ width: `${((questionIndex + 1) / Math.max(visibleQuestions.length, 1)) * 100}%`, backgroundColor: primaryColor }}
@@ -326,6 +339,7 @@ export function LeadFormRenderer({
               </>
             ))}
         </div>
+      </div>
       </div>
     </div>
   )
