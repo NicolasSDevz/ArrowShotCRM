@@ -13,6 +13,8 @@ export interface AppUser {
   active: boolean
   /** Último sinal de "estou com o CRM aberto" (heartbeat, ver usePresenceHeartbeat) — base do "online agora" na Equipe. */
   lastSeenAt?: Timestamp | null
+  /** 'away' = a pessoa saiu da aba/ficou ociosa (some da lista de online na hora). */
+  presenceState?: 'online' | 'away' | null
   createdAt: Timestamp
   updatedAt: Timestamp
 }

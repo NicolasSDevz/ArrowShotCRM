@@ -78,8 +78,8 @@ export interface TeamMeeting {
   participants: string
 }
 
-/** Fixed company schedule, not meant to be edited from the UI — same spirit
- *  as ROLE_ROUTINES above. */
+/** Reuniões padrão — só a lista inicial; a equipe edita na aba Equipe (ver
+ *  services/teamMeetingsService.ts, salvo em settings/teamMeetings). */
 export const TEAM_MEETINGS: TeamMeeting[] = [
   { title: 'Reunião de Equipe', schedule: 'Toda sexta, 09:15 às 10:00', participants: 'Toda a equipe' },
   { title: 'Reunião Mensal da Equipe', schedule: '3ª quinta-feira do mês, 13:30', participants: 'Toda a equipe' },

@@ -19,7 +19,7 @@ export function TeamPresence() {
     () =>
       users
         .filter((u) => u.active && u.role !== 'client')
-        .map((u) => ({ user: u, presence: getPresence(u.lastSeenAt, now) }))
+        .map((u) => ({ user: u, presence: getPresence(u, now) }))
         .sort((a, b) => Number(b.presence.online) - Number(a.presence.online) || a.user.name.localeCompare(b.user.name)),
     [users, now]
   )
