@@ -13,6 +13,7 @@ import { notifyAdminsOfAction } from '../../services/notificationService'
 import { removeClientBirthdays } from '../../services/birthdayService'
 import { uploadClientLogo, removeClientLogo } from '../../services/clientLogoService'
 import { ClientLogoField } from './ClientLogoField'
+import { computedPrice, discountLabel, formatBRL } from '../../utils/pricing'
 import { modulesFromProducts, productModules, resolveServices, PRODUCT_MODULE_SHORT } from '../../utils/productModules'
 import { maskPhone, isPhoneComplete, maskDocument, maskCurrencyInput, parseCurrencyToNumber, maskCep, isCepComplete } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
@@ -28,12 +29,38 @@ import {
   type Client,
   type ClientCategory,
   type ClientPackage,
+  type ClientServiceContract,
   type ClientStatus,
   type StyleCatalog,
 } from '../../types/client'
+import type { DiscountType, Product } from '../../types/product'
 import { LANDING_PAGE_TYPE_LABEL, type LandingPageType } from '../../types/landingPage'
 
 const WHATSAPP_GROUP_PREFIX = 'https://chat.whatsapp.com/'
+
+/** Preço de um serviço contratado, em edição (valores em texto). */
+type ContractDraft = { tierId: string; discountId: string; customType: DiscountType; customValue: string; price: string; priceTouched: boolean }
+const CUSTOM_DISCOUNT = '__custom'
+
+function draftContract(d: ContractDraft): Pick<ClientServiceContract, 'tierId' | 'discountId' | 'customDiscount'> {
+  const custom = d.discountId === CUSTOM_DISCOUNT && Number(d.customValue) > 0
+  return {
+    tierId: d.tierId || null,
+    discountId: d.discountId && d.discountId !== CUSTOM_DISCOUNT ? d.discountId : null,
+    customDiscount: custom ? { type: d.customType, value: Number(d.customValue) } : null,
+  }
+}
+
+/** Valor calculado (tabela − desconto) já no formato da máscara de R$, ou ''. */
+function calcPriceMask(product: Product, d: ContractDraft): string {
+  const v = computedPrice(product, draftContract(d))
+  return v == null ? '' : maskCurrencyInput(String(Math.round(v * 100)))
+}
+
+function newDraft(product: Product): ContractDraft {
+  const d: ContractDraft = { tierId: product.tiers?.[0]?.id ?? '', discountId: '', customType: 'percent', customValue: '', price: '', priceTouched: false }
+  return { ...d, price: calcPriceMask(product, d) }
+}
 
 const EMPTY = {
   companyName: '',
@@ -63,6 +90,7 @@ const EMPTY = {
   landingPage: false,
   landingPageType: '' as LandingPageType | '',
   contractedProductIds: [] as string[],
+  contracts: {} as Record<string, ContractDraft>,
 }
 
 const toDateInputValue = timestampToDateInput
@@ -115,6 +143,8 @@ export function ClientFormModal({
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoRemoved, setLogoRemoved] = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
+  // Enquanto a pessoa não digitar o valor mensal, ele acompanha a soma dos serviços.
+  const [monthlyTouched, setMonthlyTouched] = useState(false)
 
   // ---- Serviços: a fonte é o catálogo do Dashboard ----
   // Cada produto diz o que liga no CRM (Social, Meta, Google, Landing Page).
@@ -133,8 +163,24 @@ export function ClientFormModal({
     form,
     origCovered
   )
+  const selectedContracts = products
+    .filter((p) => form.contractedProductIds.includes(p.id))
+    .map((p) => {
+      const draft = form.contracts[p.id]
+      const calc = draft ? computedPrice(p, draftContract(draft)) : computedPrice(p, {})
+      const final = draft?.price ? parseCurrencyToNumber(draft.price) : calc
+      return { product: p, draft, calc, final }
+    })
+  const servicesTotal = selectedContracts.reduce((sum, c) => sum + (c.final ?? 0), 0)
   const showLegacyRow = (k: 'socialMedia' | 'landingPage' | 'paidTraffic') => !catalogEmpty && !!client?.modules?.[k] && !origCovered[k] && !derived[k]
-    const anyService = socialMedia || paidTraffic || landingPage || form.contractedProductIds.length > 0
+    useEffect(() => {
+    if (monthlyTouched || servicesTotal <= 0) return
+    setForm((f) => {
+      const masked = maskCurrencyInput(String(Math.round(servicesTotal * 100)))
+      return f.monthlyValue === masked ? f : { ...f, monthlyValue: masked }
+    })
+  }, [servicesTotal, monthlyTouched])
+  const anyService = socialMedia || paidTraffic || landingPage || form.contractedProductIds.length > 0
   const unmappedProducts = products.filter((p) => form.contractedProductIds.includes(p.id) && productModules(p).keys.length === 0)
   const willActivate = [
     socialMedia && 'Social Mídia',
@@ -173,9 +219,24 @@ export function ClientFormModal({
         landingPage: client.modules?.landingPage ?? false,
         landingPageType: client.landingPageType ?? '',
         contractedProductIds: client.contractedProductIds ?? [],
+        contracts: Object.fromEntries(
+          (client.contractedServices ?? []).map((c) => [
+            c.productId,
+            {
+              tierId: c.tierId ?? '',
+              discountId: c.customDiscount ? CUSTOM_DISCOUNT : (c.discountId ?? ''),
+              customType: c.customDiscount?.type ?? 'percent',
+              customValue: c.customDiscount ? String(c.customDiscount.value) : '',
+              price: c.finalPrice != null ? maskCurrencyInput(String(Math.round(c.finalPrice * 100))) : '',
+              priceTouched: c.finalPrice != null,
+            } satisfies ContractDraft,
+          ])
+        ),
       })
+      setMonthlyTouched(client.monthlyValue != null)
     } else {
       setForm(EMPTY)
+      setMonthlyTouched(false)
       setCreateTasks(true)
     }
     setLogoFile(null)
@@ -192,12 +253,25 @@ export function ClientFormModal({
     }))
 
   const toggleContractedProduct = (id: string) =>
-    setForm((f) => ({
-      ...f,
-      contractedProductIds: f.contractedProductIds.includes(id)
-        ? f.contractedProductIds.filter((pid) => pid !== id)
-        : [...f.contractedProductIds, id],
-    }))
+    setForm((f) => {
+      const on = f.contractedProductIds.includes(id)
+      const product = products.find((x) => x.id === id)
+      return {
+        ...f,
+        contractedProductIds: on ? f.contractedProductIds.filter((pid) => pid !== id) : [...f.contractedProductIds, id],
+        contracts: !on && product && !f.contracts[id] ? { ...f.contracts, [id]: newDraft(product) } : f.contracts,
+      }
+    })
+
+  /** Edita nível/desconto/valor de um serviço; enquanto o valor não foi
+   *  digitado na mão, ele se recalcula (tabela − desconto). */
+  const updateContract = (product: Product, patch: Partial<ContractDraft>) =>
+    setForm((f) => {
+      const cur = f.contracts[product.id] ?? newDraft(product)
+      const next: ContractDraft = { ...cur, ...patch }
+      if (!('price' in patch) && !next.priceTouched) next.price = calcPriceMask(product, next)
+      return { ...f, contracts: { ...f.contracts, [product.id]: next } }
+    })
 
   const whatsappIncomplete = form.whatsapp.trim() !== '' && !isPhoneComplete(form.whatsapp)
   const whatsappGroupLinkInvalid = form.whatsappGroupLink.trim() !== '' && !form.whatsappGroupLink.trim().startsWith(WHATSAPP_GROUP_PREFIX)
@@ -264,6 +338,11 @@ export function ClientFormModal({
         notes: form.notes || undefined,
         churnReason: form.status === 'churned' ? form.churnReason.trim() || undefined : undefined,
         contractedProductIds: form.contractedProductIds.length > 0 ? form.contractedProductIds : undefined,
+        contractedServices: selectedContracts.map(({ product, draft }): ClientServiceContract => {
+          const c = draft ? draftContract(draft) : {}
+          const price = draft?.price ? (parseCurrencyToNumber(draft.price) ?? null) : null
+          return { productId: product.id, ...c, finalPrice: price }
+        }),
         modules: {
           ...client?.modules,
           socialMedia,
@@ -506,23 +585,86 @@ export function ClientFormModal({
               <div className="flex flex-col gap-1.5">
                 {selectableProducts.map((p) => {
                   const { keys, inferred } = productModules(p)
+                  const checked = form.contractedProductIds.includes(p.id)
+                  // Cliente antigo com o serviço marcado mas sem preço salvo: abre um rascunho na hora.
+                  const draft = form.contracts[p.id] ?? (checked ? newDraft(p) : undefined)
+                  const calc = draft ? computedPrice(p, draftContract(draft)) : undefined
+                  const basePriceText = draft ? computedPrice(p, { tierId: draft.tierId || null }) : undefined
                   return (
-                    <label key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={form.contractedProductIds.includes(p.id)}
-                        onChange={() => toggleContractedProduct(p.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-                      />
-                      <span className="font-medium">{p.name}</span>
-                      {!p.active && <span className="text-[11px] text-slate-400">(inativo)</span>}
-                      {keys.map((k) => (
-                        <span key={k} className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
-                          {PRODUCT_MODULE_SHORT[k]}
-                          {inferred && '?'}
-                        </span>
-                      ))}
-                    </label>
+                    <div key={p.id} className="flex flex-col">
+                      <label className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleContractedProduct(p.id)}
+                          className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                        />
+                        <span className="font-medium">{p.name}</span>
+                        {!p.active && <span className="text-[11px] text-slate-400">(inativo)</span>}
+                        {keys.map((k) => (
+                          <span key={k} className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                            {PRODUCT_MODULE_SHORT[k]}
+                            {inferred && '?'}
+                          </span>
+                        ))}
+                      </label>
+
+                      {checked && draft && (
+                        <div className="ml-6 mt-1.5 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-white p-2.5 sm:grid-cols-2">
+                          {(p.tiers?.length ?? 0) > 0 && (
+                            <Field label="Nível do serviço">
+                              <Select value={draft.tierId} onChange={(e) => updateContract(p, { tierId: e.target.value })}>
+                                {p.tiers!.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name}
+                                    {t.price != null ? ` — ${formatBRL(t.price)}` : ''}
+                                  </option>
+                                ))}
+                              </Select>
+                            </Field>
+                          )}
+                          <Field label="Desconto">
+                            <Select value={draft.discountId} onChange={(e) => updateContract(p, { discountId: e.target.value })}>
+                              <option value="">Sem desconto</option>
+                              {(p.discounts ?? []).map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.name} (−{discountLabel(d)})
+                                </option>
+                              ))}
+                              <option value={CUSTOM_DISCOUNT}>Personalizado…</option>
+                            </Select>
+                          </Field>
+                          {draft.discountId === CUSTOM_DISCOUNT && (
+                            <Field label="Desconto personalizado">
+                              <div className="flex gap-1.5">
+                                <Select value={draft.customType} onChange={(e) => updateContract(p, { customType: e.target.value as DiscountType })} className="max-w-[80px]">
+                                  <option value="percent">%</option>
+                                  <option value="fixed">R$</option>
+                                </Select>
+                                <Input type="number" min="0" step="0.01" value={draft.customValue} onChange={(e) => updateContract(p, { customValue: e.target.value })} placeholder="0" />
+                              </div>
+                            </Field>
+                          )}
+                          <Field label="Valor mensal deste cliente (R$)">
+                            <Input
+                              value={draft.price}
+                              onChange={(e) => updateContract(p, { price: maskCurrencyInput(e.target.value), priceTouched: true })}
+                              placeholder="R$ 0,00"
+                            />
+                          </Field>
+                          <p className="text-xs text-slate-400 sm:col-span-2">
+                            {basePriceText != null && <>Tabela: {formatBRL(basePriceText)}. </>}
+                            {calc != null && calc !== basePriceText && <>Com desconto: {formatBRL(calc)}. </>}
+                            O valor acima é o que este cliente paga — pode ser diferente da tabela.
+                            {draft.priceTouched && calc != null && (
+                              <button type="button" onClick={() => updateContract(p, { price: maskCurrencyInput(String(Math.round(calc * 100))), priceTouched: false })} className="ml-1 font-medium text-brand-600 underline">
+                                Voltar ao valor calculado
+                              </button>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -632,9 +774,29 @@ export function ClientFormModal({
         <Field label="Valor mensal do contrato (R$)">
           <Input
             value={form.monthlyValue}
-            onChange={(e) => set('monthlyValue', maskCurrencyInput(e.target.value))}
+            onChange={(e) => {
+              setMonthlyTouched(true)
+              set('monthlyValue', maskCurrencyInput(e.target.value))
+            }}
             placeholder="R$ 0,00"
           />
+          {servicesTotal > 0 && (
+            <p className="mt-1 text-xs text-slate-400">
+              Soma dos serviços: {formatBRL(servicesTotal)}
+              {maskCurrencyInput(String(Math.round(servicesTotal * 100))) !== form.monthlyValue && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMonthlyTouched(false)
+                    set('monthlyValue', maskCurrencyInput(String(Math.round(servicesTotal * 100))))
+                  }}
+                  className="ml-1 font-medium text-brand-600 underline"
+                >
+                  usar
+                </button>
+              )}
+            </p>
+          )}
         </Field>
         <Field label="Data de início">
           <Input type="date" value={form.contractStartDate} onChange={(e) => set('contractStartDate', e.target.value)} />

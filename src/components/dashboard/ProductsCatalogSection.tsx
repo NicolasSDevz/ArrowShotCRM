@@ -8,6 +8,7 @@ import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { ProductFormModal } from './ProductFormModal'
 import { productModules, PRODUCT_MODULE_SHORT } from '../../utils/productModules'
+import { applyDiscount, basePrice, discountLabel, formatBRL as brl, lowestPrice } from '../../utils/pricing'
 import type { Product } from '../../types'
 
 function formatBRL(v: number) {
@@ -35,6 +36,53 @@ function ProductModuleBadges({ product }: { product: Product }) {
   )
 }
 
+/** Simulador rápido de preço no cartão: escolhe o nível e o desconto e vê o
+ *  valor final — pra qualquer interno montar uma proposta sem calculadora. */
+function PriceSimulator({ product }: { product: Product }) {
+  const [tierId, setTierId] = useState(product.tiers?.[0]?.id ?? '')
+  const [discountId, setDiscountId] = useState('')
+  const base = basePrice(product, tierId || null)
+  const discount = product.discounts?.find((d) => d.id === discountId)
+  const final = base != null ? applyDiscount(base, discount) : undefined
+  return (
+    <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Simular preço</p>
+      <div className="flex flex-wrap gap-2">
+        {(product.tiers?.length ?? 0) > 0 && (
+          <select value={tierId} onChange={(e) => setTierId(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs">
+            {product.tiers!.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+                {t.price != null ? ` — ${brl(t.price)}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        {(product.discounts?.length ?? 0) > 0 && (
+          <select value={discountId} onChange={(e) => setDiscountId(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs">
+            <option value="">Sem desconto</option>
+            {product.discounts!.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name} (−{discountLabel(d)})
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <p className="text-sm text-slate-600">
+        {final == null ? (
+          'Sem preço definido.'
+        ) : (
+          <>
+            {discount && base != null && <span className="mr-1.5 text-slate-400 line-through">{brl(base)}</span>}
+            <span className="text-base font-extrabold text-brand-600">{brl(final)}</span>
+          </>
+        )}
+      </p>
+    </div>
+  )
+}
+
 function ProductCard({ product, canEdit, onEdit, onDelete }: { product: Product; canEdit: boolean; onEdit: () => void; onDelete: () => void }) {
   return (
     <div className={`flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 ${!product.active ? 'opacity-60' : ''}`}>
@@ -48,6 +96,12 @@ function ProductCard({ product, canEdit, onEdit, onDelete }: { product: Product;
               </span>
             )}
           </p>
+          {product.price == null && lowestPrice(product) != null && (
+            <p className="mt-0.5 text-lg font-extrabold text-brand-600">
+              <span className="text-sm font-medium text-slate-400">a partir de </span>
+              {formatBRL(lowestPrice(product)!)}
+            </p>
+          )}
           {(product.price != null || product.priceNote) && (
             <p className="mt-0.5 text-lg font-extrabold text-brand-600">
               {product.price != null && formatBRL(product.price)}
@@ -69,6 +123,33 @@ function ProductCard({ product, canEdit, onEdit, onDelete }: { product: Product;
       </div>
 
       {product.description && <p className="text-sm text-slate-600">{product.description}</p>}
+
+      {(product.tiers?.length ?? 0) > 0 && (
+        <ul className="flex flex-col divide-y divide-slate-100 rounded-xl border border-slate-100">
+          {product.tiers!.map((t) => (
+            <li key={t.id} className="flex items-start justify-between gap-3 px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800">{t.name}</p>
+                {t.description && <p className="text-xs text-slate-400">{t.description}</p>}
+              </div>
+              <p className="shrink-0 text-sm font-bold text-slate-700">{t.price != null ? formatBRL(t.price) : '—'}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {(product.discounts?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-slate-400">Descontos:</span>
+          {product.discounts!.map((d) => (
+            <span key={d.id} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              {d.name} · −{discountLabel(d)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {((product.tiers?.length ?? 0) > 0 || (product.discounts?.length ?? 0) > 0) && <PriceSimulator product={product} />}
 
       {canEdit && (
         <ProductModuleBadges product={product} />
