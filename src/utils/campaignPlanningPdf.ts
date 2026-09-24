@@ -626,15 +626,31 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
 
   const baseUrl = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'
   const logo = await loadPngDataUrl(`${baseUrl}favicon-dark.png`)
+  // A logo não é quadrada (é o wordmark "Quiver" + ícone lado a lado) —
+  // forçar logoW=logoH nela distorcia a imagem. Mede a proporção real com
+  // getImageProperties e encaixa numa altura fixa, capando a largura pra
+  // nunca estourar a página caso a imagem seja bem mais larga que alta.
+  let logoBoxBottom = 24
   if (logo) {
-    const logoSize = 20
-    const logoX = (PAGE_W - logoSize) / 2
+    const props = doc.getImageProperties(logo)
+    const maxH = 20
+    const maxW = 110
+    let logoH = maxH
+    let logoW = maxH * (props.width / props.height)
+    if (logoW > maxW) {
+      logoW = maxW
+      logoH = maxW * (props.height / props.width)
+    }
+    const logoX = (PAGE_W - logoW) / 2
+    const pad = 4
     doc.setFillColor(WHITE[0], WHITE[1], WHITE[2])
-    doc.roundedRect(logoX - 3, 24, logoSize + 6, logoSize + 6, 3, 3, 'F')
-    doc.addImage(logo, 'PNG', logoX, 27, logoSize, logoSize)
+    doc.roundedRect(logoX - pad, 24, logoW + pad * 2, logoH + pad * 2, 3, 3, 'F')
+    doc.addImage(logo, 'PNG', logoX, 24 + pad, logoW, logoH)
+    logoBoxBottom = 24 + logoH + pad * 2
   }
-  centerText(doc, 'QUIVER', logo ? 66 : 52, 30, 'bold', WHITE)
-  centerText(doc, 'Marketing Digital', logo ? 76 : 62, 13, 'normal', BLUE)
+  const titleY = logo ? logoBoxBottom + 16 : 52
+  centerText(doc, 'QUIVER', titleY, 30, 'bold', WHITE)
+  centerText(doc, 'Marketing Digital', titleY + 10, 13, 'normal', BLUE)
 
   const dividerW = CONTENT_W * 0.4
   doc.setDrawColor(BLUE[0], BLUE[1], BLUE[2])
