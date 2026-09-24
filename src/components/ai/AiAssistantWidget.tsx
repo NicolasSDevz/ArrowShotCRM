@@ -77,16 +77,24 @@ export function AiAssistantWidget() {
         />
       )}
 
+      {/* Cor sempre fixa via style, nunca via classe bg- ou text- — essas
+          classes mudam de valor no modo escuro do resto do site (ver
+          dark-families.css), o que já deixou o texto "Archer" ilegível uma
+          vez; o botão flutuante usa o mesmo tratamento por segurança. */}
+      <style>{`.ai-fab:hover { transform: scale(1.05); background-color: #1D4ED8 !important; }`}</style>
       <button
         onClick={handleToggleButton}
         aria-label="Assistente de IA"
         title="Falar com Archer"
-        className="fixed bottom-6 right-6 z-50 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-brand-600 text-2xl text-white transition-transform duration-150 ease-in-out hover:scale-105 hover:bg-[#1D4ED8]"
-        style={{ boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}
+        className="ai-fab fixed bottom-6 right-6 z-50 flex h-[52px] w-[52px] items-center justify-center rounded-full text-2xl transition-transform duration-150 ease-in-out"
+        style={{ backgroundColor: '#2563EB', color: '#FFFFFF', boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}
       >
         🏹
         {unread > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          <span
+            className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold"
+            style={{ backgroundColor: '#EF4444', color: '#FFFFFF' }}
+          >
             {unread > 9 ? '9+' : unread}
           </span>
         )}

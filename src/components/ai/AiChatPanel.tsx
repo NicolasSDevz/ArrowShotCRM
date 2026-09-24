@@ -10,14 +10,36 @@ Posso te ajudar com análise de campanhas, performance dos clientes, sugestões 
 
 O que você precisa hoje?`
 
+// Todo o painel usa cor fixa (nunca a paleta que muda com o tema do CRM,
+// ver src/dark-families.css) — sempre que uma classe Tailwind normal
+// (bg-white, text-slate-400, border-slate-200...) é usada aqui, o modo
+// escuro do resto do site a reescreve, mas as poucas regras de CSS puro
+// deste arquivo (.ai-md strong, .ai-md h1...) não mudam junto — o texto
+// ficava escuro sobre um fundo que virava escuro também, ilegível. Cor
+// aqui sempre via `style` (nunca via classe bg-*/text-*/border-*) resolve
+// isso de uma vez: o widget sempre parece igual, claro, não importa o tema.
+const C = {
+  brand: '#2563EB',
+  brandDark: '#1D4ED8',
+  border: '#E2E8F0',
+  muted: '#64748B',
+  slate300: '#CBD5E1',
+  slate400: '#94A3B8',
+  slate600: '#475569',
+  dark: '#0F172A',
+  red: '#EF4444',
+  white: '#FFFFFF',
+  panelBg: '#F8FAFC',
+}
+
 function TypingDots() {
   return (
-    <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5">
+    <div className="flex items-center gap-1 rounded-2xl px-3.5 py-2.5" style={{ border: `1px solid ${C.border}`, backgroundColor: C.white }}>
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-300"
-          style={{ animationDelay: `${i * 0.15}s` }}
+          className="h-1.5 w-1.5 animate-bounce rounded-full"
+          style={{ backgroundColor: C.slate300, animationDelay: `${i * 0.15}s` }}
         />
       ))}
     </div>
@@ -29,16 +51,19 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
   return (
     <div className={`flex items-end gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
       {!isUser && (
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm text-white">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm" style={{ backgroundColor: C.brand, color: C.white }}>
           🏹
         </span>
       )}
       {isUser ? (
-        <div className="max-w-[78%] whitespace-pre-wrap rounded-2xl bg-brand-600 px-3.5 py-2.5 text-sm leading-relaxed text-white">
+        <div className="max-w-[78%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed" style={{ backgroundColor: C.brand, color: C.white }}>
           {message.content}
         </div>
       ) : (
-        <div className="ai-md max-w-[92%] overflow-x-auto rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-slate-900">
+        <div
+          className="ai-md max-w-[92%] overflow-x-auto rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
+          style={{ border: `1px solid ${C.border}`, backgroundColor: C.white, color: C.dark }}
+        >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
         </div>
       )}
@@ -79,8 +104,8 @@ export function AiChatPanel({
 
   return (
     <div
-      className="fixed bottom-[92px] right-6 z-50 flex w-[380px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-      style={{ height: 520, animation: 'ai-panel-in 180ms ease-out' }}
+      className="fixed bottom-[92px] right-6 z-50 flex w-[380px] flex-col overflow-hidden rounded-2xl shadow-2xl"
+      style={{ height: 520, backgroundColor: C.white, animation: 'ai-panel-in 180ms ease-out' }}
     >
       <style>{`
         @keyframes ai-panel-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
@@ -92,32 +117,37 @@ export function AiChatPanel({
         .ai-md ul, .ai-md ol { margin: 0 0 8px; padding-left: 18px; }
         .ai-md li { margin: 2px 0; }
         .ai-md a { color: #2563EB; text-decoration: underline; }
-        .ai-md code { background: #F1F5F9; border-radius: 4px; padding: 1px 4px; font-size: 12px; }
+        .ai-md code { background: #F1F5F9; border-radius: 4px; padding: 1px 4px; font-size: 12px; color: #0F172A; }
         .ai-md table { border-collapse: collapse; width: 100%; margin: 6px 0 10px; font-size: 12px; }
         .ai-md th, .ai-md td { border: 1px solid #E2E8F0; padding: 4px 7px; text-align: left; }
-        .ai-md th { background: #F8FAFC; font-weight: 700; }
+        .ai-md th { background: #F8FAFC; font-weight: 700; color: #0F172A; }
         .ai-md hr { border: none; border-top: 1px solid #E2E8F0; margin: 10px 0; }
+        .ai-chip { transition: color 120ms, border-color 120ms; }
+        .ai-chip:hover { border-color: ${C.brand} !important; color: ${C.brandDark} !important; }
+        .ai-icon-btn { transition: color 120ms, background-color 120ms; }
+        .ai-icon-btn:hover { background-color: rgba(255,255,255,0.1); color: ${C.white} !important; }
+        .ai-input:focus { outline: none; border-color: ${C.brand} !important; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
       `}</style>
 
-      <div className="flex shrink-0 items-center justify-between bg-[#0F172A] px-4 py-3.5">
+      <div className="flex shrink-0 items-center justify-between px-4 py-3.5" style={{ backgroundColor: C.dark }}>
         <div className="flex items-center gap-2">
           <span className="text-base">🏹</span>
           <div>
-            <p className="text-[15px] font-bold leading-tight text-white">Archer</p>
-            <p className="text-[11px] leading-tight text-[#64748B]">Assistente Quiver</p>
+            <p className="text-[15px] font-bold leading-tight" style={{ color: C.white }}>Archer</p>
+            <p className="text-[11px] leading-tight" style={{ color: C.muted }}>Assistente Quiver</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={onMinimize} aria-label="Minimizar" className="rounded-md p-1.5 text-slate-400 hover:bg-white/10 hover:text-white">
+          <button onClick={onMinimize} aria-label="Minimizar" className="ai-icon-btn rounded-md p-1.5" style={{ color: C.slate400 }}>
             <Minus size={15} />
           </button>
-          <button onClick={onClose} aria-label="Fechar" className="rounded-md p-1.5 text-slate-400 hover:bg-white/10 hover:text-white">
+          <button onClick={onClose} aria-label="Fechar" className="ai-icon-btn rounded-md p-1.5" style={{ color: C.slate400 }}>
             <X size={16} />
           </button>
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[#F8FAFC] px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: C.panelBg }}>
         {messages.length === 0 ? (
           <div className="flex flex-col gap-4">
             <MessageBubble message={{ role: 'assistant', content: WELCOME_MESSAGE }} />
@@ -127,7 +157,8 @@ export function AiChatPanel({
                   <button
                     key={q}
                     onClick={() => onSuggestedClick(q)}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-brand-300 hover:text-brand-700"
+                    className="ai-chip rounded-full px-3 py-1.5 text-xs font-medium"
+                    style={{ border: `1px solid ${C.border}`, backgroundColor: C.white, color: C.slate600 }}
                   >
                     {q}
                   </button>
@@ -145,7 +176,7 @@ export function AiChatPanel({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 border-t border-slate-100 bg-white px-3 py-3">
+      <div className="flex shrink-0 items-center gap-2 px-3 py-3" style={{ borderTop: `1px solid ${C.border}`, backgroundColor: C.white }}>
         <input
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
@@ -156,13 +187,15 @@ export function AiChatPanel({
             }
           }}
           placeholder="Pergunte sobre campanhas, clientes, métricas..."
-          className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="ai-input h-9 flex-1 rounded-lg px-3 text-sm"
+          style={{ border: `1px solid ${C.border}`, color: C.dark, backgroundColor: C.white }}
         />
         <button
           onClick={onSend}
           disabled={!input.trim() || sending}
           aria-label="Enviar"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-opacity hover:opacity-90 disabled:opacity-40"
+          style={{ backgroundColor: C.brand, color: C.white }}
         >
           <Send size={15} />
         </button>
