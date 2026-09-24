@@ -21,6 +21,17 @@ export function LeadCapturePage() {
   const [phase, setPhase] = useState<Phase>('loading')
   const [form, setForm] = useState<LeadForm | null>(null)
 
+  // A página é do lead, não do CRM: sempre no visual claro, mesmo que quem
+  // abriu o link tenha o modo escuro ligado neste navegador.
+  useEffect(() => {
+    const root = document.documentElement
+    const previous = root.getAttribute('data-theme')
+    root.removeAttribute('data-theme')
+    return () => {
+      if (previous) root.setAttribute('data-theme', previous)
+    }
+  }, [])
+
   useEffect(() => {
     if (!formId) {
       setPhase('invalid')
@@ -56,5 +67,5 @@ export function LeadCapturePage() {
     )
   }
 
-  return <LeadFormRenderer form={form} formId={form.id} onSubmitted={(answers) => submitLeadFormResponse(form, answers)} fillViewport />
+  return <LeadFormRenderer form={form} formId={form.id} onSubmitted={(answers, otherTexts) => submitLeadFormResponse(form, answers, otherTexts)} fillViewport />
 }

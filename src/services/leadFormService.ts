@@ -11,7 +11,7 @@ import {
   type FirestoreError,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
-import type { LeadForm, LeadFormInput, LeadFormAnswer, LeadFormQuestion } from '../types/leadForm'
+import { OTHER_OPTION_ID, type LeadForm, type LeadFormInput, type LeadFormAnswer, type LeadFormQuestion } from '../types/leadForm'
 import type { Lead } from '../types/lead'
 
 const COLLECTION = 'leadForms'
@@ -107,16 +107,34 @@ function findRoleAnswer(
  *  anônima, não dá pra resolver quem são os admins (a coleção `users` exige
  *  login pra ler) sem abrir mão de segurança — o lead aparece em tempo real
  *  pra quem já está com o CRM aberto, igual qualquer lead novo. */
+/** Texto legível da resposta: perguntas de escolha guardam ids de opção
+ *  internamente, mas na ficha do lead o time precisa ler o texto da opção —
+ *  e, quando o lead marcou "Outro", o que ele escreveu ("Outro: pintura"). */
+function answerToText(q: LeadFormQuestion, raw: string | string[], otherText?: string): string {
+  if (q.type !== 'single_choice' && q.type !== 'multi_choice') return Array.isArray(raw) ? raw.join(', ') : raw
+  const ids = Array.isArray(raw) ? raw : [raw]
+  return ids
+    .map((id) => {
+      if (id === OTHER_OPTION_ID) {
+        const label = q.otherLabel?.trim() || 'Outro'
+        return otherText?.trim() ? `${label}: ${otherText.trim()}` : label
+      }
+      return q.options?.find((o) => o.id === id)?.label ?? id
+    })
+    .join(', ')
+}
+
 export async function submitLeadFormResponse(
   form: LeadForm,
-  answersByQuestionId: Record<string, string | string[]>
+  answersByQuestionId: Record<string, string | string[]>,
+  otherTexts: Record<string, string> = {}
 ): Promise<void> {
   const flatAnswers: Record<string, string> = {}
   const formAnswers: LeadFormAnswer[] = []
   for (const q of form.questions) {
     const raw = answersByQuestionId[q.id]
     if (raw === undefined || raw === null) continue
-    const value = Array.isArray(raw) ? raw.join(', ') : raw
+    const value = answerToText(q, raw, otherTexts[q.id])
     if (!value.trim()) continue
     flatAnswers[q.id] = value
     formAnswers.push({ questionId: q.id, label: q.label, value })

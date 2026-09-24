@@ -2,14 +2,36 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Send } from 'lucide-react'
 import { Spinner } from '../ui/FullPageSpinner'
 import { trackLeadFormEvent } from '../../services/leadFormAnalyticsService'
-import type { LeadForm, LeadFormDesign, LeadFormOutcome, LeadFormQuestion } from '../../types/leadForm'
+import { youTubeEmbedUrl } from '../../utils/youtube'
+import { OTHER_OPTION_ID, type LeadFormQuestion } from '../../types/leadForm'
+import {
+  isQuestionVisible,
+  mergeDesign,
+  resolveOutcome,
+  type LeadFormAnswers,
+  type LeadFormContent,
+  type LeadFormPreviewScreen,
+} from './leadFormUtils'
 
 type Phase = 'welcome' | 'question' | 'submitting' | 'done'
+type FieldError = 'required' | 'other'
 
-/** Só o conteúdo que o renderer realmente lê — deixa o preview ao vivo do
- *  construtor montar o objeto sem precisar inventar id/createdAt/etc de um
- *  formulário que ainda nem foi salvo. */
-export type LeadFormContent = Pick<LeadForm, 'name' | 'questions' | 'thankYouMessage' | 'design' | 'outcomes' | 'qualificationQuestionId'>
+function VideoEmbed({ url }: { url?: string }) {
+  const src = youTubeEmbedUrl(url)
+  if (!src) return null
+  return (
+    <div className="my-4 aspect-video w-full overflow-hidden rounded-xl bg-black">
+      <iframe
+        src={src}
+        title="Vídeo"
+        className="h-full w-full"
+        allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+        allowFullScreen
+        loading="lazy"
+      />
+    </div>
+  )
+}
 
 /** Renderiza a página de um formulário de captura no estilo Typeform/
  *  YayForms — uma tela de boas-vindas, depois uma pergunta por tela (com
@@ -20,29 +42,34 @@ export type LeadFormContent = Pick<LeadForm, 'name' | 'questions' | 'thankYouMes
  *  gravando no Firestore e registrando analytics) quanto pelo preview ao
  *  vivo do construtor (sem `onSubmitted` — nada é salvo nem rastreado) —
  *  garante que o preview nunca fique visualmente diferente do que o lead
- *  realmente vê. */
+ *  realmente vê. No construtor, `previewScreen` fixa a tela mostrada (a que
+ *  está selecionada na lista); sem ele o fluxo roda normalmente. */
 export function LeadFormRenderer({
   form,
   formId,
   onSubmitted,
   fillViewport = false,
+  previewScreen = null,
 }: {
   form: LeadFormContent
   /** Id real do formulário (slug da URL) — só usado pra registrar
    *  analytics; ausente no preview do construtor (formulário ainda não
    *  salvo), o que já basta pra desligar o rastreamento ali. */
   formId?: string
-  onSubmitted?: (answers: Record<string, string | string[]>) => Promise<void>
+  onSubmitted?: (answers: LeadFormAnswers, otherTexts: Record<string, string>) => Promise<void>
   /** true na página pública real (ocupa a tela toda via 100vh); false (padrão)
    *  no preview do construtor, onde o componente pai já define a altura. */
   fillViewport?: boolean
+  previewScreen?: LeadFormPreviewScreen | null
 }) {
   const isTracking = !!onSubmitted && !!formId
+  const forced = previewScreen
   const [sessionId] = useState(() => crypto.randomUUID())
   const [phase, setPhase] = useState<Phase>('welcome')
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
-  const [errors, setErrors] = useState<Record<string, boolean>>({})
+  const [answers, setAnswers] = useState<LeadFormAnswers>({})
+  const [otherTexts, setOtherTexts] = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<Record<string, FieldError | undefined>>({})
   const startedAtRef = useRef<number | null>(null)
   const seenQuestionsRef = useRef<Set<string>>(new Set())
 
@@ -51,16 +78,13 @@ export function LeadFormRenderer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const isVisible = (q: LeadFormQuestion): boolean => {
-    if (!q.condition) return true
-    const sourceAnswer = answers[q.condition.questionId]
-    if (sourceAnswer === undefined) return false
-    const values = Array.isArray(sourceAnswer) ? sourceAnswer : [sourceAnswer]
-    return values.some((v) => q.condition!.values.includes(v))
-  }
-
-  const visibleQuestions = form.questions.filter(isVisible)
-  const currentQuestion = phase === 'question' ? visibleQuestions[currentIndex] : undefined
+  // No preview fixado todas as perguntas contam (a lógica condicional depende
+  // de respostas que ainda não existem), no fluxo real só as visíveis.
+  const visibleQuestions = forced ? form.questions : form.questions.filter((q) => isQuestionVisible(q, answers))
+  const shownPhase: Phase = forced ? (forced.kind === 'welcome' ? 'welcome' : forced.kind === 'question' ? 'question' : 'done') : phase
+  const questionIndex =
+    forced?.kind === 'question' ? Math.max(0, form.questions.findIndex((q) => q.id === forced.questionId)) : currentIndex
+  const currentQuestion = shownPhase === 'question' || shownPhase === 'submitting' ? visibleQuestions[questionIndex] : undefined
 
   useEffect(() => {
     if (!currentQuestion || !isTracking) return
@@ -71,25 +95,12 @@ export function LeadFormRenderer({
 
   const setAnswer = (id: string, value: string | string[]) => {
     setAnswers((prev) => ({ ...prev, [id]: value }))
-    setErrors((prev) => ({ ...prev, [id]: false }))
+    setErrors((prev) => ({ ...prev, [id]: undefined }))
   }
 
   const toggleMultiOption = (q: LeadFormQuestion, optId: string) => {
     const current = (answers[q.id] as string[] | undefined) ?? []
     setAnswer(q.id, current.includes(optId) ? current.filter((v) => v !== optId) : [...current, optId])
-  }
-
-  const resolveOutcome = (): LeadFormOutcome | null => {
-    const outcomes = form.outcomes ?? []
-    if (outcomes.length === 0) return null
-    const values = form.qualificationQuestionId
-      ? (() => {
-          const raw = answers[form.qualificationQuestionId!]
-          return Array.isArray(raw) ? raw : raw ? [raw] : []
-        })()
-      : []
-    const matched = outcomes.find((o) => !o.isDefault && o.matchValues.some((v) => values.includes(v)))
-    return matched ?? outcomes.find((o) => o.isDefault) ?? outcomes[0]
   }
 
   const handleSubmit = async () => {
@@ -101,11 +112,11 @@ export function LeadFormRenderer({
     setPhase('submitting')
     try {
       const visibleIds = new Set(visibleQuestions.map((q) => q.id))
-      const payload: Record<string, string | string[]> = {}
+      const payload: LeadFormAnswers = {}
       for (const [id, value] of Object.entries(answers)) {
         if (visibleIds.has(id)) payload[id] = value
       }
-      await onSubmitted(payload)
+      await onSubmitted(payload, otherTexts)
       if (isTracking) {
         const durationMs = startedAtRef.current ? Date.now() - startedAtRef.current : undefined
         trackLeadFormEvent(formId!, sessionId, 'submit', { durationMs })
@@ -119,12 +130,20 @@ export function LeadFormRenderer({
 
   const handleNextRef = useRef<() => void>(() => {})
   const goNext = () => {
+    if (forced) return
     const q = currentQuestion
-    if (q && q.required) {
+    if (q) {
       const v = answers[q.id]
       const empty = v === undefined || (Array.isArray(v) ? v.length === 0 : !v.trim())
-      if (empty) {
-        setErrors((prev) => ({ ...prev, [q.id]: true }))
+      if (q.required && empty) {
+        setErrors((prev) => ({ ...prev, [q.id]: 'required' }))
+        return
+      }
+      // Marcou "Outro" mas não disse o quê — sem isso o time não tem como
+      // saber se o lead ainda se enquadra.
+      const pickedOther = Array.isArray(v) ? v.includes(OTHER_OPTION_ID) : v === OTHER_OPTION_ID
+      if (pickedOther && !otherTexts[q.id]?.trim()) {
+        setErrors((prev) => ({ ...prev, [q.id]: 'other' }))
         return
       }
     }
@@ -136,9 +155,12 @@ export function LeadFormRenderer({
   }
   handleNextRef.current = goNext
 
-  const goBack = () => setCurrentIndex((i) => Math.max(0, i - 1))
+  const goBack = () => {
+    if (!forced) setCurrentIndex((i) => Math.max(0, i - 1))
+  }
 
   const handleStart = () => {
+    if (forced) return
     startedAtRef.current = Date.now()
     if (isTracking) trackLeadFormEvent(formId!, sessionId, 'start')
     setPhase('question')
@@ -147,21 +169,32 @@ export function LeadFormRenderer({
 
   const handleAnswerChange = (q: LeadFormQuestion, v: string | string[]) => {
     setAnswer(q.id, v)
-    if (q.type === 'single_choice') {
+    if (q.type === 'single_choice' && !forced && v !== OTHER_OPTION_ID) {
       // Avanço automático estilo Typeform — dá um respiro visual pra
       // mostrar a opção marcada antes de trocar de tela.
       setTimeout(() => handleNextRef.current(), 300)
     }
   }
 
+  const handleOtherText = (q: LeadFormQuestion, text: string) => {
+    setOtherTexts((prev) => ({ ...prev, [q.id]: text }))
+    setErrors((prev) => ({ ...prev, [q.id]: undefined }))
+  }
+
   const formDesign = form.design ?? {}
-  const matchedOutcome = phase === 'done' ? resolveOutcome() : null
+  const matchedOutcome =
+    shownPhase !== 'done'
+      ? null
+      : forced?.kind === 'end' && forced.outcomeId
+        ? (form.outcomes ?? []).find((o) => o.id === forced.outcomeId) ?? resolveOutcome(form, {})
+        : resolveOutcome(form, forced ? {} : answers)
   // A tela de resultado herda o Design do formulário e só sobrescreve o que
   // a tela em si define — assim ela não precisa repetir banner/cor se não
   // quiser mudar nada.
-  const design: LeadFormDesign = phase === 'done' ? { ...formDesign, ...matchedOutcome?.design } : formDesign
+  const design = shownPhase === 'done' ? mergeDesign(formDesign, matchedOutcome?.design) : formDesign
   const primaryColor = design.primaryColor || '#2563EB'
   const backgroundColor = design.backgroundColor || '#F8FAFC'
+  const isLast = questionIndex >= visibleQuestions.length - 1
 
   // Redireciona de verdade só na página pública real (onSubmitted definido)
   // — no preview do construtor isso só mostraria uma nota, pra não navegar
@@ -174,56 +207,65 @@ export function LeadFormRenderer({
   }, [phase])
 
   return (
-    <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} items-center justify-center px-4 py-10`} style={{ backgroundColor }}>
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        {(phase === 'welcome' || phase === 'done') && design.bannerUrl && (
+    <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} items-center justify-center px-4 py-8`} style={{ backgroundColor }}>
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {(shownPhase === 'welcome' || shownPhase === 'done') && design.bannerUrl && (
           <img src={design.bannerUrl} alt="" className="h-36 w-full object-cover" />
         )}
-        <div className="p-8">
-          {(phase === 'welcome' || phase === 'done') && design.logoUrl && (
+        <div className="p-6 sm:p-8">
+          {(shownPhase === 'welcome' || shownPhase === 'done') && design.logoUrl && (
             <img src={design.logoUrl} alt="" className="mb-4 h-14 w-14 rounded-full object-cover" />
           )}
 
-          {phase === 'welcome' && (
+          {shownPhase === 'welcome' && (
             <>
               <h1 className="mb-1 text-xl font-bold text-slate-900">{design.title || form.name}</h1>
-              {design.subtitle && <p className="mb-5 text-sm text-slate-500">{design.subtitle}</p>}
-              {!design.subtitle && <div className="mb-5" />}
-              <button
-                type="button"
-                onClick={handleStart}
-                disabled={visibleQuestions.length === 0}
-                style={{ backgroundColor: primaryColor }}
-                className="flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-              >
-                {design.welcomeButtonLabel || 'Começar'} <ArrowRight size={14} />
-              </button>
+              {design.subtitle && <p className="text-sm text-slate-500">{design.subtitle}</p>}
+              <VideoEmbed url={design.welcomeVideoUrl} />
+              <div className="mt-5">
+                <button
+                  type="button"
+                  onClick={handleStart}
+                  disabled={visibleQuestions.length === 0}
+                  style={{ backgroundColor: primaryColor }}
+                  className="flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                >
+                  {design.welcomeButtonLabel || 'Começar'} <ArrowRight size={14} />
+                </button>
+              </div>
             </>
           )}
 
-          {(phase === 'question' || phase === 'submitting') && currentQuestion && (
+          {(shownPhase === 'question' || shownPhase === 'submitting') && currentQuestion && (
             <div>
               <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-slate-100">
                 <div
                   className="h-full rounded-full transition-all duration-300 ease-in-out"
-                  style={{ width: `${((currentIndex + 1) / Math.max(visibleQuestions.length, 1)) * 100}%`, backgroundColor: primaryColor }}
+                  style={{ width: `${((questionIndex + 1) / Math.max(visibleQuestions.length, 1)) * 100}%`, backgroundColor: primaryColor }}
                 />
               </div>
               <p className="mb-3 text-xs font-medium text-slate-400">
-                {currentIndex + 1} de {visibleQuestions.length}
+                {questionIndex + 1} de {visibleQuestions.length}
               </p>
+
+              {currentQuestion.imageUrl && (
+                <img src={currentQuestion.imageUrl} alt="" className="mb-4 max-h-56 w-full rounded-xl object-cover" />
+              )}
 
               <QuestionField
                 question={currentQuestion}
                 value={answers[currentQuestion.id]}
-                error={!!errors[currentQuestion.id]}
+                otherText={otherTexts[currentQuestion.id] ?? ''}
+                error={errors[currentQuestion.id]}
+                autoFocus={!forced}
                 onChange={(v) => handleAnswerChange(currentQuestion, v)}
                 onToggleOption={(optId) => toggleMultiOption(currentQuestion, optId)}
+                onOtherTextChange={(t) => handleOtherText(currentQuestion, t)}
                 onEnter={goNext}
               />
 
               <div className="mt-5 flex items-center gap-2">
-                {currentIndex > 0 && (
+                {questionIndex > 0 && (
                   <button type="button" onClick={goBack} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
                     <ArrowLeft size={14} /> Voltar
                   </button>
@@ -231,24 +273,24 @@ export function LeadFormRenderer({
                 <button
                   type="button"
                   onClick={goNext}
-                  disabled={phase === 'submitting'}
+                  disabled={shownPhase === 'submitting'}
                   style={{ backgroundColor: primaryColor }}
                   className="ml-auto flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
-                  {phase === 'submitting' ? (
+                  {shownPhase === 'submitting' ? (
                     <Spinner className="h-4 w-4 border-white/30 border-t-white" />
-                  ) : currentIndex >= visibleQuestions.length - 1 ? (
+                  ) : isLast ? (
                     <Send size={14} />
                   ) : (
                     <ArrowRight size={14} />
                   )}
-                  {currentIndex >= visibleQuestions.length - 1 ? 'Enviar' : 'Avançar'}
+                  {isLast ? 'Enviar' : 'Avançar'}
                 </button>
               </div>
             </div>
           )}
 
-          {phase === 'done' &&
+          {shownPhase === 'done' &&
             (matchedOutcome?.redirectUrl ? (
               <p className="text-center text-sm text-slate-400">
                 {onSubmitted ? 'Redirecionando…' : `Preview: essa tela redirecionaria para ${matchedOutcome.redirectUrl}`}
@@ -257,6 +299,7 @@ export function LeadFormRenderer({
               <>
                 {design.title && <h1 className="mb-1 text-center text-xl font-bold text-slate-900">{design.title}</h1>}
                 <p className="text-center text-[15px] text-slate-700">{matchedOutcome?.message || form.thankYouMessage}</p>
+                <VideoEmbed url={design.resultVideoUrl} />
               </>
             ))}
         </div>
@@ -268,26 +311,35 @@ export function LeadFormRenderer({
 function QuestionField({
   question,
   value,
+  otherText,
   error,
+  autoFocus,
   onChange,
   onToggleOption,
+  onOtherTextChange,
   onEnter,
 }: {
   question: LeadFormQuestion
   value: string | string[] | undefined
-  error: boolean
+  otherText: string
+  error?: FieldError
+  autoFocus: boolean
   onChange: (v: string) => void
   onToggleOption: (optionId: string) => void
+  onOtherTextChange: (text: string) => void
   onEnter: () => void
 }) {
-  const label = (
-    <span className="mb-1.5 block text-base font-medium text-slate-800">
-      {question.label}
-      {question.required && <span className="text-red-400"> *</span>}
-    </span>
+  const heading = (
+    <>
+      <span className="mb-1.5 block text-base font-medium text-slate-800">
+        {question.label || <span className="text-slate-300">Texto da pergunta</span>}
+        {question.required && <span className="text-red-400"> *</span>}
+      </span>
+      {question.description && <span className="mb-2.5 block text-sm text-slate-500">{question.description}</span>}
+    </>
   )
   const inputClass = `w-full rounded-lg border px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
-    error ? 'border-red-300' : 'border-slate-200'
+    error === 'required' ? 'border-red-300' : 'border-slate-200'
   }`
   const handleEnterKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -299,67 +351,63 @@ function QuestionField({
   if (question.type === 'long_text') {
     return (
       <label className="block">
-        {label}
-        <textarea rows={4} autoFocus className={`${inputClass} resize-none`} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+        {heading}
+        <textarea rows={4} autoFocus={autoFocus} className={`${inputClass} resize-none`} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+        {error === 'required' && <p className="mt-1 text-xs text-red-500">Campo obrigatório</p>}
       </label>
     )
   }
 
-  if (question.type === 'single_choice') {
+  if (question.type === 'single_choice' || question.type === 'multi_choice') {
+    const isMulti = question.type === 'multi_choice'
+    const selected = isMulti ? ((value as string[] | undefined) ?? []) : value ? [value as string] : []
+    const options = [
+      ...(question.options ?? []).filter((o) => o.label.trim()),
+      ...(question.allowOther ? [{ id: OTHER_OPTION_ID, label: question.otherLabel?.trim() || 'Outro' }] : []),
+    ]
+    const otherPicked = selected.includes(OTHER_OPTION_ID)
     return (
       <div>
-        {label}
+        {heading}
         <div className="flex flex-col gap-2">
-          {(question.options ?? []).map((opt) => {
-            const checked = value === opt.id
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => onChange(opt.id)}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
-                  checked ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${checked ? 'border-brand-500 bg-brand-500' : 'border-slate-300'}`}>
-                  {checked && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
-                </span>
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-        {error && <p className="mt-1 text-xs text-red-500">Escolha uma opção</p>}
-      </div>
-    )
-  }
-
-  if (question.type === 'multi_choice') {
-    const selected = (value as string[] | undefined) ?? []
-    return (
-      <div>
-        {label}
-        <div className="flex flex-col gap-2">
-          {(question.options ?? []).map((opt) => {
+          {options.map((opt) => {
             const checked = selected.includes(opt.id)
             return (
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => onToggleOption(opt.id)}
+                onClick={() => (isMulti ? onToggleOption(opt.id) : onChange(opt.id))}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
                   checked ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? 'border-brand-500 bg-brand-500' : 'border-slate-300'}`}>
-                  {checked && <span className="h-2 w-2 rounded-sm bg-white" />}
+                <span
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center border ${isMulti ? 'rounded' : 'rounded-full'} ${
+                    checked ? 'border-brand-500 bg-brand-500' : 'border-slate-300'
+                  }`}
+                >
+                  {checked && <span className={`h-1.5 w-1.5 bg-white ${isMulti ? 'rounded-sm' : 'rounded-full'}`} />}
                 </span>
                 {opt.label}
               </button>
             )
           })}
         </div>
-        {error && <p className="mt-1 text-xs text-red-500">Escolha ao menos uma opção</p>}
+        {otherPicked && (
+          <label className="mt-3 block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">{question.otherPrompt?.trim() || 'Qual?'}</span>
+            <input
+              autoFocus={autoFocus}
+              className={`${inputClass} ${error === 'other' ? 'border-red-300' : ''}`}
+              value={otherText}
+              onChange={(e) => onOtherTextChange(e.target.value)}
+              onKeyDown={handleEnterKey}
+              placeholder="Escreva aqui"
+            />
+          </label>
+        )}
+        {error === 'required' && <p className="mt-1 text-xs text-red-500">{isMulti ? 'Escolha ao menos uma opção' : 'Escolha uma opção'}</p>}
+        {error === 'other' && <p className="mt-1 text-xs text-red-500">Conte pra gente o que é</p>}
       </div>
     )
   }
@@ -367,9 +415,9 @@ function QuestionField({
   const inputType = question.type === 'email' ? 'email' : question.type === 'phone' ? 'tel' : 'text'
   return (
     <label className="block">
-      {label}
-      <input autoFocus type={inputType} className={inputClass} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} onKeyDown={handleEnterKey} />
-      {error && <p className="mt-1 text-xs text-red-500">Campo obrigatório</p>}
+      {heading}
+      <input autoFocus={autoFocus} type={inputType} className={inputClass} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} onKeyDown={handleEnterKey} />
+      {error === 'required' && <p className="mt-1 text-xs text-red-500">Campo obrigatório</p>}
     </label>
   )
 }

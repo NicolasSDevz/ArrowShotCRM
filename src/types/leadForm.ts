@@ -31,14 +31,31 @@ export interface LeadFormCondition {
   values: string[]
 }
 
+/** Id fixo da opção "Outro" — não existe em `options`, é uma opção extra que
+ *  o lead vê quando `allowOther` está ligado. Pode ser usada como qualquer
+ *  outro id em `condition.values` e `outcome.matchValues`. */
+export const OTHER_OPTION_ID = '__other__'
+
 export interface LeadFormQuestion {
   id: string
   type: LeadFormQuestionType
   label: string
+  /** Texto de apoio abaixo da pergunta (opcional). */
+  description?: string
+  /** Imagem mostrada acima da pergunta (opcional). */
+  imageUrl?: string | null
   required: boolean
   role: LeadFormFieldRole
   /** Só usado por single_choice/multi_choice. */
   options?: LeadFormQuestionOption[]
+  /** Só escolha: acrescenta a opção "Outro" — ao marcá-la o lead precisa
+   *  escrever o que é, e esse texto vai junto na resposta pro time avaliar
+   *  se ainda se enquadra. */
+  allowOther?: boolean
+  /** Nome da opção extra (padrão "Outro"). */
+  otherLabel?: string
+  /** Pergunta mostrada no campo de texto do "Outro" (padrão "Qual?"). */
+  otherPrompt?: string
   condition?: LeadFormCondition | null
 }
 
@@ -55,6 +72,11 @@ export interface LeadFormDesign {
   backgroundColor?: string
   /** Texto do botão da tela de boas-vindas. Default: "Começar". */
   welcomeButtonLabel?: string
+  /** Link do YouTube exibido na tela de início (VSL). */
+  welcomeVideoUrl?: string
+  /** Link do YouTube exibido na tela final — sobrescrevível por tela de
+   *  resultado (ex: um vídeo diferente pra quem se qualificou). */
+  resultVideoUrl?: string
 }
 
 /** Uma "tela de resultado" mostrada depois do envio — ex: "Lead qualificado"
