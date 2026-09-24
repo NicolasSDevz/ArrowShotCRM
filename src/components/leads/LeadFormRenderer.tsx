@@ -4,6 +4,8 @@ import { Spinner } from '../ui/FullPageSpinner'
 import { trackLeadFormEvent } from '../../services/leadFormAnalyticsService'
 import { ADDRESS_PARTS, ADDRESS_REQUIRED_PARTS, OTHER_OPTION_ID, type AddressPart, type LeadFormAlign, type LeadFormQuestion } from '../../types/leadForm'
 import { AddressQuestionField } from './AddressQuestionField'
+import { FieldGroupQuestionField } from './FieldGroupQuestionField'
+import { missingSubfields } from './leadFormFieldGroups'
 import { JUSTIFY_CLASS, LeadFormBlocksView, TEXT_ALIGN_CLASS, VideoEmbed } from './LeadFormBlocksView'
 import {
   effectiveEndBlocks,
@@ -123,10 +125,12 @@ export function LeadFormRenderer({
     if (q) {
       const v = answers[q.id]
       const empty =
-        q.type === 'address'
+        q.type === 'fields'
+          ? missingSubfields(q, Array.isArray(v) ? v : []).length > 0
+          : q.type === 'address'
           ? !Array.isArray(v) || ADDRESS_REQUIRED_PARTS.some((p) => !(v[ADDRESS_PARTS.indexOf(p as AddressPart)] ?? '').trim())
           : v === undefined || (Array.isArray(v) ? v.length === 0 : !v.trim())
-      if (q.required && empty) {
+      if ((q.required || q.type === 'fields') && empty) {
         setErrors((prev) => ({ ...prev, [q.id]: 'required' }))
         return
       }
@@ -431,6 +435,24 @@ function QuestionField({
         )}
         {error === 'required' && <p className="mt-1 text-xs text-red-500">{isMulti ? 'Escolha ao menos uma opção' : 'Escolha uma opção'}</p>}
         {error === 'other' && <p className="mt-1 text-xs text-red-500">Conte pra gente o que é</p>}
+      </div>
+    )
+  }
+
+  if (question.type === 'fields') {
+    const values = Array.isArray(value) ? value : []
+    const missing = error === 'required' ? new Set(missingSubfields(question, values).map((f) => f.id)) : new Set<string>()
+    return (
+      <div>
+        {heading}
+        <FieldGroupQuestionField
+          subfields={question.subfields ?? []}
+          value={values}
+          onChange={onChange as unknown as (v: string[]) => void}
+          autoFocus={autoFocus}
+          missingIds={missing}
+        />
+        {error === 'required' && <p className="mt-1 text-xs text-red-500">Preencha os campos marcados</p>}
       </div>
     )
   }

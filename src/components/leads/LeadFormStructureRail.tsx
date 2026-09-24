@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react'
-import { Plus, GripVertical, GitBranch, ChevronUp, ChevronDown, AlertTriangle, Hand, Flag, Palette, X } from 'lucide-react'
+import { Plus, GripVertical, GitBranch, ChevronUp, ChevronDown, AlertTriangle, Hand, Flag, Palette, X, Radar } from 'lucide-react'
 import { LEAD_FIELD_PRESETS, QUESTION_TYPE_META, ROLE_LABEL, conditionProblem } from './leadFormMeta'
 import type { BuilderSelection } from './leadFormUtils'
+import { FIELD_GROUP_PRESETS } from './leadFormFieldGroups'
 import type { LeadFormFieldRole, LeadFormOutcome, LeadFormQuestion, LeadFormQuestionType } from '../../types/leadForm'
 
 type LeadFieldPreset = (typeof LEAD_FIELD_PRESETS)[number]
@@ -43,6 +44,7 @@ export function LeadFormStructureRail({
   onSelect,
   onAddQuestion,
   onAddLeadField,
+  onAddFieldsPreset,
   onReorder,
   onAddOutcome,
 }: {
@@ -54,6 +56,7 @@ export function LeadFormStructureRail({
   onSelect: (s: BuilderSelection) => void
   onAddQuestion: (type: LeadFormQuestionType) => void
   onAddLeadField: (preset: LeadFieldPreset) => void
+  onAddFieldsPreset: (key: string) => void
   onReorder: (from: number, to: number) => void
   onAddOutcome: () => void
 }) {
@@ -221,9 +224,25 @@ export function LeadFormStructureRail({
               )
             })}
           </div>
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Modelos de vários campos</p>
+          <div className="mb-2.5 grid grid-cols-1 gap-1">
+            {FIELD_GROUP_PRESETS.filter((p) => p.key !== 'custom').map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => {
+                  onAddFieldsPreset(p.key)
+                  setAdding(false)
+                }}
+                className="rounded-lg border border-slate-200 px-2 py-1.5 text-left text-xs font-medium text-slate-600 hover:border-brand-300 hover:bg-brand-50"
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
           <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Outras perguntas</p>
           <div className="grid grid-cols-1 gap-1">
-            {(['single_choice', 'multi_choice', 'short_text', 'long_text', 'address'] as LeadFormQuestionType[]).map((type) => {
+            {(['single_choice', 'multi_choice', 'short_text', 'long_text', 'fields'] as LeadFormQuestionType[]).map((type) => {
               const m = QUESTION_TYPE_META[type]
               const Icon = m.icon
               return (
@@ -288,6 +307,9 @@ export function LeadFormStructureRail({
       <SectionLabel>Aparência</SectionLabel>
       <RailButton selected={selection.kind === 'theme'} onClick={() => onSelect({ kind: 'theme' })} icon={<Palette size={14} />}>
         Cores e tema
+      </RailButton>
+      <RailButton selected={selection.kind === 'tracking'} onClick={() => onSelect({ kind: 'tracking' })} icon={<Radar size={14} />}>
+        Pixel do Meta
       </RailButton>
     </div>
   )

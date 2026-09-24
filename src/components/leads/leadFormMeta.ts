@@ -1,6 +1,7 @@
-import { Type, AlignLeft, CircleDot, ListChecks, Phone, Mail, MapPin, type LucideIcon } from 'lucide-react'
+import { Type, AlignLeft, CircleDot, ListChecks, Phone, Mail, MapPin, LayoutList, type LucideIcon } from 'lucide-react'
 import type { LeadFormFieldRole, LeadFormQuestion, LeadFormQuestionType } from '../../types/leadForm'
 import { OTHER_OPTION_ID } from '../../types/leadForm'
+import { FIELD_GROUP_PRESETS } from './leadFormFieldGroups'
 
 export const QUESTION_TYPE_META: Record<LeadFormQuestionType, { icon: LucideIcon; label: string; hint: string }> = {
   short_text: { icon: Type, label: 'Texto curto', hint: 'Resposta de uma linha' },
@@ -10,6 +11,7 @@ export const QUESTION_TYPE_META: Record<LeadFormQuestionType, { icon: LucideIcon
   phone: { icon: Phone, label: 'Telefone / WhatsApp', hint: 'Campo de telefone' },
   email: { icon: Mail, label: 'E-mail', hint: 'Campo de e-mail' },
   address: { icon: MapPin, label: 'Endereço', hint: 'CEP, rua, número, bairro e cidade (o CEP preenche o resto)' },
+  fields: { icon: LayoutList, label: 'Vários campos', hint: 'Você monta os campos (endereço, horário, dados da empresa…)' },
 }
 
 export const ROLE_LABEL: Record<NonNullable<LeadFormFieldRole>, string> = {
@@ -38,6 +40,7 @@ export function newQuestion(type: LeadFormQuestionType, extra: Partial<LeadFormQ
     required: true,
     role: null,
     options: isChoiceType(type) ? [{ id: crypto.randomUUID(), label: '' }, { id: crypto.randomUUID(), label: '' }] : undefined,
+    subfields: type === 'fields' ? FIELD_GROUP_PRESETS.find((p) => p.key === 'custom')!.make() : undefined,
     condition: null,
     ...extra,
   }

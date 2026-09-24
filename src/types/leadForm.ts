@@ -1,7 +1,7 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
 
-export type LeadFormQuestionType = 'short_text' | 'long_text' | 'single_choice' | 'multi_choice' | 'phone' | 'email' | 'address'
+export type LeadFormQuestionType = 'short_text' | 'long_text' | 'single_choice' | 'multi_choice' | 'phone' | 'email' | 'address' | 'fields'
 
 export const LEAD_FORM_QUESTION_TYPE_LABEL: Record<LeadFormQuestionType, string> = {
   short_text: 'Texto curto',
@@ -11,6 +11,22 @@ export const LEAD_FORM_QUESTION_TYPE_LABEL: Record<LeadFormQuestionType, string>
   phone: 'Telefone / WhatsApp',
   email: 'E-mail',
   address: 'Endereço',
+  fields: 'Vários campos',
+}
+
+export type LeadFormSubfieldType = 'text' | 'number' | 'time' | 'date' | 'phone' | 'email' | 'cep'
+
+/** Um campo dentro de uma pergunta de "vários campos" (ex: "Abre às",
+ *  "Fecha às" num horário de funcionamento). `fill` = esse campo é
+ *  preenchido sozinho quando a pessoa digita um CEP num campo do tipo CEP. */
+export interface LeadFormSubfield {
+  id: string
+  label: string
+  type: LeadFormSubfieldType
+  required?: boolean
+  width?: 'full' | 'half' | 'third'
+  placeholder?: string
+  fill?: 'street' | 'neighborhood' | 'city' | 'state'
 }
 
 /** Partes de uma resposta do tipo Endereço, nessa ordem — a resposta é
@@ -76,6 +92,8 @@ export interface LeadFormQuestion {
   role: LeadFormFieldRole
   /** Só usado por single_choice/multi_choice. */
   options?: LeadFormQuestionOption[]
+  /** Só usado por 'fields': os campos que a pessoa preenche nessa pergunta. */
+  subfields?: LeadFormSubfield[]
   /** Só escolha: acrescenta a opção "Outro" — ao marcá-la o lead precisa
    *  escrever o que é, e esse texto vai junto na resposta pro time avaliar
    *  se ainda se enquadra. */
@@ -214,6 +232,8 @@ export interface LeadForm extends BaseDoc {
   outcomes?: LeadFormOutcome[]
   /** Conteúdo da tela final única (quando não há `outcomes`). */
   endBlocks?: LeadFormBlock[]
+  /** Id do Meta Pixel carregado na página pública (PageView ao abrir, Lead ao enviar). */
+  metaPixelId?: string | null
   /** Qual pergunta de escolha única decide a tela de resultado. */
   qualificationQuestionId?: string | null
 }

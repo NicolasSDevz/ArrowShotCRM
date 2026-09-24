@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Plus, Trash2, Copy, GitBranch, CornerDownRight, AlertTriangle, Info } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { InfoTip } from '../ui/InfoTip'
+import { FieldGroupEditor } from './FieldGroupEditor'
+import { FIELD_GROUP_PRESETS } from './leadFormFieldGroups'
 import { EditorSection, Toggle, ImageUploadField } from './LeadFormBuilderParts'
 import { QUESTION_TYPE_META, ROLE_LABEL, conditionProblem, isChoiceType, visibleOptions } from './leadFormMeta'
 import type { LeadFormFieldRole, LeadFormQuestion, LeadFormQuestionType } from '../../types/leadForm'
@@ -42,7 +44,8 @@ export function LeadFormQuestionEditor({
         { id: crypto.randomUUID(), label: '' },
       ]
     }
-    if (isChoiceType(type) || type === 'address') patch.role = null
+    if (isChoiceType(type) || type === 'address' || type === 'fields') patch.role = null
+    if (type === 'fields' && !(q.subfields ?? []).length) patch.subfields = FIELD_GROUP_PRESETS.find((p) => p.key === 'custom')!.make()
     onChange(patch)
   }
 
@@ -203,11 +206,17 @@ export function LeadFormQuestionEditor({
         </EditorSection>
       )}
 
+      {q.type === 'fields' && (
+        <EditorSection title="Campos desta pergunta" hint="Monte os campos que a pessoa vai preencher (ex: Abre às / Fecha às). Dá pra partir de um modelo pronto.">
+          <FieldGroupEditor subfields={q.subfields ?? []} onChange={(next) => onChange({ subfields: next })} />
+        </EditorSection>
+      )}
+
       <EditorSection title="Regras">
         <Toggle checked={q.required} onChange={(v) => onChange({ required: v })} label="Resposta obrigatória" hint="O lead não avança sem responder." />
         <Field label="Guardar essa resposta no cadastro do lead como">
           <div className="flex items-center gap-1.5">
-            <Select value={q.role ?? ''} onChange={(e) => onChange({ role: (e.target.value || null) as LeadFormFieldRole })} disabled={isChoice || q.type === 'address'}>
+            <Select value={q.role ?? ''} onChange={(e) => onChange({ role: (e.target.value || null) as LeadFormFieldRole })} disabled={isChoice || q.type === 'address' || q.type === 'fields'}>
               <option value="">Só resposta (fica na ficha do lead)</option>
               {(Object.entries(ROLE_LABEL) as [NonNullable<LeadFormFieldRole>, string][]).map(([r, l]) => (
                 <option key={r} value={r} disabled={usedRoles.has(r) && q.role !== r}>

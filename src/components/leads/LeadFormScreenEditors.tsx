@@ -3,6 +3,7 @@ import { Trash2, Info, Flag, Plus, ArrowUp, ArrowDown, GitBranch, X as XIcon } f
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { ColorField, ColorPresetPicker, EditorSection, ImageUploadField, VideoField } from './LeadFormBuilderParts'
 import { AlignControl, LeadFormBlocksEditor } from './LeadFormBlocksEditor'
+import { parseMetaPixelId } from '../../utils/metaPixel'
 import { isChoiceType, visibleOptions } from './leadFormMeta'
 import { outcomeRules } from './leadFormUtils'
 import type { LeadFormBlock, LeadFormDesign, LeadFormOutcome, LeadFormColors, LeadFormOutcomeRule, LeadFormQuestion, LeadFormScreenKey } from '../../types/leadForm'
@@ -171,6 +172,46 @@ export function ThemeEditor({
       </EditorSection>
       <EditorSection title="Alinhamento dos textos" hint="Tela de início e perguntas. Nas telas finais cada bloco tem o seu.">
         <AlignControl label="Alinhar textos" value={design.textAlign ?? 'left'} onChange={(v) => set('textAlign', v)} />
+      </EditorSection>
+    </div>
+  )
+}
+
+/** Pixel do Meta do formulário: aceita o número ou o código inteiro que o
+ *  Meta entrega (a gente extrai o id). */
+export function TrackingEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const id = parseMetaPixelId(value)
+  const filled = !!value.trim()
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <p className="text-sm font-semibold text-slate-800">Pixel do Meta</p>
+        <p className="text-xs text-slate-400">Mede as visitas e os leads deste formulário no Gerenciador de Anúncios do Meta.</p>
+      </div>
+      <EditorSection title="Código do pixel" hint="Cole o código inteiro que o Meta entrega (o bloco <!-- Meta Pixel Code -->) ou só o número do pixel.">
+        <Textarea rows={5} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Ex: 1612198150248366 — ou cole o código completo" className="font-mono text-xs" />
+        {filled &&
+          (id ? (
+            <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">✓ Pixel reconhecido: {id}</p>
+          ) : (
+            <p className="text-xs font-medium text-amber-600">Não achei o número do pixel nesse texto.</p>
+          ))}
+        {filled && (
+          <button type="button" onClick={() => onChange('')} className="w-fit text-xs font-medium text-slate-400 underline hover:text-slate-600">
+            Remover pixel
+          </button>
+        )}
+      </EditorSection>
+      <EditorSection title="O que é enviado pro Meta">
+        <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-slate-500">
+          <li>
+            <strong>PageView</strong> quando alguém abre o formulário.
+          </li>
+          <li>
+            <strong>Lead</strong> quando a pessoa envia as respostas — dá pra usar como conversão nas campanhas.
+          </li>
+          <li>Nada é enviado no preview daqui do construtor, só na página pública.</li>
+        </ul>
       </EditorSection>
     </div>
   )

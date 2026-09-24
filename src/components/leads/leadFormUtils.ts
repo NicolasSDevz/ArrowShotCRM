@@ -23,6 +23,7 @@ export type BuilderSelection =
   | { kind: 'question'; id: string }
   | { kind: 'end'; id: string | null }
   | { kind: 'theme' }
+  | { kind: 'tracking' }
 
 /** Junta o design da tela por cima do design base, ignorando campos vazios —
  *  um título/vídeo deixado em branco numa tela de resultado herda o do
