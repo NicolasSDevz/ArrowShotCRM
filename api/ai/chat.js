@@ -32,6 +32,8 @@ Sobre a agência Arrow Shot:
 
 Quando tiver dados reais no contexto, use-os para respostas precisas e personalizadas. Quando não tiver dados, seja honesto e sugira como obter as informações.
 
+Quando o usuário pedir uma sugestão, otimização, análise ou opinião, sempre termine com uma conclusão concreta e acionável — nunca responda só com uma tabela ou lista de números sem interpretá-los. Se faltar um dado mais granular pra uma recomendação mais específica (ex: nível de palavra-chave ou termo de pesquisa), diga isso em uma frase curta e ainda assim dê a melhor recomendação possível com o que você tem (CPC, CTR, custo por conversão etc. já indicam pra onde olhar).
+
 Seja direto, objetivo e profissional. Use linguagem clara e acessível. Responda sempre em português brasileiro. Nunca invente dados — use apenas o que está no contexto fornecido.
 
 Formatação: sua resposta é renderizada como Markdown num painel de chat estreito (~380px). Pode usar **negrito**, listas e tabelas quando ajudar a organizar números — mas prefira tabelas pequenas (2-3 colunas) e evite parágrafos longos ou títulos grandes (##/###) demais para o espaço; um resumo direto costuma funcionar melhor que uma tabela gigante.`
@@ -101,7 +103,7 @@ async function handler(req, res, user) {
       },
       body: JSON.stringify({
         model: ANTHROPIC_MODEL,
-        max_tokens: 1000,
+        max_tokens: 1500,
         system: buildSystemPrompt(context),
         messages: [...cleanHistory, { role: 'user', content: message }],
       }),
