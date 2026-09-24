@@ -75,6 +75,10 @@ export function LeadCapturePage() {
 
   return <LeadFormRenderer form={form} formId={form.id} onSubmitted={async (answers, otherTexts) => {
         await submitLeadFormResponse(form, answers, otherTexts)
-        if (form.metaPixelId) trackMetaPixel('Lead', { content_name: form.name })
+        try {
+          if (form.metaPixelId) trackMetaPixel('Lead', { content_name: form.name })
+        } catch (err) {
+          console.warn('Pixel do Meta falhou (o lead já foi salvo)', err)
+        }
       }} fillViewport />
 }

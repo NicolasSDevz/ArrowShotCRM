@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
+import { showError } from '../../utils/notifyError'
 import { X, Eye, EyeOff, Monitor, Smartphone, RotateCcw, Copy } from 'lucide-react'
 import { Input } from '../ui/Field'
 import { Button } from '../ui/Button'
@@ -292,6 +293,11 @@ export function LeadFormBuilderModal({
           const rq = questions.find((q) => q.id === r.questionId)
           if (!rq || !isChoiceType(rq.type)) return fail(`A tela final "${name}" usa uma pergunta que não existe mais`, { kind: 'routing' })
         }
+        const liveRule = rules.some((r) => {
+          const rq = questions.find((q) => q.id === r.questionId)
+          return !!rq && visibleOptions(rq).some((opt) => r.values.includes(opt.id))
+        })
+        if (!o.isDefault && !liveRule) return fail(`As respostas que levavam pra tela final "${name}" foram apagadas — escolha de novo em "Qual resposta vai pra qual tela"`, { kind: 'routing' })
         if (badVideo(o.design?.resultVideoUrl)) return fail(`O link do vídeo da tela final "${name}" não é válido`, sel)
       }
       if (!outcomes.some((o) => o.isDefault)) return fail('Uma das telas finais precisa ser a padrão')
@@ -352,7 +358,7 @@ export function LeadFormBuilderModal({
       onClose()
     } catch (err) {
       console.error(err)
-      toast.error('Erro ao salvar o formulário')
+      showError(err, 'Não foi possível salvar o formulário. Tente de novo.')
     } finally {
       setSaving(false)
     }

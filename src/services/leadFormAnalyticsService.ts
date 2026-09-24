@@ -27,9 +27,12 @@ export interface LeadFormFunnelStep {
   questionId: string
   label: string
   views: number
-  /** Diferença em relação ao passo anterior (ou às visualizações da tela de
-   *  boas-vindas, no primeiro passo) — quantas sessões pararam por ali. */
+  /** Sessões que viram essa pergunta, não viram nenhuma depois e não
+   *  enviaram — quem desistiu exatamente aqui. Contar assim (e não pela
+   *  diferença entre um passo e o anterior) não inventa desistência em
+   *  pergunta condicional, que só aparece pra parte das pessoas. */
   dropOff: number
+  /** dropOff em % de quem viu a pergunta. */
   dropOffPct: number
 }
 
@@ -119,20 +122,32 @@ export async function getLeadFormAnalytics(
     sessionsByQuestion.get(e.questionId)!.add(e.sessionId)
   }
 
-  const funnel: LeadFormFunnelStep[] = []
-  let previousViews = starts
-  for (const q of questions) {
+  // Última pergunta (na ordem do formulário) que cada sessão viu, e quem enviou.
+  const order = new Map(questions.map((q, i) => [q.id, i]))
+  const submitted = new Set(submitEvents.map((e) => e.sessionId))
+  const lastSeen = new Map<string, number>()
+  for (const e of events) {
+    if (e.type !== 'question_view' || !e.questionId) continue
+    const i = order.get(e.questionId)
+    if (i === undefined) continue
+    if ((lastSeen.get(e.sessionId) ?? -1) < i) lastSeen.set(e.sessionId, i)
+  }
+  const stoppedAt = new Map<number, number>()
+  for (const [session, i] of lastSeen) {
+    if (!submitted.has(session)) stoppedAt.set(i, (stoppedAt.get(i) ?? 0) + 1)
+  }
+
+  const funnel: LeadFormFunnelStep[] = questions.map((q, i) => {
     const stepViews = sessionsByQuestion.get(q.id)?.size ?? 0
-    const dropOff = Math.max(0, previousViews - stepViews)
-    funnel.push({
+    const dropOff = stoppedAt.get(i) ?? 0
+    return {
       questionId: q.id,
       label: q.label,
       views: stepViews,
       dropOff,
-      dropOffPct: previousViews > 0 ? (dropOff / previousViews) * 100 : 0,
-    })
-    previousViews = stepViews
-  }
+      dropOffPct: stepViews > 0 ? (dropOff / stepViews) * 100 : 0,
+    }
+  })
 
   return { views, starts, submissions, completionRate, avgDurationMs, funnel, daily: buildDaily(events, since) }
 }

@@ -11,7 +11,7 @@ import { maskPhone } from '../../utils/masks'
 import { JUSTIFY_CLASS, LeadFormBlocksView, TEXT_ALIGN_CLASS, VideoEmbed } from './LeadFormBlocksView'
 import {
   effectiveEndBlocks,
-  isQuestionVisible,
+  visibleQuestionsOf,
   mergeDesign,
   normalizeUrl,
   resolveTheme,
@@ -64,6 +64,10 @@ export function LeadFormRenderer({
   const [errors, setErrors] = useState<Record<string, FieldError | undefined>>({})
   const startedAtRef = useRef<number | null>(null)
   const seenQuestionsRef = useRef<Set<string>>(new Set())
+  // Trava contra envio duplicado (duplo clique, Enter + clique, avanço automático).
+  const submittingRef = useRef(false)
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [submitError, setSubmitError] = useState(false)
 
   useEffect(() => {
     if (isTracking) trackLeadFormEvent(formId!, sessionId, 'view')
@@ -72,7 +76,7 @@ export function LeadFormRenderer({
 
   // No preview fixado todas as perguntas contam (a lógica condicional depende
   // de respostas que ainda não existem), no fluxo real só as visíveis.
-  const visibleQuestions = forced ? form.questions : form.questions.filter((q) => isQuestionVisible(q, answers))
+  const visibleQuestions = forced ? form.questions : visibleQuestionsOf(form.questions, answers)
   const shownPhase: Phase = forced ? (forced.kind === 'welcome' ? 'welcome' : forced.kind === 'question' ? 'question' : 'done') : phase
   const questionIndex =
     forced?.kind === 'question' ? Math.max(0, form.questions.findIndex((q) => q.id === forced.questionId)) : currentIndex
@@ -101,6 +105,9 @@ export function LeadFormRenderer({
       setPhase('done')
       return
     }
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSubmitError(false)
     setPhase('submitting')
     try {
       const visibleIds = new Set(visibleQuestions.map((q) => q.id))
@@ -116,13 +123,19 @@ export function LeadFormRenderer({
       setPhase('done')
     } catch (err) {
       console.error(err)
+      submittingRef.current = false
+      setSubmitError(true)
       setPhase('question')
     }
   }
 
   const handleNextRef = useRef<() => void>(() => {})
   const goNext = () => {
-    if (forced) return
+    if (forced || submittingRef.current) return
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = null
+    }
     const q = currentQuestion
     if (q) {
       const v = answers[q.id]
@@ -163,8 +176,17 @@ export function LeadFormRenderer({
   handleNextRef.current = goNext
 
   const goBack = () => {
-    if (!forced) setCurrentIndex((i) => Math.max(0, i - 1))
+    if (forced) return
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = null
+    }
+    setCurrentIndex((i) => Math.max(0, i - 1))
   }
+
+  useEffect(() => () => {
+    if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current)
+  }, [])
 
   const handleStart = () => {
     if (forced) return
@@ -179,7 +201,12 @@ export function LeadFormRenderer({
     if (q.type === 'single_choice' && !forced && v !== OTHER_OPTION_ID) {
       // Avanço automático estilo Typeform — dá um respiro visual pra
       // mostrar a opção marcada antes de trocar de tela.
-      setTimeout(() => handleNextRef.current(), 300)
+      // Clicou em outra opção logo em seguida: só um avanço (senão pula a próxima pergunta).
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = setTimeout(() => {
+        advanceTimerRef.current = null
+        handleNextRef.current()
+      }, 300)
     }
   }
 
@@ -339,6 +366,9 @@ export function LeadFormRenderer({
                 onEnter={goNext}
               />
 
+              {submitError && isLast && (
+                <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">Não foi possível enviar. Verifique sua internet e toque em Enviar de novo.</p>
+              )}
               <div className="mt-5 flex items-center gap-2">
                 {questionIndex > 0 && (
                   <button type="button" onClick={goBack} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100" style={mutedStyle}>

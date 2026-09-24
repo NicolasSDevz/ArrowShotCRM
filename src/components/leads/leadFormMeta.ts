@@ -64,5 +64,7 @@ export function conditionProblem(q: LeadFormQuestion, index: number, questions: 
   if (sourceIndex === -1) return 'A pergunta usada na lógica não existe mais.'
   if (sourceIndex >= index) return 'A pergunta usada na lógica agora vem depois desta — o lead ainda não respondeu quando chegar aqui.'
   if (q.condition.values.length === 0) return 'Escolha pelo menos uma resposta — senão essa pergunta nunca aparece.'
+  const live = new Set(visibleOptions(questions[sourceIndex]).map((o) => o.id))
+  if (!q.condition.values.some((v) => live.has(v))) return 'As respostas escolhidas na lógica foram apagadas — escolha de novo, senão essa pergunta nunca aparece.'
   return null
 }

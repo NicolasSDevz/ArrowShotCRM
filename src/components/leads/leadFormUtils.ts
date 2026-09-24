@@ -48,6 +48,18 @@ export function isQuestionVisible(q: LeadFormQuestion, answers: LeadFormAnswers)
   return values.some((v) => q.condition!.values.includes(v))
 }
 
+/** Perguntas que o lead realmente vê, em ordem. Em cadeia: se a pergunta-fonte
+ *  de uma condição ficou escondida, a resposta antiga dela (de antes de o lead
+ *  voltar e mudar de ideia) não conta — a dependente também some. */
+export function visibleQuestionsOf(questions: LeadFormQuestion[], answers: LeadFormAnswers): LeadFormQuestion[] {
+  const shown = new Set<string>()
+  return questions.filter((q) => {
+    const ok = !q.condition || (shown.has(q.condition.questionId) && isQuestionVisible(q, answers))
+    if (ok) shown.add(q.id)
+    return ok
+  })
+}
+
 /** Regras de uma tela final. Telas antigas guardavam só `matchValues` da
  *  pergunta de qualificação do formulário — viram uma regra equivalente. */
 export function outcomeRules(form: Pick<LeadForm, 'qualificationQuestionId'>, outcome: LeadFormOutcome): LeadFormOutcomeRule[] {
