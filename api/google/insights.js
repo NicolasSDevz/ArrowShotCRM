@@ -11,9 +11,17 @@
 //   customer_id (obrigatório) — ID da conta Google Ads, sem hífens
 //   date_from   (obrigatório) — "yyyy-MM-dd"
 //   date_to     (obrigatório) — "yyyy-MM-dd"
+//   level       (opcional) — "campaign" (padrão, mantém o formato antigo
+//               {summary,campaigns,daily}), "keywords" (keyword_view) ou
+//               "search_terms" (search_term_view) — os dois últimos pra
+//               otimização "cirúrgica" (pausar termo ruim, ajustar lance de
+//               uma palavra-chave específica), que o agregado por campanha
+//               não permite. Endpoint único de propósito (ver nota acima
+//               sobre limite de Serverless Functions do plano Hobby).
 
 const GOOGLE_ADS_API_VERSION = 'v25'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const VALID_LEVELS = new Set(['campaign', 'keywords', 'search_terms'])
 
 function num(v) {
   if (v == null) return 0
@@ -43,7 +51,45 @@ async function getAccessToken() {
   return data.access_token
 }
 
-function buildQuery(dateFrom, dateTo) {
+function buildQuery(dateFrom, dateTo, level) {
+  if (level === 'keywords') {
+    // Sem segments.date no SELECT: a API já soma os metrics por palavra-chave
+    // no período do WHERE (não precisa agregar na mão como em `campaign`,
+    // que soma por dia por causa de segments.date estar selecionado ali).
+    return `SELECT
+      campaign.name,
+      ad_group.name,
+      ad_group_criterion.keyword.text,
+      ad_group_criterion.keyword.match_type,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros,
+      metrics.conversions,
+      metrics.cost_per_conversion
+    FROM keyword_view
+    WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}'
+    AND ad_group_criterion.status != 'REMOVED'
+    ORDER BY metrics.cost_micros DESC
+    LIMIT 30`
+  }
+
+  if (level === 'search_terms') {
+    return `SELECT
+      search_term_view.search_term,
+      segments.search_term_match_type,
+      campaign.name,
+      ad_group.name,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros,
+      metrics.conversions,
+      metrics.cost_per_conversion
+    FROM search_term_view
+    WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}'
+    ORDER BY metrics.cost_micros DESC
+    LIMIT 30`
+  }
+
   return `SELECT
     campaign.name,
     campaign.status,
@@ -59,6 +105,53 @@ function buildQuery(dateFrom, dateTo) {
   WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}'
   AND campaign.status != 'REMOVED'
   ORDER BY metrics.cost_micros DESC`
+}
+
+/** keyword_view e search_term_view não têm segments.date no SELECT (ver
+ *  buildQuery), então cada linha já é o total do período pra aquela
+ *  palavra-chave/termo — só recalcula CTR e custo/conversão a partir dos
+ *  totais da própria linha (mesma lógica de aggregateResults, sem precisar
+ *  somar linhas diferentes). */
+function mapKeywordRows(rows) {
+  return rows.map((row) => {
+    const impressions = num(row.metrics?.impressions)
+    const clicks = num(row.metrics?.clicks)
+    const costMicros = num(row.metrics?.costMicros)
+    const conversions = num(row.metrics?.conversions)
+    return {
+      campanha: row.campaign?.name ?? '—',
+      grupoDeAnuncios: row.adGroup?.name ?? '—',
+      palavraChave: row.adGroupCriterion?.keyword?.text ?? '—',
+      tipoDeCorrespondencia: row.adGroupCriterion?.keyword?.matchType ?? '—',
+      impressoes: impressions,
+      cliques: clicks,
+      custo: costMicros / 1_000_000,
+      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+      conversoes: conversions,
+      custoPorConversao: conversions > 0 ? costMicros / conversions / 1_000_000 : 0,
+    }
+  })
+}
+
+function mapSearchTermRows(rows) {
+  return rows.map((row) => {
+    const impressions = num(row.metrics?.impressions)
+    const clicks = num(row.metrics?.clicks)
+    const costMicros = num(row.metrics?.costMicros)
+    const conversions = num(row.metrics?.conversions)
+    return {
+      termoDePesquisa: row.searchTermView?.searchTerm ?? '—',
+      tipoDeCorrespondencia: row.segments?.searchTermMatchType ?? '—',
+      campanha: row.campaign?.name ?? '—',
+      grupoDeAnuncios: row.adGroup?.name ?? '—',
+      impressoes: impressions,
+      cliques: clicks,
+      custo: costMicros / 1_000_000,
+      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+      conversoes: conversions,
+      custoPorConversao: conversions > 0 ? costMicros / conversions / 1_000_000 : 0,
+    }
+  })
 }
 
 /** A GAQL traz 1 linha por campanha+dia (por causa de segments.date) — soma
@@ -142,6 +235,7 @@ export default async function handler(req, res) {
   try {
     const customerId = String(req.query.customer_id || '').replace(/\D/g, '')
     const { date_from: dateFrom, date_to: dateTo } = req.query
+    const level = VALID_LEVELS.has(req.query.level) ? req.query.level : 'campaign'
 
     if (!customerId) {
       return res.status(400).json({ error: 'Parâmetro obrigatório ausente: customer_id' })
@@ -171,7 +265,7 @@ export default async function handler(req, res) {
       return res.status(err.httpStatus || 502).json({ error: err.message, code: err.httpStatus || 502 })
     }
 
-    const query = buildQuery(dateFrom, dateTo)
+    const query = buildQuery(dateFrom, dateTo, level)
     const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:search`
     // Sem login-customer-id próprio configurado, assume que o refresh token
     // tem acesso direto à conta (sem hierarquia de gerenciador/MCC no meio).
@@ -220,9 +314,21 @@ export default async function handler(req, res) {
     }
 
     const rows = data.results ?? []
-    const { summary, campaigns, daily } = aggregateResults(rows)
 
-    console.log(`[google/insights] OK — linhas: ${rows.length} — campanhas: ${campaigns.length}`)
+    if (level === 'keywords') {
+      const keywords = mapKeywordRows(rows)
+      console.log(`[google/insights] OK — level=keywords — linhas: ${keywords.length}`)
+      return res.status(200).json({ level, keywords })
+    }
+
+    if (level === 'search_terms') {
+      const searchTerms = mapSearchTermRows(rows)
+      console.log(`[google/insights] OK — level=search_terms — linhas: ${searchTerms.length}`)
+      return res.status(200).json({ level, searchTerms })
+    }
+
+    const { summary, campaigns, daily } = aggregateResults(rows)
+    console.log(`[google/insights] OK — campanhas: ${campaigns.length}`)
     return res.status(200).json({ summary, campaigns, daily })
   } catch (err) {
     console.error('[google/insights] erro interno:', err)

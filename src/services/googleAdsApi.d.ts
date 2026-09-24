@@ -36,3 +36,41 @@ export interface GoogleAdsInsights {
 }
 
 export function getGoogleAdsInsights(customerId: string, dateFrom: string, dateTo: string): Promise<GoogleAdsInsights>
+
+export interface GoogleAdsKeywordInsight {
+  campanha: string
+  grupoDeAnuncios: string
+  palavraChave: string
+  tipoDeCorrespondencia: string
+  impressoes: number
+  cliques: number
+  custo: number
+  ctr: number
+  conversoes: number
+  custoPorConversao: number
+}
+
+export interface GoogleAdsSearchTermInsight {
+  termoDePesquisa: string
+  tipoDeCorrespondencia: string
+  campanha: string
+  grupoDeAnuncios: string
+  impressoes: number
+  cliques: number
+  custo: number
+  ctr: number
+  conversoes: number
+  custoPorConversao: number
+}
+
+export function getGoogleAdsKeywordInsights(
+  customerId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<{ level: 'keywords'; keywords: GoogleAdsKeywordInsight[] }>
+
+export function getGoogleAdsSearchTermInsights(
+  customerId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<{ level: 'search_terms'; searchTerms: GoogleAdsSearchTermInsight[] }>

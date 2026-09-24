@@ -8,7 +8,7 @@ import { useClientSuccessEvaluations } from './useClientSuccessEvaluations'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 import { metaTotals, googleTotals } from '../utils/campaignPlanningStats'
 import { fetchMetaAgencyOverview } from '../services/metaAgencyService'
-import { getGoogleAdsInsights } from '../services/googleAdsApi'
+import { getGoogleAdsInsights, getGoogleAdsKeywordInsights, getGoogleAdsSearchTermInsights } from '../services/googleAdsApi'
 import { CLIENT_STATUS_LABEL, type Client } from '../types/client'
 import type { AiPageContext } from '../types/ai'
 
@@ -58,6 +58,13 @@ function last30dRange() {
  *  do Google a cada mensagem da mesma conversa. */
 let liveCampaignCache: { data: Record<string, unknown>; fetchedAt: number } | null = null
 const LIVE_CACHE_TTL_MS = 5 * 60 * 1000
+
+/** Cache separado (por cliente) pro nível granular de Google Ads (palavras-
+ *  chave e termos de pesquisa) — só busca do cliente que está na tela no
+ *  momento, não da carteira inteira como o `liveCampaignCache` acima: são 2
+ *  chamadas extras à API do Google por cliente (keyword_view + search_term_
+ *  view), inviável repetir pra cada cliente configurado a cada mensagem. */
+let clientGranularCache: { clientId: string; data: Record<string, unknown>; fetchedAt: number } | null = null
 
 /** Monta o contexto automático da página atual pro assistente de IA —
  *  reaproveita hooks já usados em outros pontos do app (mesmos listeners do
@@ -244,11 +251,40 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
       }
     }
 
+    // Nível granular (palavras-chave + termos de pesquisa) só do cliente que
+    // está na tela agora — pra otimização "cirúrgica" (pausar termo ruim,
+    // ajustar lance de uma palavra-chave), que o agregado por campanha acima
+    // não permite. Ver clientGranularCache.
+    let granularData: Record<string, unknown> = {}
+    const currentClient = clientId ? clients.find((c) => c.id === clientId) : undefined
+    const accountId = currentClient?.campaignPlanning?.acessos?.googleAdsAccountId
+    if (currentClient?.modules?.googleAds && accountId) {
+      const now2 = Date.now()
+      if (!clientGranularCache || clientGranularCache.clientId !== clientId || now2 - clientGranularCache.fetchedAt > LIVE_CACHE_TTL_MS) {
+        const { dateFrom, dateTo } = last30dRange()
+        const [keywordResult, searchTermResult] = await Promise.allSettled([
+          getGoogleAdsKeywordInsights(accountId, dateFrom, dateTo),
+          getGoogleAdsSearchTermInsights(accountId, dateFrom, dateTo),
+        ])
+        clientGranularCache = {
+          clientId,
+          fetchedAt: now2,
+          data: {
+            palavrasChaveGoogleAdsUltimos30Dias:
+              keywordResult.status === 'fulfilled' ? keywordResult.value.keywords : { erro: 'Não consegui buscar as palavras-chave agora.' },
+            termosDePesquisaGoogleAdsUltimos30Dias:
+              searchTermResult.status === 'fulfilled' ? searchTermResult.value.searchTerms : { erro: 'Não consegui buscar os termos de pesquisa agora.' },
+          },
+        }
+      }
+      granularData = clientGranularCache.data
+    }
+
     return {
       ...context,
-      data: { ...context.data, ...liveCampaignCache.data },
+      data: { ...context.data, ...liveCampaignCache.data, ...granularData },
     }
-  }, [context, clients])
+  }, [context, clients, clientId])
 
   return { context, resolveContext }
 }

@@ -10,3 +10,24 @@ export async function getGoogleAdsInsights(customerId, dateFrom, dateTo) {
   if (!response.ok) throw new Error(body.error || 'Erro ao buscar dados do Google Ads')
   return body
 }
+
+/** Top 30 palavras-chave por custo no período (keyword_view) — nível que o
+ *  agregado por campanha não tem, pra otimização "cirúrgica" (ajustar lance
+ *  de uma palavra-chave específica). */
+export async function getGoogleAdsKeywordInsights(customerId, dateFrom, dateTo) {
+  const params = new URLSearchParams({ customer_id: customerId, date_from: dateFrom, date_to: dateTo, level: 'keywords' })
+  const response = await fetch(`/api/google/insights?${params.toString()}`)
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.error || 'Erro ao buscar palavras-chave do Google Ads')
+  return body
+}
+
+/** Top 30 termos de pesquisa por custo no período (search_term_view) — pra
+ *  identificar/pausar um termo ruim que está consumindo verba sem converter. */
+export async function getGoogleAdsSearchTermInsights(customerId, dateFrom, dateTo) {
+  const params = new URLSearchParams({ customer_id: customerId, date_from: dateFrom, date_to: dateTo, level: 'search_terms' })
+  const response = await fetch(`/api/google/insights?${params.toString()}`)
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.error || 'Erro ao buscar termos de pesquisa do Google Ads')
+  return body
+}
