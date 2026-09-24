@@ -203,9 +203,12 @@ export function LeadFormRenderer({
   const textStyle = theme.text ? { color: theme.text } : undefined
   const mutedStyle = theme.text ? { color: theme.text, opacity: 0.7 } : undefined
   const isLast = questionIndex >= visibleQuestions.length - 1
-  const align: LeadFormAlign = design.textAlign ?? 'left'
-  const alignText = TEXT_ALIGN_CLASS[align]
-  const alignFlex = JUSTIFY_CLASS[align]
+  // Cada parte com o seu alinhamento: textos do início, botão do início e perguntas.
+  const welcomeAlign: LeadFormAlign = formDesign.textAlign ?? 'left'
+  const align: LeadFormAlign = formDesign.questionAlign ?? welcomeAlign
+  const alignText = TEXT_ALIGN_CLASS[welcomeAlign]
+  const alignFlex = JUSTIFY_CLASS[welcomeAlign]
+  const buttonFlex = JUSTIFY_CLASS[formDesign.welcomeButtonAlign ?? welcomeAlign]
 
   // Redireciona de verdade só na página pública real (onSubmitted definido)
   // — no preview do construtor isso só mostraria uma nota, pra não navegar
@@ -233,12 +236,12 @@ export function LeadFormRenderer({
   ) : null
 
   return (
-    <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} flex-col`} style={{ backgroundColor }}>
+    <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} flex-col`} style={{ background: backgroundColor }}>
       {fullScreen && banner}
       <div className={`flex flex-1 items-center justify-center ${fullScreen ? 'px-5 py-10 sm:px-8' : 'px-4 py-8'}`}>
       <div
         className={fullScreen ? 'w-full max-w-2xl' : 'w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 shadow-sm'}
-        style={fullScreen ? undefined : { backgroundColor: theme.card }}
+        style={fullScreen ? undefined : { background: theme.card }}
       >
         {!fullScreen && banner}
         <div className={fullScreen ? '' : 'p-6 sm:p-8'}>
@@ -253,12 +256,12 @@ export function LeadFormRenderer({
               <h1 className={`mb-1 whitespace-pre-wrap font-bold text-slate-900 ${fullScreen ? 'text-2xl sm:text-3xl' : 'text-xl'} ${alignText}`} style={textStyle}>{design.title || form.name}</h1>
               {design.subtitle && <p className={`whitespace-pre-wrap text-sm text-slate-500 ${alignText}`} style={mutedStyle}>{design.subtitle}</p>}
               <VideoEmbed url={design.welcomeVideoUrl} />
-              <div className={`mt-5 flex ${alignFlex}`}>
+              <div className={`mt-5 flex ${buttonFlex}`}>
                 <button
                   type="button"
                   onClick={handleStart}
                   disabled={visibleQuestions.length === 0}
-                  style={{ backgroundColor: primaryColor, color: theme.buttonText }}
+                  style={{ background: primaryColor, color: theme.buttonText }}
                   className="flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
                   {design.welcomeButtonLabel || 'Começar'} <ArrowRight size={14} />
@@ -269,10 +272,10 @@ export function LeadFormRenderer({
 
           {(shownPhase === 'question' || shownPhase === 'submitting') && currentQuestion && (
             <div>
-              <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-slate-100" style={theme.text ? { backgroundColor: `${theme.text}26` } : undefined}>
+              <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-slate-100" style={theme.text ? { background: `${theme.text}26` } : undefined}>
                 <div
                   className="h-full rounded-full transition-all duration-300 ease-in-out"
-                  style={{ width: `${((questionIndex + 1) / Math.max(visibleQuestions.length, 1)) * 100}%`, backgroundColor: primaryColor }}
+                  style={{ width: `${((questionIndex + 1) / Math.max(visibleQuestions.length, 1)) * 100}%`, background: primaryColor }}
                 />
               </div>
               <p className="mb-3 text-xs font-medium text-slate-400" style={mutedStyle}>
@@ -307,7 +310,7 @@ export function LeadFormRenderer({
                   type="button"
                   onClick={goNext}
                   disabled={shownPhase === 'submitting'}
-                  style={{ backgroundColor: primaryColor, color: theme.buttonText }}
+                  style={{ background: primaryColor, color: theme.buttonText }}
                   className="ml-auto flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
                   {shownPhase === 'submitting' ? (
@@ -421,11 +424,11 @@ function QuestionField({
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
                   checked ? '' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                 }`}
-                style={checked ? { borderColor: theme.primary, backgroundColor: `${theme.primary}1A`, color: theme.primary } : theme.text ? { color: theme.text } : undefined}
+                style={checked ? { borderColor: theme.primary, background: `${theme.primary}1A`, color: theme.primary } : theme.text ? { color: theme.text } : undefined}
               >
                 <span
                   className={`flex h-4 w-4 shrink-0 items-center justify-center border ${isMulti ? 'rounded' : 'rounded-full'} ${checked ? '' : 'border-slate-300'}`}
-                  style={checked ? { borderColor: theme.primary, backgroundColor: theme.primary } : undefined}
+                  style={checked ? { borderColor: theme.primary, background: theme.primary } : undefined}
                 >
                   {checked && <span className={`h-1.5 w-1.5 bg-white ${isMulti ? 'rounded-sm' : 'rounded-full'}`} />}
                 </span>

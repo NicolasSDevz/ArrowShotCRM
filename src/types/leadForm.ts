@@ -151,8 +151,13 @@ export interface LeadFormDesign {
   backgroundColor?: string
   /** Texto do botão da tela de boas-vindas. Default: "Começar". */
   welcomeButtonLabel?: string
-  /** Alinhamento dos textos da tela de início e das perguntas. Default: esquerda. */
+  /** Alinhamento dos textos da tela de início. Default: esquerda. */
   textAlign?: LeadFormAlign
+  /** Alinhamento do botão da tela de início. Sem valor = igual aos textos. */
+  welcomeButtonAlign?: LeadFormAlign
+  /** Alinhamento das perguntas. Sem valor = igual à tela de início
+   *  (formulários antigos usavam um alinhamento só pra tudo). */
+  questionAlign?: LeadFormAlign
   /** 'full' (padrão) = o formulário ocupa a tela inteira, sem quadrado;
    *  'card' = conteúdo dentro de um cartão no meio da página. */
   layout?: 'full' | 'card'

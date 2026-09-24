@@ -39,8 +39,11 @@ export function WelcomeScreenEditor({ design, onDesignChange, formId, canUpload 
         </Field>
       </EditorSection>
 
-      <EditorSection title="Alinhamento" hint="Vale pro título, descrição, botão e perguntas.">
-        <AlignControl label="Alinhar textos" value={design.textAlign ?? 'left'} onChange={(v) => set('textAlign', v)} />
+      <EditorSection title="Alinhamento" hint="Só desta tela de início. As perguntas têm o alinhamento próprio em Cores e tema.">
+        <div className="grid grid-cols-2 gap-2">
+          <AlignControl label="Textos" value={design.textAlign ?? 'left'} onChange={(v) => set('textAlign', v)} />
+          <AlignControl label="Botão" value={design.welcomeButtonAlign ?? design.textAlign ?? 'left'} onChange={(v) => set('welcomeButtonAlign', v)} />
+        </div>
       </EditorSection>
 
       <EditorSection title="Vídeo de apresentação (VSL)" hint="Aparece abaixo do título, antes do botão. Deixe em branco pra não usar vídeo.">
@@ -154,7 +157,7 @@ export function ThemeEditor({
           ))}
         </div>
       </EditorSection>
-      <EditorSection title="Modelos prontos" hint="Clique pra aplicar e depois ajuste as cores abaixo se quiser.">
+      <EditorSection title="Modelos prontos" hint="Troca todas as cores de uma vez (e limpa as cores por tela). Depois ajuste o que quiser.">
         <ColorPresetPicker design={design} onDesignChange={onDesignChange} />
       </EditorSection>
       <EditorSection title="Cores gerais" hint="Valem pra todas as telas.">
@@ -191,8 +194,8 @@ export function ThemeEditor({
           <p className="text-xs text-slate-400">Cada tela final ainda pode ter a própria cor de fundo em "Visual só desta tela".</p>
         )}
       </EditorSection>
-      <EditorSection title="Alinhamento dos textos" hint="Tela de início e perguntas. Nas telas finais cada bloco tem o seu.">
-        <AlignControl label="Alinhar textos" value={design.textAlign ?? 'left'} onChange={(v) => set('textAlign', v)} />
+      <EditorSection title="Alinhamento das perguntas" hint="Só das telas de pergunta. A tela de início tem o próprio (em Tela de início) e nas telas finais cada bloco tem o seu.">
+        <AlignControl label="Alinhar perguntas" value={design.questionAlign ?? design.textAlign ?? 'left'} onChange={(v) => set('questionAlign', v)} />
       </EditorSection>
     </div>
   )

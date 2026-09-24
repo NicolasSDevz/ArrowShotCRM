@@ -91,7 +91,7 @@ export function LeadFormBlocksView({
                   target="_blank"
                   rel="noreferrer noopener"
                   onClick={interactive ? undefined : (e) => e.preventDefault()}
-                  style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                  style={{ background: primaryColor, color: buttonTextColor }}
                   className={`rounded-lg px-6 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90 ${b.width === 'full' ? 'w-full' : ''}`}
                 >
                   {b.label}
