@@ -34,7 +34,7 @@ const C = {
 
 function TypingDots() {
   return (
-    <div className="flex items-center gap-1 rounded-2xl px-3.5 py-2.5" style={{ border: `1px solid ${C.border}`, backgroundColor: C.white }}>
+    <div className="ai-bubble flex items-center gap-1 rounded-2xl px-3.5 py-2.5" style={{ border: `1px solid ${C.border}`, backgroundColor: C.white }}>
       {[0, 1, 2].map((i) => (
         <span
           key={i}
@@ -61,7 +61,7 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
         </div>
       ) : (
         <div
-          className="ai-md max-w-[92%] overflow-x-auto rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
+          className="ai-md ai-bubble max-w-[92%] overflow-x-auto rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
           style={{ border: `1px solid ${C.border}`, backgroundColor: C.white, color: C.dark }}
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
@@ -122,6 +122,26 @@ export function AiChatPanel({
         .ai-md th, .ai-md td { border: 1px solid #E2E8F0; padding: 4px 7px; text-align: left; }
         .ai-md th { background: #F8FAFC; font-weight: 700; color: #0F172A; }
         .ai-md hr { border: none; border-top: 1px solid #E2E8F0; margin: 10px 0; }
+        /* Modo escuro: o painel inteiro ganha cores escuras próprias, fixas
+           (com !important pra vencer o style inline e as regras genéricas de
+           index.css). Antes só parte do painel escurecia, e negrito/título/
+           link ficavam escuro sobre escuro. */
+        :root[data-theme="dark"] .ai-body { background-color: #111113 !important; }
+        :root[data-theme="dark"] .ai-footer { background-color: #151516 !important; border-top-color: #2a2a2e !important; }
+        :root[data-theme="dark"] .ai-bubble { background-color: #1c1c1f !important; border-color: #2e2e33 !important; color: #d6d7db !important; }
+        :root[data-theme="dark"] .ai-md p, :root[data-theme="dark"] .ai-md li, :root[data-theme="dark"] .ai-md td { color: #d6d7db !important; }
+        :root[data-theme="dark"] .ai-input { background-color: #1c1c1f !important; border-color: #2e2e33 !important; color: #e8e8ea !important; }
+        :root[data-theme="dark"] .ai-md strong,
+        :root[data-theme="dark"] .ai-md h1,
+        :root[data-theme="dark"] .ai-md h2,
+        :root[data-theme="dark"] .ai-md h3,
+        :root[data-theme="dark"] .ai-md th { color: #f1f1f3 !important; }
+        :root[data-theme="dark"] .ai-md a { color: #86adf2 !important; }
+        :root[data-theme="dark"] .ai-md code { background: #2a2a2f; color: #f1f1f3 !important; }
+        :root[data-theme="dark"] .ai-md th { background: #232327; }
+        :root[data-theme="dark"] .ai-md th,
+        :root[data-theme="dark"] .ai-md td { border-color: #34343a !important; }
+        :root[data-theme="dark"] .ai-md hr { border-top-color: #34343a !important; }
         .ai-chip { transition: color 120ms, border-color 120ms; }
         .ai-chip:hover { border-color: ${C.brand} !important; color: ${C.brandDark} !important; }
         .ai-icon-btn { transition: color 120ms, background-color 120ms; }
@@ -147,7 +167,7 @@ export function AiChatPanel({
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: C.panelBg }}>
+      <div ref={scrollRef} className="ai-body flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: C.panelBg }}>
         {messages.length === 0 ? (
           <div className="flex flex-col gap-4">
             <MessageBubble message={{ role: 'assistant', content: WELCOME_MESSAGE }} />
@@ -157,7 +177,7 @@ export function AiChatPanel({
                   <button
                     key={q}
                     onClick={() => onSuggestedClick(q)}
-                    className="ai-chip rounded-full px-3 py-1.5 text-xs font-medium"
+                    className="ai-chip ai-bubble rounded-full px-3 py-1.5 text-xs font-medium"
                     style={{ border: `1px solid ${C.border}`, backgroundColor: C.white, color: C.slate600 }}
                   >
                     {q}
@@ -176,7 +196,7 @@ export function AiChatPanel({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 px-3 py-3" style={{ borderTop: `1px solid ${C.border}`, backgroundColor: C.white }}>
+      <div className="ai-footer flex shrink-0 items-center gap-2 px-3 py-3" style={{ borderTop: `1px solid ${C.border}`, backgroundColor: C.white }}>
         <input
           value={input}
           onChange={(e) => onInputChange(e.target.value)}

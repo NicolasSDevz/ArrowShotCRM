@@ -50,9 +50,9 @@ export async function updateUserPhoto(uid: string, photoURL: string) {
 }
 
 /** Heartbeat de presença: mexe SÓ em lastSeenAt do próprio perfil (sem updatedAt/updatedBy, que são de edição de verdade) — permitido pelas regras porque role/active não mudam. Falha em silêncio: presença é enfeite, nunca deve quebrar a tela. */
-export async function touchPresence(uid: string) {
+export async function touchPresence(uid: string, state: 'online' | 'away' = 'online') {
   try {
-    await updateDoc(doc(db, COLLECTION, uid), { lastSeenAt: serverTimestamp() })
+    await updateDoc(doc(db, COLLECTION, uid), { lastSeenAt: serverTimestamp(), presenceState: state })
   } catch (err) {
     console.warn('Não foi possível atualizar a presença.', err)
   }

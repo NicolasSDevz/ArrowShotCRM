@@ -1,25 +1,62 @@
 import { useEffect } from 'react'
 import { touchPresence } from '../services/userService'
-import { PRESENCE_HEARTBEAT_MS } from '../utils/presence'
+import { PRESENCE_HEARTBEAT_MS, PRESENCE_IDLE_MS } from '../utils/presence'
 
-/** Avisa a cada minuto (enquanto a aba está visível) que o usuário está com o
- *  CRM aberto — grava `lastSeenAt` no próprio perfil. Aba escondida/minimizada
- *  para de avisar, então a pessoa some da lista de online depois de ~2 min.
- *  Voltar pra aba avisa na hora. `uid` nulo = ninguém logado, não faz nada. */
+const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'wheel'] as const
+
+/** Presença estilo WhatsApp. A aba conta como "ativa" quando está visível E a
+ *  pessoa mexeu no mouse/teclado nos últimos 5 min. Aba ativa avisa "online"
+ *  a cada 30s; ao ficar escondida, ociosa ou ser fechada, avisa "ausente" na
+ *  hora (em vez de esperar o aviso vencer). Com várias abas abertas, quando
+ *  uma sai as outras que ainda estão ativas reafirmam "online" logo em
+ *  seguida, via BroadcastChannel, pra ninguém sumir por engano. */
 export function usePresenceHeartbeat(uid: string | null | undefined) {
   useEffect(() => {
     if (!uid) return
-    const ping = () => {
-      if (document.visibilityState === 'visible') void touchPresence(uid)
+    let lastActivity = Date.now()
+    let announced: 'online' | 'away' | null = null
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(`crm-presence-${uid}`) : null
+
+    const isActive = () => document.visibilityState === 'visible' && Date.now() - lastActivity < PRESENCE_IDLE_MS
+
+    const goOnline = () => {
+      announced = 'online'
+      void touchPresence(uid, 'online')
     }
-    ping()
-    const timer = setInterval(ping, PRESENCE_HEARTBEAT_MS)
-    document.addEventListener('visibilitychange', ping)
-    window.addEventListener('focus', ping)
+    const goAway = () => {
+      if (announced === 'away') return
+      announced = 'away'
+      void touchPresence(uid, 'away')
+      channel?.postMessage('left')
+    }
+    const tick = () => (isActive() ? goOnline() : goAway())
+
+    const onActivity = () => {
+      lastActivity = Date.now()
+      // Voltou (da aba escondida ou de ociosidade): avisa online na hora.
+      if (announced !== 'online' && document.visibilityState === 'visible') goOnline()
+    }
+    const onVisibility = () => (document.visibilityState === 'visible' ? onActivity() : goAway())
+    // Outra aba do mesmo usuário saiu: se esta ainda está ativa, reafirma online
+    // depois que o "ausente" dela já foi gravado.
+    const onMessage = () => {
+      if (isActive()) setTimeout(goOnline, 800)
+    }
+
+    tick()
+    const timer = setInterval(tick, PRESENCE_HEARTBEAT_MS)
+    for (const ev of ACTIVITY_EVENTS) window.addEventListener(ev, onActivity, { passive: true })
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', onActivity)
+    window.addEventListener('pagehide', goAway)
+    channel?.addEventListener('message', onMessage)
     return () => {
       clearInterval(timer)
-      document.removeEventListener('visibilitychange', ping)
-      window.removeEventListener('focus', ping)
+      for (const ev of ACTIVITY_EVENTS) window.removeEventListener(ev, onActivity)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', onActivity)
+      window.removeEventListener('pagehide', goAway)
+      channel?.close()
     }
   }, [uid])
 }

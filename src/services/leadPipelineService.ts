@@ -16,7 +16,6 @@ export function subscribeLeadPipelines(onData: (items: LeadPipeline[]) => void, 
 export interface PipelineInput {
   name: string
   fields: PipelineField[]
-  /** Ignorado no pipeline padrão (as etapas dele são fixas). */
   stages?: PipelineStage[]
 }
 
@@ -44,7 +43,8 @@ export async function saveLeadPipeline(id: string, input: PipelineInput, userId:
     {
       name: input.name,
       fields: input.fields,
-      ...(isDefault ? { order: -1, stages: [], createdBy: userId } : { stages: input.stages }),
+      stages: input.stages,
+      ...(isDefault ? { order: -1, createdBy: userId } : {}),
       updatedAt: serverTimestamp(),
       updatedBy: userId,
       ...(isDefault ? { createdAt: serverTimestamp() } : {}),
