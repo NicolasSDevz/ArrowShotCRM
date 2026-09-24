@@ -1,6 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { Plus, Users2, CalendarClock, Briefcase } from 'lucide-react'
 import { useTeamMembers } from '../hooks/useTeamMembers'
+import { useUsers } from '../hooks/useUsers'
+import { useNow } from '../hooks/useNow'
+import { getPresence } from '../utils/presence'
+import { PresenceAvatar } from '../components/ui/PresenceAvatar'
 import { TeamMemberFormModal } from '../components/team/TeamMemberFormModal'
 import { TeamMemberDrawer } from '../components/team/TeamMemberDrawer'
 import { EmergencyInfoModal } from '../components/team/EmergencyInfoModal'
@@ -36,6 +40,9 @@ function SectionTitle({ icon, iconBg, children }: { icon: ReactNode; iconBg: str
 
 export function TeamPage() {
   const { data: members, loading } = useTeamMembers()
+  const { data: users } = useUsers()
+  const now = useNow()
+  const [onlyOnline, setOnlyOnline] = useState(false)
   const [openMemberId, setOpenMemberId] = useState<string | null>(null)
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null)
   const [creating, setCreating] = useState(false)
@@ -43,7 +50,19 @@ export function TeamPage() {
 
   const openMember = members.find((m) => m.id === openMemberId) ?? null
   const emergencyMember = members.find((m) => m.id === emergencyMemberId) ?? null
-  const activeMembers = members.filter((m) => m.status === 'active')
+  // Presença vem do perfil de login (users/{uid}.lastSeenAt) ligado ao membro.
+  const presenceOf = (m: TeamMember) => {
+    const u = m.userId ? users.find((x) => x.id === m.userId) : undefined
+    return m.userId ? getPresence(u?.lastSeenAt, now) : null
+  }
+  // Estilo WhatsApp: quem está online aparece primeiro.
+  const activeMembers = members
+    .filter((m) => m.status === 'active')
+    .map((m, i) => ({ m, i, online: presenceOf(m)?.online ?? false }))
+    .sort((a, b) => Number(b.online) - Number(a.online) || a.i - b.i)
+    .map((x) => x.m)
+  const onlineCount = activeMembers.filter((m) => presenceOf(m)?.online).length
+  const visibleActive = onlyOnline ? activeMembers.filter((m) => presenceOf(m)?.online) : activeMembers
   const inactiveMembers = members.filter((m) => m.status === 'inactive')
 
   return (
@@ -67,7 +86,8 @@ export function TeamPage() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Online agora" value={onlineCount} />
             <StatCard label="Membros ativos" value={activeMembers.length} />
             <StatCard label="Com acesso à plataforma" value={members.filter((m) => !!m.userId).length} />
             <StatCard label="Cargos futuros em aberto" value={FUTURE_ROLES.length} />
@@ -77,24 +97,37 @@ export function TeamPage() {
           <SectionTitle icon={<Users2 size={13} className="text-white" />} iconBg="bg-brand-500">
             Equipe ativa
           </SectionTitle>
+          <label className="flex w-fit items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" className="h-4 w-4 rounded border-slate-300" checked={onlyOnline} onChange={(e) => setOnlyOnline(e.target.checked)} />
+            Mostrar só quem está online
+          </label>
+          {visibleActive.length === 0 && <p className="text-sm text-slate-400">Ninguém online agora.</p>}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {activeMembers.map((m) => (
+            {visibleActive.map((m) => {
+              const presence = presenceOf(m)
+              return (
               <button
                 key={m.id}
                 onClick={() => setOpenMemberId(m.id)}
                 className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition-all duration-150 ease-in-out hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md"
               >
-                <Avatar name={m.name} photoURL={m.photoURL} size="lg" />
+                {presence ? (
+                  <PresenceAvatar name={m.name} photoURL={m.photoURL} size="lg" online={presence.online} />
+                ) : (
+                  <Avatar name={m.name} photoURL={m.photoURL} size="lg" />
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-slate-800">{m.name}</p>
                   <p className="truncate text-xs text-slate-400">{m.jobTitle || '—'}</p>
+                  {presence && <p className={`truncate text-xs ${presence.online ? 'font-medium text-emerald-600' : 'text-slate-400'}`}>{presence.label}</p>}
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     <Badge className={PERMISSION_BADGE[m.permission]}>{TEAM_PERMISSION_LABEL[m.permission]}</Badge>
                     {!m.userId && <Badge className="bg-slate-100 text-slate-500">Sem login</Badge>}
                   </div>
                 </div>
               </button>
-            ))}
+              )
+            })}
           </div>
 
           {inactiveMembers.length > 0 && (

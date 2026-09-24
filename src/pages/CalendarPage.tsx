@@ -143,16 +143,16 @@ export function CalendarPage() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg border border-slate-200 p-0.5">
             <button
-              onClick={() => setMode('month')}
-              className={`rounded-md px-3 py-1 text-xs font-medium ${mode === 'month' ? 'bg-brand-100 text-brand-700' : 'text-slate-500'}`}
-            >
-              Mês
-            </button>
-            <button
               onClick={() => setMode('week')}
               className={`rounded-md px-3 py-1 text-xs font-medium ${mode === 'week' ? 'bg-brand-100 text-brand-700' : 'text-slate-500'}`}
             >
               Semana
+            </button>
+            <button
+              onClick={() => setMode('month')}
+              className={`rounded-md px-3 py-1 text-xs font-medium ${mode === 'month' ? 'bg-brand-100 text-brand-700' : 'text-slate-500'}`}
+            >
+              Mês
             </button>
           </div>
           <button onClick={() => navigate(-1)} className="rounded-lg border border-slate-200 p-1.5 hover:bg-slate-50">
