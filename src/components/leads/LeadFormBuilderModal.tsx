@@ -13,13 +13,19 @@ import { EndScreenEditor, ThemeEditor, TrackingEditor, WelcomeScreenEditor } fro
 import { parseMetaPixelId } from '../../utils/metaPixel'
 import { LeadFormRenderer } from './LeadFormRenderer'
 import { FIELD_GROUP_PRESETS } from './leadFormFieldGroups'
-import { Toggle } from './LeadFormBuilderParts'
+import { DEFAULT_FORM_COLORS, Toggle } from './LeadFormBuilderParts'
 import { conditionProblem, isChoiceType, newQuestion, visibleOptions } from './leadFormMeta'
 import { effectiveEndBlocks, normalizeUrl, outcomeRules, setDestination, type BuilderSelection, type LeadFormPreviewScreen } from './leadFormUtils'
 import { RoutingEditor } from './LeadFormRoutingEditor'
 import type { LeadForm, LeadFormBlock, LeadFormQuestion, LeadFormDesign, LeadFormOutcome, LeadFormFieldRole } from '../../types/leadForm'
 
 const DEFAULT_THANK_YOU = 'Obrigado! Recebemos suas informações e vamos entrar em contato em breve.'
+
+/** Design de um formulário novo: já começa com cor (o modelo Azul vivo). */
+function newFormDesign(): LeadFormDesign {
+  const c = DEFAULT_FORM_COLORS
+  return { backgroundColor: c.backgroundColor, cardColor: c.cardColor, primaryColor: c.primaryColor, buttonTextColor: c.buttonTextColor, textColor: c.textColor }
+}
 
 function newOutcome(label: string, message: string, isDefault = false): LeadFormOutcome {
   return { id: crypto.randomUUID(), label, message, matchValues: [], isDefault }
@@ -117,7 +123,7 @@ export function LeadFormBuilderModal({
           endBlocks: form.endBlocks,
           metaPixelId: form.metaPixelId ?? '',
         }
-      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: {}, outcomes: [], endBlocks: undefined, metaPixelId: '' }
+      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: newFormDesign(), outcomes: [], endBlocks: undefined, metaPixelId: '' }
     setName(initial.name)
     setSlug(form ? form.id : '')
     setSlugTouched(!!form)

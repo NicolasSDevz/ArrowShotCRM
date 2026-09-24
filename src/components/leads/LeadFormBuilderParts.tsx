@@ -73,7 +73,11 @@ type ColorPreset = { name: string; backgroundColor: string; cardColor: string; p
 
 /** Cada modelo define TODAS as cores (antes só fundo + botão, e uma cor de
  *  texto/cartão escolhida antes ficava misturada — ex: texto claro em fundo claro). */
+/** Cores com que todo formulário novo começa (nada de página toda branca). */
+export const DEFAULT_FORM_COLORS: ColorPreset = { name: 'Azul vivo', backgroundColor: '#1D4ED8', cardColor: '#1E40AF', primaryColor: '#FACC15', buttonTextColor: '#172554', textColor: '#FFFFFF' }
+
 const COLOR_PRESETS: ColorPreset[] = [
+  DEFAULT_FORM_COLORS,
   { name: 'Azul', backgroundColor: '#F8FAFC', cardColor: '#FFFFFF', primaryColor: '#2563EB', buttonTextColor: '#FFFFFF', textColor: '#0F172A' },
   { name: 'Verde', backgroundColor: '#F0FDF4', cardColor: '#FFFFFF', primaryColor: '#16A34A', buttonTextColor: '#FFFFFF', textColor: '#14532D' },
   { name: 'Roxo', backgroundColor: '#FAF5FF', cardColor: '#FFFFFF', primaryColor: '#9333EA', buttonTextColor: '#FFFFFF', textColor: '#3B0764' },

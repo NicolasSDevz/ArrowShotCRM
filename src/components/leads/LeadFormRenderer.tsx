@@ -510,7 +510,8 @@ function QuestionField({
                 type="button"
                 onClick={() => (isMulti ? onToggleOption(opt.id) : onChange(opt.id))}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
-                  checked ? '' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                  // Com cor de texto do tema (fundo colorido/escuro), o hover só clareia — branco apagaria o texto.
+                  checked ? '' : `border-slate-200 text-slate-700 ${theme.text ? 'hover:bg-white/10' : 'hover:bg-slate-50'}`
                 }`}
                 style={checked ? { borderColor: theme.primary, background: `${theme.primary}1A`, color: theme.primary } : theme.text ? { color: theme.text } : undefined}
               >
