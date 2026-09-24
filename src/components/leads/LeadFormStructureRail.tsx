@@ -292,6 +292,11 @@ export function LeadFormStructureRail({
           <button type="button" onClick={onAddOutcome} className="mt-1 flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50">
             <Plus size={12} /> Adicionar tela final
           </button>
+          <div className="mt-1">
+            <RailButton selected={selection.kind === 'routing'} onClick={() => onSelect({ kind: 'routing' })} icon={<GitBranch size={14} />}>
+              Qual resposta vai pra qual tela
+            </RailButton>
+          </div>
         </>
       ) : (
         <>

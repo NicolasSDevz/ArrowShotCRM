@@ -14,7 +14,8 @@ import { LeadFormRenderer } from './LeadFormRenderer'
 import { FIELD_GROUP_PRESETS } from './leadFormFieldGroups'
 import { Toggle } from './LeadFormBuilderParts'
 import { conditionProblem, isChoiceType, newQuestion, visibleOptions } from './leadFormMeta'
-import { effectiveEndBlocks, normalizeUrl, outcomeRules, type BuilderSelection, type LeadFormPreviewScreen } from './leadFormUtils'
+import { effectiveEndBlocks, normalizeUrl, outcomeRules, setDestination, type BuilderSelection, type LeadFormPreviewScreen } from './leadFormUtils'
+import { RoutingEditor } from './LeadFormRoutingEditor'
 import type { LeadForm, LeadFormBlock, LeadFormQuestion, LeadFormDesign, LeadFormOutcome, LeadFormFieldRole } from '../../types/leadForm'
 
 const DEFAULT_THANK_YOU = 'Obrigado! Recebemos suas informações e vamos entrar em contato em breve.'
@@ -209,7 +210,7 @@ export function LeadFormBuilderModal({
     // Nasce com o mesmo conteúdo da tela atual (copiado) pra não abrir vazia.
     const extra = { ...newOutcome('Lead qualificado', ''), blocks: cloneBlocks(def.blocks), rules: [] }
     setOutcomes([extra, def])
-    setSelection({ kind: 'end', id: extra.id })
+    setSelection({ kind: 'routing' })
   }
 
   const disableRouting = () => {
@@ -285,12 +286,11 @@ export function LeadFormBuilderModal({
         const name = o.label || 'sem nome'
         const rules = outcomeRules({ qualificationQuestionId: null }, o)
         if (!o.isDefault) {
-          if (rules.length === 0) return fail(`A tela final "${name}" ainda não tem nenhuma regra — escolha qual pergunta e quais respostas levam a ela`, sel)
-          for (const r of rules) {
-            const rq = questions.find((q) => q.id === r.questionId)
-            if (!rq || !isChoiceType(rq.type)) return fail(`A tela final "${name}" usa uma pergunta que não existe mais`, sel)
-            if (r.values.length === 0) return fail(`Na tela final "${name}", marque pelo menos uma resposta em cada regra`, sel)
-          }
+          if (rules.length === 0) return fail(`Nenhuma resposta leva pra tela final "${name}" — escolha em "Qual resposta vai pra qual tela"`, { kind: 'routing' })
+        }
+        for (const r of rules) {
+          const rq = questions.find((q) => q.id === r.questionId)
+          if (!rq || !isChoiceType(rq.type)) return fail(`A tela final "${name}" usa uma pergunta que não existe mais`, { kind: 'routing' })
         }
         if (badVideo(o.design?.resultVideoUrl)) return fail(`O link do vídeo da tela final "${name}" não é válido`, sel)
       }
@@ -555,6 +555,17 @@ export function LeadFormBuilderModal({
                   onDuplicate={() => duplicateQuestion(sel.id)}
                 />
               )}
+              {sel.kind === 'routing' && (
+                <RoutingEditor
+                  questions={questions}
+                  outcomes={outcomes}
+                  onSetDestination={(qid, optId, outcomeId) => setOutcomes((prev) => setDestination(prev, qid, optId, outcomeId))}
+                  onMoveOutcome={moveOutcome}
+                  onSetDefault={setDefaultOutcome}
+                  onOpenOutcome={(id) => setSelection({ kind: 'end', id })}
+                  onEnableRouting={enableRouting}
+                />
+              )}
               {sel.kind === 'end' && (
                 <EndScreenEditor
                   key={sel.id ?? 'single'}
@@ -570,6 +581,7 @@ export function LeadFormBuilderModal({
                   onOutcomeChange={(patch) => selectedOutcome && updateOutcome(selectedOutcome.id, patch)}
                   onSetDefault={() => selectedOutcome && setDefaultOutcome(selectedOutcome.id)}
                   onRemoveOutcome={() => selectedOutcome && removeOutcome(selectedOutcome.id)}
+                  onOpenRouting={() => setSelection({ kind: 'routing' })}
                   formId={slug || 'preview'}
                   canUpload={canUpload}
                 />

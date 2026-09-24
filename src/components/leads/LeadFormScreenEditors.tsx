@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { Trash2, Info, Flag, Plus, ArrowUp, ArrowDown, GitBranch, X as XIcon } from 'lucide-react'
+import { Trash2, Info, Flag, Plus, ArrowUp, ArrowDown, GitBranch } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { ColorField, ColorPresetPicker, EditorSection, ImageUploadField, VideoField } from './LeadFormBuilderParts'
 import { AlignControl, LeadFormBlocksEditor } from './LeadFormBlocksEditor'
 import { parseMetaPixelId } from '../../utils/metaPixel'
 import { isChoiceType, visibleOptions } from './leadFormMeta'
 import { outcomeRules } from './leadFormUtils'
-import type { LeadFormBlock, LeadFormDesign, LeadFormImageFormat, LeadFormOutcome, LeadFormColors, LeadFormOutcomeRule, LeadFormQuestion, LeadFormScreenKey } from '../../types/leadForm'
+import type { LeadFormBlock, LeadFormDesign, LeadFormImageFormat, LeadFormOutcome, LeadFormColors, LeadFormQuestion, LeadFormScreenKey } from '../../types/leadForm'
 
 interface DesignEditorProps {
   design: LeadFormDesign
@@ -325,6 +325,7 @@ export function EndScreenEditor({
   onSetDefault,
   onMoveOutcome,
   onRemoveOutcome,
+  onOpenRouting,
   formId,
   canUpload,
 }: {
@@ -340,6 +341,7 @@ export function EndScreenEditor({
   onSetDefault: () => void
   onMoveOutcome: (dir: -1 | 1) => void
   onRemoveOutcome: () => void
+  onOpenRouting: () => void
   formId: string
   canUpload: boolean
 }) {
@@ -385,16 +387,7 @@ export function EndScreenEditor({
   }
 
   const rules = outcomeRules({ qualificationQuestionId: null }, outcome)
-  const setRules = (next: LeadFormOutcomeRule[]) => onOutcomeChange({ rules: next, matchValues: [] })
-  const updateRule = (i: number, patch: Partial<LeadFormOutcomeRule>) => setRules(rules.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
-  const addRule = () => {
-    const unused = ruleQuestions.find((q) => !rules.some((r) => r.questionId === q.id)) ?? ruleQuestions[0]
-    if (unused) setRules([...rules, { questionId: unused.id, values: [] }])
-  }
-  const toggleRuleValue = (i: number, optId: string) => {
-    const r = rules[i]
-    updateRule(i, { values: r.values.includes(optId) ? r.values.filter((v) => v !== optId) : [...r.values, optId] })
-  }
+  const questionsInRules = new Set(rules.map((r) => r.questionId))
   const position = outcomes.findIndex((o) => o.id === outcome.id)
 
   return (
@@ -423,108 +416,73 @@ export function EndScreenEditor({
           <Input value={outcome.label} onChange={(e) => onOutcomeChange({ label: e.target.value })} placeholder="Ex: Lead qualificado" />
         </Field>
 
-        {outcome.isDefault ? (
-          <p className="flex items-start gap-1.5 rounded-lg bg-brand-50 p-2.5 text-xs leading-relaxed text-brand-700">
-            <Info size={13} className="mt-0.5 shrink-0" />
-            <span>Essa é a tela <strong>padrão</strong>: aparece pra todo mundo que não se encaixar em nenhuma das outras telas. Por isso ela não tem regras.</span>
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            <p className="text-xs leading-relaxed text-slate-500">
-              Escolha <strong>qual pergunta</strong> e <strong>quais respostas</strong> levam o lead pra essa tela. Dá pra usar várias perguntas.
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-medium text-slate-500">Respostas que trazem o lead pra cá</span>
+          {rules.length === 0 ? (
+            <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-500">
+              {outcome.isDefault ? 'Nenhuma resposta específica.' : 'Nenhuma ainda — essa tela não vai aparecer pra ninguém.'}
             </p>
-
-            {rules.map((r, i) => {
-              const q = questions.find((x) => x.id === r.questionId)
-              const options = q ? visibleOptions(q) : []
-              return (
-                <div key={i} className="rounded-lg border border-brand-100 bg-brand-50/40 p-2.5">
-                  <div className="mb-2 flex items-center gap-1.5">
-                    <GitBranch size={13} className="shrink-0 text-brand-600" />
-                    <span className="flex-1 text-xs font-semibold text-slate-600">Regra {i + 1}</span>
-                    <button type="button" title="Remover regra" onClick={() => setRules(rules.filter((_, idx) => idx !== i))} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500">
-                      <XIcon size={13} />
-                    </button>
-                  </div>
-                  <Field label="Olhar a resposta de">
-                    <Select value={r.questionId} onChange={(e) => updateRule(i, { questionId: e.target.value, values: [] })}>
-                      {!q && (
-                        <option value={r.questionId} disabled>
-                          ⚠ pergunta removida
-                        </option>
-                      )}
-                      {ruleQuestions.map((rq) => (
-                        <option key={rq.id} value={rq.id}>
-                          {questions.indexOf(rq) + 1}. {rq.label}
-                        </option>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {rules.map((r) => {
+                const q = questions.find((x) => x.id === r.questionId)
+                const opts = q ? visibleOptions(q).filter((o) => r.values.includes(o.id)) : []
+                return (
+                  <div key={r.questionId} className="rounded-lg border border-slate-200 p-2 text-xs">
+                    <p className="mb-1 truncate font-medium text-slate-600">
+                      {q ? `${questions.indexOf(q) + 1}. ${q.label}` : 'Pergunta removida'}
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {opts.map((o) => (
+                        <span key={o.id} className="rounded-full bg-brand-600 px-2 py-0.5 font-medium text-white">
+                          {o.label}
+                        </span>
                       ))}
-                    </Select>
-                  </Field>
-                  <span className="mb-1.5 mt-2.5 block text-xs font-medium text-slate-500">Se a resposta for (marque uma ou mais)</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {options.map((opt) => {
-                      const checked = r.values.includes(opt.id)
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => toggleRuleValue(i, opt.id)}
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                            checked ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-slate-300'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      )
-                    })}
+                    </div>
                   </div>
-                  {r.values.length === 0 && <p className="mt-1.5 text-xs text-amber-600">Marque pelo menos uma resposta.</p>}
-                </div>
-              )
-            })}
-
-            <button type="button" onClick={addRule} className="flex w-fit items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
-              <Plus size={12} /> {rules.length === 0 ? 'Adicionar regra' : 'Adicionar outra pergunta'}
-            </button>
-
-            {rules.length > 1 && (
-              <div>
-                <span className="mb-1 block text-[11px] font-medium text-slate-400">Combinar as regras</span>
-                <div className="flex rounded-lg bg-slate-100 p-0.5">
-                  {(
-                    [
-                      [false, 'Qualquer uma delas'],
-                      [true, 'Todas ao mesmo tempo'],
-                    ] as const
-                  ).map(([all, label]) => (
-                    <button
-                      key={String(all)}
-                      type="button"
-                      onClick={() => onOutcomeChange({ matchAll: all })}
-                      className={`h-7 flex-1 rounded-md px-2 text-xs font-semibold transition-colors ${
-                        !!outcome.matchAll === all ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                  {outcome.matchAll
-                    ? 'O lead só vê essa tela se responder como marcado em todas as perguntas.'
-                    : 'O lead vê essa tela se responder como marcado em pelo menos uma das perguntas.'}
-                </p>
-              </div>
-            )}
-
-            <p className="text-xs leading-relaxed text-slate-400">
-              Se o lead se encaixar em mais de uma tela, vale a que estiver mais acima na lista (use as setinhas). Se não se encaixar em nenhuma, ele vê a tela padrão.
+                )
+              })}
+            </div>
+          )}
+          {outcome.isDefault && (
+            <p className="flex items-start gap-1.5 rounded-lg bg-brand-50 p-2.5 text-xs leading-relaxed text-brand-700">
+              <Info size={13} className="mt-0.5 shrink-0" />
+              <span>Essa é a tela <strong>padrão</strong>: além das respostas acima, recebe todo mundo que não se encaixar em nenhuma outra tela.</span>
             </p>
+          )}
+          {questionsInRules.size > 1 && (
+            <div>
+              <span className="mb-1 block text-[11px] font-medium text-slate-400">Quando usa mais de uma pergunta</span>
+              <div className="flex rounded-lg bg-slate-100 p-0.5">
+                {(
+                  [
+                    [false, 'Basta uma bater'],
+                    [true, 'Todas precisam bater'],
+                  ] as const
+                ).map(([all, label]) => (
+                  <button
+                    key={String(all)}
+                    type="button"
+                    onClick={() => onOutcomeChange({ matchAll: all })}
+                    className={`h-7 flex-1 rounded-md px-2 text-xs font-semibold transition-colors ${
+                      !!outcome.matchAll === all ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <button type="button" onClick={onOpenRouting} className="flex w-fit items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700">
+            <GitBranch size={13} /> Escolher qual resposta vai pra qual tela
+          </button>
+          {!outcome.isDefault && (
             <button type="button" onClick={onSetDefault} className="w-fit text-xs font-medium text-slate-400 underline hover:text-slate-600">
               Tornar essa a tela padrão
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </EditorSection>
 
       {contentSection}

@@ -24,6 +24,7 @@ export type BuilderSelection =
   | { kind: 'end'; id: string | null }
   | { kind: 'theme' }
   | { kind: 'tracking' }
+  | { kind: 'routing' }
 
 /** Junta o design da tela por cima do design base, ignorando campos vazios —
  *  um título/vídeo deixado em branco numa tela de resultado herda o do
@@ -64,9 +65,10 @@ function ruleMatches(rule: LeadFormOutcomeRule, answers: LeadFormAnswers): boole
 }
 
 /** Escolhe a tela final pelas respostas do lead: vale a PRIMEIRA tela (na
- *  ordem da lista) cujas regras batem — "qualquer uma" por padrão, "todas" se
- *  `matchAll`. Se nenhuma bater, cai na tela "Padrão". null = formulário sem
- *  telas configuradas (usa o conteúdo da tela final única). */
+ *  ordem da lista = prioridade) cujas regras batem — "qualquer uma" por
+ *  padrão, "todas" se `matchAll`. A tela padrão também pode receber
+ *  respostas (entra na prioridade pela posição dela). Se nenhuma bater, cai
+ *  na tela padrão. null = formulário sem telas configuradas. */
 export function resolveOutcome(
   form: Pick<LeadForm, 'outcomes' | 'qualificationQuestionId'>,
   answers: LeadFormAnswers
@@ -74,12 +76,35 @@ export function resolveOutcome(
   const outcomes = form.outcomes ?? []
   if (outcomes.length === 0) return null
   const matched = outcomes.find((o) => {
-    if (o.isDefault) return false
     const rules = outcomeRules(form, o)
     if (rules.length === 0) return false
     return o.matchAll ? rules.every((r) => ruleMatches(r, answers)) : rules.some((r) => ruleMatches(r, answers))
   })
   return matched ?? outcomes.find((o) => o.isDefault) ?? outcomes[0]
+}
+
+/** Tela final pra onde uma resposta (opção de uma pergunta) leva, ou null
+ *  se essa resposta não decide nada. */
+export function destinationOf(outcomes: LeadFormOutcome[], questionId: string, optionId: string): string | null {
+  const o = outcomes.find((x) => (x.rules ?? []).some((r) => r.questionId === questionId && r.values.includes(optionId)))
+  return o?.id ?? null
+}
+
+/** Faz uma resposta levar pra uma tela (ou pra nenhuma, com null): tira a
+ *  opção de qualquer outra tela antes — cada resposta tem um destino só. */
+export function setDestination(outcomes: LeadFormOutcome[], questionId: string, optionId: string, outcomeId: string | null): LeadFormOutcome[] {
+  return outcomes.map((o) => {
+    let rules = (o.rules ?? [])
+      .map((r) => (r.questionId === questionId ? { ...r, values: r.values.filter((v) => v !== optionId) } : r))
+      .filter((r) => r.values.length > 0)
+    if (o.id === outcomeId) {
+      const existing = rules.find((r) => r.questionId === questionId)
+      rules = existing
+        ? rules.map((r) => (r === existing ? { ...r, values: [...r.values, optionId] } : r))
+        : [...rules, { questionId, values: [optionId] }]
+    }
+    return { ...o, rules, matchValues: [] }
+  })
 }
 
 /** Só aceita http(s), mailto e tel (nada de `javascript:`) e completa o
