@@ -77,6 +77,9 @@ export interface LeadFormDesign {
   /** Link do YouTube exibido na tela final — sobrescrevível por tela de
    *  resultado (ex: um vídeo diferente pra quem se qualificou). */
   resultVideoUrl?: string
+  /** Título da tela final (ex: "Tudo certo!"). Separado de `title`, que é o
+   *  da tela de início — a final não repete o título de abertura. */
+  resultTitle?: string
 }
 
 /** Uma "tela de resultado" mostrada depois do envio — ex: "Lead qualificado"

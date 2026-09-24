@@ -144,6 +144,9 @@ export function EndScreenEditor({
           </div>
         </div>
         <EditorSection title="Mensagem">
+          <Field label="Título (opcional)">
+            <Input value={design.resultTitle ?? ''} onChange={(e) => setForm('resultTitle', e.target.value)} placeholder="Ex: Tudo certo!" />
+          </Field>
           <Textarea rows={3} value={thankYouMessage} onChange={(e) => onThankYouMessageChange(e.target.value)} />
         </EditorSection>
         <EditorSection title="Vídeo (opcional)" hint="Aparece abaixo da mensagem — bom pra explicar os próximos passos.">
@@ -213,6 +216,9 @@ export function EndScreenEditor({
       </EditorSection>
 
       <EditorSection title="Mensagem">
+        <Field label="Título (opcional)">
+          <Input value={od.resultTitle ?? od.title ?? ''} onChange={(e) => onOutcomeChange({ design: { ...od, resultTitle: e.target.value, title: undefined } })} placeholder="Ex: Tudo certo!" />
+        </Field>
         <Textarea rows={3} value={outcome.message} onChange={(e) => onOutcomeChange({ message: e.target.value })} placeholder="Mensagem mostrada pra quem cai nessa tela" />
         <Field label="Ou mandar direto pra um link (no lugar da mensagem)">
           <Input value={outcome.redirectUrl ?? ''} onChange={(e) => onOutcomeChange({ redirectUrl: e.target.value || undefined })} placeholder="https://wa.me/5511999999999" />
@@ -223,10 +229,7 @@ export function EndScreenEditor({
         <VideoField label="Link do YouTube" value={od.resultVideoUrl} onChange={(v) => setOutcomeDesign('resultVideoUrl', v)} />
       </EditorSection>
 
-      <EditorSection title="Visual só desta tela (opcional)" hint="Em branco = herda o título, imagens e cor de fundo do formulário.">
-        <Field label="Título">
-          <Input value={od.title ?? ''} onChange={(e) => setOutcomeDesign('title', e.target.value)} placeholder="Usa o título do formulário se deixar em branco" />
-        </Field>
+      <EditorSection title="Visual só desta tela (opcional)" hint="Em branco = herda as imagens e a cor de fundo do formulário.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <ImageUploadField label="Banner" url={od.bannerUrl} formId={formId} assetKey={`outcome-${outcome.id}-banner`} sizeHint="banner" canUpload={canUpload} onChange={(url) => setOutcomeDesign('bannerUrl', url)} />
           <ImageUploadField label="Foto / logo" url={od.logoUrl} formId={formId} assetKey={`outcome-${outcome.id}-logo`} sizeHint="logo" canUpload={canUpload} onChange={(url) => setOutcomeDesign('logoUrl', url)} />

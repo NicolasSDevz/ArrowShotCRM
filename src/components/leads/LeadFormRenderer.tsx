@@ -192,6 +192,10 @@ export function LeadFormRenderer({
   // a tela em si define — assim ela não precisa repetir banner/cor se não
   // quiser mudar nada.
   const design = shownPhase === 'done' ? mergeDesign(formDesign, matchedOutcome?.design) : formDesign
+  // O título da tela final é próprio dela — nunca herda o da tela de início
+  // (`design.title`), senão a mesma frase de abertura reaparece no fim.
+  // `outcome.design.title` só vale por compatibilidade com telas já salvas.
+  const endTitle = shownPhase === 'done' ? design.resultTitle || matchedOutcome?.design?.title : undefined
   const primaryColor = design.primaryColor || '#2563EB'
   const backgroundColor = design.backgroundColor || '#F8FAFC'
   const isLast = questionIndex >= visibleQuestions.length - 1
@@ -297,7 +301,7 @@ export function LeadFormRenderer({
               </p>
             ) : (
               <>
-                {design.title && <h1 className="mb-1 text-center text-xl font-bold text-slate-900">{design.title}</h1>}
+                {endTitle && <h1 className="mb-1 text-center text-xl font-bold text-slate-900">{endTitle}</h1>}
                 <p className="text-center text-[15px] text-slate-700">{matchedOutcome?.message || form.thankYouMessage}</p>
                 <VideoEmbed url={design.resultVideoUrl} />
               </>
