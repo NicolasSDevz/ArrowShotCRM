@@ -5,7 +5,9 @@ import { trackLeadFormEvent } from '../../services/leadFormAnalyticsService'
 import { ADDRESS_PARTS, ADDRESS_REQUIRED_PARTS, OTHER_OPTION_ID, type AddressPart, type LeadFormAlign, type LeadFormQuestion } from '../../types/leadForm'
 import { AddressQuestionField } from './AddressQuestionField'
 import { FieldGroupQuestionField } from './FieldGroupQuestionField'
-import { missingSubfields } from './leadFormFieldGroups'
+import { invalidSubfields, missingSubfields } from './leadFormFieldGroups'
+import { contactError, type ContactKind } from '../../utils/validation'
+import { maskPhone } from '../../utils/masks'
 import { JUSTIFY_CLASS, LeadFormBlocksView, TEXT_ALIGN_CLASS, VideoEmbed } from './LeadFormBlocksView'
 import {
   effectiveEndBlocks,
@@ -21,7 +23,7 @@ import {
 } from './leadFormUtils'
 
 type Phase = 'welcome' | 'question' | 'submitting' | 'done'
-type FieldError = 'required' | 'other'
+type FieldError = 'required' | 'other' | 'invalid'
 
 /** Renderiza a página de um formulário de captura no estilo Typeform/
  *  YayForms — uma tela de boas-vindas, depois uma pergunta por tela (com
@@ -132,6 +134,16 @@ export function LeadFormRenderer({
           : v === undefined || (Array.isArray(v) ? v.length === 0 : !v.trim())
       if ((q.required || q.type === 'fields') && empty) {
         setErrors((prev) => ({ ...prev, [q.id]: 'required' }))
+        return
+      }
+      // WhatsApp/e-mail preenchido errado (pela pergunta ou pelo campo do lead que ela alimenta).
+      const kind = contactKindOf(q)
+      if (kind && typeof v === 'string' && contactError(kind, v)) {
+        setErrors((prev) => ({ ...prev, [q.id]: 'invalid' }))
+        return
+      }
+      if (q.type === 'fields' && invalidSubfields(q, Array.isArray(v) ? v : []).length > 0) {
+        setErrors((prev) => ({ ...prev, [q.id]: 'invalid' }))
         return
       }
       // Marcou "Outro" mas não disse o quê — sem isso o time não tem como
@@ -458,7 +470,13 @@ function QuestionField({
 
   if (question.type === 'fields') {
     const values = Array.isArray(value) ? value : []
-    const missing = error === 'required' ? new Set(missingSubfields(question, values).map((f) => f.id)) : new Set<string>()
+    const missing = new Set(
+      error === 'required'
+        ? missingSubfields(question, values).map((f) => f.id)
+        : error === 'invalid'
+          ? invalidSubfields(question, values).map((f) => f.id)
+          : []
+    )
     return (
       <div>
         {heading}
@@ -470,6 +488,7 @@ function QuestionField({
           missingIds={missing}
         />
         {error === 'required' && <p className="mt-1 text-xs text-red-500">Preencha os campos marcados</p>}
+        {error === 'invalid' && <p className="mt-1 text-xs text-red-500">Confira os campos marcados: WhatsApp com DDD e e-mail no formato nome@empresa.com</p>}
       </div>
     )
   }
@@ -485,11 +504,30 @@ function QuestionField({
   }
 
   const inputType = question.type === 'email' ? 'email' : question.type === 'phone' ? 'tel' : 'text'
+  const kind = contactKindOf(question)
   return (
     <label className="block">
       {heading}
-      <input autoFocus={autoFocus} type={inputType} className={inputClass} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} onKeyDown={handleEnterKey} />
+      <input
+        autoFocus={autoFocus}
+        type={inputType}
+        inputMode={kind === 'phone' ? 'tel' : kind === 'email' ? 'email' : undefined}
+        placeholder={kind === 'phone' ? '(00) 00000-0000' : kind === 'email' ? 'nome@empresa.com' : undefined}
+        className={`${inputClass} ${error === 'invalid' ? 'border-red-300' : ''}`}
+        value={(value as string) ?? ''}
+        onChange={(e) => onChange(kind === 'phone' ? maskPhone(e.target.value) : e.target.value)}
+        onKeyDown={handleEnterKey}
+      />
       {error === 'required' && <p className="mt-1 text-xs text-red-500">Campo obrigatório</p>}
+      {error === 'invalid' && kind && <p className="mt-1 text-xs text-red-500">{contactError(kind, value as string)}</p>}
     </label>
   )
+}
+
+/** Pergunta que deve ser validada como WhatsApp ou e-mail: pelo tipo ou pelo
+ *  campo do lead que ela alimenta. */
+function contactKindOf(q: LeadFormQuestion): ContactKind | null {
+  if (q.type === 'phone' || q.role === 'whatsapp') return 'phone'
+  if (q.type === 'email' || q.role === 'email') return 'email'
+  return null
 }

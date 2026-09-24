@@ -471,6 +471,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
           <Field label="WhatsApp para campanhas — número com DDD">
             <Input
               value={form.acessos.whatsappNumero ?? ''}
+              validate="phone"
               onChange={(e) => setAccess('whatsappNumero', maskPhone(e.target.value))}
               placeholder="(00) 00000-0000"
             />

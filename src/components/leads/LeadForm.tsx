@@ -48,10 +48,10 @@ export function LeadForm({
           <Input value={value.companyName} onChange={(e) => set('companyName', e.target.value)} />
         </Field>
         <Field label="WhatsApp" required>
-          <Input value={value.whatsapp} onChange={(e) => set('whatsapp', maskPhone(e.target.value))} placeholder="(00) 00000-0000" />
+          <Input validate="phone" value={value.whatsapp} onChange={(e) => set('whatsapp', maskPhone(e.target.value))} placeholder="(00) 00000-0000" />
         </Field>
         <Field label="E-mail">
-          <Input type="email" value={value.email} onChange={(e) => set('email', e.target.value)} />
+          <Input type="email" validate="email" value={value.email} onChange={(e) => set('email', e.target.value)} placeholder="nome@empresa.com" />
         </Field>
         <Field label="Cidade/Região">
           <Input value={value.cityRegion} onChange={(e) => set('cityRegion', e.target.value)} />

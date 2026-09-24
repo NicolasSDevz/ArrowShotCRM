@@ -8,6 +8,7 @@ import { useProducts } from '../../hooks/useProducts'
 import { createLead } from '../../services/leadService'
 import { findUserIdByName } from '../../utils/userLookup'
 import { isPhoneComplete } from '../../utils/masks'
+import { isValidEmail } from '../../utils/validation'
 import { LeadForm } from './LeadForm'
 import type { ResolvedPipeline } from '../../types'
 import { buildDefaultLeadForm, formStateToLeadFields, type LeadFormState } from './leadFormState'
@@ -45,6 +46,10 @@ export function LeadFormModal({ open, onClose, pipeline }: { open: boolean; onCl
     if (!profile) return
     if (!form.contactName.trim()) {
       toast.error('Informe o nome do responsável')
+      return
+    }
+    if (form.email.trim() && !isValidEmail(form.email)) {
+      toast.error('Digite um e-mail válido (ex: nome@empresa.com)')
       return
     }
     if (!isPhoneComplete(form.whatsapp)) {

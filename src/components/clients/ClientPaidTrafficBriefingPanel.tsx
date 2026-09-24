@@ -71,11 +71,12 @@ function ContactListField({
               <Input value={c.name} onChange={(e) => update(c.id, { name: e.target.value })} />
             </Field>
             <Field label="E-mail">
-              <Input type="email" value={c.email} onChange={(e) => update(c.id, { email: e.target.value })} />
+              <Input type="email" validate="email" value={c.email} onChange={(e) => update(c.id, { email: e.target.value })} />
             </Field>
             <Field label="WhatsApp">
               <Input
                 value={c.whatsapp ?? ''}
+                validate="phone"
                 onChange={(e) => update(c.id, { whatsapp: maskPhone(e.target.value) })}
                 placeholder="(00) 00000-0000"
               />

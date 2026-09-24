@@ -49,10 +49,15 @@ export interface LeadFormAnalytics {
  *  firestore.rules). */
 export async function getLeadFormAnalytics(
   formId: string,
-  questions: { id: string; label: string }[]
+  questions: { id: string; label: string }[],
+  /** Só conta eventos a partir dessa data (sem valor = desde o começo). */
+  since?: Date
 ): Promise<LeadFormAnalytics> {
   const snap = await getDocs(query(collection(db, COLLECTION), where('formId', '==', formId)))
-  const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as LeadFormEvent)
+  const sinceMs = since?.getTime()
+  const events = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as unknown as LeadFormEvent)
+    .filter((e) => sinceMs === undefined || (e.createdAt?.toMillis?.() ?? 0) >= sinceMs)
 
   const views = events.filter((e) => e.type === 'view').length
   const starts = events.filter((e) => e.type === 'start').length

@@ -16,6 +16,7 @@ import { useUsers } from '../../hooks/useUsers'
 import { updateLead, deleteLead, convertLeadToClient, addLeadContact, moveLeadToPipeline } from '../../services/leadService'
 import { LeadForm } from './LeadForm'
 import { useProducts } from '../../hooks/useProducts'
+import { contactError } from '../../utils/validation'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { leadToFormState, formStateToLeadFields, type LeadFormState } from './leadFormState'
 import {
@@ -46,6 +47,11 @@ function InfoTab({ lead }: { lead: Lead }) {
 
   const handleSave = async () => {
     if (!profile) return
+    const invalid = contactError('phone', form.whatsapp) ?? contactError('email', form.email)
+    if (invalid) {
+      toast.error(invalid)
+      return
+    }
     setSaving(true)
     try {
       await updateLead(lead.id, formStateToLeadFields(form, products, lead.contractedProductIds ?? []), profile.id, profile.name)

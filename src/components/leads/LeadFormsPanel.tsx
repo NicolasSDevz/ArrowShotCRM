@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { Plus, Copy, Pencil, Trash2, ExternalLink, BarChart3 } from 'lucide-react'
+import { Plus, Copy, Pencil, Trash2, ExternalLink, BarChart3, Eraser } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useLeadForms } from '../../hooks/useLeadForms'
 import { useLeads } from '../../hooks/useLeads'
 import { deleteLeadForm, updateLeadForm } from '../../services/leadFormService'
 import { LeadFormBuilderModal } from './LeadFormBuilderModal'
 import { LeadFormAnalyticsModal } from './LeadFormAnalyticsModal'
+import { ClearFormDataModal } from './ClearFormDataModal'
 import { Button } from '../ui/Button'
 import type { LeadForm } from '../../types/leadForm'
 
@@ -19,6 +20,7 @@ export function LeadFormsPanel() {
   const { data: leads } = useLeads()
   const [editing, setEditing] = useState<LeadForm | null | undefined>(undefined)
   const [viewingStats, setViewingStats] = useState<LeadForm | null>(null)
+  const [clearing, setClearing] = useState<LeadForm | null>(null)
 
   const countByForm = (formId: string) => leads.filter((l) => l.sourceFormId === formId).length
 
@@ -88,6 +90,9 @@ export function LeadFormsPanel() {
                 <button onClick={() => setViewingStats(form)} title="Métricas" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                   <BarChart3 size={14} />
                 </button>
+                <button onClick={() => setClearing(form)} title="Limpar dados de teste (métricas e leads)" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                  <Eraser size={14} />
+                </button>
                 <button onClick={() => setEditing(form)} title="Editar" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                   <Pencil size={14} />
                 </button>
@@ -104,7 +109,16 @@ export function LeadFormsPanel() {
       )}
 
       <LeadFormBuilderModal open={editing !== undefined} onClose={() => setEditing(undefined)} form={editing} />
-      <LeadFormAnalyticsModal open={!!viewingStats} onClose={() => setViewingStats(null)} form={viewingStats} />
+      <ClearFormDataModal form={clearing} leadCount={clearing ? countByForm(clearing.id) : 0} onClose={() => setClearing(null)} />
+      <LeadFormAnalyticsModal
+        open={!!viewingStats}
+        onClose={() => setViewingStats(null)}
+        form={viewingStats}
+        onClearData={(f) => {
+          setViewingStats(null)
+          setClearing(f)
+        }}
+      />
     </div>
   )
 }

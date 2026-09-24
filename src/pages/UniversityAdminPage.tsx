@@ -16,6 +16,7 @@ import { TrailFormModal } from '../components/university/TrailFormModal'
 import { ModuleFormModal } from '../components/university/ModuleFormModal'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Field'
+import { contactError } from '../utils/validation'
 import { Badge } from '../components/ui/Badge'
 import { Avatar } from '../components/ui/Avatar'
 import { Spinner } from '../components/ui/FullPageSpinner'
@@ -249,12 +250,13 @@ export function UniversityAdminPage() {
         <div className="flex max-w-sm gap-2">
           <Input
             type="email"
+            validate="email"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
             placeholder="email@arrowshot.com"
             onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
           />
-          <Button icon={<Mail size={14} />} onClick={handleInvite} disabled={!inviteEmail.trim()}>
+          <Button icon={<Mail size={14} />} onClick={handleInvite} disabled={!inviteEmail.trim() || !!contactError('email', inviteEmail)}>
             Convidar
           </Button>
         </div>

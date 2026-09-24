@@ -293,7 +293,9 @@ service cloud.firestore {
     match /leadFormEvents/{eventId} {
       allow read: if isInternal();
       allow create: if isValidLeadFormEvent();
-      allow update, delete: if false;
+      allow update: if false;
+      // Botão "Limpar dados" do formulário (zera as métricas depois de testar).
+      allow delete: if isInternal();
     }
 
     // ---------- meetings (Registro de Reuniões) ----------

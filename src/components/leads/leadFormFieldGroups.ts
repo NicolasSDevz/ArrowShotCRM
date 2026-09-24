@@ -1,4 +1,5 @@
 import type { LeadFormQuestion, LeadFormSubfield, LeadFormSubfieldType } from '../../types/leadForm'
+import { contactError } from '../../utils/validation'
 
 export const SUBFIELD_TYPE_LABEL: Record<LeadFormSubfieldType, string> = {
   text: 'Texto',
@@ -98,4 +99,9 @@ export function missingSubfields(q: Pick<LeadFormQuestion, 'subfields' | 'requir
   // Pergunta obrigatória sem nenhum campo marcado como obrigatório: pelo menos um preenchido.
   if (q.required && !subs.some((f) => f.required) && !values.some((v) => (v ?? '').trim())) return subs.slice(0, 1)
   return missing
+}
+
+/** Campos de telefone/e-mail preenchidos com valor inválido. */
+export function invalidSubfields(q: Pick<LeadFormQuestion, 'subfields'>, values: string[]): LeadFormSubfield[] {
+  return (q.subfields ?? []).filter((f, i) => (f.type === 'phone' || f.type === 'email') && contactError(f.type, values[i]) !== null)
 }
