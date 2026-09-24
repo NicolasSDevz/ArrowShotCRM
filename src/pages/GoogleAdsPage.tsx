@@ -3,6 +3,7 @@ import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ExternalLink, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { openErrorDialog, toFriendlyError } from '../utils/notifyError'
 import { useClients } from '../hooks/useClients'
 import { useUsers } from '../hooks/useUsers'
 import { useAuth } from '../context/AuthContext'
@@ -355,8 +356,18 @@ export function GoogleAdsPage() {
                       <td className="px-3 py-2.5">
                         <AccountIdCell client={client} />
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-xs" title={result?.status === 'error' ? result.message : undefined}>
-                        {status}
+                      <td className="px-3 py-2.5 whitespace-nowrap text-xs">
+                        {result?.status === 'error' ? (
+                          <button
+                            type="button"
+                            onClick={() => openErrorDialog(toFriendlyError(new Error(result.message), 'Não foi possível buscar os dados do Google Ads desse cliente.'))}
+                            className="font-medium text-red-600 underline decoration-dotted underline-offset-2 hover:text-red-700"
+                          >
+                            🔴 Erro — ver o motivo
+                          </button>
+                        ) : (
+                          status
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? BRL(result.summary.cost) : '--'}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? INT(result.summary.conversions) : '--'}</td>

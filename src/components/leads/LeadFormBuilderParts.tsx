@@ -1,11 +1,11 @@
 import { useRef, useState, type ReactNode } from 'react'
-import toast from 'react-hot-toast'
 import { Upload, X, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react'
 import { Spinner } from '../ui/FullPageSpinner'
 import { Input } from '../ui/Field'
 import { uploadLeadFormImage, LEAD_FORM_IMAGE_ACCEPT_ATTR } from '../../services/leadFormAssetService'
 import { parseYouTubeId } from '../../utils/youtube'
 import type { LeadFormDesign } from '../../types/leadForm'
+import { showError } from '../../utils/notifyError'
 
 /** Bloco com título + explicação curta — usado pra dividir o painel de edição
  *  de cada tela em grupos fáceis de bater o olho. */
@@ -167,7 +167,7 @@ export function ImageUploadField({
     try {
       onChange(await uploadLeadFormImage(formId, assetKey, file, sizeHint))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao enviar imagem')
+      showError(err, 'Erro ao enviar imagem')
     } finally {
       setUploading(false)
     }

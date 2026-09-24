@@ -5,6 +5,7 @@ import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { deleteClient } from '../../services/clientService'
 import type { Client } from '../../types/client'
+import { showError } from '../../utils/notifyError'
 
 export function DeleteClientModal({
   client,
@@ -28,7 +29,7 @@ export function DeleteClientModal({
       onDeleted?.()
     } catch (err) {
       console.error(err)
-      toast.error(err instanceof Error ? err.message : 'Erro ao excluir cliente')
+      showError(err, 'Erro ao excluir cliente')
       setDeleting(false)
     }
   }

@@ -35,6 +35,7 @@ import {
 } from '../../types/client'
 import type { DiscountType, Product } from '../../types/product'
 import { LANDING_PAGE_TYPE_LABEL, type LandingPageType } from '../../types/landingPage'
+import { showError } from '../../utils/notifyError'
 
 const WHATSAPP_GROUP_PREFIX = 'https://chat.whatsapp.com/'
 
@@ -422,7 +423,7 @@ export function ClientFormModal({
         else if (client && logoRemoved && client.logoUrl) await removeClientLogo(targetId, profile.id, profile.name)
       } catch (logoErr) {
         console.error(logoErr)
-        toast.error(logoErr instanceof Error ? logoErr.message : 'Cliente salvo, mas a logo não subiu.')
+        showError(logoErr, 'Cliente salvo, mas a logo não subiu.')
       }
 
       onClose()

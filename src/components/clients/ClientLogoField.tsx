@@ -3,7 +3,7 @@ import { Camera, X } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
 import { ImageCropModal } from '../ui/ImageCropModal'
 import { CLIENT_LOGO_ACCEPT_ATTR, assertValidLogo } from '../../services/clientLogoService'
-import toast from 'react-hot-toast'
+import { showError } from '../../utils/notifyError'
 
 /** Seletor de logo do cliente — preview circular + área clicável + remover.
  *  Não faz upload: o pai decide (imediato na ficha, ao salvar no formulário). */
@@ -42,7 +42,7 @@ export function ClientLogoField({
       assertValidLogo(file)
       setCropFile(file)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Imagem inválida')
+      showError(err, 'Imagem inválida')
     }
   }
 

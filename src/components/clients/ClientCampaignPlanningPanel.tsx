@@ -39,6 +39,7 @@ import {
   type GoogleBidType,
   type PaidTrafficBriefing,
 } from '../../types'
+import { showError } from '../../utils/notifyError'
 
 function toNumberOrUndefined(v: string) {
   return v === '' ? undefined : Number(v)
@@ -250,7 +251,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
       setTokenStatus(await getMetaTokenStatus(client.id))
       toast.success('Token salvo — relatórios deste cliente já usam esse token.')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao salvar token')
+      showError(err, 'Erro ao salvar token')
     } finally {
       setTokenSaving(false)
     }
@@ -264,7 +265,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
       setTokenStatus(await getMetaTokenStatus(client.id))
       toast.success('Token removido')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao remover token')
+      showError(err, 'Erro ao remover token')
     } finally {
       setTokenDeleting(false)
     }
