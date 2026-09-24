@@ -7,10 +7,32 @@ import { deleteProduct } from '../../services/productService'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { ProductFormModal } from './ProductFormModal'
+import { productModules, PRODUCT_MODULE_SHORT } from '../../utils/productModules'
 import type { Product } from '../../types'
 
 function formatBRL(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+/** Mostra (só pra quem edita) o que o serviço liga no CRM — e avisa quando
+ *  ainda não foi configurado, pra ninguém descobrir só na hora de cadastrar
+ *  um cliente. */
+function ProductModuleBadges({ product }: { product: Product }) {
+  const { keys, inferred } = productModules(product)
+  if (keys.length === 0) {
+    return <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">Não liga nenhuma área do CRM — clique em editar e marque o que ele ativa.</p>
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[11px] text-slate-400">Liga no CRM:</span>
+      {keys.map((k) => (
+        <span key={k} className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
+          {PRODUCT_MODULE_SHORT[k]}
+        </span>
+      ))}
+      {inferred && <span className="text-[11px] text-amber-600">(sugerido pelo nome — abra e salve pra confirmar)</span>}
+    </div>
+  )
 }
 
 function ProductCard({ product, canEdit, onEdit, onDelete }: { product: Product; canEdit: boolean; onEdit: () => void; onDelete: () => void }) {
@@ -47,6 +69,10 @@ function ProductCard({ product, canEdit, onEdit, onDelete }: { product: Product;
       </div>
 
       {product.description && <p className="text-sm text-slate-600">{product.description}</p>}
+
+      {canEdit && (
+        <ProductModuleBadges product={product} />
+      )}
 
       {product.bonuses.length > 0 && (
         <ul className="flex flex-col gap-1.5 border-t border-slate-50 pt-3">

@@ -375,6 +375,9 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
   const lastFilled = client.campaignPlanning?.filledAt
   const briefing = client.paidTrafficBriefing
   const briefingFilled = !!briefing?.filledAt
+  // O planejamento só mostra as plataformas que o cliente contratou (vêm dos
+  // serviços do cadastro/catálogo). Sem plataforma definida, cai nas duas.
+  const platformUndefined = !client.modules?.metaAds && !client.modules?.googleAds
 
   return (
     <div className="flex flex-col gap-6">
@@ -388,6 +391,21 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
           </>
         )}
       </p>
+
+      <div
+        className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+          platformUndefined ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-50 text-slate-600'
+        }`}
+      >
+        <span className="font-semibold">Plataformas deste cliente:</span>
+        {svc.meta && <span className="rounded-full bg-violet-100 px-2 py-0.5 font-semibold text-violet-700">Meta Ads</span>}
+        {svc.google && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">Google Ads</span>}
+        <span className="text-slate-400">
+          {platformUndefined
+            ? '— nenhuma plataforma definida no cadastro, então mostro as duas. Edite o cliente e escolha Meta e/ou Google em "Serviços contratados".'
+            : '— vêm dos serviços contratados no cadastro do cliente.'}
+        </span>
+      </div>
 
       {/* SEÇÃO 1 — ACESSOS DAS CONTAS */}
       <div>
@@ -828,7 +846,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Palavras-chave / interesses positivos">
+          <Field label="Interesses e públicos (incluir)">
             <Textarea
               rows={4}
               value={form.metaAds.palavrasChavePositivas ?? ''}
@@ -836,7 +854,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
               placeholder="Uma por linha"
             />
           </Field>
-          <Field label="Palavras-chave / interesses negativos">
+          <Field label="Interesses e públicos (excluir)">
             <Textarea
               rows={4}
               value={form.metaAds.palavrasChaveNegativas ?? ''}

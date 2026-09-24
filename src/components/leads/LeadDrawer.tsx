@@ -15,6 +15,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { updateLead, deleteLead, convertLeadToClient, addLeadContact } from '../../services/leadService'
 import { LeadForm } from './LeadForm'
+import { useProducts } from '../../hooks/useProducts'
 import { leadToFormState, formStateToLeadFields, type LeadFormState } from './leadFormState'
 import {
   LEAD_STATUS_LABEL,
@@ -38,6 +39,7 @@ const CONTACT_TYPE_ICON: Record<LeadContactType, typeof Phone> = {
 function InfoTab({ lead }: { lead: Lead }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
+  const { data: products } = useProducts()
   const [form, setForm] = useState<LeadFormState>(() => leadToFormState(lead))
   const [saving, setSaving] = useState(false)
 
@@ -45,7 +47,7 @@ function InfoTab({ lead }: { lead: Lead }) {
     if (!profile) return
     setSaving(true)
     try {
-      await updateLead(lead.id, formStateToLeadFields(form), profile.id, profile.name)
+      await updateLead(lead.id, formStateToLeadFields(form, products, lead.contractedProductIds ?? []), profile.id, profile.name)
       toast.success('Lead atualizado')
     } catch (err) {
       console.error(err)
@@ -70,7 +72,7 @@ function InfoTab({ lead }: { lead: Lead }) {
           </div>
         </div>
       )}
-      <LeadForm value={form} onChange={setForm} users={users} />
+      <LeadForm value={form} onChange={setForm} users={users} originalProductIds={lead.contractedProductIds ?? []} />
       <Button onClick={handleSave} loading={saving} className="self-start">
         Salvar alterações
       </Button>

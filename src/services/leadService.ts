@@ -278,6 +278,8 @@ export async function convertLeadToClient(lead: Lead, userId: string, userName: 
       package: lead.services.socialMediaPackage,
       monthlyValue: lead.estimatedValue,
       notes: lead.notes,
+      // Serviços do catálogo do Dashboard que o lead escolheu vão junto pro cliente.
+      contractedProductIds: lead.contractedProductIds,
       modules,
       ownerIds,
     },

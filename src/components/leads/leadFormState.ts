@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase/firestore'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
-import type { Lead, LeadInput, LeadSource } from '../../types'
+import { modulesFromProducts, resolveServices } from '../../utils/productModules'
+import type { Lead, LeadInput, LeadSource, Product } from '../../types'
 
 export interface LeadFormState {
   contactName: string
@@ -90,7 +91,12 @@ export function leadToFormState(lead: Lead): LeadFormState {
   }
 }
 
-export function formStateToLeadFields(state: LeadFormState): LeadEditableFields {
+/** `catalog` = catálogo do Dashboard; `originalProductIds` = produtos que o
+ *  lead já tinha salvos (pra desmarcar um produto desligar o serviço dele).
+ *  Os serviços do lead (services.*) são derivados do que os produtos ligam. */
+export function formStateToLeadFields(state: LeadFormState, catalog: Product[] = [], originalProductIds: string[] = []): LeadEditableFields {
+  const origCovered = modulesFromProducts(catalog.filter((p) => originalProductIds.includes(p.id)))
+  const svc = resolveServices(catalog, state.contractedProductIds, state, origCovered)
   return {
     contactName: state.contactName.trim(),
     companyName: state.companyName.trim() || undefined,
@@ -98,12 +104,12 @@ export function formStateToLeadFields(state: LeadFormState): LeadEditableFields 
     email: state.email.trim() || undefined,
     cityRegion: state.cityRegion.trim() || undefined,
     services: {
-      paidTraffic: state.paidTraffic || undefined,
-      metaAds: state.paidTraffic && state.metaAds ? true : undefined,
-      googleAds: state.paidTraffic && state.googleAds ? true : undefined,
-      socialMedia: state.socialMedia || undefined,
-      socialMediaPackage: state.socialMedia ? state.socialMediaPackage : undefined,
-      landingPage: state.landingPage || undefined,
+      paidTraffic: svc.paidTraffic || undefined,
+      metaAds: svc.metaAds || undefined,
+      googleAds: svc.googleAds || undefined,
+      socialMedia: svc.socialMedia || undefined,
+      socialMediaPackage: svc.socialMedia ? state.socialMediaPackage : undefined,
+      landingPage: svc.landingPage || undefined,
     },
     source: state.source,
     estimatedValue: parseCurrencyToNumber(state.estimatedValueStr),
