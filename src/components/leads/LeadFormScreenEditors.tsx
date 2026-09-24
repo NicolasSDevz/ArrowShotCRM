@@ -1,10 +1,11 @@
+import { useState } from 'react'
 import { Trash2, Info, Flag, Plus, ArrowUp, ArrowDown, GitBranch, X as XIcon } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { ColorField, ColorPresetPicker, EditorSection, ImageUploadField, VideoField } from './LeadFormBuilderParts'
 import { AlignControl, LeadFormBlocksEditor } from './LeadFormBlocksEditor'
 import { isChoiceType, visibleOptions } from './leadFormMeta'
 import { outcomeRules } from './leadFormUtils'
-import type { LeadFormBlock, LeadFormDesign, LeadFormOutcome, LeadFormOutcomeRule, LeadFormQuestion } from '../../types/leadForm'
+import type { LeadFormBlock, LeadFormDesign, LeadFormOutcome, LeadFormColors, LeadFormOutcomeRule, LeadFormQuestion, LeadFormScreenKey } from '../../types/leadForm'
 
 interface DesignEditorProps {
   design: LeadFormDesign
@@ -55,25 +56,121 @@ export function WelcomeScreenEditor({ design, onDesignChange, formId, canUpload 
   )
 }
 
-/** Cores do formulário inteiro — valem pra todas as telas (a tela final pode
- *  trocar só o fundo). */
-export function ThemeEditor({ design, onDesignChange }: Pick<DesignEditorProps, 'design' | 'onDesignChange'>) {
+const COLOR_FIELDS: { key: keyof LeadFormColors; label: string; hint: string; fallback: string }[] = [
+  { key: 'backgroundColor', label: 'Fundo da página', hint: 'Atrás do cartão', fallback: '#F8FAFC' },
+  { key: 'cardColor', label: 'Fundo do cartão', hint: 'Onde ficam o texto e as perguntas', fallback: '#FFFFFF' },
+  { key: 'primaryColor', label: 'Cor dos botões', hint: 'Botões, barra de progresso e opção marcada', fallback: '#2563EB' },
+  { key: 'buttonTextColor', label: 'Texto dos botões', hint: 'A cor das letras dentro do botão', fallback: '#FFFFFF' },
+  { key: 'textColor', label: 'Cor dos textos', hint: 'Títulos, perguntas e mensagens', fallback: '#0F172A' },
+]
+
+const SCREEN_TABS: { key: LeadFormScreenKey; label: string }[] = [
+  { key: 'welcome', label: 'Início' },
+  { key: 'question', label: 'Perguntas' },
+  { key: 'end', label: 'Final' },
+]
+
+/** Uma cor que pode "herdar" a geral: mostra a cor em uso e, se não foi
+ *  personalizada nesta tela, um botão pra personalizar. */
+function OverrideColorField({
+  label,
+  value,
+  inherited,
+  onChange,
+}: {
+  label: string
+  value?: string
+  inherited: string
+  onChange: (v: string | undefined) => void
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <input
+        type="color"
+        value={value || inherited}
+        onChange={(e) => onChange(e.target.value)}
+        className={`h-9 w-11 shrink-0 cursor-pointer rounded border bg-white ${value ? 'border-brand-400' : 'border-slate-200 opacity-60'}`}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-slate-700">{label}</p>
+        <p className="text-xs text-slate-400">{value ? 'Personalizada nesta tela' : 'Usando a cor geral — clique na cor pra trocar só aqui'}</p>
+      </div>
+      {value && (
+        <button type="button" onClick={() => onChange(undefined)} className="shrink-0 text-xs font-medium text-slate-400 underline hover:text-slate-600">
+          Usar a geral
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** Cores e tema do formulário: cores gerais (valem pra todas as telas) e,
+ *  por cima delas, cores só do Início, das Perguntas ou do Final. Trocar a
+ *  aba de tela aqui também muda o preview pra essa tela. */
+export function ThemeEditor({
+  design,
+  onDesignChange,
+  onPreviewScreen,
+}: Pick<DesignEditorProps, 'design' | 'onDesignChange'> & { onPreviewScreen?: (screen: LeadFormScreenKey) => void }) {
   const set = <K extends keyof LeadFormDesign>(key: K, v: LeadFormDesign[K]) => onDesignChange({ ...design, [key]: v })
+  const [screen, setScreen] = useState<LeadFormScreenKey>('welcome')
+  const screenColors = design.screenColors?.[screen] ?? {}
+  const setScreenColor = (key: keyof LeadFormColors, v: string | undefined) => {
+    const next = { ...screenColors, [key]: v }
+    if (!v) delete next[key]
+    onDesignChange({ ...design, screenColors: { ...design.screenColors, [screen]: next } })
+  }
+  const customizedCount = (k: LeadFormScreenKey) => Object.values(design.screenColors?.[k] ?? {}).filter(Boolean).length
+  const pickScreen = (k: LeadFormScreenKey) => {
+    setScreen(k)
+    onPreviewScreen?.(k)
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div>
         <p className="text-sm font-semibold text-slate-800">Cores e tema</p>
-        <p className="text-xs text-slate-400">Valem pra todas as telas do formulário.</p>
+        <p className="text-xs text-slate-400">Cores gerais do formulário e, se quiser, cores diferentes no início, nas perguntas e no final.</p>
       </div>
       <EditorSection title="Modelos prontos" hint="Clique pra aplicar e depois ajuste as cores abaixo se quiser.">
         <ColorPresetPicker design={design} onDesignChange={onDesignChange} />
       </EditorSection>
+      <EditorSection title="Cores gerais" hint="Valem pra todas as telas.">
+        {COLOR_FIELDS.map((f) => (
+          <ColorField key={f.key} label={f.label} hint={f.hint} value={design[f.key]} fallback={f.fallback} onChange={(v) => set(f.key, v)} />
+        ))}
+      </EditorSection>
+      <EditorSection title="Cores por tela" hint="Escolha a tela e troque só o que quiser — o resto continua com a cor geral. O preview mostra a tela escolhida.">
+        <div className="flex rounded-lg bg-slate-100 p-0.5">
+          {SCREEN_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => pickScreen(t.key)}
+              className={`flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md text-xs font-semibold transition-colors ${
+                screen === t.key ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {t.label}
+              {customizedCount(t.key) > 0 && <span className="rounded-full bg-brand-100 px-1.5 text-[10px] text-brand-700">{customizedCount(t.key)}</span>}
+            </button>
+          ))}
+        </div>
+        {COLOR_FIELDS.map((f) => (
+          <OverrideColorField
+            key={`${screen}-${f.key}`}
+            label={f.label}
+            value={screenColors[f.key]}
+            inherited={design[f.key] || f.fallback}
+            onChange={(v) => setScreenColor(f.key, v)}
+          />
+        ))}
+        {screen === 'end' && (
+          <p className="text-xs text-slate-400">Cada tela final ainda pode ter a própria cor de fundo em "Visual só desta tela".</p>
+        )}
+      </EditorSection>
       <EditorSection title="Alinhamento dos textos" hint="Tela de início e perguntas. Nas telas finais cada bloco tem o seu.">
         <AlignControl label="Alinhar textos" value={design.textAlign ?? 'left'} onChange={(v) => set('textAlign', v)} />
-      </EditorSection>
-      <EditorSection title="Personalizar">
-        <ColorField label="Cor de destaque" hint="Botões e barra de progresso" value={design.primaryColor} fallback="#2563EB" onChange={(v) => set('primaryColor', v)} />
-        <ColorField label="Cor de fundo" hint="Fundo da página" value={design.backgroundColor} fallback="#F8FAFC" onChange={(v) => set('backgroundColor', v)} />
       </EditorSection>
     </div>
   )

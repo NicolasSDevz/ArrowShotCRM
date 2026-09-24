@@ -85,6 +85,8 @@ export function LeadFormBuilderModal({
   const [previewMode, setPreviewMode] = useState<'screen' | 'test'>('screen')
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [testRun, setTestRun] = useState(0)
+  // Tela mostrada no preview enquanto se edita 'Cores e tema' (acompanha a aba Início/Perguntas/Final).
+  const [themePreview, setThemePreview] = useState<'welcome' | 'question' | 'end'>('welcome')
   const initialSnapshot = useRef('')
   const editorScrollRef = useRef<HTMLDivElement>(null)
   const selectionKey = selection.kind === 'question' || selection.kind === 'end' ? `${selection.kind}-${selection.id}` : selection.kind
@@ -92,6 +94,8 @@ export function LeadFormBuilderModal({
   // Trocar de tela começa o painel de edição sempre do topo.
   useEffect(() => {
     editorScrollRef.current?.scrollTo(0, 0)
+    // Ao abrir "Cores e tema" o editor começa na aba Início; o preview acompanha.
+    setThemePreview('welcome')
   }, [selectionKey])
 
   useEffect(() => {
@@ -361,7 +365,11 @@ export function LeadFormBuilderModal({
         ? { kind: 'question', questionId: sel.id }
         : sel.kind === 'end'
           ? { kind: 'end', outcomeId: sel.id }
-          : { kind: 'welcome' }
+          : sel.kind === 'theme' && themePreview === 'question' && questions.length > 0
+            ? { kind: 'question', questionId: questions[0].id }
+            : sel.kind === 'theme' && themePreview === 'end'
+              ? { kind: 'end', outcomeId: null }
+              : { kind: 'welcome' }
 
   const publicUrl = slug ? `${window.location.origin}/captura/${slug}` : ''
   const previewForm = {
@@ -510,7 +518,7 @@ export function LeadFormBuilderModal({
           <div ref={editorScrollRef} className={`min-w-0 overflow-y-auto border-l border-slate-100 bg-white ${showPreview ? 'flex-1 lg:w-[400px] lg:flex-none' : 'flex-1'}`}>
             <div className={`p-4 ${showPreview ? '' : 'mx-auto max-w-2xl'}`}>
               {sel.kind === 'welcome' && <WelcomeScreenEditor design={design} onDesignChange={setDesign} formId={slug || 'preview'} canUpload={canUpload} />}
-              {sel.kind === 'theme' && <ThemeEditor design={design} onDesignChange={setDesign} />}
+              {sel.kind === 'theme' && <ThemeEditor design={design} onDesignChange={setDesign} onPreviewScreen={setThemePreview} />}
               {sel.kind === 'question' && selectedQuestionIndex >= 0 && (
                 <LeadFormQuestionEditor
                   key={sel.id}

@@ -10,6 +10,8 @@ import {
   isQuestionVisible,
   mergeDesign,
   normalizeUrl,
+  resolveTheme,
+  type LeadFormTheme,
   resolveOutcome,
   type LeadFormAnswers,
   type LeadFormContent,
@@ -186,8 +188,16 @@ export function LeadFormRenderer({
   // O conteúdo da tela final é uma pilha de blocos própria dela — nunca herda
   // o título da tela de início (senão a frase de abertura reaparece no fim).
   const endBlocks = shownPhase === 'done' ? effectiveEndBlocks({ thankYouMessage: form.thankYouMessage, design: form.design, endBlocks: form.endBlocks }, matchedOutcome) : []
-  const primaryColor = design.primaryColor || '#2563EB'
-  const backgroundColor = design.backgroundColor || '#F8FAFC'
+  const theme = resolveTheme(
+    formDesign,
+    shownPhase === 'welcome' ? 'welcome' : shownPhase === 'done' ? 'end' : 'question',
+    shownPhase === 'done' ? matchedOutcome?.design : undefined
+  )
+  const primaryColor = theme.primary
+  const backgroundColor = theme.page
+  // Texto principal e secundário (o secundário é o mesmo com transparência).
+  const textStyle = theme.text ? { color: theme.text } : undefined
+  const mutedStyle = theme.text ? { color: theme.text, opacity: 0.7 } : undefined
   const isLast = questionIndex >= visibleQuestions.length - 1
   const align: LeadFormAlign = design.textAlign ?? 'left'
   const alignText = TEXT_ALIGN_CLASS[align]
@@ -210,7 +220,7 @@ export function LeadFormRenderer({
 
   return (
     <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} items-center justify-center px-4 py-8`} style={{ backgroundColor }}>
-      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 shadow-sm" style={{ backgroundColor: theme.card }}>
         {(shownPhase === 'welcome' || shownPhase === 'done') && design.bannerUrl && (
           <img src={design.bannerUrl} alt="" className="h-36 w-full object-cover" />
         )}
@@ -223,15 +233,15 @@ export function LeadFormRenderer({
 
           {shownPhase === 'welcome' && (
             <>
-              <h1 className={`mb-1 whitespace-pre-wrap text-xl font-bold text-slate-900 ${alignText}`}>{design.title || form.name}</h1>
-              {design.subtitle && <p className={`whitespace-pre-wrap text-sm text-slate-500 ${alignText}`}>{design.subtitle}</p>}
+              <h1 className={`mb-1 whitespace-pre-wrap text-xl font-bold text-slate-900 ${alignText}`} style={textStyle}>{design.title || form.name}</h1>
+              {design.subtitle && <p className={`whitespace-pre-wrap text-sm text-slate-500 ${alignText}`} style={mutedStyle}>{design.subtitle}</p>}
               <VideoEmbed url={design.welcomeVideoUrl} />
               <div className={`mt-5 flex ${alignFlex}`}>
                 <button
                   type="button"
                   onClick={handleStart}
                   disabled={visibleQuestions.length === 0}
-                  style={{ backgroundColor: primaryColor }}
+                  style={{ backgroundColor: primaryColor, color: theme.buttonText }}
                   className="flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
                   {design.welcomeButtonLabel || 'Começar'} <ArrowRight size={14} />
@@ -248,7 +258,7 @@ export function LeadFormRenderer({
                   style={{ width: `${((questionIndex + 1) / Math.max(visibleQuestions.length, 1)) * 100}%`, backgroundColor: primaryColor }}
                 />
               </div>
-              <p className="mb-3 text-xs font-medium text-slate-400">
+              <p className="mb-3 text-xs font-medium text-slate-400" style={mutedStyle}>
                 {questionIndex + 1} de {visibleQuestions.length}
               </p>
 
@@ -263,6 +273,7 @@ export function LeadFormRenderer({
                 error={errors[currentQuestion.id]}
                 autoFocus={!forced}
                 align={align}
+                theme={theme}
                 onChange={(v) => handleAnswerChange(currentQuestion, v)}
                 onToggleOption={(optId) => toggleMultiOption(currentQuestion, optId)}
                 onOtherTextChange={(t) => handleOtherText(currentQuestion, t)}
@@ -271,7 +282,7 @@ export function LeadFormRenderer({
 
               <div className="mt-5 flex items-center gap-2">
                 {questionIndex > 0 && (
-                  <button type="button" onClick={goBack} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
+                  <button type="button" onClick={goBack} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100" style={mutedStyle}>
                     <ArrowLeft size={14} /> Voltar
                   </button>
                 )}
@@ -279,7 +290,7 @@ export function LeadFormRenderer({
                   type="button"
                   onClick={goNext}
                   disabled={shownPhase === 'submitting'}
-                  style={{ backgroundColor: primaryColor }}
+                  style={{ backgroundColor: primaryColor, color: theme.buttonText }}
                   className="ml-auto flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
                   {shownPhase === 'submitting' ? (
@@ -302,7 +313,7 @@ export function LeadFormRenderer({
               </p>
             ) : (
               <>
-                <LeadFormBlocksView blocks={endBlocks} primaryColor={primaryColor} interactive={!!onSubmitted} />
+                <LeadFormBlocksView blocks={endBlocks} primaryColor={primaryColor} buttonTextColor={theme.buttonText} textColor={theme.text} interactive={!!onSubmitted} />
                 {redirectTarget && !onSubmitted && (
                   <p className="mt-4 text-center text-xs text-slate-400">
                     Preview: depois de {redirectDelay}s o lead seria levado para {redirectTarget}
@@ -323,6 +334,7 @@ function QuestionField({
   error,
   autoFocus,
   align,
+  theme,
   onChange,
   onToggleOption,
   onOtherTextChange,
@@ -334,6 +346,7 @@ function QuestionField({
   error?: FieldError
   autoFocus: boolean
   align: LeadFormAlign
+  theme: LeadFormTheme
   onChange: (v: string | string[]) => void
   onToggleOption: (optionId: string) => void
   onOtherTextChange: (text: string) => void
@@ -341,14 +354,14 @@ function QuestionField({
 }) {
   const heading = (
     <>
-      <span className={`mb-1.5 block text-base font-medium text-slate-800 ${TEXT_ALIGN_CLASS[align]}`}>
+      <span className={`mb-1.5 block text-base font-medium text-slate-800 ${TEXT_ALIGN_CLASS[align]}`} style={theme.text ? { color: theme.text } : undefined}>
         {question.label || <span className="text-slate-300">Texto da pergunta</span>}
         {question.required && <span className="text-red-400"> *</span>}
       </span>
-      {question.description && <span className={`mb-2.5 block whitespace-pre-wrap text-sm text-slate-500 ${TEXT_ALIGN_CLASS[align]}`}>{question.description}</span>}
+      {question.description && <span className={`mb-2.5 block whitespace-pre-wrap text-sm text-slate-500 ${TEXT_ALIGN_CLASS[align]}`} style={theme.text ? { color: theme.text, opacity: 0.7 } : undefined}>{question.description}</span>}
     </>
   )
-  const inputClass = `w-full rounded-lg border px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
+  const inputClass = `w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
     error === 'required' ? 'border-red-300' : 'border-slate-200'
   }`
   const handleEnterKey = (e: React.KeyboardEvent) => {
@@ -388,13 +401,13 @@ function QuestionField({
                 type="button"
                 onClick={() => (isMulti ? onToggleOption(opt.id) : onChange(opt.id))}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
-                  checked ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                  checked ? '' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                 }`}
+                style={checked ? { borderColor: theme.primary, backgroundColor: `${theme.primary}1A`, color: theme.primary } : theme.text ? { color: theme.text } : undefined}
               >
                 <span
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center border ${isMulti ? 'rounded' : 'rounded-full'} ${
-                    checked ? 'border-brand-500 bg-brand-500' : 'border-slate-300'
-                  }`}
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center border ${isMulti ? 'rounded' : 'rounded-full'} ${checked ? '' : 'border-slate-300'}`}
+                  style={checked ? { borderColor: theme.primary, backgroundColor: theme.primary } : undefined}
                 >
                   {checked && <span className={`h-1.5 w-1.5 bg-white ${isMulti ? 'rounded-sm' : 'rounded-full'}`} />}
                 </span>

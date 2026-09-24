@@ -89,6 +89,17 @@ export interface LeadFormQuestion {
 
 export type LeadFormAlign = 'left' | 'center' | 'right'
 
+export type LeadFormScreenKey = 'welcome' | 'question' | 'end'
+
+/** Conjunto de cores de uma tela. `primaryColor` = botões e destaque. */
+export interface LeadFormColors {
+  backgroundColor?: string
+  cardColor?: string
+  primaryColor?: string
+  buttonTextColor?: string
+  textColor?: string
+}
+
 export type LeadFormBlockType = 'heading' | 'text' | 'image' | 'video' | 'button' | 'divider' | 'spacer'
 
 /** Um pedaço do conteúdo de uma tela final — a tela é uma pilha de blocos,
@@ -124,6 +135,15 @@ export interface LeadFormDesign {
   welcomeButtonLabel?: string
   /** Alinhamento dos textos da tela de início e das perguntas. Default: esquerda. */
   textAlign?: LeadFormAlign
+  /** Fundo do cartão onde fica o conteúdo. Default: branco. */
+  cardColor?: string
+  /** Cor do texto dos botões. Default: branco. */
+  buttonTextColor?: string
+  /** Cor dos textos (títulos, perguntas, mensagens). Default: cinza-escuro. */
+  textColor?: string
+  /** Cores só de uma etapa (início / perguntas / final) — o que ficar em
+   *  branco usa a cor geral acima. */
+  screenColors?: Partial<Record<LeadFormScreenKey, LeadFormColors>>
   /** Link do YouTube exibido na tela de início (VSL). */
   welcomeVideoUrl?: string
   /** Link do YouTube exibido na tela final — sobrescrevível por tela de

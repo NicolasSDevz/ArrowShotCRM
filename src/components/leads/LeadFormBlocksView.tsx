@@ -30,7 +30,20 @@ const IMAGE_WIDTH = { sm: 'w-1/3', md: 'w-3/5', full: 'w-full' }
 /** Renderiza a pilha de blocos de uma tela final (título, texto, imagem,
  *  vídeo, botão, espaço, divisor). `interactive` = false no preview do
  *  construtor: o botão aparece igual mas não navega. */
-export function LeadFormBlocksView({ blocks, primaryColor, interactive }: { blocks: LeadFormBlock[]; primaryColor: string; interactive: boolean }) {
+export function LeadFormBlocksView({
+  blocks,
+  primaryColor,
+  buttonTextColor = '#FFFFFF',
+  textColor,
+  interactive,
+}: {
+  blocks: LeadFormBlock[]
+  primaryColor: string
+  buttonTextColor?: string
+  /** Cor dos textos escolhida no tema (undefined = cinzas padrão). */
+  textColor?: string
+  interactive: boolean
+}) {
   return (
     <div className="flex flex-col gap-3">
       {blocks.map((b) => {
@@ -38,7 +51,7 @@ export function LeadFormBlocksView({ blocks, primaryColor, interactive }: { bloc
         switch (b.type) {
           case 'heading':
             return b.text?.trim() ? (
-              <h2 key={b.id} className={`whitespace-pre-wrap font-bold text-slate-900 ${HEADING_SIZE[b.size ?? 'lg']} ${TEXT_ALIGN_CLASS[align]}`}>
+              <h2 key={b.id} className={`whitespace-pre-wrap font-bold text-slate-900 ${HEADING_SIZE[b.size ?? 'lg']} ${TEXT_ALIGN_CLASS[align]}`} style={textColor ? { color: textColor } : undefined}>
                 {b.text}
               </h2>
             ) : null
@@ -49,7 +62,13 @@ export function LeadFormBlocksView({ blocks, primaryColor, interactive }: { bloc
                 className={`whitespace-pre-wrap ${TEXT_SIZE[b.size ?? 'md']} ${b.bold ? 'font-semibold' : ''} ${TEXT_ALIGN_CLASS[align]} ${
                   b.color === 'muted' ? 'text-slate-500' : b.color === 'primary' ? '' : 'text-slate-700'
                 }`}
-                style={b.color === 'primary' ? { color: primaryColor } : undefined}
+                style={
+                  b.color === 'primary'
+                    ? { color: primaryColor }
+                    : textColor
+                      ? { color: textColor, opacity: b.color === 'muted' ? 0.7 : 1 }
+                      : undefined
+                }
               >
                 {b.text}
               </p>
@@ -72,7 +91,7 @@ export function LeadFormBlocksView({ blocks, primaryColor, interactive }: { bloc
                   target="_blank"
                   rel="noreferrer noopener"
                   onClick={interactive ? undefined : (e) => e.preventDefault()}
-                  style={{ backgroundColor: primaryColor }}
+                  style={{ backgroundColor: primaryColor, color: buttonTextColor }}
                   className={`rounded-lg px-6 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90 ${b.width === 'full' ? 'w-full' : ''}`}
                 >
                   {b.label}

@@ -1,3 +1,4 @@
+import type { LeadFormColors, LeadFormScreenKey } from '../../types/leadForm'
 import type { LeadForm, LeadFormBlock, LeadFormDesign, LeadFormOutcome, LeadFormOutcomeRule, LeadFormQuestion } from '../../types/leadForm'
 
 export type LeadFormAnswers = Record<string, string | string[]>
@@ -107,4 +108,27 @@ export function effectiveEndBlocks(
   if (message) blocks.push({ id: 'legacy-message', type: 'text', text: message, align: 'center', size: 'md' })
   if (design.resultVideoUrl) blocks.push({ id: 'legacy-video', type: 'video', url: design.resultVideoUrl })
   return blocks
+}
+
+/** Cores efetivas de uma tela: geral do formulário → cores daquela etapa
+ *  (início/perguntas/final) → cores da tela final específica (outcome). */
+export interface LeadFormTheme {
+  page: string
+  card: string
+  primary: string
+  buttonText: string
+  /** undefined = usa os cinzas padrão. */
+  text?: string
+}
+
+export function resolveTheme(design: LeadFormDesign, screen: LeadFormScreenKey, outcomeDesign?: LeadFormDesign): LeadFormTheme {
+  const layers: LeadFormColors[] = [design, design.screenColors?.[screen] ?? {}, outcomeDesign ?? {}]
+  const pick = (k: keyof LeadFormColors) => layers.reduce<string | undefined>((acc, l) => l[k] || acc, undefined)
+  return {
+    page: pick('backgroundColor') || '#F8FAFC',
+    card: pick('cardColor') || '#FFFFFF',
+    primary: pick('primaryColor') || '#2563EB',
+    buttonText: pick('buttonTextColor') || '#FFFFFF',
+    text: pick('textColor'),
+  }
 }
