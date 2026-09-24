@@ -139,6 +139,58 @@ function mapKeywordRows(rows) {
   })
 }
 
+async function searchGoogleAds(accessToken, customerId, query, loginCustomerId) {
+  const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:search`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+      'login-customer-id': loginCustomerId,
+      'Content-Type': 'application/json',
+    },
+    // googleAds:search não aceita pageSize — o tamanho de página é fixo em
+    // 10.000 linhas (API rejeita com PAGE_SIZE_NOT_SUPPORTED se enviado).
+    body: JSON.stringify({ query }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
+  // Lê como texto primeiro: uma resposta de erro nem sempre vem em JSON (ex:
+  // 404 de rota/versão inválida costuma vir em HTML/texto puro) — sem isso, o
+  // erro real ficava escondido atrás de uma mensagem genérica.
+  const rawText = await res.text()
+  let data = {}
+  try {
+    data = JSON.parse(rawText)
+  } catch {
+    // não era JSON — segue com data={} e usa rawText na mensagem de erro
+  }
+  return { ok: res.ok, status: res.status, data, rawText }
+}
+
+/** A mensagem específica do Google Ads (ex: "NOT_ADS_USER", developer token
+ *  não aprovado, etc.) vem aninhada em error.details[], não no error.message
+ *  genérico — sem isso, todo erro de auth parece a mesma mensagem inútil de
+ *  "missing authentication credential". */
+function extractErrorMessage(result) {
+  const nestedMessage = result.data?.error?.details?.flatMap((d) => d?.errors ?? []).find((e) => e?.message)?.message
+  return (
+    nestedMessage ||
+    result.data?.error?.message ||
+    result.rawText.slice(0, 300) ||
+    `Erro ${result.status} ao consultar a API do Google Ads`
+  )
+}
+
+/** Detecta o erro específico do Google pedindo login-customer-id de uma conta
+ *  gerenciadora (cliente por baixo de uma MCC) — só nesse caso vale tentar de
+ *  novo com GOOGLE_ADS_LOGIN_CUSTOMER_ID; qualquer outro 403 (developer token
+ *  não aprovado, sem acesso nenhum à conta etc.) uma segunda tentativa não
+ *  resolveria, só dobraria a latência de um erro que já é definitivo. */
+function needsManagerLoginCustomerId(result) {
+  if (result.status !== 403) return false
+  return /login-customer-id/i.test(extractErrorMessage(result))
+}
+
 function mapSearchTermRows(rows) {
   return rows.map((row) => {
     const impressions = num(row.metrics?.impressions)
@@ -272,55 +324,30 @@ export default async function handler(req, res) {
     }
 
     const query = buildQuery(dateFrom, dateTo, level)
-    const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:search`
-    // Sem login-customer-id próprio configurado, assume que o refresh token
-    // tem acesso direto à conta (sem hierarquia de gerenciador/MCC no meio).
-    const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || customerId
 
-    console.log(`[google/insights] URL: ${url} — login-customer-id: ${loginCustomerId}`)
-
-    const googleResponse = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
-        'login-customer-id': loginCustomerId,
-        'Content-Type': 'application/json',
-      },
-      // googleAds:search não aceita pageSize — o tamanho de página é fixo em
-      // 10.000 linhas (API rejeita com PAGE_SIZE_NOT_SUPPORTED se enviado).
-      body: JSON.stringify({ query }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    })
-
-    // Lê como texto primeiro: uma resposta de erro nem sempre vem em JSON
-    // (ex: 404 de rota/versão inválida costuma vir em HTML/texto puro) — sem
-    // isso, o erro real ficava escondido atrás de uma mensagem genérica.
-    const rawText = await googleResponse.text()
-    let data = {}
-    try {
-      data = JSON.parse(rawText)
-    } catch {
-      // não era JSON — segue com data={} e usa rawText na mensagem abaixo
+    // Tenta primeiro acesso direto (login-customer-id = a própria conta) —
+    // é o caso da maioria dos clientes. Só troca pra GOOGLE_ADS_LOGIN_CUSTOMER_ID
+    // (a conta gerenciadora/MCC) se o Google recusar especificamente pedindo
+    // isso (ver needsManagerLoginCustomerId): as contas dos clientes ficam
+    // divididas entre acesso direto e acesso via MCC, então usar um
+    // login-customer-id fixo pra tudo consertava uma categoria e quebrava a
+    // outra (foi exatamente o que aconteceu ao fixar só o ID da MCC aqui).
+    let result = await searchGoogleAds(accessToken, customerId, query, customerId)
+    if (!result.ok && needsManagerLoginCustomerId(result) && process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID) {
+      console.log(
+        `[google/insights] conta ${customerId} precisa de login-customer-id de gerenciador — tentando de novo com ${process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID}`
+      )
+      result = await searchGoogleAds(accessToken, customerId, query, process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID)
     }
 
-    if (!googleResponse.ok) {
-      // A mensagem específica do Google Ads (ex: "NOT_ADS_USER", developer
-      // token não aprovado, etc.) vem aninhada em error.details[], não no
-      // error.message genérico — sem isso, todo erro de auth parece a mesma
-      // mensagem inútil de "missing authentication credential".
-      const nestedMessage = data?.error?.details?.flatMap((d) => d?.errors ?? []).find((e) => e?.message)?.message
-      const message =
-        nestedMessage ||
-        data?.error?.message ||
-        rawText.slice(0, 300) ||
-        `Erro ${googleResponse.status} ao consultar a API do Google Ads`
-      console.error('[google/insights] Google Ads API erro:', googleResponse.status, rawText.slice(0, 1000))
-      const status = googleResponse.status >= 400 && googleResponse.status < 600 ? googleResponse.status : 502
-      return res.status(status).json({ error: message, code: data?.error?.code ?? status })
+    if (!result.ok) {
+      const message = extractErrorMessage(result)
+      console.error('[google/insights] Google Ads API erro:', result.status, result.rawText.slice(0, 1000))
+      const status = result.status >= 400 && result.status < 600 ? result.status : 502
+      return res.status(status).json({ error: message, code: result.data?.error?.code ?? status })
     }
 
-    const rows = data.results ?? []
+    const rows = result.data.results ?? []
 
     if (level === 'keywords') {
       const keywords = mapKeywordRows(rows)
