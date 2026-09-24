@@ -198,7 +198,7 @@ export function LeadFormRenderer({
 
   const handleAnswerChange = (q: LeadFormQuestion, v: string | string[]) => {
     setAnswer(q.id, v)
-    if (q.type === 'single_choice' && !forced && v !== OTHER_OPTION_ID) {
+    if (q.type === 'single_choice' && !forced && v !== OTHER_OPTION_ID && form.design?.autoAdvance) {
       // Avanço automático estilo Typeform — dá um respiro visual pra
       // mostrar a opção marcada antes de trocar de tela.
       // Clicou em outra opção logo em seguida: só um avanço (senão pula a próxima pergunta).
@@ -389,7 +389,7 @@ export function LeadFormRenderer({
                   ) : (
                     <ArrowRight size={14} />
                   )}
-                  {isLast ? 'Enviar' : 'Avançar'}
+                  {isLast ? 'Enviar' : 'Continuar'}
                 </button>
               </div>
             </div>

@@ -166,6 +166,9 @@ export interface LeadFormDesign {
   /** Alinhamento das perguntas. Sem valor = igual à tela de início
    *  (formulários antigos usavam um alinhamento só pra tudo). */
   questionAlign?: LeadFormAlign
+  /** true = escolha única avança sozinha ao clicar. Sem valor (padrão) = o
+   *  lead escolhe e toca em "Continuar". */
+  autoAdvance?: boolean
   /** 'full' (padrão) = o formulário ocupa a tela inteira, sem quadrado;
    *  'card' = conteúdo dentro de um cartão no meio da página. */
   layout?: 'full' | 'card'

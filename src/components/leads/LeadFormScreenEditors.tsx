@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Trash2, Info, Flag, Plus, ArrowUp, ArrowDown, GitBranch } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
-import { ColorField, ColorPresetPicker, EditorSection, ImageUploadField, VideoField } from './LeadFormBuilderParts'
+import { ColorField, ColorPresetPicker, EditorSection, Toggle, ImageUploadField, VideoField } from './LeadFormBuilderParts'
 import { AlignControl, LeadFormBlocksEditor } from './LeadFormBlocksEditor'
 import { parseMetaPixelId } from '../../utils/metaPixel'
 import { isChoiceType, visibleOptions } from './leadFormMeta'
@@ -262,6 +262,14 @@ export function ThemeEditor({
       </EditorSection>
       <EditorSection title="Alinhamento das perguntas" hint="Só das telas de pergunta. A tela de início tem o próprio (em Tela de início) e nas telas finais cada bloco tem o seu.">
         <AlignControl label="Alinhar perguntas" value={design.questionAlign ?? design.textAlign ?? 'left'} onChange={(v) => set('questionAlign', v)} />
+      </EditorSection>
+      <EditorSection title="Ao escolher uma opção">
+        <Toggle
+          checked={!!design.autoAdvance}
+          onChange={(v) => set('autoAdvance', v)}
+          label="Avançar sozinho"
+          hint={design.autoAdvance ? 'Em pergunta de escolha única, vai pra próxima assim que o lead clica.' : 'O lead escolhe a opção e toca em “Continuar” pra ir pra próxima.'}
+        />
       </EditorSection>
     </div>
   )
