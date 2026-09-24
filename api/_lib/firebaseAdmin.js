@@ -16,6 +16,12 @@ import { createSign, createVerify, createPublicKey } from 'node:crypto'
 const PROJECT_ID = 'arrowshotcrm'
 const FS_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 const CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+// fetch() nativo não tem timeout — sem isso, uma resposta lenta do Google
+// (OAuth, Firestore ou as chaves públicas do Firebase) prende a function até
+// o limite de execução do Vercel, e como esse helper roda em toda chamada
+// autenticada (withInternalAuth) e em toda leitura/escrita, o efeito visível
+// é o app inteiro "travar" sem erro nenhum aparecer.
+const FETCH_TIMEOUT_MS = 20_000
 
 /* ------------------------------------------------------------------ */
 /* Service account + OAuth2 access token (JWT bearer grant)            */
@@ -65,6 +71,7 @@ async function getAccessToken() {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
@@ -117,7 +124,7 @@ function fromFields(fields) {
 /** Lê um documento. Retorna { exists, data() } no estilo do Admin SDK. */
 export async function getDoc(path) {
   const token = await getAccessToken()
-  const res = await fetch(`${FS_BASE}/${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(`${FS_BASE}/${path}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
   if (res.status === 404) return { exists: false, data: () => undefined }
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`Firestore GET ${path}: ${body?.error?.message || res.status}`)
@@ -131,6 +138,7 @@ export async function setDoc(path, data) {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields: toFields(data) }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`Firestore PATCH ${path}: ${body?.error?.message || res.status}`)
@@ -145,6 +153,7 @@ export async function updateDoc(path, data) {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields: toFields(data) }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(`Firestore PATCH(mask) ${path}: ${body?.error?.message || res.status}`)
@@ -160,7 +169,7 @@ export async function listDocs(collectionPath) {
     const u = new URL(`${FS_BASE}/${collectionPath}`)
     u.searchParams.set('pageSize', '300')
     if (pageToken) u.searchParams.set('pageToken', pageToken)
-    const res = await fetch(u, { headers: { Authorization: `Bearer ${token}` } })
+    const res = await fetch(u, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
     const body = await res.json().catch(() => ({}))
     if (res.status === 404) return out
     if (!res.ok) throw new Error(`Firestore LIST ${collectionPath}: ${body?.error?.message || res.status}`)
@@ -189,6 +198,7 @@ export async function queryDocs(collectionPath, wheres = []) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ structuredQuery }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   const rows = await res.json().catch(() => [])
   if (!res.ok) throw new Error(`Firestore runQuery ${collectionPath}: ${rows?.error?.message || res.status}`)
@@ -200,7 +210,7 @@ export async function queryDocs(collectionPath, wheres = []) {
 /** Apaga um documento (404 é tratado como sucesso). */
 export async function deleteDoc(path) {
   const token = await getAccessToken()
-  const res = await fetch(`${FS_BASE}/${path}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(`${FS_BASE}/${path}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
   if (!res.ok && res.status !== 404) {
     const body = await res.json().catch(() => ({}))
     throw new Error(`Firestore DELETE ${path}: ${body?.error?.message || res.status}`)
@@ -215,7 +225,7 @@ let cachedCerts = null // { certs, exp }
 
 async function getFirebaseCerts() {
   if (cachedCerts && cachedCerts.exp > Date.now()) return cachedCerts.certs
-  const res = await fetch(CERTS_URL)
+  const res = await fetch(CERTS_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
   if (!res.ok) throw new Error('Falha ao buscar as chaves públicas do Firebase')
   const certs = await res.json()
   const maxAge = Number((String(res.headers.get('cache-control') || '').match(/max-age=(\d+)/) || [])[1] || 3600)

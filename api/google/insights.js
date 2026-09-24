@@ -22,6 +22,11 @@
 const GOOGLE_ADS_API_VERSION = 'v25'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const VALID_LEVELS = new Set(['campaign', 'keywords', 'search_terms'])
+// fetch() nativo não tem timeout — sem isso, uma resposta lenta/sem retorno
+// do OAuth do Google ou do googleAds:search prende a function até o limite
+// de execução do Vercel (o chamador então só vê a requisição travada, sem
+// erro nenhum). 20s falha rápido em vez disso.
+const FETCH_TIMEOUT_MS = 20_000
 
 function num(v) {
   if (v == null) return 0
@@ -40,6 +45,7 @@ async function getAccessToken() {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
@@ -284,6 +290,7 @@ export default async function handler(req, res) {
       // googleAds:search não aceita pageSize — o tamanho de página é fixo em
       // 10.000 linhas (API rejeita com PAGE_SIZE_NOT_SUPPORTED se enviado).
       body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })
 
     // Lê como texto primeiro: uma resposta de erro nem sempre vem em JSON

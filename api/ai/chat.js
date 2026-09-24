@@ -105,6 +105,10 @@ async function handler(req, res, user) {
         system: buildSystemPrompt(context),
         messages: [...cleanHistory, { role: 'user', content: message }],
       }),
+      // Sem timeout, uma resposta lenta da Anthropic prende a function até o
+      // limite de execução do Vercel — o usuário só vê o Archer "digitando"
+      // sem nunca responder, sem erro nenhum aparecer.
+      signal: AbortSignal.timeout(45_000),
     })
 
     const data = await response.json()

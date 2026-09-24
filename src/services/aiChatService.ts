@@ -16,11 +16,23 @@ export async function sendAiChatMessage(
   if (!user) throw new Error('Usuário não autenticado')
   const idToken = await user.getIdToken()
 
-  const res = await fetch('/api/ai/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ message, context, history }),
-  })
+  let res: Response
+  try {
+    res = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ message, context, history }),
+      // Sem timeout, uma resposta lenta (Anthropic, Firestore) deixa o
+      // Archer "digitando" pra sempre sem erro nenhum aparecer — 50s cobre
+      // folgado o tempo normal de resposta.
+      signal: AbortSignal.timeout(50_000),
+    })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new Error('O assistente demorou demais pra responder. Tenta de novo.')
+    }
+    throw err
+  }
   const body = await res.json().catch(() => ({}))
 
   if (res.status === 429) throw new AiUsageLimitError(body.error || 'Limite diário de mensagens atingido.')

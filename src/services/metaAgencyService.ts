@@ -72,8 +72,12 @@ export async function fetchMetaAgencyOverview(params: {
   }
   if (params.force) q.set('force', '1')
 
+  // Sem timeout, uma resposta lenta prende quem chamou (ex: o Archer)
+  // indefinidamente, sem erro nenhum aparecer — ver mesmo comentário em
+  // googleAdsApi.js.
   const res = await fetch(`/api/meta/agency-overview?${q.toString()}`, {
     headers: { Authorization: `Bearer ${idToken}` },
+    signal: AbortSignal.timeout(20_000),
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok || !body.ok) throw new Error(body.error || 'Falha ao carregar a visão consolidada do Meta Ads')
