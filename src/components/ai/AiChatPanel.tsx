@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Minus, X, Send } from 'lucide-react'
 import type { AiChatMessage } from '../../types/ai'
+import type { AiQuota } from '../../services/aiChatService'
 
 const WELCOME_MESSAGE = `Olá! Sou o **Archer**, assistente de IA do Quiver. 🏹
 
@@ -96,8 +97,25 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
  *  num fundo #F8FAFC-equivalente, chips de pergunta sugerida no estado
  *  vazio. Puramente apresentacional; todo o estado (mensagens, envio,
  *  contexto) vive em AiAssistantWidget. */
+/** Contador "12/50 hoje" no topo do painel — verde, amarelo quando faltam
+ *  10 ou menos, vermelho quando acabou. Cores fixas (ver comentário de C). */
+function QuotaBadge({ quota }: { quota: AiQuota }) {
+  const left = quota.limit - quota.used
+  const color = left <= 0 ? '#FCA5A5' : left <= 10 ? '#FCD34D' : '#86EFAC'
+  return (
+    <span
+      title={`Você usou ${quota.used} de ${quota.limit} mensagens do Archer hoje. O limite volta amanhã.`}
+      className="mr-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+      style={{ color, backgroundColor: 'rgba(255,255,255,0.08)' }}
+    >
+      {quota.used}/{quota.limit} hoje
+    </span>
+  )
+}
+
 export function AiChatPanel({
   messages,
+  quota,
   sending,
   input,
   onInputChange,
@@ -108,6 +126,8 @@ export function AiChatPanel({
   onClose,
 }: {
   messages: AiChatMessage[]
+  /** Mensagens usadas hoje / limite diário (null = ainda carregando). */
+  quota: AiQuota | null
   sending: boolean
   input: string
   onInputChange: (v: string) => void
@@ -179,6 +199,7 @@ export function AiChatPanel({
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {quota && <QuotaBadge quota={quota} />}
           <button onClick={onMinimize} aria-label="Minimizar" className="ai-icon-btn rounded-md p-1.5" style={{ color: C.slate400 }}>
             <Minus size={15} />
           </button>

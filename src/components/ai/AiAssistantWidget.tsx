@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useAiPageContext } from '../../hooks/useAiPageContext'
-import { sendAiChatMessage, AiUsageLimitError } from '../../services/aiChatService'
+import { sendAiChatMessage, getAiQuota, AiUsageLimitError, type AiQuota } from '../../services/aiChatService'
 import { AiChatPanel } from './AiChatPanel'
 import type { AiChatMessage } from '../../types/ai'
 
@@ -21,6 +21,20 @@ export function AiAssistantWidget() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [unread, setUnread] = useState(0)
+  const [quota, setQuota] = useState<AiQuota | null>(null)
+
+  // Lê o uso de hoje sempre que o painel abre (pode ter mudado em outra aba/outro dia).
+  const panelVisible = open && !minimized
+  useEffect(() => {
+    if (!panelVisible || !profile) return
+    let cancelled = false
+    void getAiQuota().then((q) => {
+      if (!cancelled && q) setQuota(q)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [panelVisible, profile])
 
   // Só equipe interna logada — a mesma tela de login já barra o resto.
   if (!profile) return null
@@ -47,9 +61,11 @@ export function AiAssistantWidget() {
     try {
       const fullContext = await resolveContext()
       const reply = await sendAiChatMessage(content, fullContext, messages)
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+      if (reply.quota) setQuota(reply.quota)
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply.text }])
       if (!open || minimized) setUnread((n) => n + 1)
     } catch (err) {
+      if (err instanceof AiUsageLimitError && err.quota) setQuota(err.quota)
       const message = err instanceof AiUsageLimitError ? err.message : 'Não consegui responder agora — tenta de novo em instantes.'
       setMessages((prev) => [...prev, { role: 'assistant', content: message }])
     } finally {
@@ -62,6 +78,7 @@ export function AiAssistantWidget() {
       {visible && (
         <AiChatPanel
           messages={messages}
+          quota={quota}
           sending={sending}
           input={input}
           onInputChange={setInput}
