@@ -26,6 +26,10 @@ const HEADING_SIZE = { sm: 'text-base', md: 'text-lg', lg: 'text-xl', xl: 'text-
 const TEXT_SIZE = { sm: 'text-sm', md: 'text-[15px]', lg: 'text-lg', xl: 'text-xl' }
 const SPACER_HEIGHT = { sm: 8, md: 16, lg: 32, xl: 56 }
 const IMAGE_WIDTH = { sm: 'w-1/3', md: 'w-3/5', full: 'w-full' }
+const IMAGE_RATIO = { original: 'h-auto', square: 'aspect-square object-cover', post: 'aspect-[4/5] object-cover', banner: 'aspect-[3/1] object-cover' }
+const IMAGE_SHAPE = { rounded: 'rounded-xl', square: 'rounded-none', circle: 'rounded-full' }
+/** Espaçamento em px da escala das telas finais. */
+export const SPACE_PX = { none: 0, sm: 12, md: 24, lg: 40, xl: 64 }
 
 /** Renderiza a pilha de blocos de uma tela final (título, texto, imagem,
  *  vídeo, botão, espaço, divisor). `interactive` = false no preview do
@@ -36,6 +40,7 @@ export function LeadFormBlocksView({
   buttonTextColor = '#FFFFFF',
   textColor,
   interactive,
+  gap,
 }: {
   blocks: LeadFormBlock[]
   primaryColor: string
@@ -43,9 +48,11 @@ export function LeadFormBlocksView({
   /** Cor dos textos escolhida no tema (undefined = cinzas padrão). */
   textColor?: string
   interactive: boolean
+  /** Espaço entre os itens em px (sem valor = 12). */
+  gap?: number
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col" style={{ gap: gap ?? 12 }}>
       {blocks.map((b) => {
         const align = b.align ?? 'center'
         switch (b.type) {
@@ -76,7 +83,11 @@ export function LeadFormBlocksView({
           case 'image':
             return b.url ? (
               <div key={b.id} className={`flex ${JUSTIFY_CLASS[align]}`}>
-                <img src={b.url} alt="" className={`h-auto max-w-full rounded-xl ${IMAGE_WIDTH[b.width ?? 'full']}`} />
+                <img
+                  src={b.url}
+                  alt=""
+                  className={`max-w-full ${IMAGE_WIDTH[b.width ?? 'full']} ${b.shape === 'circle' ? IMAGE_RATIO.square : IMAGE_RATIO[b.ratio ?? 'original']} ${IMAGE_SHAPE[b.shape ?? 'rounded']}`}
+                />
               </div>
             ) : null
           case 'video':

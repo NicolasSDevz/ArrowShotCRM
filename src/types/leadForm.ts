@@ -136,7 +136,13 @@ export interface LeadFormBlock {
   bold?: boolean
   color?: 'default' | 'muted' | 'primary'
   width?: 'sm' | 'md' | 'full'
+  /** Imagem: formato (original = sem cortar) e cantos. */
+  ratio?: 'original' | 'square' | 'post' | 'banner'
+  shape?: 'rounded' | 'square' | 'circle'
 }
+
+/** Escala de espaçamento das telas finais (none = colado). */
+export type LeadFormSpace = 'none' | 'sm' | 'md' | 'lg' | 'xl'
 
 /** Aparência da página pública — aba "Design" do construtor. Tudo opcional:
  *  sem nada preenchido a página usa o visual padrão (mesmo de hoje).
@@ -153,6 +159,16 @@ export interface LeadFormDesign {
   /** Parte da imagem que aparece quando o formato corta (topo/centro/baixo). */
   bannerFocus?: 'top' | 'center' | 'bottom'
   logoUrl?: string | null
+  /** Tamanho e formato da foto/logo. Sem valor = média e redonda. */
+  logoSize?: 'sm' | 'md' | 'lg' | 'xl'
+  logoShape?: 'circle' | 'rounded' | 'original'
+  /** Espaçamento das telas finais: entre os itens, abaixo da foto do topo e
+   *  no topo da tela; e se o conteúdo fica no meio ou colado em cima. Sem
+   *  valor = espaçamento padrão. */
+  endGap?: LeadFormSpace
+  endImageGap?: LeadFormSpace
+  endTopSpace?: LeadFormSpace
+  endVAlign?: 'center' | 'top'
   title?: string
   subtitle?: string
   primaryColor?: string

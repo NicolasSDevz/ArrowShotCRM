@@ -588,6 +588,7 @@ export function LeadFormBuilderModal({
                   onSetDefault={() => selectedOutcome && setDefaultOutcome(selectedOutcome.id)}
                   onRemoveOutcome={() => selectedOutcome && removeOutcome(selectedOutcome.id)}
                   onOpenRouting={() => setSelection({ kind: 'routing' })}
+                  onDesignChange={setDesign}
                   formId={slug || 'preview'}
                   canUpload={canUpload}
                 />

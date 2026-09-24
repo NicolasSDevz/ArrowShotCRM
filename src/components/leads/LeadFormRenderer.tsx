@@ -8,7 +8,7 @@ import { FieldGroupQuestionField } from './FieldGroupQuestionField'
 import { invalidSubfields, missingSubfields } from './leadFormFieldGroups'
 import { contactError, type ContactKind } from '../../utils/validation'
 import { maskPhone } from '../../utils/masks'
-import { JUSTIFY_CLASS, LeadFormBlocksView, TEXT_ALIGN_CLASS, VideoEmbed } from './LeadFormBlocksView'
+import { JUSTIFY_CLASS, LeadFormBlocksView, SPACE_PX, TEXT_ALIGN_CLASS, VideoEmbed } from './LeadFormBlocksView'
 import {
   effectiveEndBlocks,
   visibleQuestionsOf,
@@ -288,9 +288,20 @@ export function LeadFormRenderer({
         <img src={design.bannerUrl!} alt="" className={fullScreen ? 'block h-auto max-h-[45vh] w-full object-contain' : 'block h-auto max-h-72 w-full object-contain'} />
       )
     ) : null
+  // Espaçamento das telas finais (só vale na tela final; sem valor = padrão).
+  const isEnd = shownPhase === 'done'
+  const imageGapPx = isEnd && design.endImageGap ? SPACE_PX[design.endImageGap] : undefined
+  const topSpacePx = isEnd && design.endTopSpace ? SPACE_PX[design.endTopSpace] : undefined
+  const blockGapPx = design.endGap ? SPACE_PX[design.endGap] : undefined
+  const hasTopBanner = !!banner
+  // Com banner no topo, o "espaço abaixo da foto" é o que separa o banner do conteúdo.
+  const contentPadTop = fullScreen ? (hasTopBanner && imageGapPx !== undefined ? imageGapPx : topSpacePx) : topSpacePx
+  const cardPadTop = !fullScreen && hasTopBanner ? imageGapPx : undefined
+  const logoPx = { sm: 40, md: 56, lg: 80, xl: 112 }[design.logoSize ?? 'md']
+  const logoShape = design.logoShape ?? 'circle'
   const inlineImage =
     showBanner && !topImage ? (
-      <div className={`mb-5 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`}>
+      <div className={`mb-5 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`} style={imageGapPx !== undefined ? { marginBottom: imageGapPx } : undefined}>
         <img
           src={design.bannerUrl!}
           alt=""
@@ -303,17 +314,25 @@ export function LeadFormRenderer({
   return (
     <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} flex-col`} style={{ background: backgroundColor }}>
       {fullScreen && banner}
-      <div className={`flex flex-1 items-center justify-center ${fullScreen ? 'px-5 py-10 sm:px-8' : 'px-4 py-8'}`}>
+      <div
+        className={`flex flex-1 ${isEnd && design.endVAlign === 'top' ? 'items-start' : 'items-center'} justify-center ${fullScreen ? 'px-5 py-10 sm:px-8' : 'px-4 py-8'}`}
+        style={contentPadTop !== undefined ? { paddingTop: contentPadTop } : undefined}
+      >
       <div
         className={fullScreen ? 'w-full max-w-2xl' : 'w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 shadow-sm'}
         style={fullScreen ? undefined : { background: theme.card }}
       >
         {!fullScreen && banner}
-        <div className={fullScreen ? '' : 'p-6 sm:p-8'}>
+        <div className={fullScreen ? '' : 'p-6 sm:p-8'} style={cardPadTop !== undefined ? { paddingTop: cardPadTop } : undefined}>
           {inlineImage}
           {(shownPhase === 'welcome' || shownPhase === 'done') && design.logoUrl && (
-            <div className={`mb-4 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`}>
-              <img src={design.logoUrl} alt="" className="h-14 w-14 rounded-full object-cover" />
+            <div className={`mb-4 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`} style={imageGapPx !== undefined ? { marginBottom: imageGapPx } : undefined}>
+              <img
+                src={design.logoUrl}
+                alt=""
+                className={logoShape === 'original' ? 'max-w-full object-contain' : `object-cover ${logoShape === 'circle' ? 'rounded-full' : 'rounded-xl'}`}
+                style={logoShape === 'original' ? { height: logoPx, width: 'auto' } : { height: logoPx, width: logoPx }}
+              />
             </div>
           )}
 
@@ -402,7 +421,7 @@ export function LeadFormRenderer({
               </p>
             ) : (
               <>
-                <LeadFormBlocksView blocks={endBlocks} primaryColor={primaryColor} buttonTextColor={theme.buttonText} textColor={theme.text} interactive={!!onSubmitted} />
+                <LeadFormBlocksView blocks={endBlocks} gap={blockGapPx} primaryColor={primaryColor} buttonTextColor={theme.buttonText} textColor={theme.text} interactive={!!onSubmitted} />
                 {redirectTarget && !onSubmitted && (
                   <p className="mt-4 text-center text-xs text-slate-400">
                     Preview: depois de {redirectDelay}s o lead seria levado para {redirectTarget}

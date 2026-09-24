@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { Trash2, Info, Flag, Plus, ArrowUp, ArrowDown, GitBranch } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { ColorField, ColorPresetPicker, EditorSection, Toggle, ImageUploadField, VideoField } from './LeadFormBuilderParts'
-import { AlignControl, LeadFormBlocksEditor } from './LeadFormBlocksEditor'
+import { AlignControl, LeadFormBlocksEditor, Segmented } from './LeadFormBlocksEditor'
 import { parseMetaPixelId } from '../../utils/metaPixel'
 import { isChoiceType, visibleOptions } from './leadFormMeta'
-import { outcomeRules } from './leadFormUtils'
-import type { LeadFormBlock, LeadFormDesign, LeadFormImageFormat, LeadFormOutcome, LeadFormColors, LeadFormQuestion, LeadFormScreenKey } from '../../types/leadForm'
+import { mergeDesign, outcomeRules } from './leadFormUtils'
+import type { LeadFormBlock, LeadFormDesign, LeadFormImageFormat, LeadFormOutcome, LeadFormSpace, LeadFormColors, LeadFormQuestion, LeadFormScreenKey } from '../../types/leadForm'
 
 interface DesignEditorProps {
   design: LeadFormDesign
@@ -51,6 +51,63 @@ function ImageFormatPicker({ design, onChange }: { design: LeadFormDesign; onCha
         <AlignControlVertical value={design.bannerFocus ?? 'center'} onChange={(v) => onChange({ bannerFocus: v })} />
       )}
     </div>
+  )
+}
+
+/** Tamanho e formato da foto/logo. */
+function LogoOptions({ design, onChange }: { design: LeadFormDesign; onChange: (patch: Partial<LeadFormDesign>) => void }) {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <Segmented
+        label="Tamanho da foto / logo"
+        value={design.logoSize ?? 'md'}
+        onChange={(v) => onChange({ logoSize: v })}
+        options={[
+          { value: 'sm', content: 'P', title: 'Pequena' },
+          { value: 'md', content: 'M', title: 'Média' },
+          { value: 'lg', content: 'G', title: 'Grande' },
+          { value: 'xl', content: 'GG', title: 'Extra grande' },
+        ]}
+      />
+      <Segmented
+        label="Formato da foto / logo"
+        value={design.logoShape ?? 'circle'}
+        onChange={(v) => onChange({ logoShape: v })}
+        options={[
+          { value: 'circle', content: 'Redonda', title: 'Recorta em círculo' },
+          { value: 'rounded', content: 'Quadrada', title: 'Quadrada com cantos arredondados' },
+          { value: 'original', content: 'Original', title: 'Sem cortar (bom pra logo)' },
+        ]}
+      />
+    </div>
+  )
+}
+
+const SPACE_OPTIONS = [
+  { value: 'none', content: '0', title: 'Sem espaço' },
+  { value: 'sm', content: 'P', title: 'Pequeno' },
+  { value: 'md', content: 'M', title: 'Médio' },
+  { value: 'lg', content: 'G', title: 'Grande' },
+  { value: 'xl', content: 'GG', title: 'Extra grande' },
+] as const
+
+/** Espaçamento da tela final: entre os itens, abaixo da foto do topo e no topo. */
+function EndSpacingEditor({ design, onChange }: { design: LeadFormDesign; onChange: (patch: Partial<LeadFormDesign>) => void }) {
+  return (
+    <EditorSection title="Espaçamento" hint="Distância entre os itens da tela, da foto do topo e do começo da página." collapsible defaultOpen={!!(design.endGap || design.endImageGap || design.endTopSpace || design.endVAlign)}>
+      <Segmented<LeadFormSpace> label="Espaço entre os itens" value={design.endGap ?? 'sm'} onChange={(v) => onChange({ endGap: v })} options={[...SPACE_OPTIONS]} />
+      <Segmented<LeadFormSpace> label="Espaço abaixo da foto do topo" value={design.endImageGap ?? 'lg'} onChange={(v) => onChange({ endImageGap: v })} options={[...SPACE_OPTIONS]} />
+      <Segmented<LeadFormSpace> label="Espaço no topo da tela" value={design.endTopSpace ?? 'lg'} onChange={(v) => onChange({ endTopSpace: v })} options={[...SPACE_OPTIONS]} />
+      <Segmented
+        label="Posição do conteúdo"
+        value={design.endVAlign ?? 'center'}
+        onChange={(v) => onChange({ endVAlign: v })}
+        options={[
+          { value: 'center', content: 'No meio da tela', title: 'Centralizado na altura' },
+          { value: 'top', content: 'Em cima', title: 'Começa no topo' },
+        ]}
+      />
+    </EditorSection>
   )
 }
 
@@ -121,6 +178,7 @@ export function WelcomeScreenEditor({ design, onDesignChange, formId, canUpload 
           <ImageUploadField label="Foto / logo" url={design.logoUrl} formId={formId} assetKey="logo" sizeHint="logo" canUpload={canUpload} onChange={(url) => set('logoUrl', url)} />
         </div>
         {design.bannerUrl && <ImageFormatPicker design={design} onChange={(patch) => onDesignChange({ ...design, ...patch })} />}
+        {design.logoUrl && <LogoOptions design={design} onChange={(patch) => onDesignChange({ ...design, ...patch })} />}
       </EditorSection>
     </div>
   )
@@ -334,6 +392,7 @@ export function EndScreenEditor({
   onMoveOutcome,
   onRemoveOutcome,
   onOpenRouting,
+  onDesignChange,
   formId,
   canUpload,
 }: {
@@ -350,10 +409,13 @@ export function EndScreenEditor({
   onMoveOutcome: (dir: -1 | 1) => void
   onRemoveOutcome: () => void
   onOpenRouting: () => void
+  onDesignChange: (next: LeadFormDesign) => void
   formId: string
   canUpload: boolean
 }) {
   const od = outcome?.design ?? {}
+  // O que essa tela usa de fato (dela, senão do formulário) — pra os controles mostrarem o valor real.
+  const effectiveDesign = mergeDesign(design, od)
   const setOutcomeDesign = <K extends keyof LeadFormDesign>(key: K, v: LeadFormDesign[K]) => onOutcomeChange({ design: { ...od, [key]: v } })
   // Qualquer pergunta de escolha (única ou múltipla) com texto pode virar regra.
   const ruleQuestions = questions.filter((q) => isChoiceType(q.type) && q.label.trim())
@@ -375,6 +437,7 @@ export function EndScreenEditor({
           </div>
         </div>
         {contentSection}
+        <EndSpacingEditor design={design} onChange={(patch) => onDesignChange({ ...design, ...patch })} />
         <EditorSection
           title="Telas finais diferentes por resposta"
           hint={'Ex: "Lead qualificado" vê o botão do WhatsApp e "Lead desqualificado" vê uma mensagem de despedida. Você escolhe quais perguntas e respostas levam a cada tela.'}
@@ -515,11 +578,15 @@ export function EndScreenEditor({
         )}
       </EditorSection>
 
-      <EditorSection title="Visual só desta tela (opcional)" hint="Em branco = herda as imagens e a cor de fundo do formulário." collapsible>
+      <EndSpacingEditor design={effectiveDesign} onChange={(patch) => onOutcomeChange({ design: { ...od, ...patch } })} />
+
+      <EditorSection title="Fotos e cor desta tela" hint="Em branco = usa as fotos e a cor de fundo do formulário." collapsible defaultOpen={!!(od.bannerUrl || od.logoUrl)}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <ImageUploadField label="Banner" url={od.bannerUrl} formId={formId} assetKey={`outcome-${outcome.id}-banner`} sizeHint="banner" canUpload={canUpload} onChange={(url) => setOutcomeDesign('bannerUrl', url)} />
+          <ImageUploadField label="Foto do topo" url={od.bannerUrl} formId={formId} assetKey={`outcome-${outcome.id}-banner`} sizeHint="banner" canUpload={canUpload} onChange={(url) => setOutcomeDesign('bannerUrl', url)} />
           <ImageUploadField label="Foto / logo" url={od.logoUrl} formId={formId} assetKey={`outcome-${outcome.id}-logo`} sizeHint="logo" canUpload={canUpload} onChange={(url) => setOutcomeDesign('logoUrl', url)} />
         </div>
+        {effectiveDesign.bannerUrl && <ImageFormatPicker design={effectiveDesign} onChange={(patch) => onOutcomeChange({ design: { ...od, ...patch } })} />}
+        {effectiveDesign.logoUrl && <LogoOptions design={effectiveDesign} onChange={(patch) => onOutcomeChange({ design: { ...od, ...patch } })} />}
         <ColorField label="Cor de fundo" hint="Só nesta tela" value={od.backgroundColor} fallback={design.backgroundColor || '#F8FAFC'} onChange={(v) => setOutcomeDesign('backgroundColor', v)} />
       </EditorSection>
 
