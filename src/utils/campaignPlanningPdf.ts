@@ -19,11 +19,14 @@ type RGB = [number, number, number]
 
 /* Identidade visual Quiver. */
 const BLUE: RGB = [37, 99, 235] // #2563EB — primário
-const DARK_BLUE: RGB = [30, 64, 175] // #1E40AF — capa e headers
-const DARK: RGB = [15, 23, 42] // #0F172A — texto principal
+const DARK_BLUE: RGB = [30, 64, 175] // #1E40AF — headers de bloco (B2C)
+const DARK: RGB = [15, 23, 42] // #0F172A — capa e texto principal
+const SLATE_700: RGB = [55, 65, 81] // #374151 — texto de linhas de tabela
 const MUTED: RGB = [100, 116, 139] // #64748B — texto secundário
+const SLATE_600: RGB = [71, 85, 105] // #475569 — rodapé da capa
+const SLATE_400: RGB = [148, 163, 184] // #94A3B8 — rodapé das páginas internas
 const LIGHT_BG: RGB = [241, 245, 249] // #F1F5F9 — fundos alternativos
-const ZEBRA: RGB = [248, 250, 252] // #F8FAFC — linhas alternadas de tabela
+const ZEBRA: RGB = [248, 250, 252] // #F8FAFC — linhas alternadas de tabela, cards e notas
 const BORDER: RGB = [226, 232, 240] // #E2E8F0 — bordas e divisórias
 const GREEN: RGB = [16, 185, 129] // #10B981 — configurado/ok
 const RED: RGB = [239, 68, 68] // #EF4444 — pendente/atenção
@@ -88,11 +91,6 @@ function sanitize(s?: string | null): string {
     .join('')
 }
 
-/** Mistura uma cor com o fundo pra simular opacidade sem depender de GState. */
-function blend(fg: RGB, bg: RGB, alpha: number): RGB {
-  return [0, 1, 2].map((i) => Math.round(fg[i] * alpha + bg[i] * (1 - alpha))) as RGB
-}
-
 function ensureSpace(doc: jsPDF, clientName: string, y: number, needed: number): number {
   if (y + needed > BOTTOM_LIMIT) {
     doc.addPage()
@@ -125,9 +123,12 @@ function centerText(doc: jsPDF, text: string, y: number, size: number, style: 'n
 }
 
 /** Faixa azul fixa no topo de toda página interna: nome do cliente à
- *  esquerda, nome do documento à direita. Reaplicada em toda página que o
- *  autoTable criar sozinho (overflow de tabela), pra nunca ter página sem
- *  identidade visual. */
+ *  esquerda, nome do documento à direita. A página em si fica branca — só os
+ *  elementos de destaque (linhas zebradas de tabela, cards de campanha,
+ *  notas) usam o cinza #F8FAFC, porque um fundo de página inteiro nessa cor
+ *  faria esses elementos "sumirem" por terem exatamente a mesma cor.
+ *  Reaplicada em toda página que o autoTable criar sozinho (overflow de
+ *  tabela), pra nunca ter página sem identidade visual. */
 function pageHeader(doc: jsPDF, clientName: string): number {
   doc.setFillColor(BLUE[0], BLUE[1], BLUE[2])
   doc.rect(0, 0, PAGE_W, BAND_H, 'F')
@@ -143,8 +144,9 @@ function pageHeader(doc: jsPDF, clientName: string): number {
 
 /** Título de seção — igual ao nome da página no documento, com uma "tag" de
  *  plataforma pequena e opcional acima (pra distinguir páginas repetidas
- *  entre Meta e Google, ex. duas páginas "Estrutura de campanhas"). */
-function sectionTitle(doc: jsPDF, y: number, title: string, accent: RGB = BLUE, kicker?: string): number {
+ *  entre Meta e Google, ex. duas páginas "Estrutura de campanhas") e um
+ *  subtítulo opcional abaixo. */
+function sectionTitle(doc: jsPDF, y: number, title: string, accent: RGB = BLUE, kicker?: string, subtitle?: string): number {
   let ty = y
   if (kicker) {
     doc.setFont('helvetica', 'bold')
@@ -159,18 +161,26 @@ function sectionTitle(doc: jsPDF, y: number, title: string, accent: RGB = BLUE, 
   doc.text(title.toUpperCase(), MARGIN, ty)
   doc.setFillColor(accent[0], accent[1], accent[2])
   doc.rect(MARGIN, ty + 2.6, 26, 1.3, 'F')
-  return ty + 15
+  ty += 15
+  if (subtitle) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10.5)
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2])
+    doc.text(subtitle, MARGIN, ty - 3)
+    ty += 4
+  }
+  return ty
 }
 
 /** Nova página com faixa azul + título de seção já prontos. */
-function newSlide(doc: jsPDF, clientName: string, title: string, accent: RGB = BLUE, kicker?: string): number {
+function newSlide(doc: jsPDF, clientName: string, title: string, accent: RGB = BLUE, kicker?: string, subtitle?: string): number {
   doc.addPage()
   const y = pageHeader(doc, clientName)
-  return sectionTitle(doc, y, title, accent, kicker)
+  return sectionTitle(doc, y, title, accent, kicker, subtitle)
 }
 
-/** Cartões de KPI lado a lado — fundo cinza claro, borda colorida à
- *  esquerda, valor grande na cor de destaque. */
+/** Cartões de KPI lado a lado — fundo branco, borda cinza fina ao redor,
+ *  faixa colorida no topo, valor grande na cor de destaque. */
 function kpiCards(
   doc: jsPDF,
   y: number,
@@ -180,17 +190,24 @@ function kpiCards(
   const gap = 7
   const w = (CONTENT_W - gap * (cards.length - 1)) / cards.length
   const h = compact ? 19 : 26
+  const topBarH = 1.4
+  const radius = 1.6
   cards.forEach((c, i) => {
     const x = MARGIN + i * (w + gap)
     const color = c.accent ?? BLUE
-    doc.setFillColor(LIGHT_BG[0], LIGHT_BG[1], LIGHT_BG[2])
-    doc.rect(x, y, w, h, 'F')
+    doc.setFillColor(WHITE[0], WHITE[1], WHITE[2])
+    doc.roundedRect(x, y, w, h, radius, radius, 'F')
+    doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2])
+    doc.setLineWidth(0.3)
+    doc.roundedRect(x, y, w, h, radius, radius, 'S')
+    // Faixa colorida no topo do card — só a parte abaixo do raio do
+    // arredondamento, pra não "estourar" a curva do canto com um retângulo reto.
     doc.setFillColor(color[0], color[1], color[2])
-    doc.rect(x, y, 1.3, h, 'F')
+    doc.rect(x, y + radius, w, topBarH, 'F')
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(compact ? 14 : 17)
     doc.setTextColor(color[0], color[1], color[2])
-    doc.text(c.value, x + w / 2, y + h / 2 + (compact ? 0.5 : 1.5), { align: 'center' })
+    doc.text(c.value, x + w / 2, y + h / 2 + (compact ? 1.5 : 2.5), { align: 'center' })
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(MUTED[0], MUTED[1], MUTED[2])
@@ -326,11 +343,43 @@ function drawStatusDot(doc: jsPDF, x: number, y: number, ok: boolean): void {
   doc.circle(x, y, 1.6, 'F')
 }
 
+/** Um card por campanha — fundo #F8FAFC, borda esquerda colorida, nome em
+ *  bold e o resto dos dados num grid horizontal de label/valor. Desenhado
+ *  campanha a campanha (não como tabela) pra caber o layout de bloco pedido;
+ *  cada chamada já garante espaço suficiente antes de desenhar, então nunca
+ *  corta um card no meio entre duas páginas. */
+function campaignBlock(doc: jsPDF, name: string, fields: [string, string][], y: number, accent: RGB): number {
+  const h = 24
+  doc.setFillColor(ZEBRA[0], ZEBRA[1], ZEBRA[2])
+  doc.rect(MARGIN, y, CONTENT_W, h, 'F')
+  doc.setFillColor(accent[0], accent[1], accent[2])
+  doc.rect(MARGIN, y, 1.4, h, 'F')
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.setTextColor(DARK[0], DARK[1], DARK[2])
+  doc.text(truncate(name, 70), MARGIN + 8, y + 9)
+
+  const colW = CONTENT_W / fields.length
+  fields.forEach(([label, value], i) => {
+    const x = MARGIN + 8 + i * colW
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2])
+    doc.text(label.toUpperCase(), x, y + 16.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(DARK[0], DARK[1], DARK[2])
+    doc.text(truncate(value, 22), x, y + 21.5)
+  })
+  return y + h + 5
+}
+
 function table(doc: jsPDF, clientName: string, opts: UserOptions): void {
   autoTable(doc, {
     theme: 'striped',
-    styles: { font: 'helvetica', fontSize: 9.5, textColor: DARK, cellPadding: 3, overflow: 'linebreak' },
-    headStyles: { fillColor: BLUE, textColor: WHITE, fontStyle: 'bold', fontSize: 9.5, halign: 'left' },
+    styles: { font: 'helvetica', fontSize: 9.5, textColor: SLATE_700, cellPadding: 3, overflow: 'linebreak', lineColor: BORDER, lineWidth: 0.15 },
+    headStyles: { fillColor: BLUE, textColor: WHITE, fontStyle: 'bold', fontSize: 10, halign: 'left' },
     alternateRowStyles: { fillColor: ZEBRA },
     margin: { left: MARGIN, right: MARGIN, top: BAND_H + 8, bottom: 24 },
     rowPageBreak: 'avoid',
@@ -338,6 +387,7 @@ function table(doc: jsPDF, clientName: string, opts: UserOptions): void {
       pageHeader(doc, clientName)
     },
     ...opts,
+    head: (opts.head as string[][] | undefined)?.map((row) => row.map((cell) => String(cell).toUpperCase())),
   })
 }
 
@@ -350,8 +400,8 @@ function addFooters(doc: jsPDF, clientName: string): void {
     doc.setLineWidth(0.3)
     doc.line(MARGIN, PAGE_H - 13, PAGE_W - MARGIN, PAGE_H - 13)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(MUTED[0], MUTED[1], MUTED[2])
+    doc.setFontSize(9)
+    doc.setTextColor(SLATE_400[0], SLATE_400[1], SLATE_400[2])
     doc.text(`Quiver — Marketing Digital  |  ${name}  |  Página ${i - 1} de ${total - 1}`, PAGE_W / 2, PAGE_H - 8, {
       align: 'center',
     })
@@ -372,6 +422,11 @@ interface FunnelRow {
   verba: string
 }
 
+interface CampaignBlockData {
+  name: string
+  fields: [string, string][]
+}
+
 interface PlatformSlideData {
   platformName: string
   accent: RGB
@@ -379,8 +434,7 @@ interface PlatformSlideData {
   diasDoMes?: number
   totals: PlanningTotals
   conjuntoLabel: string
-  campaignHead: string[]
-  campaignRows: string[][]
+  campaigns: CampaignBlockData[]
   funnelRows?: FunnelRow[]
   cidadesDesejadas: string[]
   cidadesExcluidas: string[]
@@ -399,8 +453,7 @@ function renderPlatformSlides(doc: jsPDF, clientName: string, data: PlatformSlid
     diasDoMes,
     totals,
     conjuntoLabel,
-    campaignHead,
-    campaignRows,
+    campaigns,
     funnelRows,
     cidadesDesejadas,
     cidadesExcluidas,
@@ -445,16 +498,14 @@ function renderPlatformSlides(doc: jsPDF, clientName: string, data: PlatformSlid
     })
   }
 
-  // ---------- Estrutura de campanhas ----------
-  if (campaignRows.length) {
+  // ---------- Estrutura de campanhas (um bloco por campanha) ----------
+  if (campaigns.length) {
     y = newSlide(doc, clientName, 'Estrutura de campanhas', accent, platformName)
     y = kpiCards(doc, y, totalsKpiCards(totals, conjuntoLabel, accent), true)
-    table(doc, clientName, {
-      startY: y,
-      head: [campaignHead],
-      body: campaignRows,
-      columnStyles: { [campaignHead.length - 1]: { cellWidth: 30, halign: 'right' } },
-    })
+    for (const campaign of campaigns) {
+      y = ensureSpace(doc, clientName, y, 29)
+      y = campaignBlock(doc, campaign.name, campaign.fields, y, accent)
+    }
   }
 
   // ---------- Segmentação geográfica ----------
@@ -488,15 +539,16 @@ function buildGoogleSlideData(google: GoogleAdsPlanning): PlatformSlideData {
     diasDoMes: google.diasDoMes,
     totals: googleTotals(google),
     conjuntoLabel: 'Grupo de anúncios',
-    campaignHead: ['Rede', 'Campanha', 'Grupo de anúncios', 'Qtd. anúncios', 'Lance', 'Verba diária'],
-    campaignRows: (google.campanhas ?? []).map((c) => [
-      c.rede ? GOOGLE_ADS_NETWORK_LABEL[c.rede] : '—',
-      sanitize(c.nomeCampanha) || '—',
-      sanitize(c.gruposAnuncios) || '—',
-      String(c.qtdAnuncios && c.qtdAnuncios > 0 ? c.qtdAnuncios : 1),
-      c.tipoLance ? GOOGLE_BID_TYPE_LABEL[c.tipoLance] : '—',
-      brl(c.verbaDiaria),
-    ]),
+    campaigns: (google.campanhas ?? []).map((c) => ({
+      name: sanitize(c.nomeCampanha) || 'Campanha sem nome',
+      fields: [
+        ['Rede', c.rede ? GOOGLE_ADS_NETWORK_LABEL[c.rede] : '—'],
+        ['Grupo de anúncios', sanitize(c.gruposAnuncios) || '—'],
+        ['Qtd. anúncios', String(c.qtdAnuncios && c.qtdAnuncios > 0 ? c.qtdAnuncios : 1)],
+        ['Lance', c.tipoLance ? GOOGLE_BID_TYPE_LABEL[c.tipoLance] : '—'],
+        ['Verba diária', brl(c.verbaDiaria)],
+      ],
+    })),
     cidadesDesejadas: linesToList(google.cidadesDesejadas),
     cidadesExcluidas: linesToList(google.cidadesExcluidas),
     palavrasPositivas: linesToList(google.palavrasChavePositivas),
@@ -527,15 +579,16 @@ function buildMetaSlideData(meta: MetaAdsPlanning): PlatformSlideData {
     diasDoMes: meta.diasDoMes,
     totals: metaTotals(meta),
     conjuntoLabel: 'Conjunto de anúncios',
-    campaignHead: ['Etapa', 'Campanha', 'Conjunto', 'Qtd. anúncios', 'Objetivo', 'Verba diária'],
-    campaignRows: (meta.campanhas ?? []).map((c) => [
-      c.etapaFunil ? META_FUNNEL_STAGE_LABEL[c.etapaFunil] : '—',
-      sanitize(c.nomeCampanha || c.descricao) || '—',
-      sanitize(c.nomeConjunto) || '—',
-      String(c.qtdAnuncios && c.qtdAnuncios > 0 ? c.qtdAnuncios : 1),
-      c.objetivo ? META_OBJECTIVE_LABEL[c.objetivo] : '—',
-      brl(c.verbaDiaria),
-    ]),
+    campaigns: (meta.campanhas ?? []).map((c) => ({
+      name: sanitize(c.nomeCampanha || c.descricao) || 'Campanha sem nome',
+      fields: [
+        ['Etapa', c.etapaFunil ? META_FUNNEL_STAGE_LABEL[c.etapaFunil] : '—'],
+        ['Objetivo', c.objetivo ? META_OBJECTIVE_LABEL[c.objetivo] : '—'],
+        ['Verba', brl(c.verbaDiaria)],
+        ['Conjunto', sanitize(c.nomeConjunto) || '—'],
+        ['Anúncios', String(c.qtdAnuncios && c.qtdAnuncios > 0 ? c.qtdAnuncios : 1)],
+      ],
+    })),
     funnelRows,
     cidadesDesejadas: linesToList(meta.cidadesDesejadas),
     cidadesExcluidas: linesToList(meta.cidadesExcluidas),
@@ -568,7 +621,7 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
   const briefing = client.paidTrafficBriefing
 
   // ---------- CAPA ----------
-  doc.setFillColor(DARK_BLUE[0], DARK_BLUE[1], DARK_BLUE[2])
+  doc.setFillColor(DARK[0], DARK[1], DARK[2])
   doc.rect(0, 0, PAGE_W, PAGE_H, 'F')
 
   const baseUrl = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'
@@ -577,19 +630,19 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
     const logoSize = 20
     const logoX = (PAGE_W - logoSize) / 2
     doc.setFillColor(WHITE[0], WHITE[1], WHITE[2])
-    doc.roundedRect(logoX - 3, 28, logoSize + 6, logoSize + 6, 3, 3, 'F')
-    doc.addImage(logo, 'PNG', logoX, 31, logoSize, logoSize)
+    doc.roundedRect(logoX - 3, 24, logoSize + 6, logoSize + 6, 3, 3, 'F')
+    doc.addImage(logo, 'PNG', logoX, 27, logoSize, logoSize)
   }
-  centerText(doc, 'QUIVER', logo ? 68 : 55, 26, 'bold', WHITE)
-  centerText(doc, 'Marketing Digital', logo ? 78 : 65, 12, 'normal', LIGHT_BLUE_TEXT)
+  centerText(doc, 'QUIVER', logo ? 66 : 52, 30, 'bold', WHITE)
+  centerText(doc, 'Marketing Digital', logo ? 76 : 62, 13, 'normal', BLUE)
 
-  const dividerColor = blend(WHITE, DARK_BLUE, 0.4)
-  doc.setDrawColor(dividerColor[0], dividerColor[1], dividerColor[2])
-  doc.setLineWidth(0.5)
-  doc.line(PAGE_W / 2 - 30, 90, PAGE_W / 2 + 30, 90)
+  const dividerW = CONTENT_W * 0.4
+  doc.setDrawColor(BLUE[0], BLUE[1], BLUE[2])
+  doc.setLineWidth(0.7)
+  doc.line(PAGE_W / 2 - dividerW / 2, 90, PAGE_W / 2 + dividerW / 2, 90)
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(26)
+  doc.setFontSize(28)
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2])
   const nameLines = doc.splitTextToSize(clientName, CONTENT_W) as string[]
   let cy = 118
@@ -597,14 +650,13 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
     doc.text(line, PAGE_W / 2, cy, { align: 'center' })
     cy += 12
   }
-  centerText(doc, 'Planejamento de Campanhas', cy + 6, 15, 'normal', LIGHT_BLUE_TEXT)
-  centerText(doc, `${monthName} de ${year}`, cy + 19, 12, 'normal', WHITE)
+  centerText(doc, 'Planejamento de Campanhas', cy + 6, 16, 'normal', LIGHT_BLUE_TEXT)
+  centerText(doc, `${monthName} de ${year}`, cy + 19, 13, 'normal', MUTED)
 
-  const footerColor = blend(WHITE, DARK_BLUE, 0.6)
-  centerText(doc, 'Documento confidencial — Quiver', PAGE_H - 14, 9, 'normal', footerColor)
+  centerText(doc, 'Documento confidencial — Quiver', PAGE_H - 14, 10, 'normal', SLATE_600)
 
   // ---------- VISÃO GERAL (ACESSOS) ----------
-  let y = newSlide(doc, clientName, 'Visão geral', DARK)
+  let y = newSlide(doc, clientName, 'Visão geral', DARK, undefined, 'Acessos configurados')
 
   const gtmOk = !!(acessos.gtmContainerCriado && acessos.gtmInstaladoNoSite && acessos.gtmRastreamentoCompleto)
   const accessRows: { label: string; ok: boolean; sub?: boolean }[] = [
@@ -694,7 +746,7 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
 
   // ---------- OBSERVAÇÕES GERAIS (suprimida se vazia) ----------
   const obs = sanitize(planning.observacoesGerais).trim()
-  if (obs) {
+  if (obs && obs.toLowerCase() !== 'nenhuma observação registrada.') {
     y = newSlide(doc, clientName, 'Observações gerais', DARK)
     noteCard(doc, MARGIN, y, CONTENT_W, 'Observações', obs, ZEBRA, BLUE)
   }
