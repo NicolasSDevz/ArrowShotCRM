@@ -40,9 +40,8 @@ export interface PipelineField {
 
 /** Um pipeline (quadro de leads) criado pelo time. O pipeline padrão
  *  ("Vendas", com as 7 etapas de sempre) é virtual — só existe um doc com o
- *  id `default` se alguém renomear ou acrescentar campos a ele (as etapas
- *  dele são fixas porque o Dashboard e a conversão em cliente dependem
- *  delas). */
+ *  id `default` se alguém renomear ou acrescentar campos a ele (etapas,
+ *  nome e campos — sem edição, valem as 7 etapas de sempre). */
 export interface LeadPipeline extends BaseDoc {
   name: string
   order: number
@@ -83,7 +82,8 @@ export function resolvePipelines(docs: LeadPipeline[]): ResolvedPipeline[] {
   const base: ResolvedPipeline = {
     id: DEFAULT_PIPELINE_ID,
     name: defaultDoc?.name?.trim() || 'Vendas',
-    stages: defaultPipelineStages(),
+    // Sem edição salva, as 7 etapas de sempre; depois que alguém edita, vale o que está no doc.
+    stages: defaultDoc?.stages?.length ? defaultDoc.stages : defaultPipelineStages(),
     fields: defaultDoc?.fields ?? [],
     isDefault: true,
   }

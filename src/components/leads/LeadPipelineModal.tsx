@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { ArrowUp, ArrowDown, Plus, Trash2, Info } from 'lucide-react'
+import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
@@ -68,10 +68,8 @@ export function LeadPipelineModal({
   const handleSave = async () => {
     if (!profile) return
     if (!name.trim()) return toast.error('Dê um nome ao pipeline')
-    if (!isDefault) {
-      if (stages.length < 2) return toast.error('O pipeline precisa de pelo menos 2 etapas')
-      if (stages.some((s) => !s.label.trim())) return toast.error('Toda etapa precisa de um nome')
-    }
+    if (stages.length < 2) return toast.error('O pipeline precisa de pelo menos 2 etapas')
+    if (stages.some((s) => !s.label.trim())) return toast.error('Toda etapa precisa de um nome')
     if (fields.some((f) => !f.label.trim())) return toast.error('Todo campo precisa de um nome')
     if (fields.some((f) => f.type === 'select' && (f.options ?? []).filter((o) => o.trim()).length < 2)) {
       return toast.error('Campos de lista precisam de pelo menos 2 opções')
@@ -127,15 +125,9 @@ export function LeadPipelineModal({
         <section className="flex flex-col gap-2">
           <div>
             <p className="text-sm font-semibold text-slate-800">Etapas</p>
-            <p className="text-xs text-slate-400">As colunas do quadro, da esquerda pra direita.</p>
+            <p className="text-xs text-slate-400">As colunas do quadro, da esquerda pra direita. Ex: acrescente "No show" pra quem faltou à reunião.</p>
           </div>
-          {isDefault ? (
-            <p className="flex items-start gap-1.5 rounded-lg bg-slate-50 p-2.5 text-xs leading-relaxed text-slate-500">
-              <Info size={13} className="mt-0.5 shrink-0" />
-              <span>As etapas do pipeline padrão são fixas (o Dashboard e a conversão em cliente dependem delas). Você pode renomear o pipeline e acrescentar campos.</span>
-            </p>
-          ) : (
-            <>
+          <>
               {stages.map((s, i) => {
                 const count = leadCountByStage[s.id] ?? 0
                 return (
@@ -181,8 +173,7 @@ export function LeadPipelineModal({
               >
                 <Plus size={12} /> Adicionar etapa
               </button>
-            </>
-          )}
+          </>
         </section>
 
         <section className="flex flex-col gap-2">
