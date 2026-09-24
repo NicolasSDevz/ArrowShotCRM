@@ -15,7 +15,7 @@ import type { AiChatMessage } from '../../types/ai'
  *  envio, não de quando o painel foi aberto. */
 export function AiAssistantWidget() {
   const { profile } = useAuth()
-  const context = useAiPageContext()
+  const { context, resolveContext } = useAiPageContext()
   const [open, setOpen] = useState(false)
   const [minimized, setMinimized] = useState(false)
   const [messages, setMessages] = useState<AiChatMessage[]>([])
@@ -46,7 +46,8 @@ export function AiAssistantWidget() {
     setMessages(nextMessages)
     setSending(true)
     try {
-      const reply = await sendAiChatMessage(content, context, messages)
+      const fullContext = await resolveContext()
+      const reply = await sendAiChatMessage(content, fullContext, messages)
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
       if (!open || minimized) setUnread((n) => n + 1)
     } catch (err) {
