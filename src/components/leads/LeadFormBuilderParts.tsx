@@ -74,10 +74,11 @@ type ColorPreset = { name: string; backgroundColor: string; cardColor: string; p
 /** Cada modelo define TODAS as cores (antes só fundo + botão, e uma cor de
  *  texto/cartão escolhida antes ficava misturada — ex: texto claro em fundo claro). */
 /** Cores com que todo formulário novo começa (nada de página toda branca). */
-export const DEFAULT_FORM_COLORS: ColorPreset = { name: 'Azul vivo', backgroundColor: '#1D4ED8', cardColor: '#1E40AF', primaryColor: '#FACC15', buttonTextColor: '#172554', textColor: '#FFFFFF' }
+export const DEFAULT_FORM_COLORS: ColorPreset = { name: 'Escuro', backgroundColor: '#0F172A', cardColor: '#1E293B', primaryColor: '#38BDF8', buttonTextColor: '#0F172A', textColor: '#F1F5F9' }
 
 const COLOR_PRESETS: ColorPreset[] = [
   DEFAULT_FORM_COLORS,
+  { name: 'Azul vivo', backgroundColor: '#1D4ED8', cardColor: '#1E40AF', primaryColor: '#FACC15', buttonTextColor: '#172554', textColor: '#FFFFFF' },
   { name: 'Azul', backgroundColor: '#F8FAFC', cardColor: '#FFFFFF', primaryColor: '#2563EB', buttonTextColor: '#FFFFFF', textColor: '#0F172A' },
   { name: 'Verde', backgroundColor: '#F0FDF4', cardColor: '#FFFFFF', primaryColor: '#16A34A', buttonTextColor: '#FFFFFF', textColor: '#14532D' },
   { name: 'Roxo', backgroundColor: '#FAF5FF', cardColor: '#FFFFFF', primaryColor: '#9333EA', buttonTextColor: '#FFFFFF', textColor: '#3B0764' },
@@ -85,7 +86,6 @@ const COLOR_PRESETS: ColorPreset[] = [
   { name: 'Rosa', backgroundColor: '#FDF2F8', cardColor: '#FFFFFF', primaryColor: '#DB2777', buttonTextColor: '#FFFFFF', textColor: '#500724' },
   { name: 'Vermelho', backgroundColor: '#FEF2F2', cardColor: '#FFFFFF', primaryColor: '#DC2626', buttonTextColor: '#FFFFFF', textColor: '#450A0A' },
   { name: 'Grafite', backgroundColor: '#F1F5F9', cardColor: '#FFFFFF', primaryColor: '#334155', buttonTextColor: '#FFFFFF', textColor: '#0F172A' },
-  { name: 'Escuro', backgroundColor: '#0F172A', cardColor: '#1E293B', primaryColor: '#38BDF8', buttonTextColor: '#0F172A', textColor: '#F1F5F9' },
   { name: 'Preto', backgroundColor: '#0A0A0A', cardColor: '#171717', primaryColor: '#FACC15', buttonTextColor: '#0A0A0A', textColor: '#FAFAFA' },
 ]
 

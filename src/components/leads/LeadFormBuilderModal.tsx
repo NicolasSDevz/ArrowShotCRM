@@ -21,7 +21,7 @@ import type { LeadForm, LeadFormBlock, LeadFormQuestion, LeadFormDesign, LeadFor
 
 const DEFAULT_THANK_YOU = 'Obrigado! Recebemos suas informações e vamos entrar em contato em breve.'
 
-/** Design de um formulário novo: já começa com cor (o modelo Azul vivo). */
+/** Design de um formulário novo: já começa com cor (o modelo Escuro). */
 function newFormDesign(): LeadFormDesign {
   const c = DEFAULT_FORM_COLORS
   return { backgroundColor: c.backgroundColor, cardColor: c.cardColor, primaryColor: c.primaryColor, buttonTextColor: c.buttonTextColor, textColor: c.textColor }
