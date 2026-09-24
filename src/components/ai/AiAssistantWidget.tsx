@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Sparkles } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useAiPageContext } from '../../hooks/useAiPageContext'
 import { sendAiChatMessage, AiUsageLimitError } from '../../services/aiChatService'
@@ -81,10 +80,11 @@ export function AiAssistantWidget() {
       <button
         onClick={handleToggleButton}
         aria-label="Assistente de IA"
-        className="fixed bottom-6 right-6 z-50 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-brand-600 text-white transition-transform duration-150 ease-in-out hover:scale-105 hover:bg-[#1D4ED8]"
+        title="Falar com Archer"
+        className="fixed bottom-6 right-6 z-50 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-brand-600 text-2xl text-white transition-transform duration-150 ease-in-out hover:scale-105 hover:bg-[#1D4ED8]"
         style={{ boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}
       >
-        <Sparkles size={22} />
+        🏹
         {unread > 0 && (
           <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
             {unread > 9 ? '9+' : unread}

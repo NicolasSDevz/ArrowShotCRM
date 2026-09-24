@@ -134,10 +134,10 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
             },
           },
           suggestedQuestions: [
-            'Como está a performance dessa semana?',
-            'Quais campanhas estão com melhor CPL?',
-            'Sugestões de otimização para esse cliente',
-            'Resumo do briefing desse cliente',
+            '📊 Como está a performance dessa semana?',
+            '💡 Sugestões de otimização',
+            '📋 Resumo desse cliente',
+            '⚠️ Algum ponto de atenção?',
           ],
         }
       }
@@ -156,8 +156,10 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
           clientesGoogleAds: googleClients.map((c) => c.companyName),
         },
         suggestedQuestions: [
-          'Qual cliente tem melhor ROAS essa semana?',
-          'Comparar performance dos últimos 30 dias',
+          '🏆 Qual cliente tem melhor CPL?',
+          '📉 Alguma conta com queda de performance?',
+          '🔍 Qual campanha tem melhor conversão?',
+          '💰 Como está o CPC médio dos clientes?',
         ],
       }
     }
@@ -175,9 +177,9 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
           exemplosTarefasAtrasadas: overdueTasks.slice(0, 5).map((t) => t.title),
         },
         suggestedQuestions: [
-          'Quais clientes precisam de atenção hoje?',
-          'Resumo das otimizações dessa semana',
-          'Quais clientes estão em risco de churn?',
+          '🔴 Quais clientes precisam de atenção?',
+          '📈 Como está o MRR esse mês?',
+          '✅ O que foi concluído hoje?',
         ],
       }
     }
@@ -188,8 +190,8 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
       label: 'Quiver',
       data: { agencia: agencyOverview, pagina: location.pathname },
       suggestedQuestions: [
-        'Quais clientes precisam de atenção hoje?',
-        'Resumo das otimizações dessa semana',
+        '🔴 Quais clientes precisam de atenção?',
+        '📈 Como está o MRR esse mês?',
       ],
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

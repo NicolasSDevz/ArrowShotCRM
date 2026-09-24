@@ -1,8 +1,14 @@
 import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Sparkles, Minus, X, Send } from 'lucide-react'
+import { Minus, X, Send } from 'lucide-react'
 import type { AiChatMessage } from '../../types/ai'
+
+const WELCOME_MESSAGE = `Olá! Sou o **Archer**, assistente de IA do Quiver. 🏹
+
+Posso te ajudar com análise de campanhas, performance dos clientes, sugestões de otimização e muito mais.
+
+O que você precisa hoje?`
 
 function TypingDots() {
   return (
@@ -23,8 +29,8 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
   return (
     <div className={`flex items-end gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
       {!isUser && (
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white">
-          <Sparkles size={12} />
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm text-white">
+          🏹
         </span>
       )}
       {isUser ? (
@@ -95,10 +101,10 @@ export function AiChatPanel({
 
       <div className="flex shrink-0 items-center justify-between bg-[#0F172A] px-4 py-3.5">
         <div className="flex items-center gap-2">
-          <Sparkles size={16} className="text-white" />
+          <span className="text-base">🏹</span>
           <div>
-            <p className="text-[15px] font-bold leading-tight text-white">Quiver AI</p>
-            <p className="text-[11px] leading-tight text-[#64748B]">Assistente de marketing</p>
+            <p className="text-[15px] font-bold leading-tight text-white">Archer</p>
+            <p className="text-[11px] leading-tight text-[#64748B]">Assistente Quiver</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -113,13 +119,10 @@ export function AiChatPanel({
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[#F8FAFC] px-4 py-4">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-600 text-white">
-              <Sparkles size={20} />
-            </span>
-            <p className="text-sm text-slate-500">Pergunte sobre campanhas, clientes ou métricas.</p>
+          <div className="flex flex-col gap-4">
+            <MessageBubble message={{ role: 'assistant', content: WELCOME_MESSAGE }} />
             {suggestedQuestions.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-1.5">
+              <div className="flex flex-wrap justify-center gap-1.5 px-1">
                 {suggestedQuestions.map((q) => (
                   <button
                     key={q}
