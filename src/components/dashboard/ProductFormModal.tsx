@@ -6,7 +6,8 @@ import { Field, Input, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { createProduct, updateProduct } from '../../services/productService'
-import type { Product } from '../../types'
+import { inferProductModules, PRODUCT_MODULE_KEYS, PRODUCT_MODULE_LABEL } from '../../utils/productModules'
+import type { Product, ProductModuleKey } from '../../types'
 
 const EMPTY = {
   name: '',
@@ -39,6 +40,9 @@ export function ProductFormModal({
   const { profile } = useAuth()
   const [form, setForm] = useState(EMPTY)
   const [bonuses, setBonuses] = useState<BonusRow[]>([])
+  // Áreas do CRM que esse serviço liga no cliente. Produto antigo (sem valor
+  // salvo) já abre com a sugestão feita pelo nome, pra o admin só confirmar.
+  const [activates, setActivates] = useState<ProductModuleKey[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -51,14 +55,27 @@ export function ProductFormModal({
         active: product.active,
       })
       setBonuses(toBonusRows(product.bonuses))
+      setActivates(product.activates ?? inferProductModules(product.name))
     } else {
       setForm(EMPTY)
       setBonuses([])
+      setActivates([])
     }
   }, [product, open])
 
   const set = <K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
+
+  const toggleModule = (key: ProductModuleKey) =>
+    setActivates((cur) => {
+      if (cur.includes(key)) return cur.filter((k) => k !== key)
+      // As três formas de tráfego pago se excluem — escolher uma tira as outras.
+      const traffic: ProductModuleKey[] = ['paidTraffic', 'metaAds', 'googleAds']
+      const isTraffic = traffic.includes(key)
+      // Meta + Google juntos é válido (serviço que cobre as duas).
+      const dropOther = key === 'paidTraffic' ? traffic : isTraffic ? ['paidTraffic' as ProductModuleKey] : []
+      return [...cur.filter((k) => !dropOther.includes(k)), key]
+    })
 
   const addBonus = () => setBonuses((b) => [...b, { id: crypto.randomUUID(), text: '' }])
   const updateBonus = (id: string, text: string) => setBonuses((b) => b.map((r) => (r.id === id ? { ...r, text } : r)))
@@ -76,6 +93,7 @@ export function ProductFormModal({
         bonuses: bonuses.map((b) => b.text.trim()).filter(Boolean),
         active: form.active,
         order: product?.order ?? nextOrder,
+        activates,
       }
       if (product) {
         await updateProduct(product.id, payload, profile.id)
@@ -144,6 +162,31 @@ export function ProductFormModal({
               Adicionar bônus
             </Button>
           </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">O que esse serviço liga no CRM</p>
+          <p className="mb-2 mt-0.5 text-xs text-slate-400">
+            Quando um cliente contrata este serviço, o CRM libera as abas e cria as tarefas dessa área. Marque o que se aplica.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {PRODUCT_MODULE_KEYS.map((key) => (
+              <label key={key} className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={activates.includes(key)}
+                  onChange={() => toggleModule(key)}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                />
+                {PRODUCT_MODULE_LABEL[key]}
+              </label>
+            ))}
+          </div>
+          {activates.length === 0 && (
+            <p className="mt-2 text-xs text-amber-600">
+              Nenhuma área marcada: contratar este serviço só registra o nome no cliente, sem abas nem tarefas automáticas.
+            </p>
+          )}
         </div>
 
         <label className="flex items-center gap-2 text-sm text-slate-600">
