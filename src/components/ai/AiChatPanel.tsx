@@ -32,6 +32,27 @@ const C = {
   panelBg: '#F8FAFC',
 }
 
+/** remark-gfm exige uma linha em branco separando uma tabela do texto
+ *  seguinte — sem isso, a linha logo após a tabela é silenciosamente
+ *  descartada (não vira parágrafo, some) em vez de gerar erro. O Claude nem
+ *  sempre deixa essa linha em branco (ex: tabela de métricas seguida direto
+ *  da recomendação), e o resultado era o Archer "responder" só com a tabela,
+ *  sem nenhuma conclusão — o texto existia na resposta, só não renderizava.
+ *  Insere a linha em branco que falta antes de passar pro ReactMarkdown. */
+function ensureBlankLineAfterTables(markdown: string): string {
+  const lines = markdown.split('\n')
+  const out: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    out.push(lines[i])
+    const isTableRow = lines[i].trim().startsWith('|')
+    const next = lines[i + 1]
+    if (isTableRow && next !== undefined && next.trim() !== '' && !next.trim().startsWith('|')) {
+      out.push('')
+    }
+  }
+  return out.join('\n')
+}
+
 function TypingDots() {
   return (
     <div className="ai-bubble flex items-center gap-1 rounded-2xl px-3.5 py-2.5" style={{ border: `1px solid ${C.border}`, backgroundColor: C.white }}>
@@ -64,7 +85,7 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
           className="ai-md ai-bubble max-w-[92%] overflow-x-auto rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
           style={{ border: `1px solid ${C.border}`, backgroundColor: C.white, color: C.dark }}
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{ensureBlankLineAfterTables(message.content)}</ReactMarkdown>
         </div>
       )}
     </div>
