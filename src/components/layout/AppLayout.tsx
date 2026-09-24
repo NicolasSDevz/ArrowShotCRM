@@ -5,6 +5,7 @@ import { Topbar } from './Topbar'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { CelebrationOverlay } from '../CelebrationOverlay'
 import { TaskCelebrationOverlay } from '../TaskCelebrationOverlay'
+import { AiAssistantWidget } from '../ai/AiAssistantWidget'
 import { useTaskDueDateSweep } from '../../hooks/useTaskDueDateSweep'
 
 export function AppLayout() {
@@ -25,6 +26,7 @@ export function AppLayout() {
       </div>
       <CelebrationOverlay />
       <TaskCelebrationOverlay />
+      <AiAssistantWidget />
     </div>
   )
 }

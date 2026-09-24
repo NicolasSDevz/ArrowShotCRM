@@ -419,6 +419,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Contador diário de mensagens do assistente de IA por usuário (ver
+    // api/ai/chat.js — id do doc é {uid}_{yyyy-MM-dd}). Só o backend, via
+    // Firebase Admin (service account), lê/escreve — o SDK do cliente nunca
+    // toca aqui, nem pra conferir a própria contagem (o limite volta como
+    // erro 429 na resposta do /api/ai/chat).
+    match /aiUsage/{docId} {
+      allow read, write: if false;
+    }
+
     // ---------- celebrationEvents (comemoração em tempo real quando um lead
     // vira cliente). Efêmero: o CelebrationOverlay escuta os últimos eventos,
     // dispara confete+som só nos que têm < 10s e faz prune dos antigos.
