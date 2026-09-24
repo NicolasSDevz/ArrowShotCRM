@@ -40,6 +40,47 @@ export interface LeadFormAnalytics {
   completionRate: number
   avgDurationMs: number | null
   funnel: LeadFormFunnelStep[]
+  /** Um ponto por dia do período (dias sem movimento entram com zero). */
+  daily: LeadFormDailyPoint[]
+}
+
+export interface LeadFormDailyPoint {
+  /** yyyy-MM-dd (horário local) */
+  date: string
+  views: number
+  starts: number
+  submissions: number
+}
+
+const dayKey = (ms: number) => {
+  const d = new Date(ms)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Série diária do período: de `since` (ou do primeiro evento) até hoje. */
+function buildDaily(events: LeadFormEvent[], since?: Date): LeadFormDailyPoint[] {
+  const times = events.map((e) => e.createdAt?.toMillis?.() ?? 0).filter((t) => t > 0)
+  const start = since ? since.getTime() : times.length ? Math.min(...times) : Date.now()
+  const byDay = new Map<string, LeadFormDailyPoint>()
+  const cursor = new Date(start)
+  cursor.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  while (cursor <= today) {
+    const k = dayKey(cursor.getTime())
+    byDay.set(k, { date: k, views: 0, starts: 0, submissions: 0 })
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  for (const e of events) {
+    const t = e.createdAt?.toMillis?.()
+    if (!t) continue
+    const p = byDay.get(dayKey(t))
+    if (!p) continue
+    if (e.type === 'view') p.views++
+    else if (e.type === 'start') p.starts++
+    else if (e.type === 'submit') p.submissions++
+  }
+  return [...byDay.values()]
 }
 
 /** Busca (one-shot, não é live) todos os eventos de um formulário e agrega
@@ -93,5 +134,5 @@ export async function getLeadFormAnalytics(
     previousViews = stepViews
   }
 
-  return { views, starts, submissions, completionRate, avgDurationMs, funnel }
+  return { views, starts, submissions, completionRate, avgDurationMs, funnel, daily: buildDaily(events, since) }
 }

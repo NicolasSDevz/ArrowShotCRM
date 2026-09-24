@@ -114,6 +114,7 @@ export function LeadFormsPanel() {
         open={!!viewingStats}
         onClose={() => setViewingStats(null)}
         form={viewingStats}
+        leads={leads}
         onClearData={(f) => {
           setViewingStats(null)
           setClearing(f)

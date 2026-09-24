@@ -142,8 +142,16 @@ export interface LeadFormBlock {
  *  sem nada preenchido a página usa o visual padrão (mesmo de hoje).
  *  `subtitle` dobra como o parágrafo de descrição da tela de boas-vindas
  *  (a primeira tela, antes da primeira pergunta — estilo Typeform/YayForms). */
+/** Formato da imagem de destaque: faixa larga no topo (banner 3:1), quadrado
+ *  (1:1), post (4:5) ou do jeito que a imagem é (original, sem cortar). */
+export type LeadFormImageFormat = 'banner' | 'square' | 'post' | 'original'
+
 export interface LeadFormDesign {
   bannerUrl?: string | null
+  /** Formato da imagem de destaque. Sem valor = banner. */
+  bannerFormat?: LeadFormImageFormat
+  /** Parte da imagem que aparece quando o formato corta (topo/centro/baixo). */
+  bannerFocus?: 'top' | 'center' | 'bottom'
   logoUrl?: string | null
   title?: string
   subtitle?: string

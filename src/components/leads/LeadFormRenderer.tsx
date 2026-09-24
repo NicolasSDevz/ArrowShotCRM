@@ -243,9 +243,35 @@ export function LeadFormRenderer({
   const showBanner = (shownPhase === 'welcome' || shownPhase === 'done') && !!design.bannerUrl
   // Banner sempre inteiro (nunca cortado): largura total, altura natural,
   // limitada pra não empurrar o conteúdo pra fora da tela.
-  const banner = showBanner ? (
-    <img src={design.bannerUrl!} alt="" className={fullScreen ? 'block h-auto max-h-[45vh] w-full object-contain' : 'block h-auto max-h-72 w-full object-contain'} />
-  ) : null
+  const imageFormat = design.bannerFormat ?? 'banner'
+  const objectPosition = { top: 'center top', center: 'center center', bottom: 'center bottom' }[design.bannerFocus ?? 'center']
+  // Banner e Original ficam no topo, largura total. Quadrado e Post ficam no
+  // meio do conteúdo, acima do título (como a imagem de um post).
+  const topImage = imageFormat === 'banner' || imageFormat === 'original'
+  const banner =
+    showBanner && topImage ? (
+      imageFormat === 'banner' ? (
+        <img
+          src={design.bannerUrl!}
+          alt=""
+          className={`block aspect-[3/1] w-full object-cover ${fullScreen ? 'max-h-[42vh]' : ''}`}
+          style={{ objectPosition }}
+        />
+      ) : (
+        <img src={design.bannerUrl!} alt="" className={fullScreen ? 'block h-auto max-h-[45vh] w-full object-contain' : 'block h-auto max-h-72 w-full object-contain'} />
+      )
+    ) : null
+  const inlineImage =
+    showBanner && !topImage ? (
+      <div className={`mb-5 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`}>
+        <img
+          src={design.bannerUrl!}
+          alt=""
+          className={`w-full max-w-[340px] rounded-2xl object-cover shadow-sm ${imageFormat === 'square' ? 'aspect-square' : 'aspect-[4/5]'}`}
+          style={{ objectPosition }}
+        />
+      </div>
+    ) : null
 
   return (
     <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} flex-col`} style={{ background: backgroundColor }}>
@@ -257,6 +283,7 @@ export function LeadFormRenderer({
       >
         {!fullScreen && banner}
         <div className={fullScreen ? '' : 'p-6 sm:p-8'}>
+          {inlineImage}
           {(shownPhase === 'welcome' || shownPhase === 'done') && design.logoUrl && (
             <div className={`mb-4 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`}>
               <img src={design.logoUrl} alt="" className="h-14 w-14 rounded-full object-cover" />

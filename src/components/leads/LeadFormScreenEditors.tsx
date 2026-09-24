@@ -6,13 +6,78 @@ import { AlignControl, LeadFormBlocksEditor } from './LeadFormBlocksEditor'
 import { parseMetaPixelId } from '../../utils/metaPixel'
 import { isChoiceType, visibleOptions } from './leadFormMeta'
 import { outcomeRules } from './leadFormUtils'
-import type { LeadFormBlock, LeadFormDesign, LeadFormOutcome, LeadFormColors, LeadFormOutcomeRule, LeadFormQuestion, LeadFormScreenKey } from '../../types/leadForm'
+import type { LeadFormBlock, LeadFormDesign, LeadFormImageFormat, LeadFormOutcome, LeadFormColors, LeadFormOutcomeRule, LeadFormQuestion, LeadFormScreenKey } from '../../types/leadForm'
 
 interface DesignEditorProps {
   design: LeadFormDesign
   onDesignChange: (next: LeadFormDesign) => void
   formId: string
   canUpload: boolean
+}
+
+const IMAGE_FORMATS: { key: LeadFormImageFormat; label: string; hint: string; box: string }[] = [
+  { key: 'banner', label: 'Banner', hint: 'Faixa larga no topo (3:1)', box: 'h-3 w-9' },
+  { key: 'square', label: 'Quadrado', hint: '1:1, no meio da tela', box: 'h-6 w-6' },
+  { key: 'post', label: 'Post', hint: '4:5, estilo Instagram', box: 'h-7 w-[22px]' },
+  { key: 'original', label: 'Original', hint: 'Do jeito que a imagem é, sem cortar', box: 'h-5 w-8 border-dashed' },
+]
+
+/** Escolha do formato da imagem de destaque (+ qual parte aparece quando corta). */
+function ImageFormatPicker({ design, onChange }: { design: LeadFormDesign; onChange: (patch: Partial<LeadFormDesign>) => void }) {
+  const format = design.bannerFormat ?? 'banner'
+  return (
+    <div className="flex flex-col gap-2.5">
+      <span className="text-xs font-medium text-slate-500">Formato da imagem</span>
+      <div className="grid grid-cols-4 gap-1.5">
+        {IMAGE_FORMATS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            title={f.hint}
+            onClick={() => onChange({ bannerFormat: f.key })}
+            className={`flex flex-col items-center gap-1.5 rounded-lg border px-1 py-2 text-[11px] font-medium transition-colors ${
+              format === f.key ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            <span className="flex h-7 items-center">
+              <span className={`block rounded-sm border-2 ${format === f.key ? 'border-brand-500' : 'border-slate-400'} ${f.box}`} />
+            </span>
+            {f.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-slate-400">{IMAGE_FORMATS.find((f) => f.key === format)?.hint}</p>
+      {format !== 'original' && (
+        <AlignControlVertical value={design.bannerFocus ?? 'center'} onChange={(v) => onChange({ bannerFocus: v })} />
+      )}
+    </div>
+  )
+}
+
+function AlignControlVertical({ value, onChange }: { value: 'top' | 'center' | 'bottom'; onChange: (v: 'top' | 'center' | 'bottom') => void }) {
+  return (
+    <div>
+      <span className="mb-1 block text-[11px] font-medium text-slate-400">Parte da imagem que aparece</span>
+      <div className="flex rounded-lg bg-slate-100 p-0.5">
+        {(
+          [
+            ['top', 'Topo'],
+            ['center', 'Centro'],
+            ['bottom', 'Baixo'],
+          ] as const
+        ).map(([k, l]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onChange(k)}
+            className={`h-7 flex-1 rounded-md text-xs font-semibold transition-colors ${value === k ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /** Editor da tela de início (a primeira que o lead vê, antes das perguntas):
@@ -52,9 +117,10 @@ export function WelcomeScreenEditor({ design, onDesignChange, formId, canUpload 
 
       <EditorSection title="Imagens" hint="O banner e a foto também aparecem na tela final (a menos que ela tenha as próprias).">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <ImageUploadField label="Banner (topo)" url={design.bannerUrl} formId={formId} assetKey="banner" sizeHint="banner" canUpload={canUpload} onChange={(url) => set('bannerUrl', url)} />
+          <ImageUploadField label="Imagem de destaque" url={design.bannerUrl} formId={formId} assetKey="banner" sizeHint="banner" canUpload={canUpload} onChange={(url) => set('bannerUrl', url)} />
           <ImageUploadField label="Foto / logo" url={design.logoUrl} formId={formId} assetKey="logo" sizeHint="logo" canUpload={canUpload} onChange={(url) => set('logoUrl', url)} />
         </div>
+        {design.bannerUrl && <ImageFormatPicker design={design} onChange={(patch) => onDesignChange({ ...design, ...patch })} />}
       </EditorSection>
     </div>
   )
