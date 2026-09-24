@@ -6,7 +6,8 @@ import { Field, Input, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { createProduct, updateProduct } from '../../services/productService'
-import type { Product } from '../../types'
+import { inferProductModules, PRODUCT_MODULE_KEYS, PRODUCT_MODULE_LABEL } from '../../utils/productModules'
+import type { DiscountType, Product, ProductModuleKey } from '../../types'
 
 const EMPTY = {
   name: '',
@@ -20,6 +21,10 @@ const EMPTY = {
  *  enquanto a pessoa digita — igual ao padrão de arrays da planilha de
  *  campanha (ver ClientCampaignPlanningPanel). Achatado pra string[] no save. */
 type BonusRow = { id: string; text: string }
+
+/** Linhas de nível/desconto com valores em texto enquanto se digita. */
+type TierRow = { id: string; name: string; price: string; description: string }
+type DiscountRow = { id: string; name: string; type: DiscountType; value: string }
 
 function toBonusRows(bonuses?: string[]): BonusRow[] {
   return (bonuses ?? []).map((text) => ({ id: crypto.randomUUID(), text }))
@@ -39,6 +44,11 @@ export function ProductFormModal({
   const { profile } = useAuth()
   const [form, setForm] = useState(EMPTY)
   const [bonuses, setBonuses] = useState<BonusRow[]>([])
+  // Áreas do CRM que esse serviço liga no cliente. Produto antigo (sem valor
+  // salvo) já abre com a sugestão feita pelo nome, pra o admin só confirmar.
+  const [activates, setActivates] = useState<ProductModuleKey[]>([])
+  const [tiers, setTiers] = useState<TierRow[]>([])
+  const [discounts, setDiscounts] = useState<DiscountRow[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -51,14 +61,31 @@ export function ProductFormModal({
         active: product.active,
       })
       setBonuses(toBonusRows(product.bonuses))
+      setActivates(product.activates ?? inferProductModules(product.name))
+      setTiers((product.tiers ?? []).map((t) => ({ id: t.id, name: t.name, price: t.price != null ? String(t.price) : '', description: t.description ?? '' })))
+      setDiscounts((product.discounts ?? []).map((d) => ({ id: d.id, name: d.name, type: d.type, value: String(d.value) })))
     } else {
       setForm(EMPTY)
       setBonuses([])
+      setActivates([])
+      setTiers([])
+      setDiscounts([])
     }
   }, [product, open])
 
   const set = <K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
+
+  const toggleModule = (key: ProductModuleKey) =>
+    setActivates((cur) => {
+      if (cur.includes(key)) return cur.filter((k) => k !== key)
+      // As três formas de tráfego pago se excluem — escolher uma tira as outras.
+      const traffic: ProductModuleKey[] = ['paidTraffic', 'metaAds', 'googleAds']
+      const isTraffic = traffic.includes(key)
+      // Meta + Google juntos é válido (serviço que cobre as duas).
+      const dropOther = key === 'paidTraffic' ? traffic : isTraffic ? ['paidTraffic' as ProductModuleKey] : []
+      return [...cur.filter((k) => !dropOther.includes(k)), key]
+    })
 
   const addBonus = () => setBonuses((b) => [...b, { id: crypto.randomUUID(), text: '' }])
   const updateBonus = (id: string, text: string) => setBonuses((b) => b.map((r) => (r.id === id ? { ...r, text } : r)))
@@ -76,6 +103,13 @@ export function ProductFormModal({
         bonuses: bonuses.map((b) => b.text.trim()).filter(Boolean),
         active: form.active,
         order: product?.order ?? nextOrder,
+        activates,
+        tiers: tiers
+          .filter((t) => t.name.trim())
+          .map((t) => ({ id: t.id, name: t.name.trim(), price: t.price.trim() ? Number(t.price) : undefined, description: t.description.trim() || undefined })),
+        discounts: discounts
+          .filter((d) => d.name.trim() && Number(d.value) > 0)
+          .map((d) => ({ id: d.id, name: d.name.trim(), type: d.type, value: Number(d.value) })),
       }
       if (product) {
         await updateProduct(product.id, payload, profile.id)
@@ -124,6 +158,73 @@ export function ProductFormModal({
           <Textarea rows={3} value={form.description} onChange={(e) => set('description', e.target.value)} />
         </Field>
 
+        <div className="rounded-lg border border-slate-200 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Níveis do serviço (opcional)</p>
+          <p className="mb-2 mt-0.5 text-xs text-slate-400">
+            Ex: Básico, Intermediário e Premium, cada um com o seu preço. Sem níveis, vale o preço acima. Na hora de cadastrar o cliente você escolhe o nível.
+          </p>
+          <div className="flex flex-col gap-2">
+            {tiers.map((t) => (
+              <div key={t.id} className="flex flex-col gap-1.5 rounded-lg bg-slate-50 p-2">
+                <div className="flex items-center gap-1.5">
+                  <Input value={t.name} onChange={(e) => setTiers((c) => c.map((x) => (x.id === t.id ? { ...x, name: e.target.value } : x)))} placeholder="Nome do nível (ex: Premium)" />
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={t.price}
+                    onChange={(e) => setTiers((c) => c.map((x) => (x.id === t.id ? { ...x, price: e.target.value } : x)))}
+                    placeholder="R$ 0,00"
+                    className="max-w-[130px]"
+                  />
+                  <button type="button" onClick={() => setTiers((c) => c.filter((x) => x.id !== t.id))} className="shrink-0 rounded-lg p-2 text-slate-300 hover:bg-red-50 hover:text-red-500" aria-label="Remover nível">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <Input value={t.description} onChange={(e) => setTiers((c) => c.map((x) => (x.id === t.id ? { ...x, description: e.target.value } : x)))} placeholder="O que inclui (opcional)" />
+              </div>
+            ))}
+            <Button variant="secondary" size="sm" icon={<Plus size={13} />} onClick={() => setTiers((c) => [...c, { id: crypto.randomUUID(), name: '', price: '', description: '' }])} className="self-start">
+              Adicionar nível
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Descontos disponíveis (opcional)</p>
+          <p className="mb-2 mt-0.5 text-xs text-slate-400">Descontos prontos pra esse serviço (ex: "Pagamento à vista — 10%"). Dá pra escolher um ao cadastrar o cliente ou criar um personalizado.</p>
+          <div className="flex flex-col gap-2">
+            {discounts.map((d) => (
+              <div key={d.id} className="flex items-center gap-1.5">
+                <Input value={d.name} onChange={(e) => setDiscounts((c) => c.map((x) => (x.id === d.id ? { ...x, name: e.target.value } : x)))} placeholder="Nome (ex: À vista)" />
+                <select
+                  value={d.type}
+                  onChange={(e) => setDiscounts((c) => c.map((x) => (x.id === d.id ? { ...x, type: e.target.value as DiscountType } : x)))}
+                  className="h-[38px] shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-sm"
+                >
+                  <option value="percent">%</option>
+                  <option value="fixed">R$</option>
+                </select>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={d.value}
+                  onChange={(e) => setDiscounts((c) => c.map((x) => (x.id === d.id ? { ...x, value: e.target.value } : x)))}
+                  placeholder="0"
+                  className="max-w-[100px]"
+                />
+                <button type="button" onClick={() => setDiscounts((c) => c.filter((x) => x.id !== d.id))} className="shrink-0 rounded-lg p-2 text-slate-300 hover:bg-red-50 hover:text-red-500" aria-label="Remover desconto">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            <Button variant="secondary" size="sm" icon={<Plus size={13} />} onClick={() => setDiscounts((c) => [...c, { id: crypto.randomUUID(), name: '', type: 'percent', value: '' }])} className="self-start">
+              Adicionar desconto
+            </Button>
+          </div>
+        </div>
+
         <div>
           <span className="mb-1.5 block text-xs font-medium text-slate-500">Bônus inclusos</span>
           <div className="flex flex-col gap-2">
@@ -144,6 +245,31 @@ export function ProductFormModal({
               Adicionar bônus
             </Button>
           </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">O que esse serviço liga no CRM</p>
+          <p className="mb-2 mt-0.5 text-xs text-slate-400">
+            Quando um cliente contrata este serviço, o CRM libera as abas e cria as tarefas dessa área. Marque o que se aplica.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {PRODUCT_MODULE_KEYS.map((key) => (
+              <label key={key} className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={activates.includes(key)}
+                  onChange={() => toggleModule(key)}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                />
+                {PRODUCT_MODULE_LABEL[key]}
+              </label>
+            ))}
+          </div>
+          {activates.length === 0 && (
+            <p className="mt-2 text-xs text-amber-600">
+              Nenhuma área marcada: contratar este serviço só registra o nome no cliente, sem abas nem tarefas automáticas.
+            </p>
+          )}
         </div>
 
         <label className="flex items-center gap-2 text-sm text-slate-600">

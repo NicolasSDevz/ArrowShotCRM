@@ -7,6 +7,7 @@ import { Select } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { importLeads } from '../../services/leadService'
+import type { ResolvedPipeline } from '../../types'
 import { findUserIdByName } from '../../utils/userLookup'
 import { LEAD_SOURCE_LABEL } from '../../types'
 import {
@@ -34,7 +35,7 @@ function serviceLabel(services: ParsedLeadRow['services']): string {
   return parts.join(' + ') || '—'
 }
 
-export function ImportLeadsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ImportLeadsModal({ open, onClose, pipeline }: { open: boolean; onClose: () => void; pipeline?: ResolvedPipeline }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -120,7 +121,13 @@ export function ImportLeadsModal({ open, onClose }: { open: boolean; onClose: ()
     setBusy(true)
     try {
       const assignedTo = findUserIdByName(users, 'Bruno')
-      const { created, failedLines } = await importLeads(valid, assignedTo, profile.id, profile.name)
+      const { created, failedLines } = await importLeads(
+        valid,
+        assignedTo,
+        profile.id,
+        profile.name,
+        pipeline ? { pipelineId: pipeline.isDefault ? null : pipeline.id, status: pipeline.stages[0].id } : undefined
+      )
 
       if (created > 0) {
         toast.success(`${created} ${pluralize(created, 'lead importado', 'leads importados')} com sucesso`)

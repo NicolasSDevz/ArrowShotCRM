@@ -4,15 +4,18 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
+import { useProducts } from '../../hooks/useProducts'
 import { createLead } from '../../services/leadService'
 import { findUserIdByName } from '../../utils/userLookup'
 import { isPhoneComplete } from '../../utils/masks'
 import { LeadForm } from './LeadForm'
+import type { ResolvedPipeline } from '../../types'
 import { buildDefaultLeadForm, formStateToLeadFields, type LeadFormState } from './leadFormState'
 
-export function LeadFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function LeadFormModal({ open, onClose, pipeline }: { open: boolean; onClose: () => void; pipeline: ResolvedPipeline }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
+  const { data: products } = useProducts()
   const [form, setForm] = useState<LeadFormState>(() => buildDefaultLeadForm())
   const [saving, setSaving] = useState(false)
 
@@ -51,7 +54,13 @@ export function LeadFormModal({ open, onClose }: { open: boolean; onClose: () =>
     setSaving(true)
     try {
       await createLead(
-        { ...formStateToLeadFields(form), status: 'new', order: Date.now(), contactHistory: [] },
+        {
+          ...formStateToLeadFields(form, products),
+          status: pipeline.stages[0].id,
+          pipelineId: pipeline.isDefault ? undefined : pipeline.id,
+          order: Date.now(),
+          contactHistory: [],
+        },
         profile.id,
         profile.name
       )
@@ -66,9 +75,9 @@ export function LeadFormModal({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Novo lead" width="max-w-2xl">
+    <Modal open={open} onClose={handleClose} title={pipeline.isDefault ? 'Novo lead' : `Novo lead — ${pipeline.name}`} width="max-w-2xl">
       <div className="flex flex-col gap-4">
-        <LeadForm value={form} onChange={setForm} users={users} />
+        <LeadForm value={form} onChange={setForm} users={users} pipelineFields={pipeline.fields} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={handleClose}>
             Cancelar

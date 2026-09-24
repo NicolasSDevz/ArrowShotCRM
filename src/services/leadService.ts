@@ -1,5 +1,5 @@
 import { orderBy, Timestamp, type FirestoreError } from 'firebase/firestore'
-import type { AppUser, Lead, LeadContactEntry, LeadInput, LeadStatus } from '../types'
+import type { AppUser, Lead, LeadContactEntry, LeadInput, LeadStatus, ResolvedPipeline } from '../types'
 import { LEAD_STATUS_LABEL, LEAD_LOST_REASON_LABEL } from '../types/lead'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
@@ -59,7 +59,9 @@ export async function importLeads(
   }[],
   assignedTo: string | undefined,
   userId: string,
-  userName: string
+  userName: string,
+  /** Pipeline de destino (padrão: "Vendas", primeira etapa). */
+  target?: { pipelineId?: string | null; status: string }
 ): Promise<{ created: number; failedLines: number[] }> {
   const failedLines: number[] = []
   let created = 0
@@ -79,7 +81,8 @@ export async function importLeads(
           estimatedValue: row.estimatedValue,
           notes: row.notes,
           assignedTo,
-          status: 'new',
+          status: target?.status ?? 'new',
+          pipelineId: target?.pipelineId ?? undefined,
           order: now + i,
           contactHistory: [],
         },
@@ -124,17 +127,28 @@ export interface MoveLeadExtra {
   lostReasonNote?: Lead['lostReasonNote']
 }
 
+/** Rótulo e tipo (aberta/ganha/perdida) de uma etapa — do pipeline do lead
+ *  ou, sem pipeline, do padrão. */
+function stageMeta(id: string, pipeline?: ResolvedPipeline): { label: string; kind: 'open' | 'won' | 'lost' } {
+  const stage = pipeline?.stages.find((st) => st.id === id)
+  if (stage) return { label: stage.label, kind: stage.kind }
+  return { label: LEAD_STATUS_LABEL[id as LeadStatus] ?? id, kind: id === 'closed' ? 'won' : id === 'lost' ? 'lost' : 'open' }
+}
+
 export async function moveLeadStatus(
   lead: Lead,
-  newStatus: LeadStatus,
+  newStatus: string,
   newOrder: number,
   userId: string,
   userName: string,
-  extra?: MoveLeadExtra
+  extra?: MoveLeadExtra,
+  pipeline?: ResolvedPipeline
 ) {
   const changed = newStatus !== lead.status
+  const from = stageMeta(lead.status, pipeline)
+  const to = stageMeta(newStatus, pipeline)
   const lossFields =
-    newStatus === 'lost'
+    to.kind === 'lost'
       ? { lostReason: extra?.lostReason ?? null, lostReasonNote: extra?.lostReasonNote?.trim() || null, lostAt: Timestamp.now() }
       : changed
         ? { lostReason: null, lostReasonNote: null, lostAt: null }
@@ -149,25 +163,53 @@ export async function moveLeadStatus(
       entityType: 'lead',
       entityId: lead.id,
       action: 'status_changed',
-      message: `moveu de "${LEAD_STATUS_LABEL[lead.status]}" para "${LEAD_STATUS_LABEL[newStatus]}"`,
+      message: `moveu de "${from.label}" para "${to.label}"`,
       userId,
       userName,
     })
     const name = lead.companyName?.trim() || lead.contactName
-    const lost = newStatus === 'lost'
+    const lost = to.kind === 'lost'
     const lostReasonLabel = extra?.lostReason ? LEAD_LOST_REASON_LABEL[extra.lostReason] : null
-    if (newStatus === 'closed') await emitCelebration(name, userName)
+    if (to.kind === 'won') await emitCelebration(name, userName)
     await notifyAdminsOfAction({
       type: 'lead_stage_changed',
       message: lost
         ? `${userName} marcou o lead ${name} como Perdido${lostReasonLabel ? ` (motivo: ${lostReasonLabel})` : ''}`
-        : `${userName} moveu o lead ${name} de "${LEAD_STATUS_LABEL[lead.status]}" para "${LEAD_STATUS_LABEL[newStatus]}"`,
+        : `${userName} moveu o lead ${name} de "${from.label}" para "${to.label}"`,
       actorId: userId,
       actorName: userName,
       entityType: 'lead',
       entityId: lead.id,
     })
   }
+}
+
+/** Muda o lead de pipeline: cai na primeira etapa do destino (as etapas de
+ *  cada pipeline são diferentes) e os campos extras do pipeline antigo ficam
+ *  guardados no lead, caso ele volte. */
+export async function moveLeadToPipeline(lead: Lead, target: ResolvedPipeline, userId: string, userName: string) {
+  const first = target.stages[0]
+  await base.update(
+    lead.id,
+    {
+      pipelineId: target.isDefault ? null : target.id,
+      status: first.id,
+      order: Date.now(),
+      stageChangedAt: Timestamp.now(),
+      lostReason: null,
+      lostReasonNote: null,
+      lostAt: null,
+    },
+    userId
+  )
+  await logActivity({
+    entityType: 'lead',
+    entityId: lead.id,
+    action: 'status_changed',
+    message: `moveu para o pipeline "${target.name}" (${first.label})`,
+    userId,
+    userName,
+  })
 }
 
 export async function deleteLead(lead: Lead, userId: string, userName: string) {
@@ -236,6 +278,8 @@ export async function convertLeadToClient(lead: Lead, userId: string, userName: 
       package: lead.services.socialMediaPackage,
       monthlyValue: lead.estimatedValue,
       notes: lead.notes,
+      // Serviços do catálogo do Dashboard que o lead escolheu vão junto pro cliente.
+      contractedProductIds: lead.contractedProductIds,
       modules,
       ownerIds,
     },

@@ -32,7 +32,7 @@ import { ChurnDetailModal } from './ChurnDetailModal'
 import { ClientsStatusChart } from './ClientsStatusChart'
 import { UpsellRevenueChart } from './UpsellRevenueChart'
 import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
-import { LEAD_STATUS_LABEL, type Activity, type LeadStatus } from '../../types'
+import { LEAD_STATUS_LABEL, leadPipelineId, DEFAULT_PIPELINE_ID, type Activity, type LeadStatus } from '../../types'
 
 const BRL = (v: number) =>
   (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
@@ -319,7 +319,8 @@ export function OverviewDashboard() {
 
   // ---- Pipeline de Leads (ao vivo) ----
   const pipeline = useMemo(() => {
-    const activeLeads = leads.filter((l) => PIPELINE_STAGES.includes(l.status))
+    // O funil do Dashboard é o do pipeline padrão — leads de pipelines criados pelo time não entram.
+    const activeLeads = leads.filter((l) => leadPipelineId(l) === DEFAULT_PIPELINE_ID && PIPELINE_STAGES.includes(l.status as LeadStatus))
     const byStage = PIPELINE_STAGES.map((s) => ({
       status: s,
       label: LEAD_STATUS_LABEL[s],

@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { UserOptions } from 'jspdf-autotable'
 import { format } from 'date-fns'
+import { trafficServices } from './clientServices'
 import { ptBR } from 'date-fns/locale'
 import {
   META_FUNNEL_STAGE_LABEL,
@@ -428,6 +429,9 @@ interface CampaignBlockData {
 }
 
 interface PlatformSlideData {
+  /** Meta não usa palavras-chave — lá são interesses/públicos. */
+  keywordsTitle: string
+  keywordsEmpty: [string, string]
   platformName: string
   accent: RGB
   verbaMensal?: number
@@ -459,6 +463,8 @@ function renderPlatformSlides(doc: jsPDF, clientName: string, data: PlatformSlid
     cidadesExcluidas,
     palavrasPositivas,
     palavrasNegativas,
+    keywordsTitle,
+    keywordsEmpty,
   } = data
   const dias = diasDoMes || 30
   const diaria = verbaMensal ? verbaMensal / dias : undefined
@@ -521,12 +527,12 @@ function renderPlatformSlides(doc: jsPDF, clientName: string, data: PlatformSlid
 
   // ---------- Palavras-chave ----------
   if (palavrasPositivas.length || palavrasNegativas.length) {
-    newSlide(doc, clientName, 'Palavras-chave', accent, platformName)
+    newSlide(doc, clientName, keywordsTitle, accent, platformName)
     twoColumnBoxes(
       doc,
       MARGIN + 60,
-      { title: 'Positivas', items: palavrasPositivas, empty: 'Nenhuma palavra-chave informada.', bg: GREEN_BG, accent: GREEN },
-      { title: 'Negativas', items: palavrasNegativas, empty: 'Nenhuma palavra-chave negativa informada.', bg: LIGHT_BG, accent: RED },
+      { title: 'Positivas', items: palavrasPositivas, empty: keywordsEmpty[0], bg: GREEN_BG, accent: GREEN },
+      { title: 'Negativas', items: palavrasNegativas, empty: keywordsEmpty[1], bg: LIGHT_BG, accent: RED },
     )
   }
 }
@@ -551,6 +557,8 @@ function buildGoogleSlideData(google: GoogleAdsPlanning): PlatformSlideData {
     })),
     cidadesDesejadas: linesToList(google.cidadesDesejadas),
     cidadesExcluidas: linesToList(google.cidadesExcluidas),
+    keywordsTitle: 'Palavras-chave',
+    keywordsEmpty: ['Nenhuma palavra-chave informada.', 'Nenhuma palavra-chave negativa informada.'],
     palavrasPositivas: linesToList(google.palavrasChavePositivas),
     palavrasNegativas: linesToList(google.palavrasChaveNegativas),
   }
@@ -592,6 +600,8 @@ function buildMetaSlideData(meta: MetaAdsPlanning): PlatformSlideData {
     funnelRows,
     cidadesDesejadas: linesToList(meta.cidadesDesejadas),
     cidadesExcluidas: linesToList(meta.cidadesExcluidas),
+    keywordsTitle: 'Interesses e públicos',
+    keywordsEmpty: ['Nenhum interesse informado.', 'Nenhuma exclusão informada.'],
     palavrasPositivas: linesToList(meta.palavrasChavePositivas),
     palavrasNegativas: linesToList(meta.palavrasChaveNegativas),
   }
@@ -619,6 +629,9 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
   const meta = planning.metaAds
   const google = planning.googleAds
   const briefing = client.paidTrafficBriefing
+  // Só as plataformas contratadas entram na apresentação (um cliente só de
+  // Meta não leva página de Google Ads, mesmo que sobre dado antigo).
+  const traffic = trafficServices(client)
 
   // ---------- CAPA ----------
   doc.setFillColor(DARK[0], DARK[1], DARK[2])
@@ -727,7 +740,7 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
     meta?.cidadesDesejadas ||
     meta?.cidadesExcluidas
   )
-  if (metaFilled) renderPlatformSlides(doc, clientName, buildMetaSlideData(meta))
+  if (metaFilled && traffic.meta) renderPlatformSlides(doc, clientName, buildMetaSlideData(meta))
 
   // ---------- PÚBLICO-ALVO ----------
   y = newSlide(doc, clientName, 'Público-alvo', DARK)
@@ -776,7 +789,7 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
     google?.cidadesDesejadas ||
     google?.cidadesExcluidas
   )
-  if (googleFilled) renderPlatformSlides(doc, clientName, buildGoogleSlideData(google))
+  if (googleFilled && traffic.google) renderPlatformSlides(doc, clientName, buildGoogleSlideData(google))
 
   // ---------- RODAPÉ EM TODAS AS PÁGINAS (exceto a capa) ----------
   addFooters(doc, client.companyName)

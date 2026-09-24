@@ -127,7 +127,13 @@ export interface Lead extends BaseDoc {
   nextActionDate?: Timestamp | null
   assignedTo?: string
   notes?: string
-  status: LeadStatus
+  /** Id da etapa dentro do pipeline do lead: um `LeadStatus` no pipeline
+   *  padrão, o id da etapa nos pipelines criados pelo time. */
+  status: string
+  /** Pipeline do lead (ver types/leadPipeline.ts). Sem valor = o padrão. */
+  pipelineId?: string | null
+  /** Valores dos campos extras do pipeline, por id do campo. */
+  customFields?: Record<string, string | number | boolean | null>
   /** manual sort order dentro da coluna do Kanban */
   order: number
   /** Quando `status` mudou pela última vez — base do "há X dias" no card

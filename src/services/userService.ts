@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc, serverTimestamp, orderBy, type FirestoreError } from 'firebase/firestore'
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, orderBy, type FirestoreError } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { AppUser, UserRole } from '../types'
 import { collectionService } from './firestore'
@@ -47,4 +47,13 @@ export async function updateUserActive(uid: string, active: boolean, actingUserI
 
 export async function updateUserPhoto(uid: string, photoURL: string) {
   await base.update(uid, { photoURL }, uid)
+}
+
+/** Heartbeat de presença: mexe SÓ em lastSeenAt do próprio perfil (sem updatedAt/updatedBy, que são de edição de verdade) — permitido pelas regras porque role/active não mudam. Falha em silêncio: presença é enfeite, nunca deve quebrar a tela. */
+export async function touchPresence(uid: string) {
+  try {
+    await updateDoc(doc(db, COLLECTION, uid), { lastSeenAt: serverTimestamp() })
+  } catch (err) {
+    console.warn('Não foi possível atualizar a presença.', err)
+  }
 }

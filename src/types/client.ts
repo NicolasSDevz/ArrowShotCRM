@@ -4,6 +4,7 @@ import type { PaidTrafficBriefing } from './paidTrafficBriefing'
 import type { CampaignPlanning } from './campaignPlanning'
 import type { SalesFunnel } from './salesFunnel'
 import type { LandingPage, LandingPageType } from './landingPage'
+import type { DiscountType } from './product'
 
 export type ClientStatus = 'active' | 'paused' | 'churned' | 'prospect'
 
@@ -113,6 +114,18 @@ export interface ClientBriefing {
   filledAt?: Timestamp | null
 }
 
+/** O que um cliente contratou de UM serviço do catálogo, com o preço dele:
+ *  nível escolhido, desconto (do catálogo ou personalizado) e, se o valor foi
+ *  combinado na mão, o preço final que vale no lugar do calculado. */
+export interface ClientServiceContract {
+  productId: string
+  tierId?: string | null
+  discountId?: string | null
+  customDiscount?: { type: DiscountType; value: number } | null
+  /** Valor mensal final desse serviço pra esse cliente. */
+  finalPrice?: number | null
+}
+
 export interface Client extends BaseDoc {
   companyName: string
   /** @deprecated the client form no longer collects this — kept only so
@@ -153,6 +166,9 @@ export interface Client extends BaseDoc {
    *  marcar serviços novos (ex: Google Meu Negócio) sem precisar de código
    *  novo a cada um. Mesmo campo/mesma ideia do Lead.contractedProductIds. */
   contractedProductIds?: string[]
+  /** Nível, desconto e preço combinado de cada serviço contratado (ver
+   *  ClientServiceContract) — a soma vira sugestão de `monthlyValue`. */
+  contractedServices?: ClientServiceContract[]
   /** Preenchido ao mudar o status para "Encerrado" — mostrado no popup de
    *  Churn Rate do Dashboard (ver OverviewDashboard). */
   churnReason?: string

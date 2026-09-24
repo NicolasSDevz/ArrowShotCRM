@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
-import { LEAD_SOURCE_LABEL, type AppUser, type Lead } from '../../types'
+import { LEAD_SOURCE_LABEL, formatFieldValue, type AppUser, type Lead, type PipelineField } from '../../types'
 
 function leadServiceLabel(lead: Lead): string {
   const parts: string[] = []
@@ -19,7 +19,11 @@ function daysInStageLabel(stageChangedAt: Lead['stageChangedAt']): string {
   return `há ${days} dia${days === 1 ? '' : 's'} nesta etapa`
 }
 
-export function LeadCard({ lead, assignee, onClick }: { lead: Lead; assignee?: AppUser; onClick: () => void }) {
+export function LeadCard({ lead, assignee, onClick, fields = [] }: { lead: Lead; assignee?: AppUser; onClick: () => void; fields?: PipelineField[] }) {
+  const cardFields = fields
+    .filter((f) => f.showOnCard)
+    .map((f) => ({ f, text: formatFieldValue(f, lead.customFields?.[f.id]) }))
+    .filter((x) => x.text)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id })
 
   return (
@@ -46,6 +50,16 @@ export function LeadCard({ lead, assignee, onClick }: { lead: Lead; assignee?: A
         {lead.services.landingPage && <Badge className="badge-service-landing">Landing Page</Badge>}
         <Badge className="bg-slate-100 text-[11px] text-slate-500">{LEAD_SOURCE_LABEL[lead.source]}</Badge>
       </div>
+
+      {cardFields.length > 0 && (
+        <div className="flex flex-col gap-0.5">
+          {cardFields.map(({ f, text }) => (
+            <p key={f.id} className="truncate text-xs text-slate-500">
+              <span className="text-slate-400">{f.label}:</span> {text}
+            </p>
+          ))}
+        </div>
+      )}
 
       {lead.estimatedValue != null && lead.estimatedValue > 0 && (
         <p className="text-sm font-semibold text-slate-700">

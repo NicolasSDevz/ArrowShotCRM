@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase/firestore'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
-import type { Lead, LeadInput, LeadSource } from '../../types'
+import { modulesFromProducts, resolveServices } from '../../utils/productModules'
+import type { Lead, LeadInput, LeadSource, Product } from '../../types'
 
 export interface LeadFormState {
   contactName: string
@@ -22,12 +23,14 @@ export interface LeadFormState {
   notes: string
   contractedProductIds: string[]
   contractedDuration: string
+  /** Valores dos campos extras do pipeline (por id do campo). */
+  customFields: Record<string, string | number | boolean | null>
 }
 
 /** O que o formulário edita — nunca inclui status/order/contactHistory/
  *  convertedClientId/convertedAt, que são geridos pelo Kanban, pelo mini-form
  *  de contato e pela conversão em cliente, não pela aba Informações. */
-export type LeadEditableFields = Omit<LeadInput, 'status' | 'order' | 'contactHistory' | 'convertedClientId' | 'convertedAt'>
+export type LeadEditableFields = Omit<LeadInput, 'status' | 'order' | 'contactHistory' | 'convertedClientId' | 'convertedAt' | 'pipelineId'>
 
 function toDateStr(d: Date) {
   return d.toISOString().slice(0, 10)
@@ -59,6 +62,7 @@ export function buildDefaultLeadForm(defaultAssignedTo?: string): LeadFormState 
     notes: '',
     contractedProductIds: [],
     contractedDuration: '',
+    customFields: {},
   }
 }
 
@@ -83,10 +87,16 @@ export function leadToFormState(lead: Lead): LeadFormState {
     notes: lead.notes ?? '',
     contractedProductIds: lead.contractedProductIds ?? [],
     contractedDuration: lead.contractedDuration ?? '',
+    customFields: lead.customFields ?? {},
   }
 }
 
-export function formStateToLeadFields(state: LeadFormState): LeadEditableFields {
+/** `catalog` = catálogo do Dashboard; `originalProductIds` = produtos que o
+ *  lead já tinha salvos (pra desmarcar um produto desligar o serviço dele).
+ *  Os serviços do lead (services.*) são derivados do que os produtos ligam. */
+export function formStateToLeadFields(state: LeadFormState, catalog: Product[] = [], originalProductIds: string[] = []): LeadEditableFields {
+  const origCovered = modulesFromProducts(catalog.filter((p) => originalProductIds.includes(p.id)))
+  const svc = resolveServices(catalog, state.contractedProductIds, state, origCovered)
   return {
     contactName: state.contactName.trim(),
     companyName: state.companyName.trim() || undefined,
@@ -94,12 +104,12 @@ export function formStateToLeadFields(state: LeadFormState): LeadEditableFields 
     email: state.email.trim() || undefined,
     cityRegion: state.cityRegion.trim() || undefined,
     services: {
-      paidTraffic: state.paidTraffic || undefined,
-      metaAds: state.paidTraffic && state.metaAds ? true : undefined,
-      googleAds: state.paidTraffic && state.googleAds ? true : undefined,
-      socialMedia: state.socialMedia || undefined,
-      socialMediaPackage: state.socialMedia ? state.socialMediaPackage : undefined,
-      landingPage: state.landingPage || undefined,
+      paidTraffic: svc.paidTraffic || undefined,
+      metaAds: svc.metaAds || undefined,
+      googleAds: svc.googleAds || undefined,
+      socialMedia: svc.socialMedia || undefined,
+      socialMediaPackage: svc.socialMedia ? state.socialMediaPackage : undefined,
+      landingPage: svc.landingPage || undefined,
     },
     source: state.source,
     estimatedValue: parseCurrencyToNumber(state.estimatedValueStr),
@@ -109,5 +119,6 @@ export function formStateToLeadFields(state: LeadFormState): LeadEditableFields 
     notes: state.notes.trim() || undefined,
     contractedProductIds: state.contractedProductIds.length > 0 ? state.contractedProductIds : undefined,
     contractedDuration: state.contractedDuration.trim() || undefined,
+    customFields: state.customFields,
   }
 }

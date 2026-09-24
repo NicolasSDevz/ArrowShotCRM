@@ -11,6 +11,8 @@ export interface AppUser {
   /** Client users are scoped to a single client account. */
   clientId?: string
   active: boolean
+  /** Último sinal de "estou com o CRM aberto" (heartbeat, ver usePresenceHeartbeat) — base do "online agora" na Equipe. */
+  lastSeenAt?: Timestamp | null
   createdAt: Timestamp
   updatedAt: Timestamp
 }
