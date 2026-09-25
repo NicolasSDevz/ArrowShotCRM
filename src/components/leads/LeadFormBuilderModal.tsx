@@ -317,6 +317,7 @@ export function LeadFormBuilderModal({
       }
       return null
     }
+    if (checkBlocks(design.welcomeBlocks, { kind: 'welcome' }, 'Tela de início') !== null) return
     if (outcomes.length === 0 && checkBlocks(endBlocks, { kind: 'end', id: null }, 'Tela final') !== null) return
     for (const o of outcomes) {
       if (checkBlocks(o.blocks, { kind: 'end', id: o.id }, `Tela final "${o.label || 'sem nome'}"`) !== null) return

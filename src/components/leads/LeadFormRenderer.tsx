@@ -299,6 +299,20 @@ export function LeadFormRenderer({
   const cardPadTop = !fullScreen && hasTopBanner ? imageGapPx : undefined
   const logoPx = { sm: 40, md: 56, lg: 80, xl: 112 }[design.logoSize ?? 'md']
   const logoShape = design.logoShape ?? 'circle'
+  // Blocos extras da tela de início (texto, imagem, botão com link, divisor…).
+  const welcomeBlocksBefore = (formDesign.welcomeBlocksPosition ?? 'before') === 'before'
+  const welcomeExtra =
+    shownPhase === 'welcome' && (formDesign.welcomeBlocks ?? []).length > 0 ? (
+      <div className="mt-5">
+        <LeadFormBlocksView
+          blocks={formDesign.welcomeBlocks ?? []}
+          primaryColor={primaryColor}
+          buttonTextColor={theme.buttonText}
+          textColor={theme.text}
+          interactive={!!onSubmitted}
+        />
+      </div>
+    ) : null
   const inlineImage =
     showBanner && !topImage ? (
       <div className={`mb-5 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`} style={imageGapPx !== undefined ? { marginBottom: imageGapPx } : undefined}>
@@ -341,6 +355,7 @@ export function LeadFormRenderer({
               <h1 className={`mb-1 whitespace-pre-wrap font-bold text-slate-900 ${fullScreen ? 'text-2xl sm:text-3xl' : 'text-xl'} ${alignText}`} style={textStyle}>{design.title || form.name}</h1>
               {design.subtitle && <p className={`whitespace-pre-wrap text-sm text-slate-500 ${alignText}`} style={mutedStyle}>{design.subtitle}</p>}
               <VideoEmbed url={design.welcomeVideoUrl} />
+              {welcomeBlocksBefore && welcomeExtra}
               <div className={`mt-5 flex ${buttonFlex}`}>
                 <button
                   type="button"
@@ -352,6 +367,7 @@ export function LeadFormRenderer({
                   {design.welcomeButtonLabel || 'Começar'} <ArrowRight size={14} />
                 </button>
               </div>
+              {!welcomeBlocksBefore && welcomeExtra}
             </>
           )}
 

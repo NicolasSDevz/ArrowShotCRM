@@ -111,7 +111,8 @@ export function LeadFormBlocksView({
             )
           }
           case 'divider':
-            return <hr key={b.id} className="my-1 border-slate-200" />
+            // Com cor de texto do tema (fundo escuro/colorido), a linha usa essa cor bem clarinha.
+            return <hr key={b.id} className="my-1 border-slate-200" style={textColor ? { borderColor: `${textColor}33` } : undefined} />
           case 'spacer':
             return <div key={b.id} style={{ height: SPACER_HEIGHT[b.size ?? 'md'] }} />
           default:

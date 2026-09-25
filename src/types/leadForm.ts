@@ -159,6 +159,11 @@ export interface LeadFormDesign {
   /** Parte da imagem que aparece quando o formato corta (topo/centro/baixo). */
   bannerFocus?: 'top' | 'center' | 'bottom'
   logoUrl?: string | null
+  /** Conteúdo extra da tela de início (texto, imagem, botão com link,
+   *  divisor, espaço, vídeo…), montado bloco a bloco como a tela final. */
+  welcomeBlocks?: LeadFormBlock[]
+  /** Onde os blocos extras aparecem: antes (padrão) ou depois do botão "Começar". */
+  welcomeBlocksPosition?: 'before' | 'after'
   /** Tamanho e formato da foto/logo. Sem valor = média e redonda. */
   logoSize?: 'sm' | 'md' | 'lg' | 'xl'
   logoShape?: 'circle' | 'rounded' | 'original'

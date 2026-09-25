@@ -168,6 +168,25 @@ export function WelcomeScreenEditor({ design, onDesignChange, formId, canUpload 
         </div>
       </EditorSection>
 
+      <EditorSection
+        title="Mais conteúdo"
+        hint="Adicione textos, imagens, botões com link, divisores, espaços e vídeos na tela de início — igual à tela final."
+        badge={(design.welcomeBlocks ?? []).length > 0 ? <span className="rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700">{(design.welcomeBlocks ?? []).length}</span> : undefined}
+      >
+        <LeadFormBlocksEditor blocks={design.welcomeBlocks ?? []} onChange={(next) => set('welcomeBlocks', next)} formId={formId} canUpload={canUpload} />
+        {(design.welcomeBlocks ?? []).length > 0 && (
+          <Segmented
+            label="Onde aparece"
+            value={design.welcomeBlocksPosition ?? 'before'}
+            onChange={(v) => set('welcomeBlocksPosition', v)}
+            options={[
+              { value: 'before', content: 'Antes do botão Começar', title: 'Entre o texto e o botão' },
+              { value: 'after', content: 'Depois do botão', title: 'Abaixo do botão Começar' },
+            ]}
+          />
+        )}
+      </EditorSection>
+
       <EditorSection title="Vídeo de apresentação (VSL)" hint="Aparece abaixo do título, antes do botão. Deixe em branco pra não usar vídeo.">
         <VideoField label="Link do YouTube" value={design.welcomeVideoUrl} onChange={(v) => set('welcomeVideoUrl', v)} />
       </EditorSection>
