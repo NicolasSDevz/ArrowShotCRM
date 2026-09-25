@@ -8,7 +8,7 @@ import { FieldGroupQuestionField } from './FieldGroupQuestionField'
 import { invalidSubfields, missingSubfields } from './leadFormFieldGroups'
 import { contactError, type ContactKind } from '../../utils/validation'
 import { maskPhone } from '../../utils/masks'
-import { JUSTIFY_CLASS, LeadFormBlocksView, SPACE_PX, TEXT_ALIGN_CLASS, VideoEmbed } from './LeadFormBlocksView'
+import { JUSTIFY_CLASS, LeadFormBlocksView, SPACE_PX, TEXT_ALIGN_CLASS, VideoEmbed, buttonAnimationClass } from './LeadFormBlocksView'
 import {
   effectiveEndBlocks,
   visibleQuestionsOf,
@@ -362,7 +362,7 @@ export function LeadFormRenderer({
                   onClick={handleStart}
                   disabled={visibleQuestions.length === 0}
                   style={{ background: primaryColor, color: theme.buttonText }}
-                  className="flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                  className={`flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${buttonAnimationClass(formDesign.welcomeButtonAnimation)}`}
                 >
                   {design.welcomeButtonLabel || 'Começar'} <ArrowRight size={14} />
                 </button>
@@ -415,7 +415,7 @@ export function LeadFormRenderer({
                   onClick={goNext}
                   disabled={shownPhase === 'submitting'}
                   style={{ background: primaryColor, color: theme.buttonText }}
-                  className="ml-auto flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                  className={`ml-auto flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${isLast && shownPhase !== 'submitting' ? buttonAnimationClass(formDesign.submitButtonAnimation) : ''}`}
                 >
                   {shownPhase === 'submitting' ? (
                     <Spinner className="h-4 w-4 border-white/30 border-t-white" />

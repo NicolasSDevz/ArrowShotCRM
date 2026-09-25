@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { Input, Textarea } from '../ui/Field'
 import { ImageUploadField, VideoField } from './LeadFormBuilderParts'
-import type { LeadFormAlign, LeadFormBlock, LeadFormBlockType } from '../../types/leadForm'
+import type { LeadFormAlign, LeadFormBlock, LeadFormBlockType, LeadFormButtonAnimation } from '../../types/leadForm'
 
 const BLOCK_META: Record<LeadFormBlockType, { icon: LucideIcon; label: string; hint: string }> = {
   heading: { icon: Heading, label: 'Título', hint: 'Frase grande em destaque' },
@@ -84,6 +84,24 @@ export function AlignControl({ value, onChange, label = 'Alinhamento' }: { value
         { value: 'left', content: <AlignLeft size={14} />, title: 'Esquerda' },
         { value: 'center', content: <AlignCenter size={14} />, title: 'Centro' },
         { value: 'right', content: <AlignRight size={14} />, title: 'Direita' },
+      ]}
+    />
+  )
+}
+
+/** Escolha da animação de um botão (bloco de botão, Começar, Enviar). */
+export function ButtonAnimationPicker({ value, onChange, label = 'Animação' }: { value?: LeadFormButtonAnimation; onChange: (v: LeadFormButtonAnimation) => void; label?: string }) {
+  return (
+    <Segmented
+      label={label}
+      value={value ?? 'none'}
+      onChange={onChange}
+      options={[
+        { value: 'none', content: 'Nenhuma', title: 'Botão parado' },
+        { value: 'pulse', content: 'Pulsar', title: 'Cresce e volta, com um brilho em volta' },
+        { value: 'shine', content: 'Brilho', title: 'Um reflexo de luz passa pelo botão' },
+        { value: 'shake', content: 'Balançar', title: 'Balança de vez em quando' },
+        { value: 'bounce', content: 'Pular', title: 'Dá um pulinho de vez em quando' },
       ]}
     />
   )
@@ -241,6 +259,7 @@ export function LeadFormBlocksEditor({
                       ]}
                     />
                   </div>
+                  <ButtonAnimationPicker value={b.animation} onChange={(v) => update(b.id, { animation: v })} />
                 </>
               )}
 

@@ -139,7 +139,12 @@ export interface LeadFormBlock {
   /** Imagem: formato (original = sem cortar) e cantos. */
   ratio?: 'original' | 'square' | 'post' | 'banner'
   shape?: 'rounded' | 'square' | 'circle'
+  /** Botão: animação pra chamar atenção. */
+  animation?: LeadFormButtonAnimation
 }
+
+/** Animação de botão: pulsar, brilho passando, balançar ou pular (sem valor = parado). */
+export type LeadFormButtonAnimation = 'none' | 'pulse' | 'shine' | 'shake' | 'bounce'
 
 /** Escala de espaçamento das telas finais (none = colado). */
 export type LeadFormSpace = 'none' | 'sm' | 'md' | 'lg' | 'xl'
@@ -164,6 +169,9 @@ export interface LeadFormDesign {
   welcomeBlocks?: LeadFormBlock[]
   /** Onde os blocos extras aparecem: antes (padrão) ou depois do botão "Começar". */
   welcomeBlocksPosition?: 'before' | 'after'
+  /** Animação do botão "Começar" e do botão "Enviar" (última pergunta). */
+  welcomeButtonAnimation?: LeadFormButtonAnimation
+  submitButtonAnimation?: LeadFormButtonAnimation
   /** Tamanho e formato da foto/logo. Sem valor = média e redonda. */
   logoSize?: 'sm' | 'md' | 'lg' | 'xl'
   logoShape?: 'circle' | 'rounded' | 'original'

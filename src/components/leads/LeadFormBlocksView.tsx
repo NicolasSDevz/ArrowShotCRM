@@ -1,6 +1,6 @@
 import { youTubeEmbedUrl } from '../../utils/youtube'
 import { normalizeUrl } from './leadFormUtils'
-import type { LeadFormAlign, LeadFormBlock } from '../../types/leadForm'
+import type { LeadFormAlign, LeadFormBlock, LeadFormButtonAnimation } from '../../types/leadForm'
 
 export const TEXT_ALIGN_CLASS: Record<LeadFormAlign, string> = { left: 'text-left', center: 'text-center', right: 'text-right' }
 export const JUSTIFY_CLASS: Record<LeadFormAlign, string> = { left: 'justify-start', center: 'justify-center', right: 'justify-end' }
@@ -28,6 +28,11 @@ const SPACER_HEIGHT = { sm: 8, md: 16, lg: 32, xl: 56 }
 const IMAGE_WIDTH = { sm: 'w-1/3', md: 'w-3/5', full: 'w-full' }
 const IMAGE_RATIO = { original: 'h-auto', square: 'aspect-square object-cover', post: 'aspect-[4/5] object-cover', banner: 'aspect-[3/1] object-cover' }
 const IMAGE_SHAPE = { rounded: 'rounded-xl', square: 'rounded-none', circle: 'rounded-full' }
+/** Classe da animação de botão (keyframes em index.css; desligadas pra quem pede menos movimento). */
+export function buttonAnimationClass(animation?: LeadFormButtonAnimation): string {
+  return animation && animation !== 'none' ? `lf-anim lf-anim-${animation}` : ''
+}
+
 /** Espaçamento em px da escala das telas finais. */
 export const SPACE_PX = { none: 0, sm: 12, md: 24, lg: 40, xl: 64 }
 
@@ -103,7 +108,7 @@ export function LeadFormBlocksView({
                   rel="noreferrer noopener"
                   onClick={interactive ? undefined : (e) => e.preventDefault()}
                   style={{ background: primaryColor, color: buttonTextColor }}
-                  className={`rounded-lg px-6 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90 ${b.width === 'full' ? 'w-full' : ''}`}
+                  className={`rounded-lg px-6 py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90 ${b.width === 'full' ? 'w-full' : ''} ${buttonAnimationClass(b.animation)}`}
                 >
                   {b.label}
                 </a>

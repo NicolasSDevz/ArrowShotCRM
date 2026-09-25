@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Trash2, Info, Flag, Plus, ArrowUp, ArrowDown, GitBranch } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { ColorField, ColorPresetPicker, EditorSection, Toggle, ImageUploadField, VideoField } from './LeadFormBuilderParts'
-import { AlignControl, LeadFormBlocksEditor, Segmented } from './LeadFormBlocksEditor'
+import { AlignControl, ButtonAnimationPicker, LeadFormBlocksEditor, Segmented } from './LeadFormBlocksEditor'
 import { parseMetaPixelId } from '../../utils/metaPixel'
 import { isChoiceType, visibleOptions } from './leadFormMeta'
 import { mergeDesign, outcomeRules } from './leadFormUtils'
@@ -159,6 +159,7 @@ export function WelcomeScreenEditor({ design, onDesignChange, formId, canUpload 
         <Field label="Texto do botão">
           <Input value={design.welcomeButtonLabel ?? ''} onChange={(e) => set('welcomeButtonLabel', e.target.value)} placeholder="Começar" />
         </Field>
+        <ButtonAnimationPicker label="Animação do botão" value={design.welcomeButtonAnimation} onChange={(v) => set('welcomeButtonAnimation', v)} />
       </EditorSection>
 
       <EditorSection title="Alinhamento" hint="Só desta tela de início. As perguntas têm o alinhamento próprio em Cores e tema.">
@@ -339,6 +340,9 @@ export function ThemeEditor({
       </EditorSection>
       <EditorSection title="Alinhamento das perguntas" hint="Só das telas de pergunta. A tela de início tem o próprio (em Tela de início) e nas telas finais cada bloco tem o seu.">
         <AlignControl label="Alinhar perguntas" value={design.questionAlign ?? design.textAlign ?? 'left'} onChange={(v) => set('questionAlign', v)} />
+      </EditorSection>
+      <EditorSection title="Botão Enviar" hint="O botão da última pergunta — uma animação ajuda o lead a não desistir no fim.">
+        <ButtonAnimationPicker value={design.submitButtonAnimation} onChange={(v) => set('submitButtonAnimation', v)} />
       </EditorSection>
       <EditorSection title="Ao escolher uma opção">
         <Toggle
