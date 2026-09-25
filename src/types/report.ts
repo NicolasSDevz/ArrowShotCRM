@@ -209,6 +209,9 @@ export interface Report extends BaseDoc {
   weeklyText?: string
   generatedBy: string
   generatedByName: string
+  /** Próximos passos combinados com o cliente — texto livre escrito pelo
+   *  gestor no relatório mensal, mostrado junto do resumo. */
+  nextSteps?: string
 }
 
 export type ReportInput = Omit<Report, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'>

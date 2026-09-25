@@ -1,624 +1,38 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { format, eachDayOfInterval } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import {
-  ArrowLeft,
-  Maximize2,
-  X,
-  Wallet,
-  Eye,
-  Users,
-  MousePointerClick,
-  Percent,
-  Coins,
-  Gauge,
-  MessageCircle,
-  DollarSign,
-  Trophy,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react'
+import toast from 'react-hot-toast'
+import { format } from 'date-fns'
+import { ArrowLeft, Maximize2, X, ChevronLeft, ChevronRight, Link2, FileDown } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { getOrCreateReportLink, reportLinkUrl } from '../services/reportLinkService'
+import { showError } from '../utils/notifyError'
+import { ReportWorkDoneSection } from '../components/reports/ReportWorkDoneSection'
+import { NextStepsEditor } from '../components/reports/NextStepsEditor'
 import { useReports } from '../hooks/useReports'
 import { useClients } from '../hooks/useClients'
 import { FullPageSpinner } from '../components/ui/FullPageSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
-import { ReportLineChart, type ChartSeries } from '../components/reports/ReportLineChart'
 import { ReportFunnelSection } from '../components/reports/ReportFunnelSection'
 import { previousPeriod } from '../utils/metaReportData'
-import { buildExecutiveSummary, buildFunnelSentence, pctChange } from '../utils/reportSummary'
 import { usePrivacy } from '../context/PrivacyContext'
-import type { ReportMetaSnapshot, ReportEntitySummary, ReportLandingPageSnapshot, ReportGoogleSnapshot, ReportGoogleCampaignSummary } from '../types'
-import { LANDING_PAGE_STATUS_LABEL } from '../types/landingPage'
-
-/** Variante "com dados" do snapshot do Google Ads — depois de checar
- *  `available`, os componentes recebem só esse formato (sem repetir a
- *  checagem em cada um). */
-type ReportGoogleSnapshotReady = Extract<ReportGoogleSnapshot, { available: true }>
-
-/* ---------- formatters ---------- */
-const fmtInt = (v?: number, masked?: boolean) => (masked ? '•.•••' : v == null || Number.isNaN(v) ? '—' : Math.round(v).toLocaleString('pt-BR'))
-const fmtBRL = (v?: number, masked?: boolean) =>
-  masked ? 'R$ •.•••,••' : v == null || Number.isNaN(v) ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const fmtPct = (v?: number, masked?: boolean) => (masked ? '•,••%' : v == null || Number.isNaN(v) ? '—' : `${v.toFixed(2).replace('.', ',')}%`)
-const fmtDate = (d: Date) => (Number.isNaN(d?.getTime?.()) ? '—' : format(d, 'dd/MM/yyyy', { locale: ptBR }))
-
-/** Variação vs período anterior. A seta reflete a direção real; a cor reflete
- *  se a mudança é BOA para o negócio (`goodWhen`): para métricas de volume
- *  (impressões, cliques, conversas…) subir é bom; para métricas de custo
- *  (CPC, CPM, custo por conversa, investimento) cair é bom. */
-function Delta({ curr, prev, goodWhen = 'up' }: { curr?: number; prev?: number; goodWhen?: 'up' | 'down' }) {
-  const d = pctChange(curr, prev)
-  if (d == null) return null
-  if (Math.round(d) === 0) return <span className="text-xs font-medium text-slate-400">≈ 0%</span>
-  const rising = d > 0
-  const good = goodWhen === 'up' ? rising : !rising
-  return (
-    <span className={`text-xs font-semibold ${good ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-      {rising ? '▲' : '▼'} {rising ? '+' : ''}
-      {d.toFixed(0)}%
-    </span>
-  )
-}
-
-function SectionTitle({ children }: { children: string }) {
-  return (
-    <h2 className="mb-1 flex items-center gap-2.5 text-[18px] font-bold text-[#0F172A]">
-      <span className="inline-block h-5 w-1 rounded-full bg-[#2563EB]" />
-      {children}
-    </h2>
-  )
-}
-
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return (
-    <section className="border-t border-[#E2E8F0] pt-8">
-      <SectionTitle>{title}</SectionTitle>
-      {subtitle && <p className="mb-4 ml-3.5 text-sm text-slate-400">{subtitle}</p>}
-      {!subtitle && <div className="mb-4" />}
-      {children}
-    </section>
-  )
-}
-
-function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <div
-      className={`rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] ${className}`}
-    >
-      {children}
-    </div>
-  )
-}
-
-/* ---------- Section 1: cards ---------- */
-function MetricCard({
-  icon,
-  name,
-  value,
-  explanation,
-  curr,
-  prev,
-  goodWhen = 'up',
-}: {
-  icon: ReactNode
-  name: string
-  value: string
-  explanation: string
-  curr?: number
-  prev?: number
-  goodWhen?: 'up' | 'down'
-}) {
-  return (
-    <Card>
-      <div className="mb-1.5 flex items-center gap-1.5 text-slate-400">{icon}</div>
-      <p className="text-[12px] font-medium text-[#64748B]">{name}</p>
-      <div className="mt-0.5 flex flex-wrap items-baseline gap-2">
-        <p className="text-[28px] font-bold leading-tight text-[#0F172A]">{value}</p>
-        <Delta curr={curr} prev={prev} goodWhen={goodWhen} />
-      </div>
-      <p className="mt-1 text-[11px] leading-snug text-[#94A3B8]">{explanation}</p>
-    </Card>
-  )
-}
-
-function OverviewSection({ meta }: { meta: ReportMetaSnapshot }) {
-  const { isPrivacyMode: m } = usePrivacy()
-  const c = meta.metrics.current
-  const p = meta.metrics.previous
-  const costPerConv = (v?: { spend?: number; conversations?: number }) =>
-    v?.spend && v?.conversations ? v.spend / v.conversations : undefined
-
-  return (
-    <Section title="Meta Ads — Visão Geral">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.spend, m)} curr={c.spend} prev={p?.spend} goodWhen="down" explanation="Total gasto em anúncios no período" />
-        <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions, m)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
-        <MetricCard icon={<Users size={18} />} name="Alcance" value={fmtInt(c.reach, m)} curr={c.reach} prev={p?.reach} explanation="Pessoas únicas que viram seus anúncios" />
-        <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks, m)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
-        <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr, m)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
-        <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.cpc, m)} curr={c.cpc} prev={p?.cpc} goodWhen="down" explanation="Custo médio por cada clique" />
-        <MetricCard icon={<Gauge size={18} />} name="CPM médio" value={fmtBRL(c.cpm, m)} curr={c.cpm} prev={p?.cpm} goodWhen="down" explanation="Custo a cada mil vezes que o anúncio aparece" />
-        <MetricCard icon={<MessageCircle size={18} />} name="Conversas iniciadas" value={fmtInt(c.conversations, m)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que mandaram mensagem pelo anúncio" />
-        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c), m)} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada nova conversa" />
-      </div>
-    </Section>
-  )
-}
-
-/* ---------- Section 2: funnel ---------- */
-const pctPtBR = (v: number) => `${v.toFixed(1).replace('.', ',')}%`
-
-function FunnelSection({ meta }: { meta: ReportMetaSnapshot }) {
-  const { isPrivacyMode } = usePrivacy()
-  const c = meta.metrics.current
-  const stages: { label: string; value?: number; color: string; prevLabel?: string; prevValue?: number }[] = [
-    { label: 'Impressões', value: c.impressions, color: '#1E3A8A' },
-    { label: 'Alcance', value: c.reach, color: '#1D4ED8', prevLabel: 'das impressões', prevValue: c.impressions },
-    { label: 'Cliques', value: c.clicks, color: '#3B82F6', prevLabel: 'do alcance', prevValue: c.reach },
-    { label: 'Cliques no link', value: c.linkClicks, color: '#60A5FA', prevLabel: 'dos cliques', prevValue: c.clicks },
-    { label: 'Conversas iniciadas', value: c.conversations, color: '#10B981', prevLabel: 'dos cliques no link', prevValue: c.linkClicks ?? c.clicks },
-  ]
-  const base = c.impressions ?? 0
-  const placeholder = [100, 82, 60, 44, 28]
-
-  return (
-    <Section title="Jornada do Cliente" subtitle="Do anúncio à conversa">
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:items-center">
-        <div className="flex flex-col items-center">
-          {stages.map((s, i) => {
-            const width =
-              base > 0 && s.value != null ? Math.min(100, Math.max(20, (s.value / base) * 100)) : placeholder[i]
-            const ratio =
-              s.prevValue && s.value != null && s.prevValue > 0 ? (s.value / s.prevValue) * 100 : undefined
-            return (
-              <div key={s.label} className="flex w-full flex-col items-center">
-                <div
-                  className="report-funnel-step flex flex-col items-center justify-center py-3 text-center text-white transition-all"
-                  style={{
-                    width: `${width}%`,
-                    minWidth: '46%',
-                    backgroundColor: s.color,
-                    clipPath: 'polygon(4% 0, 96% 0, 100% 100%, 0 100%)',
-                  }}
-                >
-                  <span className="text-[11px] font-semibold uppercase tracking-wide opacity-90">{s.label}</span>
-                  <span className="text-base font-bold">{fmtInt(s.value, isPrivacyMode)}</span>
-                  {i > 0 && s.prevLabel && (
-                    <span className="text-[11px] opacity-90">
-                      {ratio != null ? `${pctPtBR(Math.min(100, ratio))} ${s.prevLabel}` : `— ${s.prevLabel}`}
-                    </span>
-                  )}
-                </div>
-                {i < stages.length - 1 && <div className="my-0.5 text-slate-300">▼</div>}
-              </div>
-            )
-          })}
-        </div>
-        <Card className="bg-[#F8FAFC]">
-          <p className="text-sm leading-relaxed text-slate-700">
-            {buildFunnelSentence(meta) || 'Sem dados suficientes para montar o funil.'}
-          </p>
-        </Card>
-      </div>
-    </Section>
-  )
-}
-
-/* ---------- Section 3: evolution ---------- */
-const CHART_METRICS = {
-  impressions: { label: 'Impressões', color: '#2563EB', fmt: fmtInt },
-  clicks: { label: 'Cliques', color: '#7C3AED', fmt: fmtInt },
-  reach: { label: 'Alcance', color: '#0891B2', fmt: fmtInt },
-  conversations: { label: 'Conversas', color: '#10B981', fmt: fmtInt },
-  spend: { label: 'Investimento', color: '#F59E0B', fmt: (v: number) => fmtBRL(v) },
-} as const
-type ChartMetricKey = keyof typeof CHART_METRICS
-
-function EvolutionSection({ meta, periodStart, periodEnd }: { meta: ReportMetaSnapshot; periodStart: Date; periodEnd: Date }) {
-  const { isPrivacyMode } = usePrivacy()
-  const [a, setA] = useState<ChartMetricKey>('impressions')
-  const [b, setB] = useState<ChartMetricKey>('conversations')
-
-  const daily = meta.dailySeries
-  const chart = useMemo(() => {
-    try {
-      if (!daily || daily.length === 0) return null
-      if (Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd < periodStart) return null
-      const spanDays = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86_400_000)
-      if (spanDays > 400) return null
-      const days = eachDayOfInterval({ start: periodStart, end: periodEnd })
-      const byDate = new Map(daily.map((d) => [d.date, d]))
-      const labels = days.map((d) => format(d, 'dd/MM'))
-      const valuesFor = (key: ChartMetricKey) => days.map((d) => byDate.get(format(d, 'yyyy-MM-dd'))?.[key])
-      return { labels, valuesFor }
-    } catch (err) {
-      console.error('EvolutionSection chart', err)
-      return null
-    }
-  }, [daily, periodStart, periodEnd])
-
-  const fmtSeries = (v: number, key: ChartMetricKey) => (isPrivacyMode ? (key === 'spend' ? 'R$ •.•••' : '•.•••') : CHART_METRICS[key].fmt(v))
-  const seriesA: ChartSeries = { label: CHART_METRICS[a].label, color: CHART_METRICS[a].color, values: chart?.valuesFor(a) ?? [], format: (v) => fmtSeries(v, a) }
-  const seriesB: ChartSeries = { label: CHART_METRICS[b].label, color: CHART_METRICS[b].color, values: chart?.valuesFor(b) ?? [], format: (v) => fmtSeries(v, b) }
-
-  return (
-    <Section title="Desempenho ao longo do período">
-      {!chart ? (
-        <Card>
-          <p className="text-sm text-slate-400">
-            Este relatório não tem a série diária (foi gerado antes desta versão do painel). Gere um novo
-            relatório para ver a evolução dia a dia.
-          </p>
-        </Card>
-      ) : (
-        <Card>
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: CHART_METRICS[a].color }} />
-              <select value={a} onChange={(e) => setA(e.target.value as ChartMetricKey)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm">
-                {Object.entries(CHART_METRICS).map(([k, m]) => (
-                  <option key={k} value={k}>{m.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: CHART_METRICS[b].color }} />
-              <select value={b} onChange={(e) => setB(e.target.value as ChartMetricKey)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm">
-                {Object.entries(CHART_METRICS).map(([k, m]) => (
-                  <option key={k} value={k}>{m.label}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <ReportLineChart labels={chart.labels} seriesA={seriesA} seriesB={seriesB} />
-        </Card>
-      )}
-    </Section>
-  )
-}
-
-/* ---------- Section 4: campaigns ---------- */
-function costPerResult(e: ReportEntitySummary) {
-  return e.spend && e.conversations ? e.spend / e.conversations : undefined
-}
-
-function CampaignsSection({ campaigns }: { campaigns: ReportEntitySummary[] }) {
-  const { isPrivacyMode: m } = usePrivacy()
-  const withConv = campaigns.filter((c) => (c.conversations ?? 0) > 0)
-  const best = withConv.length
-    ? withConv.reduce((a, b) => ((costPerResult(a) ?? Infinity) <= (costPerResult(b) ?? Infinity) ? a : b))
-    : undefined
-
-  return (
-    <Section title="Suas campanhas no período">
-      {campaigns.length === 0 ? (
-        <Card><p className="text-sm text-slate-400">Sem dados de campanhas no período.</p></Card>
-      ) : (
-        <>
-          <div className="overflow-x-auto rounded-2xl border border-[#E2E8F0]">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="bg-[#2563EB] text-xs font-semibold uppercase tracking-wide text-white">
-                <tr>
-                  <th className="px-4 py-2.5">Campanha</th>
-                  <th className="px-4 py-2.5">Resultado</th>
-                  <th className="px-4 py-2.5">Custo / resultado</th>
-                  <th className="px-4 py-2.5">Investido</th>
-                  <th className="px-4 py-2.5">CTR</th>
-                  <th className="px-4 py-2.5">Alcance</th>
-                  <th className="px-4 py-2.5">Impressões</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((c, i) => (
-                  <tr key={c.id || i} className={`border-t border-slate-100 text-slate-700 transition-colors hover:bg-[#F8FAFC] ${i % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}`}>
-                    <td className="max-w-[240px] truncate px-4 py-2.5 font-medium text-slate-800">{c.name}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.conversations, m)}</td>
-                    <td className="px-4 py-2.5">{fmtBRL(costPerResult(c), m)}</td>
-                    <td className="px-4 py-2.5">{fmtBRL(c.spend, m)}</td>
-                    <td className="px-4 py-2.5">{fmtPct(c.ctr, m)}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.reach, m)}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.impressions, m)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {best && (
-            <p className="mt-3 text-sm text-slate-600">
-              A campanha <span className="font-semibold text-slate-800">{best.name}</span> trouxe mais resultados
-              pelo menor custo no período.
-            </p>
-          )}
-        </>
-      )}
-    </Section>
-  )
-}
-
-/* ---------- Section 5: top ads ---------- */
-function AdsSection({ ads }: { ads: ReportEntitySummary[] }) {
-  const { isPrivacyMode: m } = usePrivacy()
-  const ranked = [...ads]
-    .sort((a, b) => (b.conversations ?? 0) - (a.conversations ?? 0) || (b.spend ?? 0) - (a.spend ?? 0))
-    .slice(0, 3)
-
-  return (
-    <Section title="Anúncios que mais performaram">
-      {ranked.length === 0 ? (
-        <Card><p className="text-sm text-slate-400">Sem dados de anúncios no período.</p></Card>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-3">
-          {ranked.map((ad, i) => (
-            <Card key={ad.id || i}>
-              {i === 0 && (
-                <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                  <Trophy size={11} /> Melhor resultado
-                </span>
-              )}
-              <p className="truncate text-sm font-semibold text-slate-800" title={ad.name}>{ad.name}</p>
-              <dl className="mt-2 space-y-1 text-xs text-slate-500">
-                <div className="flex justify-between"><dt>Resultado</dt><dd className="font-medium text-slate-700">{fmtInt(ad.conversations, m)}</dd></div>
-                <div className="flex justify-between"><dt>Custo / resultado</dt><dd className="font-medium text-slate-700">{fmtBRL(costPerResult(ad), m)}</dd></div>
-                <div className="flex justify-between"><dt>Investido</dt><dd className="font-medium text-slate-700">{fmtBRL(ad.spend, m)}</dd></div>
-                <div className="flex justify-between"><dt>CTR</dt><dd className="font-medium text-slate-700">{fmtPct(ad.ctr, m)}</dd></div>
-                <div className="flex justify-between"><dt>CPC</dt><dd className="font-medium text-slate-700">{fmtBRL(ad.cpc, m)}</dd></div>
-              </dl>
-            </Card>
-          ))}
-        </div>
-      )}
-    </Section>
-  )
-}
-
-/* ---------- Section 6: FB vs IG ---------- */
-function PlatCard({ title, row }: { title: string; row?: { reach?: number; impressions?: number; clicks?: number; spend?: number } }) {
-  const { isPrivacyMode: m } = usePrivacy()
-  return (
-    <Card>
-      <p className="mb-2 text-sm font-semibold text-slate-800">{title}</p>
-      <dl className="space-y-1 text-xs text-slate-500">
-        <div className="flex justify-between"><dt>Alcance</dt><dd className="font-medium text-slate-700">{fmtInt(row?.reach, m)}</dd></div>
-        <div className="flex justify-between"><dt>Impressões</dt><dd className="font-medium text-slate-700">{fmtInt(row?.impressions, m)}</dd></div>
-        <div className="flex justify-between"><dt>Cliques</dt><dd className="font-medium text-slate-700">{fmtInt(row?.clicks, m)}</dd></div>
-        <div className="flex justify-between"><dt>Investido</dt><dd className="font-medium text-slate-700">{fmtBRL(row?.spend, m)}</dd></div>
-      </dl>
-    </Card>
-  )
-}
-
-function PlatformSection({ meta }: { meta: ReportMetaSnapshot }) {
-  const rows = meta.platformBreakdown ?? []
-  const fb = rows.find((r) => r.platform === 'facebook')
-  const ig = rows.find((r) => r.platform === 'instagram')
-  const fbSpend = fb?.spend ?? 0
-  const igSpend = ig?.spend ?? 0
-  const totalSpend = fbSpend + igSpend
-  const igSpendPct = totalSpend > 0 ? (igSpend / totalSpend) * 100 : 50
-
-  const fbReach = fb?.reach ?? 0
-  const igReach = ig?.reach ?? 0
-  const totalReach = fbReach + igReach
-  const igReachPct = totalReach > 0 ? Math.round((igReach / totalReach) * 100) : 0
-  const fbReachPct = totalReach > 0 ? 100 - igReachPct : 0
-
-  return (
-    <Section title="Onde seu público está">
-      {rows.length === 0 ? (
-        <Card><p className="text-sm text-slate-400">Sem dados de breakdown por plataforma.</p></Card>
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <PlatCard title="Facebook" row={fb} />
-            <PlatCard title="Instagram" row={ig} />
-          </div>
-          <div className="mt-4">
-            <div className="mb-1 flex justify-between text-[11px] font-medium text-slate-500">
-              <span>Facebook {Math.round(100 - igSpendPct)}%</span>
-              <span>Instagram {Math.round(igSpendPct)}%</span>
-            </div>
-            <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
-              <div style={{ width: `${100 - igSpendPct}%`, backgroundColor: '#1877F2' }} />
-              <div style={{ width: `${igSpendPct}%`, backgroundColor: '#E1306C' }} />
-            </div>
-            <p className="mt-1 text-[11px] text-slate-400">Proporção do investimento entre as plataformas</p>
-          </div>
-          {totalReach > 0 && (
-            <p className="mt-3 text-sm text-slate-600">
-              {igReachPct}% do seu público interagiu pelo Instagram e {fbReachPct}% pelo Facebook.
-            </p>
-          )}
-        </>
-      )}
-    </Section>
-  )
-}
-
-/* ---------- Seções do Google Ads ---------- */
-const GOOGLE_CAMPAIGN_STATUS_LABEL: Record<string, string> = {
-  ENABLED: 'Ativa',
-  PAUSED: 'Pausada',
-  REMOVED: 'Removida',
-}
-
-function GoogleOverviewSection({ google }: { google: ReportGoogleSnapshotReady }) {
-  const { isPrivacyMode: m } = usePrivacy()
-  const c = google.metrics.current
-  const p = google.metrics.previous
-
-  return (
-    <Section title="Google Ads — Visão Geral">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.cost, m)} curr={c.cost} prev={p?.cost} goodWhen="down" explanation="Total gasto em anúncios no período" />
-        <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions, m)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
-        <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks, m)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
-        <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr, m)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
-        <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.averageCpc, m)} curr={c.averageCpc} prev={p?.averageCpc} goodWhen="down" explanation="Custo médio por cada clique" />
-        <MetricCard icon={<Trophy size={18} />} name="Conversões" value={fmtInt(c.conversions, m)} curr={c.conversions} prev={p?.conversions} explanation="Ações completadas atribuídas aos anúncios" />
-        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversão" value={fmtBRL(c.costPerConversion, m)} curr={c.costPerConversion} prev={p?.costPerConversion} goodWhen="down" explanation="Quanto custou cada conversão" />
-      </div>
-    </Section>
-  )
-}
-
-const GOOGLE_CHART_METRICS = {
-  impressions: { label: 'Impressões', color: '#2563EB', fmt: fmtInt },
-  clicks: { label: 'Cliques', color: '#7C3AED', fmt: fmtInt },
-  conversions: { label: 'Conversões', color: '#10B981', fmt: fmtInt },
-  cost: { label: 'Investimento', color: '#F59E0B', fmt: (v: number) => fmtBRL(v) },
-} as const
-type GoogleChartMetricKey = keyof typeof GOOGLE_CHART_METRICS
-
-function GoogleEvolutionSection({
-  google,
-  periodStart,
-  periodEnd,
-}: {
-  google: ReportGoogleSnapshotReady
-  periodStart: Date
-  periodEnd: Date
-}) {
-  const { isPrivacyMode } = usePrivacy()
-  const [a, setA] = useState<GoogleChartMetricKey>('impressions')
-  const [b, setB] = useState<GoogleChartMetricKey>('conversions')
-
-  const daily = google.dailySeries
-  const chart = useMemo(() => {
-    try {
-      if (!daily || daily.length === 0) return null
-      if (Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd < periodStart) return null
-      const spanDays = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86_400_000)
-      if (spanDays > 400) return null
-      const days = eachDayOfInterval({ start: periodStart, end: periodEnd })
-      const byDate = new Map(daily.map((d) => [d.date, d]))
-      const labels = days.map((d) => format(d, 'dd/MM'))
-      const valuesFor = (key: GoogleChartMetricKey) => days.map((d) => byDate.get(format(d, 'yyyy-MM-dd'))?.[key])
-      return { labels, valuesFor }
-    } catch (err) {
-      console.error('GoogleEvolutionSection chart', err)
-      return null
-    }
-  }, [daily, periodStart, periodEnd])
-
-  const fmtGoogleSeries = (v: number, key: GoogleChartMetricKey) =>
-    isPrivacyMode ? (key === 'cost' ? 'R$ •.•••' : '•.•••') : GOOGLE_CHART_METRICS[key].fmt(v)
-  const seriesA: ChartSeries = { label: GOOGLE_CHART_METRICS[a].label, color: GOOGLE_CHART_METRICS[a].color, values: chart?.valuesFor(a) ?? [], format: (v) => fmtGoogleSeries(v, a) }
-  const seriesB: ChartSeries = { label: GOOGLE_CHART_METRICS[b].label, color: GOOGLE_CHART_METRICS[b].color, values: chart?.valuesFor(b) ?? [], format: (v) => fmtGoogleSeries(v, b) }
-
-  return (
-    <Section title="Desempenho ao longo do período — Google Ads">
-      {!chart ? (
-        <Card>
-          <p className="text-sm text-slate-400">Este relatório não tem a série diária do Google Ads para o período.</p>
-        </Card>
-      ) : (
-        <Card>
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: GOOGLE_CHART_METRICS[a].color }} />
-              <select value={a} onChange={(e) => setA(e.target.value as GoogleChartMetricKey)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm">
-                {Object.entries(GOOGLE_CHART_METRICS).map(([k, m]) => (
-                  <option key={k} value={k}>{m.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: GOOGLE_CHART_METRICS[b].color }} />
-              <select value={b} onChange={(e) => setB(e.target.value as GoogleChartMetricKey)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm">
-                {Object.entries(GOOGLE_CHART_METRICS).map(([k, m]) => (
-                  <option key={k} value={k}>{m.label}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <ReportLineChart labels={chart.labels} seriesA={seriesA} seriesB={seriesB} />
-        </Card>
-      )}
-    </Section>
-  )
-}
-
-function GoogleCampaignsSection({ campaigns }: { campaigns: ReportGoogleCampaignSummary[] }) {
-  const { isPrivacyMode: m } = usePrivacy()
-  const withConv = campaigns.filter((c) => c.conversions > 0)
-  const best = withConv.length
-    ? withConv.reduce((a, b) => (a.cost / (a.conversions || 1) <= b.cost / (b.conversions || 1) ? a : b))
-    : undefined
-
-  return (
-    <Section title="Suas campanhas no período — Google Ads">
-      {campaigns.length === 0 ? (
-        <Card><p className="text-sm text-slate-400">Sem dados de campanhas no período.</p></Card>
-      ) : (
-        <>
-          <div className="overflow-x-auto rounded-2xl border border-[#E2E8F0]">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="bg-[#2563EB] text-xs font-semibold uppercase tracking-wide text-white">
-                <tr>
-                  <th className="px-4 py-2.5">Campanha</th>
-                  <th className="px-4 py-2.5">Status</th>
-                  <th className="px-4 py-2.5">Conversões</th>
-                  <th className="px-4 py-2.5">Investido</th>
-                  <th className="px-4 py-2.5">CTR</th>
-                  <th className="px-4 py-2.5">Impressões</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((c, i) => (
-                  <tr key={c.name + i} className={`border-t border-slate-100 text-slate-700 transition-colors hover:bg-[#F8FAFC] ${i % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}`}>
-                    <td className="max-w-[240px] truncate px-4 py-2.5 font-medium text-slate-800">{c.name}</td>
-                    <td className="px-4 py-2.5">{GOOGLE_CAMPAIGN_STATUS_LABEL[c.status] ?? c.status}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.conversions, m)}</td>
-                    <td className="px-4 py-2.5">{fmtBRL(c.cost, m)}</td>
-                    <td className="px-4 py-2.5">{fmtPct(c.ctr, m)}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.impressions, m)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {best && (
-            <p className="mt-3 text-sm text-slate-600">
-              A campanha <span className="font-semibold text-slate-800">{best.name}</span> trouxe mais conversões
-              pelo menor custo no período.
-            </p>
-          )}
-        </>
-      )}
-    </Section>
-  )
-}
-
-function LandingPageSection({ lp }: { lp: ReportLandingPageSnapshot }) {
-  const total = lp.checklist.length
-  const done = lp.checklist.filter((i) => i.done).length
-  return (
-    <Section title="Landing Page">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Card>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">URL</p>
-          <p className="mt-1 truncate text-sm text-slate-700">{lp.url || '—'}</p>
-        </Card>
-        <Card>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Status</p>
-          <p className="mt-1 text-sm text-slate-700">{LANDING_PAGE_STATUS_LABEL[lp.status]}</p>
-        </Card>
-        <Card>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Checklist de entrega</p>
-          <p className="mt-1 text-sm text-slate-700">{done} de {total} itens concluídos</p>
-        </Card>
-        {lp.observations && (
-          <Card className="sm:col-span-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Observações</p>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{lp.observations}</p>
-          </Card>
-        )}
-      </div>
-    </Section>
-  )
-}
+import {
+  Section,
+  Card,
+  fmtDate,
+  OverviewSection,
+  FunnelSection,
+  EvolutionSection,
+  CampaignsSection,
+  AdsSection,
+  PlatformSection,
+  GoogleOverviewSection,
+  GoogleEvolutionSection,
+  GoogleCampaignsSection,
+  LandingPageSection,
+  ExecutiveSummary,
+  type ReportGoogleSnapshotReady,
+} from '../components/reports/ReportSections'
 
 /* ---------- Page ---------- */
 function toValidDate(ts: unknown): Date {
@@ -636,14 +50,17 @@ export function MonthlyReportPage() {
   const navigate = useNavigate()
   const { data: reports, loading } = useReports()
   const { data: clients } = useClients()
+  const { profile } = useAuth()
   const [presenting, setPresenting] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const [slide, setSlide] = useState(0)
   // Um relatório recém-criado pode levar um instante para aparecer no snapshot
   // — dá uma janela de tolerância antes de mostrar "não encontrado".
   const [graceOver, setGraceOver] = useState(false)
 
   const report = reports.find((r) => r.id === id)
-  const clientName = report ? (clients.find((c) => c.id === report.clientId)?.companyName ?? 'Cliente') : ''
+  const client = report ? clients.find((c) => c.id === report.clientId) : undefined
+  const clientName = report ? (client?.companyName ?? 'Cliente') : ''
 
   useEffect(() => {
     const t = setTimeout(() => setGraceOver(true), 2500)
@@ -709,13 +126,28 @@ export function MonthlyReportPage() {
     console.warn('[MonthlyReport] report.meta e report.google ausentes — nenhum snapshot foi salvo na geração do relatório.')
   }
 
-  const resumoNode = meta ? (
-    <div className="rounded-2xl bg-[#F8FAFC] p-6">
-      <p className="whitespace-pre-line text-[15px] leading-relaxed text-slate-700">
-        {buildExecutiveSummary(meta, periodStart, periodEnd)}
-      </p>
-    </div>
-  ) : null
+  const hasAds = !!(meta || google)
+  const resumoNode = (
+    <ExecutiveSummary meta={meta} google={google} start={periodStart} end={periodEnd} nextSteps={report.nextSteps} />
+  )
+  const workDoneNode = <ReportWorkDoneSection clientId={report.clientId} start={periodStart} end={periodEnd} />
+
+  /** Link pro cliente com o período deste relatório já escolhido — ele pode
+   *  trocar as datas depois. */
+  const handleShare = async () => {
+    if (!client || !profile) return
+    setSharing(true)
+    try {
+      const link = await getOrCreateReportLink(client, profile.id, profile.name)
+      const url = reportLinkUrl(link.token, { from: format(periodStart, 'yyyy-MM-dd'), to: format(periodEnd, 'yyyy-MM-dd') })
+      await navigator.clipboard.writeText(url)
+      toast.success('Link copiado — o cliente abre sem login e pode escolher outras datas')
+    } catch (err) {
+      showError(err, 'Erro ao criar o link do relatório')
+    } finally {
+      setSharing(false)
+    }
+  }
 
   // Sequência de slides do modo apresentação (uma seção por vez). Landing
   // Page entra mesmo sem dados de anúncios — são seções independentes. Funil
@@ -737,8 +169,9 @@ export function MonthlyReportPage() {
           { title: 'Campanhas em destaque (Google Ads)', node: <GoogleCampaignsSection campaigns={google.topCampaigns} /> },
         ]
       : []),
-    ...(meta || google ? [{ title: 'Funil Comercial', node: <ReportFunnelSection report={report} editable={false} /> }] : []),
-    ...(meta ? [{ title: 'Resumo Executivo', node: resumoNode }] : []),
+    ...(hasAds ? [{ title: 'O que fizemos no período', node: workDoneNode }] : []),
+    ...(hasAds ? [{ title: 'Funil Comercial', node: <ReportFunnelSection report={report} editable={false} /> }] : []),
+    ...(hasAds ? [{ title: 'Resumo Executivo', node: resumoNode }] : []),
     ...(report.landingPage ? [{ title: 'Landing Page', node: <LandingPageSection lp={report.landingPage} /> }] : []),
   ]
 
@@ -776,12 +209,23 @@ export function MonthlyReportPage() {
               <GoogleCampaignsSection campaigns={google.topCampaigns} />
             </>
           )}
-          {(meta || google) && (
+          {hasAds && (
+            <Section title="O que fizemos no período" subtitle="Otimizações registradas pela equipe nas campanhas">
+              {workDoneNode}
+            </Section>
+          )}
+          {hasAds && (
             <Section title="Funil Comercial" subtitle="Do investimento em anúncios ao contrato assinado">
               <ReportFunnelSection report={report} editable />
             </Section>
           )}
-          {meta && <Section title="Resumo do período">{resumoNode}</Section>}
+          {hasAds && (
+            <Section title="Resumo do período">
+              <ExecutiveSummary meta={meta} google={google} start={periodStart} end={periodEnd}>
+                <NextStepsEditor key={report.nextSteps ?? ''} report={report} />
+              </ExecutiveSummary>
+            </Section>
+          )}
           {report.landingPage && <LandingPageSection lp={report.landingPage} />}
         </>
       )}
@@ -828,12 +272,29 @@ export function MonthlyReportPage() {
           <X size={14} /> Sair da apresentação (ESC)
         </button>
       ) : (
-        <button
-          onClick={() => setPresenting(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
-        >
-          <Maximize2 size={14} /> Modo apresentação
-        </button>
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <button
+            onClick={handleShare}
+            disabled={sharing || !client}
+            title="Copia um link que o cliente abre sem login e escolhe as datas"
+            className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 disabled:opacity-50"
+          >
+            <Link2 size={14} /> {sharing ? 'Gerando link…' : 'Link pro cliente'}
+          </button>
+          <button
+            onClick={() => window.print()}
+            title="Abre a janela de impressão — escolha Salvar como PDF"
+            className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+          >
+            <FileDown size={14} /> Baixar PDF
+          </button>
+          <button
+            onClick={() => setPresenting(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+          >
+            <Maximize2 size={14} /> Modo apresentação
+          </button>
+        </div>
       )}
     </div>
   )
@@ -849,8 +310,8 @@ export function MonthlyReportPage() {
   }
 
   return (
-    <div className="-mx-8 -my-8 flex flex-col bg-[#F1F5F9]">
-      <div className="px-8 pt-6">
+    <div className="report-print -mx-8 -my-8 flex flex-col bg-[#F1F5F9] print:m-0">
+      <div className="px-8 pt-6 print:hidden">
         <button onClick={() => navigate('/relatorios')} className="mb-4 flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700">
           <ArrowLeft size={14} /> Relatórios
         </button>

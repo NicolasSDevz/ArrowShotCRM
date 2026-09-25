@@ -567,3 +567,34 @@ body {
 :root[data-theme="dark"] .topbar-stack-ring {
   --tw-ring-color: var(--dk-surface) !important;
 }
+
+/* Relatório em PDF (Baixar PDF = imprimir → Salvar como PDF): folha branca,
+   cores de fundo preservadas e sem cortar cartão no meio da página. */
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .report-print .rounded-2xl {
+    break-inside: avoid;
+  }
+  /* Tabelas de campanha: cabem na largura do A4 em vez de cortar a direita. */
+  .report-print .overflow-x-auto {
+    overflow: visible !important;
+  }
+  .report-print table {
+    min-width: 0 !important;
+    font-size: 11px;
+  }
+}

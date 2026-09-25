@@ -43,6 +43,7 @@ export function ReportFormModal({
   open,
   onClose,
   initialClientId,
+  initialType,
   initialPlatforms,
   initialStartStr,
   initialEndStr,
@@ -55,6 +56,7 @@ export function ReportFormModal({
    *  (via `key`) quando trocar de cliente, já que esses valores só viram o
    *  estado inicial (não ficam sincronizados depois). */
   initialClientId?: string
+  initialType?: ReportType
   initialPlatforms?: ReportPlatform[]
   initialStartStr?: string
   initialEndStr?: string
@@ -70,10 +72,10 @@ export function ReportFormModal({
   const { data: clients } = useClients()
 
   const [clientId, setClientId] = useState(initialClientId ?? '')
-  const [type, setType] = useState<ReportType>('weekly')
+  const [type, setType] = useState<ReportType>(initialType ?? 'weekly')
   const [platforms, setPlatforms] = useState<ReportPlatform[]>(initialPlatforms ?? ['meta'])
-  const [startStr, setStartStr] = useState(initialStartStr ?? defaultRange('weekly').start)
-  const [endStr, setEndStr] = useState(initialEndStr ?? defaultRange('weekly').end)
+  const [startStr, setStartStr] = useState(initialStartStr ?? defaultRange(initialType ?? 'weekly').start)
+  const [endStr, setEndStr] = useState(initialEndStr ?? defaultRange(initialType ?? 'weekly').end)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)

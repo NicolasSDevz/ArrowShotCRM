@@ -12,6 +12,8 @@ import { usePrivacy } from '../../context/PrivacyContext'
 import { generateWeeklyReportPdf } from '../../utils/weeklyReportPdf'
 import { deleteReport } from '../../services/reportService'
 import { REPORT_TYPE_LABEL, type Client, type Report } from '../../types'
+import { hasContractedPaidTraffic } from '../../utils/clientServices'
+import { ReportLinkPanel } from './ReportLinkPanel'
 
 /** Histórico completo de relatórios (mensal + semanal) de UM cliente,
  *  ordenado do mais recente pro mais antigo — aberto a partir do card do
@@ -76,6 +78,7 @@ export function ClientReportsDrawer({
       }
     >
       <div className="flex flex-col gap-2.5 p-5">
+        {hasContractedPaidTraffic(client) && <ReportLinkPanel client={client} />}
         {sorted.length === 0 ? (
           <p className="text-sm text-slate-400">Nenhum relatório ainda.</p>
         ) : (

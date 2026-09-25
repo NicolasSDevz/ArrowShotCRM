@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import type { ReportMetaSnapshot } from '../types'
+import type { ReportGoogleMetricSet, ReportMetaSnapshot } from '../types'
 
 const fmtInt = (v?: number) => (v == null ? '—' : Math.round(v).toLocaleString('pt-BR'))
 const fmtBRL = (v?: number) =>
@@ -70,4 +70,36 @@ export function buildFunnelSentence(meta: ReportMetaSnapshot): string {
   return `De cada 1.000 pessoas que viram seus anúncios, ${per1000(c.clicks)} clicaram e ${per1000(
     c.conversations
   )} entraram em contato.`
+}
+
+/** Versão Google Ads do resumo — mesma linguagem simples, métricas do Google
+ *  (conversões e custo por conversão no lugar de conversas). */
+export function buildGoogleExecutiveSummary(
+  google: { metrics: { current: ReportGoogleMetricSet; previous?: ReportGoogleMetricSet } },
+  periodStart: Date,
+  periodEnd: Date
+): string {
+  const c = google.metrics.current
+  const p = google.metrics.previous
+  const lines: string[] = []
+  lines.push(
+    `No Google Ads, de ${fmtDate(periodStart)} a ${fmtDate(periodEnd)}, seus anúncios apareceram ${fmtInt(c.impressions)} vezes nas pesquisas e receberam ${fmtInt(c.clicks)} cliques.`
+  )
+  if (c.conversions) {
+    lines.push(
+      `Foram ${fmtInt(c.conversions)} conversões` +
+        (c.costPerConversion ? `, com um custo médio de ${fmtBRL(c.costPerConversion)} por conversão.` : '.')
+    )
+  } else {
+    lines.push(`O investimento no período foi de ${fmtBRL(c.cost)}.`)
+  }
+  if (p) {
+    const convDelta = pctChange(c.conversions, p.conversions)
+    const cpaDelta = pctChange(c.costPerConversion, p.costPerConversion)
+    const parts: string[] = []
+    if (convDelta != null) parts.push(`as conversões ${convDelta >= 0 ? 'aumentaram' : 'diminuíram'} ${Math.abs(convDelta).toFixed(0)}%`)
+    if (cpaDelta != null) parts.push(`o custo por conversão ${cpaDelta <= 0 ? 'caiu' : 'subiu'} ${Math.abs(cpaDelta).toFixed(0)}%`)
+    if (parts.length) lines.push(`Comparado ao período anterior, ${parts.join(' e ')}.`)
+  }
+  return lines.join('\n\n')
 }

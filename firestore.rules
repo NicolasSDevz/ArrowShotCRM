@@ -225,6 +225,18 @@ service cloud.firestore {
       allow delete: if isInternal();
     }
 
+    // ---------- reportLinks (link público de relatório, /relatorio/:token) ----------
+    // O id do documento É o token (aleatório, 24 caracteres). Quem tem o link
+    // lê SÓ esse documento (get, nunca list) e só enquanto estiver ativo; os
+    // números vêm ao vivo das APIs do Meta/Google. Criar/desativar: equipe.
+    match /reportLinks/{token} {
+      allow get: if resource.data.active == true || isInternal();
+      allow list: if isInternal();
+      allow create: if isInternal() && createdBySelf() && updatedBySelf();
+      allow update: if isInternal() && updatedBySelf();
+      allow delete: if isInternal();
+    }
+
     // ---------- leads (Pipeline de novos clientes) ----------
     // Além do fluxo interno normal, uma resposta anônima de um formulário de
     // captura público (ver /leadForms abaixo e src/pages/LeadCapturePage.tsx)

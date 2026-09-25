@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { format, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns'
+import { format, isWithinInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Plus, FileDown, Eye, FileBarChart, Search, Trash2, X, LayoutGrid, List as ListIcon } from 'lucide-react'
+import { Plus, FileDown, Eye, FileBarChart, Search, Trash2, X, LayoutGrid, List as ListIcon, AlertCircle, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useReports } from '../hooks/useReports'
 import { useClients } from '../hooks/useClients'
@@ -19,7 +19,8 @@ import { ClientReportsDrawer } from '../components/reports/ClientReportsDrawer'
 import { StatCard } from '../components/ui/StatCard'
 import { generateWeeklyReportPdf } from '../utils/weeklyReportPdf'
 import { deleteReport } from '../services/reportService'
-import { REPORT_TYPE_LABEL, type Report, type ReportType } from '../types'
+import { REPORT_TYPE_LABEL, type Client, type Report, type ReportPlatform, type ReportType } from '../types'
+import { hasContractedPaidTraffic, trafficServices } from '../utils/clientServices'
 
 const TYPE_OPTIONS: { value: ReportType | ''; label: string }[] = [
   { value: '', label: 'Todos os tipos' },
@@ -41,6 +42,7 @@ export function ReportsPage() {
   const [clientFilter, setClientFilter] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openClientId, setOpenClientId] = useState<string | null>(null)
+  const [pendingFor, setPendingFor] = useState<Client | null>(null)
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
   const viewingWeekly = reports.find((r) => r.id === viewingWeeklyId) ?? null
@@ -81,6 +83,31 @@ export function ReportsPage() {
       clients: clientsWithReports.length,
     }
   }, [reports, clientsWithReports])
+
+  // Relatório mensal do mês passado que ainda não foi gerado — clientes de
+  // tráfego ativos que já eram clientes no mês passado e não têm um relatório
+  // mensal cobrindo aquele mês.
+  const lastMonth = useMemo(() => {
+    const m = subMonths(new Date(), 1)
+    return { start: startOfMonth(m), end: endOfMonth(m), label: format(m, 'MMMM', { locale: ptBR }) }
+  }, [])
+  const pendingMonthly = useMemo(() => {
+    const inLastMonth = (d: Date) => d >= lastMonth.start && d <= lastMonth.end
+    const done = new Set(
+      reports
+        .filter((r) => r.type === 'monthly' && (inLastMonth(r.periodStart.toDate()) || inLastMonth(r.periodEnd.toDate())))
+        .map((r) => r.clientId)
+    )
+    const eligible = clients.filter((c) => {
+      if (c.status !== 'active' || !hasContractedPaidTraffic(c)) return false
+      const since = c.contractStartDate?.toDate?.() ?? c.createdAt?.toDate?.()
+      return !since || since <= lastMonth.end
+    })
+    return {
+      total: eligible.length,
+      pending: eligible.filter((c) => !done.has(c.id)).sort((a, b) => a.companyName.localeCompare(b.companyName)),
+    }
+  }, [reports, clients, lastMonth])
 
   const hasActiveFilters = !!search || !!typeFilter || !!clientFilter
   const clearFilters = () => {
@@ -166,6 +193,38 @@ export function ReportsPage() {
         />
       ) : (
         <>
+          {pendingMonthly.total > 0 &&
+            (pendingMonthly.pending.length > 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                  <AlertCircle size={16} />
+                  Falta o relatório de {lastMonth.label} de {pendingMonthly.pending.length}{' '}
+                  {pendingMonthly.pending.length === 1 ? 'cliente' : 'clientes'}
+                  <span className="font-normal text-amber-700">
+                    ({pendingMonthly.total - pendingMonthly.pending.length} de {pendingMonthly.total} feitos)
+                  </span>
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  {pendingMonthly.pending.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setPendingFor(c)}
+                      title={`Gerar o relatório de ${lastMonth.label}`}
+                      className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-white px-3 py-1 text-sm text-slate-700 transition-colors hover:border-amber-400 hover:bg-amber-100"
+                    >
+                      <Plus size={13} className="text-amber-600" />
+                      {isPrivacyMode ? '••••••' : c.companyName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-emerald-700">
+                <CheckCircle2 size={16} /> Todos os relatórios de {lastMonth.label} foram gerados.
+              </p>
+            ))}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard label="Total de relatórios" value={stats.total} />
             <StatCard label="Gerados este mês" value={stats.thisMonth} />
@@ -298,6 +357,18 @@ export function ReportsPage() {
       )}
 
       <ReportFormModal open={creating} onClose={() => setCreating(false)} />
+      {pendingFor && (
+        <ReportFormModal
+          key={pendingFor.id}
+          open
+          onClose={() => setPendingFor(null)}
+          initialClientId={pendingFor.id}
+          initialType="monthly"
+          initialPlatforms={trafficServices(pendingFor).platforms as ReportPlatform[]}
+          initialStartStr={format(lastMonth.start, 'yyyy-MM-dd')}
+          initialEndStr={format(lastMonth.end, 'yyyy-MM-dd')}
+        />
+      )}
       <ReportViewModal
         report={viewingWeekly}
         clientName={viewingWeekly ? clientMap[viewingWeekly.clientId]?.companyName ?? 'Cliente' : ''}

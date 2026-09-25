@@ -88,3 +88,8 @@ export async function getClientReports(clientId: string): Promise<Report[]> {
   const snap = await getDocs(query(base.colRef, where('clientId', '==', clientId)))
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as Report)
 }
+
+/** Salva o texto de "Próximos passos" do relatório mensal. */
+export async function updateReportNextSteps(report: Report, nextSteps: string, userId: string) {
+  await base.update(report.id, { nextSteps: nextSteps.trim() }, userId)
+}
