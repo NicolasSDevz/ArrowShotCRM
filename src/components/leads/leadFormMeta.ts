@@ -14,10 +14,13 @@ export const QUESTION_TYPE_META: Record<LeadFormQuestionType, { icon: LucideIcon
   fields: { icon: LayoutList, label: 'Vários campos', hint: 'Você monta os campos (endereço, horário, dados da empresa…)' },
   document: { icon: IdCard, label: 'CPF / CNPJ', hint: 'Aceita CNPJ ou CPF (pra quem ainda não tem empresa aberta), já com a máscara' },
   list: { icon: ListPlus, label: 'Lista', hint: 'O lead escreve um item e toca em "+ Adicionar outro" (ex: os serviços que oferece)' },
-  file: { icon: Paperclip, label: 'Arquivo', hint: 'O lead envia arquivos (ex: a logo da empresa) — ficam na ficha do lead pra baixar' },
+  file: { icon: Paperclip, label: 'Arquivo (Drive)', hint: 'Botão pra pasta do seu Google Drive + caixinha "Já enviei" (ex: a logo da empresa)' },
   link: { icon: Link2, label: 'Link', hint: 'Um endereço de site (Instagram, site, Google Drive…)' },
   confirm: { icon: SquareCheck, label: 'Confirmação', hint: 'Uma caixinha pro lead marcar (ex: "Já enviei as fotos")' },
 }
+
+/** Textos iniciais de uma pergunta "Arquivo pelo Drive". */
+export const DRIVE_DEFAULTS = { driveButtonLabel: '📁 Enviar arquivo no Drive', confirmLabel: 'Já enviei o arquivo' }
 
 /** Tipos cuja resposta não cabe em nenhum campo fixo do lead (nome, WhatsApp…). */
 export const NO_ROLE_TYPES = new Set<LeadFormQuestionType>(['single_choice', 'multi_choice', 'address', 'fields', 'document', 'list', 'file', 'link', 'confirm'])
@@ -51,6 +54,7 @@ export function newQuestion(type: LeadFormQuestionType, extra: Partial<LeadFormQ
     subfields: type === 'fields' ? FIELD_GROUP_PRESETS.find((p) => p.key === 'custom')!.make() : undefined,
     condition: null,
     ...(type === 'confirm' ? { confirmLabel: 'Confirmo' } : {}),
+    ...(type === 'file' ? DRIVE_DEFAULTS : {}),
     ...extra,
   }
 }

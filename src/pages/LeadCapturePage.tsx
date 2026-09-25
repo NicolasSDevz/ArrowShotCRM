@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getPublicLeadForm, submitLeadFormResponse, uploadLeadFormFile } from '../services/leadFormService'
+import { getPublicLeadForm, submitLeadFormResponse } from '../services/leadFormService'
 import type { LeadForm } from '../types/leadForm'
 import { Spinner } from '../components/ui/FullPageSpinner'
 import { LeadFormRenderer } from '../components/leads/LeadFormRenderer'
@@ -80,5 +80,5 @@ export function LeadCapturePage() {
         } catch (err) {
           console.warn('Pixel do Meta falhou (o lead já foi salvo)', err)
         }
-      }} onUploadFile={(file) => uploadLeadFormFile(form.id, file)} fillViewport />
+      }} fillViewport />
 }

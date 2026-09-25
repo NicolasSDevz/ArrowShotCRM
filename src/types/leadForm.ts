@@ -14,7 +14,8 @@ export type LeadFormQuestionType =
   | 'document'
   /** Vários itens de texto — o lead escreve um e toca em "+ Adicionar outro". */
   | 'list'
-  /** O lead envia um ou mais arquivos (ex: a logo da empresa). */
+  /** O lead envia um arquivo (ex: a logo) numa pasta do Google Drive da
+   *  agência e confirma aqui que enviou. */
   | 'file'
   /** Um endereço de site/link (Instagram, Google Drive, site…). */
   | 'link'
@@ -32,7 +33,7 @@ export const LEAD_FORM_QUESTION_TYPE_LABEL: Record<LeadFormQuestionType, string>
   fields: 'Vários campos',
   document: 'CPF / CNPJ',
   list: 'Lista (adicionar mais)',
-  file: 'Enviar arquivo',
+  file: 'Arquivo pelo Drive',
   link: 'Link',
   confirm: 'Confirmação',
 }
@@ -149,8 +150,12 @@ export interface LeadFormQuestion {
   placeholder?: string
   /** Lista: texto do botão de adicionar (padrão "Adicionar outro"). */
   addLabel?: string
-  /** Confirmação: o texto ao lado da caixinha. */
+  /** Confirmação e Arquivo pelo Drive: o texto ao lado da caixinha. */
   confirmLabel?: string
+  /** Arquivo pelo Drive: link da pasta onde o lead envia o arquivo. */
+  driveUrl?: string
+  /** Arquivo pelo Drive: texto do botão que abre a pasta. */
+  driveButtonLabel?: string
   condition?: LeadFormCondition | null
 }
 

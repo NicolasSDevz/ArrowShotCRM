@@ -276,6 +276,7 @@ export function LeadFormBuilderModal({
       if (isChoiceType(q.type) && visibleOptions(q).length < 2) return fail(`A pergunta ${i + 1} precisa de pelo menos 2 opções (o "Outro" conta)`, sel)
       if (q.type === 'fields' && ((q.subfields ?? []).length === 0 || (q.subfields ?? []).some((f) => !f.label.trim())))
         return fail(`A pergunta ${i + 1} precisa de pelo menos 1 campo, e todo campo precisa de um nome`, sel)
+      if (q.type === 'file' && !q.driveUrl?.trim()) return fail(`A pergunta ${i + 1} precisa do link da pasta do Google Drive`, sel)
       const problem = conditionProblem(q, i, questions)
       if (problem) return fail(`Pergunta ${i + 1}: ${problem}`, sel)
     }

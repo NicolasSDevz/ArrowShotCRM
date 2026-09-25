@@ -5,7 +5,7 @@ import { InfoTip } from '../ui/InfoTip'
 import { FieldGroupEditor } from './FieldGroupEditor'
 import { FIELD_GROUP_PRESETS } from './leadFormFieldGroups'
 import { EditorSection, Toggle, ImageUploadField } from './LeadFormBuilderParts'
-import { NO_ROLE_TYPES, QUESTION_TYPE_META, ROLE_LABEL, conditionProblem, fromOrderedOptions, isChoiceType, orderedOptions, visibleOptions } from './leadFormMeta'
+import { DRIVE_DEFAULTS, NO_ROLE_TYPES, QUESTION_TYPE_META, ROLE_LABEL, conditionProblem, fromOrderedOptions, isChoiceType, orderedOptions, visibleOptions } from './leadFormMeta'
 import { ButtonAnimationPicker } from './LeadFormBlocksEditor'
 import { OTHER_OPTION_ID, type LeadFormFieldRole, type LeadFormQuestion, type LeadFormQuestionButton, type LeadFormQuestionOption, type LeadFormQuestionType } from '../../types/leadForm'
 
@@ -52,6 +52,10 @@ export function LeadFormQuestionEditor({
     }
     if (NO_ROLE_TYPES.has(type)) patch.role = null
     if (type === 'confirm' && !q.confirmLabel) patch.confirmLabel = 'Confirmo'
+    if (type === 'file') {
+      if (!q.driveButtonLabel) patch.driveButtonLabel = DRIVE_DEFAULTS.driveButtonLabel
+      if (!q.confirmLabel || q.confirmLabel === 'Confirmo') patch.confirmLabel = DRIVE_DEFAULTS.confirmLabel
+    }
     if (type === 'fields' && !(q.subfields ?? []).length) patch.subfields = FIELD_GROUP_PRESETS.find((p) => p.key === 'custom')!.make()
     onChange(patch)
   }
@@ -323,10 +327,22 @@ export function LeadFormQuestionEditor({
       )}
 
       {q.type === 'file' && (
-        <EditorSection title="Arquivos">
-          <p className="text-xs leading-relaxed text-slate-500">
-            O lead escolhe até 5 arquivos (imagem, PDF, AI, CDR, PSD, SVG ou ZIP, até 20 MB cada). Eles ficam na ficha do lead, em
-            "Respostas do formulário", com botão de baixar.
+        <EditorSection title="Pasta do Google Drive" hint="O lead toca no botão, a pasta abre em outra aba, ele envia o arquivo lá e volta pra marcar a caixinha.">
+          <Field label="Link da pasta do Drive" required>
+            <Input value={q.driveUrl ?? ''} onChange={(e) => onChange({ driveUrl: e.target.value })} placeholder="https://drive.google.com/drive/folders/…" />
+          </Field>
+          <Field label="Texto do botão">
+            <Input value={q.driveButtonLabel ?? ''} onChange={(e) => onChange({ driveButtonLabel: e.target.value })} placeholder={DRIVE_DEFAULTS.driveButtonLabel} />
+          </Field>
+          <Field label="Texto da caixinha">
+            <Input value={q.confirmLabel ?? ''} onChange={(e) => onChange({ confirmLabel: e.target.value })} placeholder={DRIVE_DEFAULTS.confirmLabel} />
+          </Field>
+          <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 p-2.5 text-xs leading-relaxed text-amber-800">
+            <Info size={13} className="mt-0.5 shrink-0" />
+            <span>
+              No Drive, abra a pasta → <strong>Compartilhar</strong> → em "Acesso geral" escolha <strong>Qualquer pessoa com o link</strong> e mude
+              pra <strong>Editor</strong>. Sem isso o cliente não consegue enviar. Ele precisa estar logado numa conta Google pra enviar.
+            </span>
           </p>
         </EditorSection>
       )}

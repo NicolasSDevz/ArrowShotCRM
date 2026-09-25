@@ -10,8 +10,7 @@ import { contactError, documentError, linkError, type ContactKind } from '../../
 import { maskDocument, maskPhone } from '../../utils/masks'
 import { orderedOptions } from './leadFormMeta'
 import { LeadFormRichText } from './LeadFormRichText'
-import { ConfirmAnswerField, FileAnswerField, ListAnswerField } from './LeadFormExtraFields'
-import type { LeadFormUploadedFile } from '../../utils/leadFormFiles'
+import { ConfirmAnswerField, ListAnswerField } from './LeadFormExtraFields'
 import { JUSTIFY_CLASS, LeadFormBlocksView, SPACE_PX, TEXT_ALIGN_CLASS, VideoEmbed, buttonAnimationClass } from './LeadFormBlocksView'
 import {
   effectiveEndBlocks,
@@ -27,7 +26,7 @@ import {
 } from './leadFormUtils'
 
 type Phase = 'welcome' | 'question' | 'submitting' | 'done'
-type FieldError = 'required' | 'other' | 'invalid' | 'uploading'
+type FieldError = 'required' | 'other' | 'invalid'
 
 /** Renderiza a página de um formulário de captura no estilo Typeform/
  *  YayForms — uma tela de boas-vindas, depois uma pergunta por tela (com
@@ -46,7 +45,6 @@ export function LeadFormRenderer({
   onSubmitted,
   fillViewport = false,
   previewScreen = null,
-  onUploadFile,
 }: {
   form: LeadFormContent
   /** Id real do formulário (slug da URL) — só usado pra registrar
@@ -58,8 +56,6 @@ export function LeadFormRenderer({
    *  no preview do construtor, onde o componente pai já define a altura. */
   fillViewport?: boolean
   previewScreen?: LeadFormPreviewScreen | null
-  /** Envio de arquivo das perguntas do tipo "Arquivo" (só na página pública). */
-  onUploadFile?: (file: File) => Promise<LeadFormUploadedFile>
 }) {
   const isTracking = !!onSubmitted && !!formId
   const forced = previewScreen
@@ -75,7 +71,6 @@ export function LeadFormRenderer({
   const submittingRef = useRef(false)
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [submitError, setSubmitError] = useState(false)
-  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     if (isTracking) trackLeadFormEvent(formId!, sessionId, 'view')
@@ -152,13 +147,9 @@ export function LeadFormRenderer({
           ? missingSubfields(q, Array.isArray(v) ? v : []).length > 0
           : q.type === 'address'
           ? !Array.isArray(v) || ADDRESS_REQUIRED_PARTS.some((p) => !(v[ADDRESS_PARTS.indexOf(p as AddressPart)] ?? '').trim())
-          : q.type === 'confirm'
+          : q.type === 'confirm' || q.type === 'file'
           ? v !== 'yes'
           : v === undefined || (Array.isArray(v) ? v.filter((x) => x.trim()).length === 0 : !v.trim())
-      if (q.type === 'file' && uploading) {
-        setErrors((prev) => ({ ...prev, [q.id]: 'uploading' }))
-        return
-      }
       if ((q.required || q.type === 'fields') && empty) {
         setErrors((prev) => ({ ...prev, [q.id]: 'required' }))
         return
@@ -418,11 +409,6 @@ export function LeadFormRenderer({
                 onToggleOption={(optId) => toggleMultiOption(currentQuestion, optId)}
                 onOtherTextChange={(t) => handleOtherText(currentQuestion, t)}
                 onEnter={goNext}
-                onUploadFile={onUploadFile}
-                onUploadingChange={(u) => {
-                  setUploading(u)
-                  if (!u) setErrors((prev) => ({ ...prev, [currentQuestion.id]: undefined }))
-                }}
               />
 
               {submitError && isLast && (
@@ -488,8 +474,6 @@ function QuestionField({
   onToggleOption,
   onOtherTextChange,
   onEnter,
-  onUploadFile,
-  onUploadingChange,
 }: {
   question: LeadFormQuestion
   value: string | string[] | undefined
@@ -502,8 +486,6 @@ function QuestionField({
   onToggleOption: (optionId: string) => void
   onOtherTextChange: (text: string) => void
   onEnter: () => void
-  onUploadFile?: (file: File) => Promise<LeadFormUploadedFile>
-  onUploadingChange: (uploading: boolean) => void
 }) {
   const mutedText = theme.text ? { color: theme.text, opacity: 0.7 } : undefined
   const buttons = (question.buttons ?? []).filter((b) => b.label.trim() && b.url.trim())
@@ -687,19 +669,36 @@ function QuestionField({
   }
 
   if (question.type === 'file') {
+    // Arquivo pelo Drive: o lead abre a pasta (outra aba), envia lá e confirma aqui.
+    const driveHref = normalizeUrl(question.driveUrl)
     return (
       <div>
         {heading}
-        <FileAnswerField
-          value={Array.isArray(value) ? value : []}
-          onChange={onChange as unknown as (v: string[]) => void}
-          onUpload={onUploadFile}
-          onUploadingChange={onUploadingChange}
+        <div className={`mb-3 flex ${JUSTIFY_CLASS[align]}`}>
+          {driveHref ? (
+            <a
+              href={driveHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ background: theme.primary, color: theme.buttonText }}
+              className="inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
+            >
+              {question.driveButtonLabel?.trim() || '📁 Enviar arquivo no Drive'}
+            </a>
+          ) : (
+            <span className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-700">
+              Falta colocar o link da pasta do Drive nesta pergunta
+            </span>
+          )}
+        </div>
+        <ConfirmAnswerField
+          checked={value === 'yes'}
+          label={question.confirmLabel?.trim() || 'Já enviei o arquivo'}
+          onChange={(c) => onChange(c ? 'yes' : '')}
           invalid={error === 'required'}
           theme={theme}
         />
-        {error === 'required' && <p className="mt-1 text-xs text-red-500">Envie o arquivo pra continuar</p>}
-        {error === 'uploading' && <p className="mt-1 text-xs text-red-500">Espere o envio terminar</p>}
+        {error === 'required' && <p className="mt-1 text-xs text-red-500">Envie o arquivo no Drive e marque a caixinha pra continuar</p>}
         {note}
       </div>
     )
