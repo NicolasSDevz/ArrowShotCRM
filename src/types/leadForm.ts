@@ -324,6 +324,9 @@ export interface LeadFormOutcome {
 export interface LeadForm extends BaseDoc {
   name: string
   active: boolean
+  /** Cor que identifica os leads deste formulário no pipeline (hex). Sem
+   *  valor = uma cor automática (ver leadFormColor). */
+  color?: string
   questions: LeadFormQuestion[]
   /** Mensagem padrão de agradecimento — usada quando `outcomes` está vazio
    *  (formulários antigos, ou quem não configurou telas de resultado). */

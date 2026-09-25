@@ -2,6 +2,7 @@ import { ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react'
 import { Input, Select } from '../ui/Field'
 import { CEP_FILL_LABEL, FIELD_GROUP_PRESETS, SUBFIELD_TYPE_LABEL, SUBFIELD_WIDTH_LABEL, newSubfield } from './leadFormFieldGroups'
 import type { LeadFormSubfield, LeadFormSubfieldType } from '../../types/leadForm'
+import { askConfirm } from '../../utils/confirmDialog'
 
 /** Editor dos campos de uma pergunta de "vários campos": o admin monta a
  *  lista (nome, tipo, largura, obrigatório) ou parte de um modelo pronto. */
@@ -15,10 +16,10 @@ export function FieldGroupEditor({ subfields, onChange }: { subfields: LeadFormS
     ;[next[i], next[to]] = [next[to], next[i]]
     onChange(next)
   }
-  const applyPreset = (key: string) => {
+  const applyPreset = async (key: string) => {
     const preset = FIELD_GROUP_PRESETS.find((p) => p.key === key)
     if (!preset) return
-    if (subfields.some((f) => f.label.trim()) && !confirm(`Trocar os campos atuais pelo modelo "${preset.name}"?`)) return
+    if (subfields.some((f) => f.label.trim()) && !(await askConfirm({ title: `Trocar os campos atuais pelo modelo "${preset.name}"?`, message: 'Os campos que você já montou nesta pergunta são substituídos.', confirmLabel: 'Trocar' }))) return
     onChange(preset.make())
   }
 

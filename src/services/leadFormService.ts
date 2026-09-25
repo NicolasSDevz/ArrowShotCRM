@@ -162,7 +162,9 @@ export async function submitLeadFormResponse(
     services: {},
     source: 'form',
     status: 'new',
-    order: Date.now(),
+    // Negativo e cada vez menor: o lead mais novo do formulário fica sempre no
+    // topo da primeira coluna (o quadro ordena do menor pro maior).
+    order: -Date.now(),
     stageChangedAt: Timestamp.now(),
     contactHistory: [],
     sourceFormId: form.id,

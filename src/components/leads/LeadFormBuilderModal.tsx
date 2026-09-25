@@ -17,7 +17,9 @@ import { DEFAULT_FORM_COLORS, Toggle } from './LeadFormBuilderParts'
 import { conditionProblem, fromOrderedOptions, isChoiceType, newQuestion, orderedOptions, visibleOptions } from './leadFormMeta'
 import { effectiveEndBlocks, normalizeUrl, outcomeRules, setDestination, type BuilderSelection, type LeadFormPreviewScreen } from './leadFormUtils'
 import { RoutingEditor } from './LeadFormRoutingEditor'
+import { LEAD_FORM_COLORS, leadFormColor } from './leadFormColors'
 import { OTHER_OPTION_ID, type LeadForm, type LeadFormBlock, type LeadFormQuestion, type LeadFormDesign, type LeadFormOutcome, type LeadFormFieldRole } from '../../types/leadForm'
+import { askConfirm } from '../../utils/confirmDialog'
 
 const DEFAULT_THANK_YOU = 'Obrigado! Recebemos suas informações e vamos entrar em contato em breve.'
 
@@ -59,6 +61,7 @@ function snapshotOf(v: {
   outcomes: LeadFormOutcome[]
   endBlocks?: LeadFormBlock[]
   metaPixelId?: string | null
+  color?: string
 }) {
   return JSON.stringify(v)
 }
@@ -84,6 +87,9 @@ export function LeadFormBuilderModal({
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)
   const [active, setActive] = useState(true)
+  // Cor dos leads deste formulário no pipeline ('' = automática).
+  const [color, setColor] = useState('')
+  const [colorOpen, setColorOpen] = useState(false)
   const [thankYouMessage, setThankYouMessage] = useState(DEFAULT_THANK_YOU)
   const [questions, setQuestions] = useState<LeadFormQuestion[]>([])
   const [design, setDesign] = useState<LeadFormDesign>({})
@@ -122,8 +128,9 @@ export function LeadFormBuilderModal({
           outcomes: migrateOutcomes(form.outcomes ?? [], form.qualificationQuestionId ?? null),
           endBlocks: form.endBlocks,
           metaPixelId: form.metaPixelId ?? '',
+          color: form.color ?? '',
         }
-      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: newFormDesign(), outcomes: [], endBlocks: undefined, metaPixelId: '' }
+      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: newFormDesign(), outcomes: [], endBlocks: undefined, metaPixelId: '', color: '' }
     setName(initial.name)
     setSlug(form ? form.id : '')
     setSlugTouched(!!form)
@@ -134,6 +141,8 @@ export function LeadFormBuilderModal({
     setOutcomes(initial.outcomes)
     setEndBlocks(initial.endBlocks)
     setMetaPixelId(initial.metaPixelId ?? '')
+    setColor(initial.color)
+    setColorOpen(false)
     setSelection({ kind: 'welcome' })
     setPreviewMode('screen')
     initialSnapshot.current = snapshotOf(initial)
@@ -141,10 +150,10 @@ export function LeadFormBuilderModal({
 
   const dirty =
     open &&
-    snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId }) !== initialSnapshot.current
+    snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId, color }) !== initialSnapshot.current
 
-  const requestClose = () => {
-    if (dirty && !confirm('Você tem alterações não salvas. Fechar mesmo assim?')) return
+  const requestClose = async () => {
+    if (dirty && !(await askConfirm({ title: 'Fechar sem salvar?', message: 'As alterações que você fez neste formulário vão se perder.', confirmLabel: 'Fechar sem salvar', danger: true }))) return
     onClose()
   }
 
@@ -220,8 +229,17 @@ export function LeadFormBuilderModal({
     setSelection({ kind: 'routing' })
   }
 
-  const disableRouting = () => {
-    if (outcomes.length > 1 && !confirm('Isso apaga as telas finais separadas e deixa só uma tela pra todo mundo (fica o conteúdo da tela padrão). Continuar?')) return
+  const disableRouting = async () => {
+    if (
+      outcomes.length > 1 &&
+      !(await askConfirm({
+        title: 'Deixar uma tela final só?',
+        message: 'Isso apaga as telas finais separadas e deixa só uma tela pra todo mundo (fica o conteúdo da tela padrão).',
+        confirmLabel: 'Deixar uma só',
+        danger: true,
+      }))
+    )
+      return
     collapseToSingleEnd()
     setSelection({ kind: 'end', id: null })
   }
@@ -356,6 +374,7 @@ export function LeadFormBuilderModal({
         outcomes,
         endBlocks: outcomes.length > 0 ? undefined : endBlocks,
         metaPixelId: parseMetaPixelId(metaPixelId),
+        color,
       }
       if (isEditing) {
         await updateLeadForm(form!.id, payload, profile.id)
@@ -369,7 +388,7 @@ export function LeadFormBuilderModal({
         }
         toast.success('Formulário criado')
       }
-      initialSnapshot.current = snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId })
+      initialSnapshot.current = snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId, color })
       onClose()
     } catch (err) {
       console.error(err)
@@ -436,6 +455,51 @@ export function LeadFormBuilderModal({
           <div className="shrink-0 text-sm font-semibold text-slate-800">{isEditing ? 'Editar formulário' : 'Novo formulário'}</div>
           <div className="w-[230px] max-w-full">
             <Input value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Nome interno (ex: Campanha Black Friday)" aria-label="Nome interno" />
+          </div>
+          {/* Cor da etiqueta que os leads deste formulário ganham no pipeline de Vendas. */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setColorOpen((v) => !v)}
+              title="Cor dos leads deste formulário no pipeline"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
+            >
+              <span className="h-4 w-4 rounded-full" style={{ background: leadFormColor({ id: slug || name || 'novo', color }) }} />
+              Cor no pipeline
+            </button>
+            {colorOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setColorOpen(false)} />
+                <div className="absolute left-0 top-full z-20 mt-1.5 w-56 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+                  <p className="mb-2 text-xs text-slate-500">Os leads deste formulário aparecem no pipeline com esta cor.</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {LEAD_FORM_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          setColor(c)
+                          setColorOpen(false)
+                        }}
+                        aria-label={`Cor ${c}`}
+                        className={`h-8 w-full rounded-lg transition-transform hover:scale-105 ${color === c ? 'ring-2 ring-slate-800 ring-offset-2' : ''}`}
+                        style={{ background: c }}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setColor('')
+                      setColorOpen(false)
+                    }}
+                    className={`mt-2 w-full rounded-lg px-2 py-1 text-xs font-medium ${color ? 'text-slate-500 hover:bg-slate-100' : 'bg-slate-100 text-slate-700'}`}
+                  >
+                    Automática
+                  </button>
+                </div>
+              </>
+            )}
           </div>
           <div className="flex w-[290px] max-w-full items-center gap-1.5">
             <span className="shrink-0 text-xs text-slate-400">/captura/</span>

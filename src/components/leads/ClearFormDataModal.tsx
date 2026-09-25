@@ -5,6 +5,7 @@ import { Button } from '../ui/Button'
 import { clearLeadFormMetrics, deleteLeadsFromForm } from '../../services/leadFormResetService'
 import { showError } from '../../utils/notifyError'
 import type { LeadForm } from '../../types/leadForm'
+import { askConfirm } from '../../utils/confirmDialog'
 
 /** "Limpar dados" de um formulário — pra depois de testar: zera as métricas
  *  e, se marcado, apaga os leads que vieram por ele (os de teste). */
@@ -21,7 +22,7 @@ export function ClearFormDataModal({ form, leadCount, onClose }: { form: LeadFor
 
   const handleClear = async () => {
     if (!form || (!metrics && !leads)) return
-    if (leads && !confirm(`Apagar os ${leadCount} lead(s) que vieram por "${form.name}"? Isso não pode ser desfeito.`)) return
+    if (leads && !(await askConfirm({ title: `Apagar os ${leadCount} lead(s) que vieram por "${form.name}"?`, message: 'Isso não pode ser desfeito.', confirmLabel: 'Apagar', danger: true }))) return
     setBusy(true)
     try {
       const parts: string[] = []

@@ -30,6 +30,7 @@ import {
   type LeadContactType,
   type LeadContactOutcome,
 } from '../../types'
+import { askConfirm } from '../../utils/confirmDialog'
 
 const CONTACT_TYPE_ICON: Record<LeadContactType, typeof Phone> = {
   call: Phone,
@@ -214,7 +215,7 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
   const handlePipelineChange = async (id: string) => {
     const target = pipelines.find((p) => p.id === id)
     if (!target || target.id === leadPipeline.id) return
-    if (!confirm(`Mover "${lead.contactName}" para o pipeline "${target.name}"? Ele volta pra primeira etapa (${target.stages[0].label}).`)) return
+    if (!(await askConfirm({ title: `Mover "${lead.contactName}" para o pipeline "${target.name}"?`, message: `Ele volta pra primeira etapa (${target.stages[0].label}).`, confirmLabel: 'Mover' }))) return
     try {
       await moveLeadToPipeline(lead, target, profile.id, profile.name)
       toast.success(`Lead movido para ${target.name}`)
@@ -225,13 +226,13 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
   }
 
   const handleDelete = async () => {
-    if (!confirm(`Excluir o lead "${lead.contactName}"?`)) return
+    if (!(await askConfirm({ title: `Excluir o lead "${lead.contactName}"?`, message: 'O histórico de contato e as respostas do formulário somem junto.', confirmLabel: 'Excluir', danger: true }))) return
     await deleteLead(lead, profile.id, profile.name)
     onClose()
   }
 
   const handleConvert = async () => {
-    if (!confirm(`Converter "${lead.contactName}" em cliente?`)) return
+    if (!(await askConfirm({ title: `Converter "${lead.contactName}" em cliente?`, message: 'Cria o cadastro do cliente com os dados deste lead.', confirmLabel: 'Converter' }))) return
     setConverting(true)
     try {
       const clientId = await convertLeadToClient(lead, profile.id, profile.name, users)

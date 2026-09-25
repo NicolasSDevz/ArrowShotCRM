@@ -1,4 +1,5 @@
-import { differenceInCalendarDays, format } from 'date-fns'
+import { differenceInCalendarDays, differenceInHours, format } from 'date-fns'
+import { ClipboardList } from 'lucide-react'
 import { ptBR } from 'date-fns/locale'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -7,6 +8,7 @@ import { Avatar } from '../ui/Avatar'
 import { PrivateMoney } from '../ui/PrivateData'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { LEAD_SOURCE_LABEL, formatFieldValue, type AppUser, type Lead, type PipelineField } from '../../types'
+import type { LeadFormTag } from './leadFormColors'
 
 function leadServiceLabel(lead: Lead): string {
   const parts: string[] = []
@@ -21,7 +23,22 @@ function daysInStageLabel(stageChangedAt: Lead['stageChangedAt']): string {
   return `há ${days} dia${days === 1 ? '' : 's'} nesta etapa`
 }
 
-export function LeadCard({ lead, assignee, onClick, fields = [] }: { lead: Lead; assignee?: AppUser; onClick: () => void; fields?: PipelineField[] }) {
+export function LeadCard({
+  lead,
+  assignee,
+  onClick,
+  fields = [],
+  formTag,
+}: {
+  lead: Lead
+  assignee?: AppUser
+  onClick: () => void
+  fields?: PipelineField[]
+  /** Formulário de onde o lead veio (nome + cor) — deixa o cartão colorido. */
+  formTag?: LeadFormTag
+}) {
+  // "Novo" nas primeiras 24h depois de chegar pelo formulário.
+  const isFresh = !!formTag && !!lead.createdAt && differenceInHours(new Date(), lead.createdAt.toDate()) < 24
   const { isPrivacyMode } = usePrivacy()
   const cardFields = fields
     .filter((f) => f.showOnCard)
@@ -32,7 +49,11 @@ export function LeadCard({ lead, assignee, onClick, fields = [] }: { lead: Lead;
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        ...(formTag ? { borderLeft: `4px solid ${formTag.color}` } : {}),
+      }}
       {...attributes}
       {...listeners}
       onClick={onClick}
@@ -40,6 +61,23 @@ export function LeadCard({ lead, assignee, onClick, fields = [] }: { lead: Lead;
         isDragging ? 'opacity-40' : ''
       }`}
     >
+      {formTag && (
+        <div className="-mt-0.5 flex items-center gap-1.5">
+          <span
+            className="inline-flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold"
+            style={{ background: `${formTag.color}1F`, color: formTag.color }}
+            title="Formulário de onde o lead veio"
+          >
+            <ClipboardList size={11} className="shrink-0" />
+            <span className="truncate">{formTag.name}</span>
+          </span>
+          {isFresh && (
+            <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white" style={{ background: formTag.color }}>
+              Novo
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-slate-800">
@@ -55,7 +93,7 @@ export function LeadCard({ lead, assignee, onClick, fields = [] }: { lead: Lead;
       <div className="flex flex-wrap items-center gap-1">
         <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>
         {lead.services.landingPage && <Badge className="badge-service-landing">Landing Page</Badge>}
-        <Badge className="bg-slate-100 text-[11px] text-slate-500">{LEAD_SOURCE_LABEL[lead.source]}</Badge>
+        {!formTag && <Badge className="bg-slate-100 text-[11px] text-slate-500">{LEAD_SOURCE_LABEL[lead.source]}</Badge>}
       </div>
 
       {cardFields.length > 0 && (

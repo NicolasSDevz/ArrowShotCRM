@@ -15,6 +15,7 @@ import {
   type PipelineStageKind,
   type ResolvedPipeline,
 } from '../../types'
+import { askConfirm } from '../../utils/confirmDialog'
 
 const KIND_LABEL: Record<PipelineStageKind, string> = { open: 'Etapa normal', won: 'Ganho (vira cliente)', lost: 'Perdido (pede o motivo)' }
 const STAGE_COLORS = ['#64748B', '#3B82F6', '#8B5CF6', '#F59E0B', '#F97316', '#10B981', '#EF4444', '#EC4899']
@@ -103,7 +104,7 @@ export function LeadPipelineModal({
   const handleDelete = async () => {
     if (!pipeline || isDefault) return
     if (totalLeads > 0) return toast.error('Mova ou exclua os leads deste pipeline antes de apagá-lo')
-    if (!confirm(`Excluir o pipeline "${pipeline.name}"?`)) return
+    if (!(await askConfirm({ title: `Excluir o pipeline "${pipeline.name}"?`, confirmLabel: 'Excluir', danger: true }))) return
     try {
       await deleteLeadPipeline(pipeline.id)
       toast.success('Pipeline excluído')

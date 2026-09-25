@@ -29,6 +29,7 @@ export function ErrorDialogHost() {
 
   return (
     <Modal
+      onTop
       open={!!error}
       onClose={() => setError(null)}
       title={

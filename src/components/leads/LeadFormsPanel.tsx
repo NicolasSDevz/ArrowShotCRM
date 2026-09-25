@@ -10,6 +10,7 @@ import { LeadFormAnalyticsModal } from './LeadFormAnalyticsModal'
 import { ClearFormDataModal } from './ClearFormDataModal'
 import { Button } from '../ui/Button'
 import type { LeadForm } from '../../types/leadForm'
+import { askConfirm } from '../../utils/confirmDialog'
 
 /** Aba "Formulários" da página de Leads — cria/edita formulários de captura
  *  e mostra o link público de cada um (pra colar direto no anúncio do Meta),
@@ -43,7 +44,7 @@ export function LeadFormsPanel() {
   }
 
   const handleDelete = async (form: LeadForm) => {
-    if (!confirm(`Excluir o formulário "${form.name}"? Os leads já recebidos por ele continuam no pipeline.`)) return
+    if (!(await askConfirm({ title: `Excluir o formulário "${form.name}"?`, message: 'Os leads já recebidos por ele continuam no pipeline.', confirmLabel: 'Excluir', danger: true }))) return
     try {
       await deleteLeadForm(form.id)
       toast.success('Formulário excluído')

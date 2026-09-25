@@ -5,6 +5,7 @@ import { Badge } from '../ui/Badge'
 import { PrivateMoney } from '../ui/PrivateData'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { LEAD_SOURCE_LABEL, locateLead, type AppUser, type Lead, type ResolvedPipeline } from '../../types'
+import type { LeadFormTag } from './leadFormColors'
 
 function leadServiceLabel(lead: Lead): string {
   const parts: string[] = []
@@ -24,8 +25,11 @@ export function LeadsListView({
   userMap,
   onOpenLead,
   pipelines,
+  formTagOf,
 }: {
   pipelines: ResolvedPipeline[]
+  /** Formulário de origem (nome + cor) de cada lead, quando veio de um. */
+  formTagOf?: (lead: Lead) => LeadFormTag | undefined
   leads: Lead[]
   userMap: Record<string, AppUser>
   onOpenLead: (id: string) => void
@@ -78,7 +82,16 @@ export function LeadsListView({
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-1">
                         <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>
-                        <Badge className="bg-slate-100 text-[11px] text-slate-500">{LEAD_SOURCE_LABEL[lead.source]}</Badge>
+                        {formTagOf?.(lead) ? (
+                          <span
+                            className="inline-flex max-w-[180px] items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold"
+                            style={{ background: `${formTagOf(lead)!.color}1F`, color: formTagOf(lead)!.color }}
+                          >
+                            <span className="truncate">{formTagOf(lead)!.name}</span>
+                          </span>
+                        ) : (
+                          <Badge className="bg-slate-100 text-[11px] text-slate-500">{LEAD_SOURCE_LABEL[lead.source]}</Badge>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">

@@ -5,6 +5,8 @@ import toast from 'react-hot-toast'
 import { useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
 import { useLeadPipelines } from '../hooks/useLeadPipelines'
+import { useLeadForms } from '../hooks/useLeadForms'
+import { leadFormColor, type LeadFormTag } from '../components/leads/leadFormColors'
 import { useAuth } from '../context/AuthContext'
 import { usePersistedViewMode } from '../hooks/usePersistedViewMode'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
@@ -26,6 +28,7 @@ export function LeadsPage() {
   const { data: leads } = useLeads()
   const { data: users } = useUsers()
   const { pipelines } = useLeadPipelines()
+  const { data: leadForms } = useLeadForms()
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -59,6 +62,8 @@ export function LeadsPage() {
   const [busy, setBusy] = useState(false)
 
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
+  const formTags: Record<string, LeadFormTag> = Object.fromEntries(leadForms.map((f) => [f.id, { name: f.name, color: leadFormColor(f) }]))
+  const formTagOf = (l: Lead) => (l.sourceFormId ? formTags[l.sourceFormId] : undefined)
   const openLead = leads.find((l) => l.id === openLeadId) ?? null
 
   const pipelineLeads = leads.filter((l) => leadPipelineId(l) === activePipeline.id)
@@ -222,13 +227,13 @@ export function LeadsPage() {
                 items={pipelineLeads}
                 getStatus={(l) => stageOfLead(activePipeline, l.status).id}
                 renderCard={(l) => (
-                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} />
+                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} formTag={formTagOf(l)} />
                 )}
                 onMove={handleMove}
               />
             </div>
           ) : (
-            <LeadsListView leads={pipelineLeads} userMap={userMap} onOpenLead={setOpenLeadId} pipelines={pipelines} />
+            <LeadsListView leads={pipelineLeads} userMap={userMap} onOpenLead={setOpenLeadId} pipelines={pipelines} formTagOf={formTagOf} />
           )}
         </>
       )}

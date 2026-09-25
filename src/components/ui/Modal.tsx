@@ -7,17 +7,20 @@ export function Modal({
   title,
   children,
   width = 'max-w-lg',
+  onTop = false,
 }: {
   open: boolean
   onClose: () => void
   title: ReactNode
   children: ReactNode
   width?: string
+  /** Acima de tudo (inclusive do construtor de formulário, que é tela cheia) — pra avisos globais. */
+  onTop?: boolean
 }) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+    <div className={`fixed inset-0 ${onTop ? 'z-[300]' : 'z-40'} flex items-center justify-center p-4`}>
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div className={`relative z-50 w-full ${width} rounded-xl bg-white shadow-2xl`}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
