@@ -79,19 +79,18 @@ export function Topbar({
           onClick={() => {
             const next = !isPrivacyMode
             togglePrivacyMode()
-            toast(next ? '🙈 Dados sensíveis ocultados' : '👁️ Dados visíveis', { duration: 2500 })
+            toast(next ? 'Modo apresentação ligado: dados sensíveis ocultos' : 'Modo apresentação desligado', {
+              duration: 2500,
+              icon: next ? <EyeOff size={16} className="text-brand-600" /> : <Eye size={16} className="text-slate-500" />,
+            })
           }}
-          title="Modo apresentação — ocultar dados sensíveis"
-          aria-label="Modo apresentação — ocultar dados sensíveis"
-          className="flex items-center gap-1.5 rounded-lg px-2 py-2 transition-colors"
-          style={
-            isPrivacyMode
-              ? { backgroundColor: '#FEF3C7', color: '#F59E0B' }
-              : undefined
-          }
+          title={isPrivacyMode ? 'Sair do modo apresentação (mostrar dados)' : 'Modo apresentação: ocultar dados sensíveis'}
+          aria-label={isPrivacyMode ? 'Sair do modo apresentação' : 'Ativar modo apresentação'}
+          aria-pressed={isPrivacyMode}
+          className={`flex items-center gap-1.5 rounded-lg px-2 py-2 transition-colors ${isPrivacyMode ? 'privacy-pill' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
         >
-          {isPrivacyMode ? <EyeOff size={18} /> : <Eye size={18} className="text-slate-500 hover:text-slate-700" />}
-          {isPrivacyMode && <span className="hidden text-[11px] font-bold uppercase tracking-wide sm:inline">Apresentação</span>}
+          {isPrivacyMode ? <EyeOff size={18} /> : <Eye size={18} />}
+          {isPrivacyMode && <span className="hidden text-xs font-semibold sm:inline">Apresentação</span>}
         </button>
 
         <TeamPresence />

@@ -17,7 +17,11 @@ export function PrivateData({
 }) {
   const { isPrivacyMode } = usePrivacy()
   if (!isPrivacyMode) return <>{value}</>
-  return <span className={className}>{mask}</span>
+  return (
+    <span className={`private-mask ${className ?? ""}`} title="Oculto no modo apresentação">
+      {mask}
+    </span>
+  )
 }
 
 /** Variante pra valores monetários — formata em BRL quando visível, evitando
@@ -33,5 +37,9 @@ export function PrivateMoney({
 }) {
   const { isPrivacyMode } = usePrivacy()
   if (!isPrivacyMode) return <>{formatBRL(value ?? 0)}</>
-  return <span className={className}>{mask}</span>
+  return (
+    <span className={`private-mask ${className ?? ""}`} title="Oculto no modo apresentação">
+      {mask}
+    </span>
+  )
 }
