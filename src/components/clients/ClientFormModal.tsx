@@ -126,6 +126,35 @@ function describeUpsell(
   return parts.length > 0 ? parts.join(', ') : null
 }
 
+/** O contrário do upsell: serviço removido ou valor mensal menor, com o
+ *  cliente continuando ativo. `amount` = quanto o valor mensal caiu. */
+function describeDownsell(
+  before: Pick<Client, 'modules' | 'monthlyValue'>,
+  afterModules: Record<string, boolean | undefined>,
+  afterValue?: number
+): { text: string; amount?: number } | null {
+  const removed = Object.keys(MODULE_LABEL).filter(
+    (k) => !afterModules[k] && (before.modules as Record<string, boolean | undefined> | undefined)?.[k]
+  )
+  const oldValue = before.monthlyValue ?? 0
+  const parts: string[] = []
+  if (removed.length > 0) parts.push(`tirou ${removed.map((k) => MODULE_LABEL[k]).join(' + ')}`)
+  const dropped = afterValue != null && afterValue > 0 && afterValue < oldValue
+  if (dropped) {
+    parts.push(
+      `valor ${oldValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} → ${afterValue!.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+    )
+  }
+  return parts.length > 0 ? { text: parts.join(', '), amount: dropped ? oldValue - afterValue! : undefined } : null
+}
+
+/** Cliente com menos de 30 dias de contrato: mudança de serviço/valor é
+ *  ainda o cadastro sendo completado, não upsell nem downsell. */
+function isNewClient(client: Pick<Client, 'contractStartDate' | 'createdAt'>): boolean {
+  const start = client.contractStartDate?.toDate?.() ?? client.createdAt?.toDate?.()
+  return !!start && Date.now() - start.getTime() < 30 * 24 * 60 * 60 * 1000
+}
+
 export function ClientFormModal({
   open,
   onClose,
@@ -358,7 +387,22 @@ export function ClientFormModal({
         await updateClient(client.id, { ...basePayload, status: form.status }, profile.id, profile.name)
         targetId = client.id
 
-        const upsell = describeUpsell(client, basePayload.modules, basePayload.monthlyValue)
+        const stillActive = form.status !== 'churned'
+        const upsell = isNewClient(client) ? null : describeUpsell(client, basePayload.modules, basePayload.monthlyValue)
+        const downsell =
+          isNewClient(client) || !stillActive ? null : describeDownsell(client, basePayload.modules, basePayload.monthlyValue)
+        if (downsell) {
+          await logActivity({
+            entityType: 'client',
+            entityId: client.id,
+            clientId: client.id,
+            action: 'downsell',
+            message: `reduziu o contrato: ${downsell.text}`,
+            amount: downsell.amount,
+            userId: profile.id,
+            userName: profile.name,
+          })
+        }
         if (upsell) {
           await logActivity({
             entityType: 'client',

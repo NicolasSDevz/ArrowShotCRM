@@ -19,6 +19,7 @@ export function RegisterUpsellWidget() {
   const { profile } = useAuth()
   const { data: clients } = useClients()
 
+  const [kind, setKind] = useState<'upsell' | 'downsell'>('upsell')
   const [clientId, setClientId] = useState('')
   const [description, setDescription] = useState('')
   const [amountStr, setAmountStr] = useState('')
@@ -41,17 +42,17 @@ export function RegisterUpsellWidget() {
         entityType: 'client',
         entityId: client.id,
         clientId: client.id,
-        action: 'upsell',
+        action: kind,
         message: description.trim(),
         amount: parseCurrencyToNumber(amountStr),
         userId: profile.id,
         userName: profile.name,
       })
-      toast.success('✅ Upsell registrado!')
+      toast.success(kind === 'upsell' ? 'Upsell registrado' : 'Downsell registrado')
       reset()
     } catch (err) {
       console.error(err)
-      toast.error('Erro ao registrar upsell')
+      toast.error(kind === 'upsell' ? 'Erro ao registrar upsell' : 'Erro ao registrar downsell')
     } finally {
       setSaving(false)
     }
@@ -63,7 +64,25 @@ export function RegisterUpsellWidget() {
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500">
           <ArrowUpRight size={15} className="text-white" />
         </div>
-        <p className="text-[16px] font-semibold text-slate-900">Registrar upsell</p>
+        <p className="text-[16px] font-semibold text-slate-900">Registrar upsell / downsell</p>
+      </div>
+
+      <div className="flex self-start rounded-lg bg-slate-100 p-0.5 text-[13px] font-medium">
+        {(
+          [
+            ['upsell', 'Upsell (aumentou)'],
+            ['downsell', 'Downsell (reduziu)'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setKind(value)}
+            className={`rounded-md px-3 py-1 transition-colors ${kind === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <Field label="Cliente" required>
@@ -75,21 +94,21 @@ export function RegisterUpsellWidget() {
         </Select>
       </Field>
 
-      <Field label="O que foi vendido" required>
+      <Field label={kind === 'upsell' ? 'O que foi vendido' : 'O que o cliente tirou ou reduziu'} required>
         <Textarea
           rows={2}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Ex: Contratou pacote extra de conteúdo para Instagram"
+          placeholder={kind === 'upsell' ? 'Ex: Contratou pacote extra de conteúdo para Instagram' : 'Ex: Tirou o Google Ads, ficou só com Meta'}
         />
       </Field>
 
-      <Field label="Valor (R$) — opcional">
+      <Field label={kind === 'upsell' ? 'Valor (R$) — opcional' : 'Quanto caiu por mês (R$) — opcional'}>
         <Input value={amountStr} onChange={(e) => setAmountStr(maskCurrencyInput(e.target.value))} placeholder="R$ 0,00" />
       </Field>
 
       <Button onClick={handleSubmit} loading={saving} disabled={!clientId || !description.trim()} className="self-start">
-        Registrar upsell
+        {kind === 'upsell' ? 'Registrar upsell' : 'Registrar downsell'}
       </Button>
     </div>
   )

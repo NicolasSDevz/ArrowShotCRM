@@ -14,6 +14,9 @@ export type ActivityAction =
   /** Cliente expandiu o contrato (novo serviço/módulo ou aumento de valor) —
    *  alimenta o card "Upsell" do painel Visão Geral. */
   | 'upsell'
+  /** Cliente reduziu o contrato (tirou serviço ou baixou o valor) sem
+   *  cancelar — desconta da "Receita gerada no mês". */
+  | 'downsell'
 
 export interface Activity {
   id: string

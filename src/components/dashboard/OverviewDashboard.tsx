@@ -11,6 +11,8 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowUpRight,
+  ArrowDownRight,
+  X,
   UserPlus,
   Info,
 } from 'lucide-react'
@@ -22,7 +24,8 @@ import { useUsers } from '../../hooks/useUsers'
 import { useRecentOptimizations } from '../../hooks/useOptimizations'
 import { useMetricsSnapshot } from '../../hooks/useMetricsSnapshot'
 import { useCollectionSubscription } from '../../hooks/useCollectionSubscription'
-import { subscribeUpsellActivities } from '../../services/activityService'
+import { subscribeUpsellActivities, deleteActivity } from '../../services/activityService'
+import { useAuth } from '../../context/AuthContext'
 import { refreshMetricsNow } from '../../services/metricsService'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
@@ -259,13 +262,28 @@ export function OverviewDashboard() {
   const { data: users } = useUsers()
   const { data: recentOptimizations } = useRecentOptimizations(30)
   const { data: snapshot } = useMetricsSnapshot()
-  const { data: upsellActivities } = useCollectionSubscription<Activity>(
+  const { data: contractChanges } = useCollectionSubscription<Activity>(
     (onData, onError) => subscribeUpsellActivities(onData, onError),
     []
   )
+  const upsellActivities = useMemo(() => contractChanges.filter((a) => a.action === 'upsell'), [contractChanges])
+  const downsellActivities = useMemo(() => contractChanges.filter((a) => a.action === 'downsell'), [contractChanges])
+  const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
   const [refreshing, setRefreshing] = useState(false)
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
+  const removeContractChange = async (a: Activity) => {
+    const name = clientMap[a.entityId]?.companyName ?? 'este cliente'
+    const kind = a.action === 'downsell' ? 'downsell' : 'upsell'
+    if (!window.confirm(`Remover o ${kind} de ${name}? Ele sai do card e da receita do mês.`)) return
+    try {
+      await deleteActivity(a.id)
+      toast.success(kind === 'downsell' ? 'Downsell removido' : 'Upsell removido')
+    } catch (err) {
+      showError(err, `Erro ao remover ${kind}`)
+    }
+  }
   // Mesmo critério de utils/metrics.ts (computeCompanyMetrics) — calculado ao
   // vivo aqui pra sempre bater com os nomes listados, mesmo quando `m` vem do
   // snapshot diário (que pode estar um pouco desatualizado).
@@ -332,6 +350,13 @@ export function OverviewDashboard() {
         .filter((a) => (a.createdAt?.toDate?.() ?? new Date(0)) >= monthStart)
         .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)),
     [upsellActivities, monthStart]
+  )
+  const downsellThisMonth = useMemo(
+    () =>
+      downsellActivities
+        .filter((a) => (a.createdAt?.toDate?.() ?? new Date(0)) >= monthStart)
+        .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)),
+    [downsellActivities, monthStart]
   )
 
   // ---- Clientes em risco ----
@@ -470,7 +495,7 @@ export function OverviewDashboard() {
 
       {/* LINHA 2.2 — Receita gerada no mês + Entradas e saídas de clientes */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RevenueGeneratedCard clients={clients} upsells={upsellActivities} />
+        <RevenueGeneratedCard clients={clients} upsells={upsellActivities} downsells={downsellActivities} />
         <ClientFlowCard clients={clients} />
       </div>
 
@@ -550,14 +575,37 @@ export function OverviewDashboard() {
           {upsellThisMonth.length > 0 && (
             <ul className="mt-2 flex flex-col gap-1.5">
               {upsellThisMonth.map((a) => (
-                <li key={a.id} className="text-xs text-slate-600">
-                  <span className="font-semibold text-slate-800">{isPrivacyMode ? '••••••' : clientMap[a.entityId]?.companyName ?? 'Cliente'}</span>
-                  {' — '}
-                  {a.message.replace(/^expandiu o contrato:\s*/i, '')}
-                </li>
+                <ContractChangeItem
+                  key={a.id}
+                  name={isPrivacyMode ? '••••••' : clientMap[a.entityId]?.companyName ?? 'Cliente'}
+                  text={a.message.replace(/^expandiu o contrato:\s*/i, '')}
+                  onRemove={isAdmin ? () => removeContractChange(a) : undefined}
+                />
               ))}
             </ul>
           )}
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <ArrowDownRight size={16} className="text-red-500" /> Downsell
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              {downsellThisMonth.length === 0
+                ? 'Nenhum cliente reduziu o contrato este mês'
+                : `${downsellThisMonth.length} ${downsellThisMonth.length === 1 ? 'cliente reduziu' : 'clientes reduziram'} o contrato`}
+            </p>
+            {downsellThisMonth.length > 0 && (
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {downsellThisMonth.map((a) => (
+                  <ContractChangeItem
+                    key={a.id}
+                    name={isPrivacyMode ? '••••••' : clientMap[a.entityId]?.companyName ?? 'Cliente'}
+                    text={a.message.replace(/^reduziu o contrato:\s*/i, '')}
+                    onRemove={isAdmin ? () => removeContractChange(a) : undefined}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
         </Card>
 
         <Card>
@@ -628,5 +676,29 @@ export function OverviewDashboard() {
         currentChurnRate={m.churnRate}
       />
     </div>
+  )
+}
+
+/** Uma linha de upsell/downsell no card, com o "x" pra remover (só admin). */
+function ContractChangeItem({ name, text, onRemove }: { name: string; text: string; onRemove?: () => void }) {
+  return (
+    <li className="flex items-start gap-1.5 text-xs text-slate-600">
+      <span className="min-w-0 flex-1">
+        <span className="font-semibold text-slate-800">{name}</span>
+        {' — '}
+        {text}
+      </span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remover (não foi upsell/downsell)"
+          aria-label={`Remover registro de ${name}`}
+          className="shrink-0 rounded p-0.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"
+        >
+          <X size={13} />
+        </button>
+      )}
+    </li>
   )
 }

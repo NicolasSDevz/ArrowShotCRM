@@ -37,7 +37,6 @@ import type { DashboardWidgetConfig, DashboardWidgetId } from '../types/dashboar
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 
 const DASHBOARD_KEY = 'operacional'
-const SCOPE_KEY = 'arrowshot-operacional-escopo'
 
 /** Só estes ficam escondidos atrás do "tudo em dia" (ver DashboardEmptyState)
  *  — igual ao comportamento original: Próximas publicações, Resumo por
@@ -111,38 +110,14 @@ export function OperationalDashboard() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const { data: tasks } = useAllTasks()
-  const { data: allContents } = useAllContents()
+  const { data: contents } = useAllContents()
   const { data: clients } = useClients()
   const assigneeMap = useAssigneeMap()
   const { data: clientSuccessEvaluations } = useAllClientSuccessEvaluations()
   const latestClientSuccess = useMemo(() => latestClientSuccessByClient(clientSuccessEvaluations), [clientSuccessEvaluations])
   const { data: recentOptimizations } = useRecentOptimizations(30)
   const { canSeeAllTasks, viewerId } = useTaskVisibility()
-  // "Só meus" x "Equipe": filtra tarefas, conteúdos e o resumo por cliente. Fica salvo no navegador.
-  const [scope, setScope] = useState<'mine' | 'team'>(() => {
-    try {
-      return localStorage.getItem(SCOPE_KEY) === 'mine' ? 'mine' : 'team'
-    } catch {
-      return 'team'
-    }
-  })
-  const changeScope = (next: 'mine' | 'team') => {
-    setScope(next)
-    try {
-      localStorage.setItem(SCOPE_KEY, next)
-    } catch {
-      /* navegador sem storage: vale só nesta sessão */
-    }
-  }
-  const mineOnly = scope === 'mine'
-  const visibleTasks = useMemo(
-    () => filterVisibleTasks(tasks, canSeeAllTasks && !mineOnly, viewerId),
-    [tasks, canSeeAllTasks, viewerId, mineOnly]
-  )
-  const contents = useMemo(
-    () => (mineOnly && viewerId ? allContents.filter((c) => c.assignedTo === viewerId) : allContents),
-    [allContents, mineOnly, viewerId]
-  )
+  const visibleTasks = useMemo(() => filterVisibleTasks(tasks, canSeeAllTasks, viewerId), [tasks, canSeeAllTasks, viewerId])
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [openContentId, setOpenContentId] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -166,7 +141,7 @@ export function OperationalDashboard() {
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [contentModalOpen, setContentModalOpen] = useState(false)
   const openTask = visibleTasks.find((t) => t.id === openTaskId) ?? null
-  const openContent = allContents.find((c) => c.id === openContentId) ?? null
+  const openContent = contents.find((c) => c.id === openContentId) ?? null
 
   const buckets = useMemo(() => {
     const openTasks = visibleTasks.filter((t) => t.status !== 'done')
@@ -231,7 +206,6 @@ export function OperationalDashboard() {
     }
     return clients
       .filter((c) => c.status === 'active' || c.status === 'paused')
-      .filter((c) => !mineOnly || !viewerId || getClientOwnerIds(c).includes(viewerId))
       .map((c) => {
         const nextTask = tasks
           .filter((t) => t.clientId === c.id && t.status !== 'done' && t.dueDate)
@@ -253,7 +227,7 @@ export function OperationalDashboard() {
         const rank: Record<ClientHealth, number> = { red: 0, yellow: 1, green: 2 }
         return rank[a.health] - rank[b.health] || b.reasons.length - a.reasons.length || a.client.companyName.localeCompare(b.client.companyName)
       })
-  }, [clients, tasks, assigneeMap, latestClientSuccess, recentOptimizations, mineOnly, viewerId])
+  }, [clients, tasks, assigneeMap, latestClientSuccess, recentOptimizations])
 
   // ---------------- personalização do layout ----------------
   const { widgets: savedWidgets } = useUserDashboardLayout(profile, DASHBOARD_KEY)
@@ -354,28 +328,6 @@ export function OperationalDashboard() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-[14px] text-slate-400">{todayLabel}</p>
-          <div role="radiogroup" aria-label="Mostrar" className="flex rounded-lg bg-slate-100 p-0.5 text-[13px] font-medium">
-            {(
-              [
-                ['mine', 'Só meus'],
-                ['team', 'Equipe'],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={scope === value}
-                onClick={() => changeScope(value)}
-                title={value === 'mine' ? 'Só suas tarefas, seus conteúdos e seus clientes' : 'Tudo que você tem acesso'}
-                className={`rounded-md px-3 py-1 transition-colors ${
-                  scope === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           {!editMode && (
             <Button
               variant="secondary"

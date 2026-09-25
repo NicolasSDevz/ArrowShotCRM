@@ -194,26 +194,40 @@ export function AlertsCard({
 
 // ------------------------------------------------------------------ Receita gerada
 
-function monthRevenue(clients: Client[], upsells: Activity[], monthStart: Date) {
+function monthRevenue(clients: Client[], upsells: Activity[], downsells: Activity[], monthStart: Date) {
   const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1)
   const inMonth = (d: Date | null) => d != null && d >= monthStart && d < monthEnd
   const newClients = clients.filter((c) => inMonth(clientStart(c)))
   const churned = clients.filter((c) => inMonth(churnDate(c)))
   const newMrr = newClients.reduce((s, c) => s + (c.monthlyValue ?? 0), 0)
   const upsell = upsells.filter((a) => inMonth(toDate(a.createdAt))).reduce((s, a) => s + (a.amount ?? 0), 0)
+  const downsellsInMonth = downsells.filter((a) => inMonth(toDate(a.createdAt)))
+  const downsell = downsellsInMonth.reduce((s, a) => s + (a.amount ?? 0), 0)
   const lost = churned.reduce((s, c) => s + (c.monthlyValue ?? 0), 0)
-  return { newMrr, newCount: newClients.length, upsell, lost, lostCount: churned.length, net: newMrr + upsell - lost }
+  return {
+    newMrr,
+    newCount: newClients.length,
+    upsell,
+    downsell,
+    downsellCount: downsellsInMonth.length,
+    lost,
+    lostCount: churned.length,
+    net: newMrr + upsell - downsell - lost,
+  }
 }
 
 /** Dinheiro novo do mês: contratos novos + upsell − cancelamentos, com o
  *  comparativo do mês anterior. Complementa o MRR (que é o total acumulado). */
-export function RevenueGeneratedCard({ clients, upsells }: { clients: Client[]; upsells: Activity[] }) {
+export function RevenueGeneratedCard({ clients, upsells, downsells }: { clients: Client[]; upsells: Activity[]; downsells: Activity[] }) {
   const { isPrivacyMode } = usePrivacy()
   const money = (v: number) => (isPrivacyMode ? 'R$ •.•••' : BRL(v))
   const { cur, prev } = useMemo(() => {
     const start = startOfMonth(new Date())
-    return { cur: monthRevenue(clients, upsells, start), prev: monthRevenue(clients, upsells, subMonths(start, 1)) }
-  }, [clients, upsells])
+    return {
+      cur: monthRevenue(clients, upsells, downsells, start),
+      prev: monthRevenue(clients, upsells, downsells, subMonths(start, 1)),
+    }
+  }, [clients, upsells, downsells])
   const diff = cur.net - prev.net
 
   const Row = ({ label, sub, value, color }: { label: string; sub?: string; value: string; color: string }) => (
@@ -233,7 +247,7 @@ export function RevenueGeneratedCard({ clients, upsells }: { clients: Client[]; 
       <CardTitle
         tip={{
           title: 'Receita gerada no mês',
-          body: 'Quanto de receita mensal nova entrou este mês: contratos de clientes novos + upsells registrados − contratos cancelados. O MRR mostra o total; aqui é o movimento do mês.',
+          body: 'Quanto de receita mensal nova entrou este mês: contratos de clientes novos + upsells − downsells − contratos cancelados. O MRR mostra o total; aqui é o movimento do mês.',
         }}
       >
         Receita gerada no mês
@@ -241,6 +255,9 @@ export function RevenueGeneratedCard({ clients, upsells }: { clients: Client[]; 
       <div className="divide-y divide-slate-100">
         <Row label="Contratos novos" sub={`(${cur.newCount})`} value={`+ ${money(cur.newMrr)}`} color="#059669" />
         <Row label="Upsell" value={`+ ${money(cur.upsell)}`} color="#059669" />
+        {(cur.downsellCount > 0 || prev.downsellCount > 0) && (
+          <Row label="Downsell" sub={`(${cur.downsellCount})`} value={`− ${money(cur.downsell)}`} color="#DC2626" />
+        )}
         <Row label="Cancelamentos" sub={`(${cur.lostCount})`} value={`− ${money(cur.lost)}`} color="#DC2626" />
       </div>
       <div className="mt-2 flex items-baseline justify-between border-t border-slate-200 pt-3">
