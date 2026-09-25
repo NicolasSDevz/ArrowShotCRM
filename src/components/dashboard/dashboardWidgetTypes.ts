@@ -16,9 +16,16 @@ export interface DashboardBuckets {
 
 export type ClientHealth = 'green' | 'yellow' | 'red'
 
+/** Um motivo que deixou o cliente amarelo/vermelho (ver getClientHealth). */
+export interface ClientHealthReason {
+  level: 'red' | 'yellow'
+  text: string
+}
+
 export interface ClientSummaryRow {
   client: Client
   health: ClientHealth
+  reasons: ClientHealthReason[]
   service: string
   ownerName: string
   nextTask?: Task

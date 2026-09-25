@@ -18,7 +18,10 @@ import { MotivationalQuoteBanner } from '../components/dashboard/MotivationalQuo
 import { EditableWidgetFrame } from '../components/dashboard/EditableWidgetFrame'
 import { DashboardEditToolbar } from '../components/dashboard/DashboardEditToolbar'
 import { WIDGET_LABEL, ALL_WIDGET_IDS, renderDashboardWidget } from '../components/dashboard/dashboardWidgetCatalog'
-import type { DashboardWidgetSharedData, ClientHealth } from '../components/dashboard/dashboardWidgetTypes'
+import type { DashboardWidgetSharedData, ClientHealth, ClientHealthReason } from '../components/dashboard/dashboardWidgetTypes'
+import { useRecentOptimizations } from '../hooks/useOptimizations'
+import { hasContractedPaidTraffic } from '../utils/clientServices'
+import type { ClientSuccessTier } from '../types/clientSuccess'
 import { Button } from '../components/ui/Button'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
 import { TaskFormModal } from '../components/tasks/TaskFormModal'
@@ -34,6 +37,7 @@ import type { DashboardWidgetConfig, DashboardWidgetId } from '../types/dashboar
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 
 const DASHBOARD_KEY = 'operacional'
+const SCOPE_KEY = 'arrowshot-operacional-escopo'
 
 /** Só estes ficam escondidos atrás do "tudo em dia" (ver DashboardEmptyState)
  *  — igual ao comportamento original: Próximas publicações, Resumo por
@@ -48,11 +52,22 @@ const BUCKET_GATED_IDS = new Set<DashboardWidgetId>([
   'conteudos_aprovados',
 ])
 
-/** Vermelho: 2+ tarefas atrasadas, ou 1 atrasada de prioridade alta/urgente.
- *  Amarelo: 1 tarefa atrasada, ou algum checklist incompleto há mais de 3 dias.
- *  Verde: nenhuma das condições acima. */
-function getClientHealth(clientId: string, tasks: Task[]): ClientHealth {
-  const openTasks = tasks.filter((t) => t.clientId === clientId && t.status !== 'done')
+/** Saúde do cliente somando os sinais que o CRM tem. Cada motivo tem um peso
+ *  (vermelho ou amarelo); a cor final é a do pior motivo.
+ *  - Tarefas: 2+ atrasadas ou 1 urgente/alta atrasada = vermelho; 1 atrasada
+ *    ou checklist parado há 3+ dias = amarelo.
+ *  - Sucesso do Cliente (última avaliação): "risco" = vermelho, "atenção" = amarelo.
+ *  - Tráfego sem otimização registrada: 14+ dias = vermelho, 7+ = amarelo
+ *    (cliente com menos de 14 dias de casa não conta).
+ *  - Contrato pausado = amarelo. */
+function getClientHealth(
+  client: Client,
+  tasks: Task[],
+  successTier: ClientSuccessTier | undefined,
+  lastOptimizationMs: number | undefined
+): { health: ClientHealth; reasons: ClientHealthReason[] } {
+  const reasons: ClientHealthReason[] = []
+  const openTasks = tasks.filter((t) => t.clientId === client.id && t.status !== 'done')
   const overdue = openTasks.filter((t) => t.dueDate && isPast(t.dueDate.toDate()) && !isToday(t.dueDate.toDate()))
   const overdueHighPriority = overdue.some((t) => t.priority === 'high' || t.priority === 'urgent')
   const staleChecklist = openTasks.some((t) => {
@@ -60,9 +75,27 @@ function getClientHealth(clientId: string, tasks: Task[]): ClientHealth {
     return differenceInDays(new Date(), t.createdAt.toDate()) > 3
   })
 
-  if (overdue.length >= 2 || overdueHighPriority) return 'red'
-  if (overdue.length === 1 || staleChecklist) return 'yellow'
-  return 'green'
+  if (overdue.length >= 2 || overdueHighPriority)
+    reasons.push({ level: 'red', text: overdue.length >= 2 ? `${overdue.length} tarefas atrasadas` : 'Tarefa urgente atrasada' })
+  else if (overdue.length === 1) reasons.push({ level: 'yellow', text: '1 tarefa atrasada' })
+  else if (staleChecklist) reasons.push({ level: 'yellow', text: 'Checklist parado há 3+ dias' })
+
+  if (successTier === 'risco') reasons.push({ level: 'red', text: 'Avaliação: em risco' })
+  else if (successTier === 'atencao') reasons.push({ level: 'yellow', text: 'Avaliação: atenção' })
+
+  const since = client.contractStartDate?.toDate?.() ?? client.createdAt?.toDate?.()
+  const isNew = since ? differenceInDays(new Date(), since) < 14 : false
+  if (hasContractedPaidTraffic(client) && client.status === 'active' && !isNew) {
+    const days = lastOptimizationMs ? differenceInDays(new Date(), new Date(lastOptimizationMs)) : null
+    if (days == null || days >= 14) reasons.push({ level: 'red', text: 'Sem otimização há 14+ dias' })
+    else if (days >= 7) reasons.push({ level: 'yellow', text: `Sem otimização há ${days} dias` })
+  }
+
+  if (client.status === 'paused') reasons.push({ level: 'yellow', text: 'Contrato pausado' })
+
+  reasons.sort((a, b) => Number(a.level === 'yellow') - Number(b.level === 'yellow'))
+  const health: ClientHealth = reasons.some((r) => r.level === 'red') ? 'red' : reasons.length > 0 ? 'yellow' : 'green'
+  return { health, reasons }
 }
 
 function clientServiceLabel(client: Client) {
@@ -78,13 +111,38 @@ export function OperationalDashboard() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const { data: tasks } = useAllTasks()
-  const { data: contents } = useAllContents()
+  const { data: allContents } = useAllContents()
   const { data: clients } = useClients()
   const assigneeMap = useAssigneeMap()
   const { data: clientSuccessEvaluations } = useAllClientSuccessEvaluations()
   const latestClientSuccess = useMemo(() => latestClientSuccessByClient(clientSuccessEvaluations), [clientSuccessEvaluations])
+  const { data: recentOptimizations } = useRecentOptimizations(30)
   const { canSeeAllTasks, viewerId } = useTaskVisibility()
-  const visibleTasks = useMemo(() => filterVisibleTasks(tasks, canSeeAllTasks, viewerId), [tasks, canSeeAllTasks, viewerId])
+  // "Só meus" x "Equipe": filtra tarefas, conteúdos e o resumo por cliente. Fica salvo no navegador.
+  const [scope, setScope] = useState<'mine' | 'team'>(() => {
+    try {
+      return localStorage.getItem(SCOPE_KEY) === 'mine' ? 'mine' : 'team'
+    } catch {
+      return 'team'
+    }
+  })
+  const changeScope = (next: 'mine' | 'team') => {
+    setScope(next)
+    try {
+      localStorage.setItem(SCOPE_KEY, next)
+    } catch {
+      /* navegador sem storage: vale só nesta sessão */
+    }
+  }
+  const mineOnly = scope === 'mine'
+  const visibleTasks = useMemo(
+    () => filterVisibleTasks(tasks, canSeeAllTasks && !mineOnly, viewerId),
+    [tasks, canSeeAllTasks, viewerId, mineOnly]
+  )
+  const contents = useMemo(
+    () => (mineOnly && viewerId ? allContents.filter((c) => c.assignedTo === viewerId) : allContents),
+    [allContents, mineOnly, viewerId]
+  )
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [openContentId, setOpenContentId] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -108,7 +166,7 @@ export function OperationalDashboard() {
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [contentModalOpen, setContentModalOpen] = useState(false)
   const openTask = visibleTasks.find((t) => t.id === openTaskId) ?? null
-  const openContent = contents.find((c) => c.id === openContentId) ?? null
+  const openContent = allContents.find((c) => c.id === openContentId) ?? null
 
   const buckets = useMemo(() => {
     const openTasks = visibleTasks.filter((t) => t.status !== 'done')
@@ -166,27 +224,36 @@ export function OperationalDashboard() {
   }, [buckets.upcoming])
 
   const clientSummary = useMemo(() => {
+    const lastOptByClient = new Map<string, number>()
+    for (const o of recentOptimizations) {
+      const t = o.date?.toMillis?.() ?? 0
+      if (t > (lastOptByClient.get(o.clientId) ?? 0)) lastOptByClient.set(o.clientId, t)
+    }
     return clients
-      .filter((c) => c.status === 'active')
+      .filter((c) => c.status === 'active' || c.status === 'paused')
+      .filter((c) => !mineOnly || !viewerId || getClientOwnerIds(c).includes(viewerId))
       .map((c) => {
         const nextTask = tasks
           .filter((t) => t.clientId === c.id && t.status !== 'done' && t.dueDate)
           .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis())[0]
         const ownerId = getClientOwnerIds(c)[0]
+        const successTier = latestClientSuccess[c.id]?.tier
+        const { health, reasons } = getClientHealth(c, tasks, successTier, lastOptByClient.get(c.id))
         return {
           client: c,
-          health: getClientHealth(c.id, tasks),
+          health,
+          reasons,
           service: clientServiceLabel(c),
           ownerName: ownerId ? (assigneeMap[ownerId]?.name ?? '—') : '—',
           nextTask,
-          successTier: latestClientSuccess[c.id]?.tier,
+          successTier,
         }
       })
       .sort((a, b) => {
         const rank: Record<ClientHealth, number> = { red: 0, yellow: 1, green: 2 }
-        return rank[a.health] - rank[b.health] || a.client.companyName.localeCompare(b.client.companyName)
+        return rank[a.health] - rank[b.health] || b.reasons.length - a.reasons.length || a.client.companyName.localeCompare(b.client.companyName)
       })
-  }, [clients, tasks, assigneeMap, latestClientSuccess])
+  }, [clients, tasks, assigneeMap, latestClientSuccess, recentOptimizations, mineOnly, viewerId])
 
   // ---------------- personalização do layout ----------------
   const { widgets: savedWidgets } = useUserDashboardLayout(profile, DASHBOARD_KEY)
@@ -285,8 +352,30 @@ export function OperationalDashboard() {
           <h1 className="text-[28px] font-extrabold leading-tight text-slate-900">Operacional</h1>
           <p className="text-[15px] text-[#64748B]">Visão geral do que precisa da sua atenção hoje.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <p className="text-[14px] text-slate-400">{todayLabel}</p>
+          <div role="radiogroup" aria-label="Mostrar" className="flex rounded-lg bg-slate-100 p-0.5 text-[13px] font-medium">
+            {(
+              [
+                ['mine', 'Só meus'],
+                ['team', 'Equipe'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={scope === value}
+                onClick={() => changeScope(value)}
+                title={value === 'mine' ? 'Só suas tarefas, seus conteúdos e seus clientes' : 'Tudo que você tem acesso'}
+                className={`rounded-md px-3 py-1 transition-colors ${
+                  scope === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {!editMode && (
             <Button
               variant="secondary"

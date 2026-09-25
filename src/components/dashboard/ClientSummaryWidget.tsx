@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { format, isPast, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AlertTriangle } from 'lucide-react'
@@ -38,11 +39,37 @@ export function ClientSummaryWidget({
   canSeeAllTasks: boolean
   onNavigateClient: (clientId: string) => void
 }) {
+  const [onlyAttention, setOnlyAttention] = useState(false)
+  const attentionCount = rows.filter((r) => r.health !== 'green').length
+  const shownRows = onlyAttention ? rows.filter((r) => r.health !== 'green') : rows
+
   return (
     <div className="h-full min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-      <p className="mb-3 text-[16px] font-semibold text-slate-900">Resumo por cliente</p>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <p className="text-[16px] font-semibold text-slate-900">Resumo por cliente</p>
+        {rows.length > 0 && (
+          <div className="ml-auto flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setOnlyAttention(false)}
+              className={`rounded-md px-2.5 py-1 ${!onlyAttention ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Todos ({rows.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setOnlyAttention(true)}
+              className={`rounded-md px-2.5 py-1 ${onlyAttention ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Precisam de atenção ({attentionCount})
+            </button>
+          </div>
+        )}
+      </div>
       {rows.length === 0 ? (
         <EmptyState title="Nenhum cliente ativo" />
+      ) : shownRows.length === 0 ? (
+        <p className="py-6 text-center text-sm text-emerald-600">✅ Nenhum cliente precisando de atenção</p>
       ) : (
         <div className="max-h-80 overflow-y-auto">
           <table className="w-full text-left text-[15px]">
@@ -58,7 +85,7 @@ export function ClientSummaryWidget({
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ client, health, service, ownerName, nextTask, successTier }, index) => {
+              {shownRows.map(({ client, health, reasons, service, ownerName, nextTask, successTier }, index) => {
                 const overdueTask = nextTask?.dueDate && isPast(nextTask.dueDate.toDate()) && !isToday(nextTask.dueDate.toDate())
                 return (
                   <tr
@@ -69,12 +96,26 @@ export function ClientSummaryWidget({
                     }`}
                   >
                     <td className="py-2 pl-2 align-middle">
-                      <span title={HEALTH_LABEL[health]} className={`block h-2.5 w-2.5 rounded-full ${HEALTH_DOT[health]}`} />
+                      <span
+                        title={reasons.length > 0 ? reasons.map((r) => r.text).join('\n') : HEALTH_LABEL[health]}
+                        className={`block h-2.5 w-2.5 rounded-full ${HEALTH_DOT[health]}`}
+                      />
                     </td>
-                    <td className="max-w-[160px] py-2 pr-2 align-middle font-medium text-slate-900">
+                    <td className="max-w-[200px] py-2 pr-2 align-middle font-medium text-slate-900">
                       <div className="flex items-center gap-2">
                         <Avatar name={client.companyName} photoURL={client.logoUrl} size="xs" />
-                        <span className="truncate">{client.companyName}</span>
+                        <div className="min-w-0">
+                          <span className="block truncate">{client.companyName}</span>
+                          {reasons.length > 0 && (
+                            <span
+                              className={`block truncate text-[11px] font-normal ${reasons[0].level === 'red' ? 'text-red-600' : 'text-amber-600'}`}
+                              title={reasons.map((r) => r.text).join('\n')}
+                            >
+                              {reasons[0].text}
+                              {reasons.length > 1 && ` · +${reasons.length - 1}`}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="py-2 pr-2 align-middle">

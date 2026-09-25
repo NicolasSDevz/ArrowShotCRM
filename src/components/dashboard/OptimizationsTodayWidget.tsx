@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Check, Target, Pencil } from 'lucide-react'
+import { Check, Target, Pencil, History } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
 import { useOptimizationSchedule, useTodayOptimizations } from '../../hooks/useOptimizations'
+import { useMissedOptimizations } from '../../hooks/useMissedOptimizations'
 import { OptimizationFormModal } from '../clients/OptimizationFormModal'
 import { hasContractedPaidTraffic, trafficServices, platformBadgeLabel } from '../../utils/clientServices'
 import { type Optimization, type OptimizationPlatform } from '../../types'
@@ -37,6 +38,7 @@ export function OptimizationsTodayWidget() {
   const { rows } = useOptimizationSchedule()
   const { data: todayOpts } = useTodayOptimizations()
   const { data: clients } = useClients()
+  const missed = useMissedOptimizations(profile?.id)
 
   const [modalClient, setModalClient] = useState<{ id: string; platforms: OptimizationPlatform[]; record: Optimization | null } | null>(
     null
@@ -101,6 +103,33 @@ export function OptimizationsTodayWidget() {
           </span>
         )}
       </div>
+
+      {missed.items.length > 0 && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <p className="flex items-center gap-1.5 text-[13px] font-semibold text-amber-800">
+            <History size={14} />
+            Ficou pendente de {format(missed.day, 'EEEE', { locale: ptBR })} ({missed.items.length})
+          </p>
+          <div className="mt-2 flex flex-col gap-1.5">
+            {missed.items.map((m) => {
+              const b = platformBadgeLabel(m.platforms)
+              return (
+                <button
+                  key={m.clientId}
+                  type="button"
+                  onClick={() => setModalClient({ id: m.clientId, platforms: m.platforms, record: null })}
+                  className="flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-left text-[14px] text-slate-800 hover:bg-amber-100"
+                  title="Registrar agora"
+                >
+                  <span className="h-[18px] w-[18px] shrink-0 rounded-md border border-amber-400 bg-white" />
+                  <span className="min-w-0 truncate">{m.name}</span>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${b.className}`}>{b.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <p className="mt-3 text-sm text-slate-400">Sem otimizações agendadas para hoje.</p>

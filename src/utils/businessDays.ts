@@ -18,3 +18,11 @@ export function businessDaysBetween(target: Date): number {
   }
   return count * sign
 }
+
+/** Dia útil anterior a `date` (segunda → sexta; sábado/domingo → sexta). */
+export function previousBusinessDay(date: Date = new Date()): Date {
+  const d = startOfDay(date)
+  do d.setDate(d.getDate() - 1)
+  while (d.getDay() === 0 || d.getDay() === 6)
+  return d
+}

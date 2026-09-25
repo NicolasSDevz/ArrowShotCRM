@@ -1,5 +1,8 @@
 import { useMemo } from 'react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { Target } from 'lucide-react'
+import { useMissedOptimizations } from '../../hooks/useMissedOptimizations'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
@@ -30,6 +33,7 @@ function GestorOptimizationsCard({ name }: { name: string }) {
   const teamMember = teamMembers.find((m) => (userId && m.userId === userId) || m.name.toLowerCase().includes(name.toLowerCase()))
   const weekday = new Date().getDay()
   const doneIds = useMemo(() => new Set(todayOpts.map((o) => o.clientId)), [todayOpts])
+  const missed = useMissedOptimizations(userId ?? undefined)
 
   const items = useMemo(() => {
     if (!userId) return []
@@ -67,6 +71,13 @@ function GestorOptimizationsCard({ name }: { name: string }) {
             style={{ width: `${pct}%`, backgroundColor: progressBarColor(pct) }}
           />
         </div>
+      )}
+
+      {missed.items.length > 0 && (
+        <p className="mt-2.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+          <span className="font-semibold">Pendente de {format(missed.day, 'EEEE', { locale: ptBR })}:</span>{' '}
+          {missed.items.map((m) => m.name).join(', ')}
+        </p>
       )}
 
       {total === 0 ? (
