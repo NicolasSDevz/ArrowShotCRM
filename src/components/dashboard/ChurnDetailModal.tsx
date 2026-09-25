@@ -7,6 +7,7 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { ReportLineChart, type ChartSeries } from '../reports/ReportLineChart'
 import { useRecentMetricsSnapshots } from '../../hooks/useMetricsSnapshot'
+import { usePrivacy } from '../../context/PrivacyContext'
 
 export interface ChurnedClientRow {
   id: string
@@ -34,6 +35,7 @@ export function ChurnDetailModal({
   currentChurnRate: number
 }) {
   const navigate = useNavigate()
+  const { isPrivacyMode } = usePrivacy()
   const { data: snapshots } = useRecentMetricsSnapshots(120)
 
   const chart = useMemo(() => {
@@ -65,7 +67,7 @@ export function ChurnDetailModal({
           {totalValueLost > 0 && (
             <>
               {' · '}
-              <span className="font-bold text-red-600">{fmtBRL(totalValueLost)}</span> em MRR perdido ao todo
+              <span className="font-bold text-red-600">{isPrivacyMode ? 'R$ ••.•••' : fmtBRL(totalValueLost)}</span> em MRR perdido ao todo
             </>
           )}
         </div>
@@ -90,12 +92,12 @@ export function ChurnDetailModal({
                   className="flex flex-col rounded-lg border border-slate-100 px-3 py-2 text-left transition-colors hover:bg-slate-50"
                 >
                   <span className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-900">{c.companyName}</span>
+                    <span className="font-semibold text-slate-900">{isPrivacyMode ? '••••••' : c.companyName}</span>
                     <span className="shrink-0 text-xs text-slate-400">{format(c.when, 'dd/MM/yyyy', { locale: ptBR })}</span>
                   </span>
                   <span className="text-xs text-slate-500">{c.churnReason || 'Motivo não informado'}</span>
                   {c.monthlyValue != null && c.monthlyValue > 0 && (
-                    <span className="mt-0.5 text-xs font-medium text-red-600">-{fmtBRL(c.monthlyValue)}/mês</span>
+                    <span className="mt-0.5 text-xs font-medium text-red-600">-{isPrivacyMode ? 'R$ •.•••,••' : fmtBRL(c.monthlyValue)}/mês</span>
                   )}
                 </button>
               ))}

@@ -8,6 +8,7 @@ import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { useAuth } from '../../context/AuthContext'
+import { usePrivacy } from '../../context/PrivacyContext'
 import { generateWeeklyReportPdf } from '../../utils/weeklyReportPdf'
 import { deleteReport } from '../../services/reportService'
 import { REPORT_TYPE_LABEL, type Client, type Report } from '../../types'
@@ -29,6 +30,7 @@ export function ClientReportsDrawer({
   onOpenReport: (report: Report) => void
 }) {
   const { profile } = useAuth()
+  const { isPrivacyMode } = usePrivacy()
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const sorted = useMemo(
@@ -68,8 +70,8 @@ export function ClientReportsDrawer({
       onClose={onClose}
       title={
         <div className="flex items-center gap-2.5">
-          <Avatar name={client.companyName} photoURL={client.logoUrl} size="sm" />
-          <span>{client.companyName}</span>
+          <Avatar name={isPrivacyMode ? 'Cliente' : client.companyName} photoURL={isPrivacyMode ? null : client.logoUrl} size="sm" />
+          <span>{isPrivacyMode ? '••••••' : client.companyName}</span>
         </div>
       }
     >

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { PrivacyModeBanner } from './PrivacyModeBanner'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { CelebrationOverlay } from '../CelebrationOverlay'
 import { TaskCelebrationOverlay } from '../TaskCelebrationOverlay'
@@ -18,6 +19,7 @@ export function AppLayout() {
       <Sidebar mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onOpenMobileNav={() => setMobileNavOpen(true)} />
+        <PrivacyModeBanner />
         <main className="flex-1 overflow-y-auto p-8">
           <ErrorBoundary resetKey={location.pathname}>
             <Outlet />

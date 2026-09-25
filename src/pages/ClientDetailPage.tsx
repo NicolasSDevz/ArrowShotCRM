@@ -18,6 +18,8 @@ import { DeleteClientModal } from '../components/clients/DeleteClientModal'
 import { Badge } from '../components/ui/Badge'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
+import { PrivateData } from '../components/ui/PrivateData'
+import { usePrivacy } from '../context/PrivacyContext'
 import { Tabs } from '../components/ui/Tabs'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FilesPanel } from '../components/files/FilesPanel'
@@ -53,6 +55,7 @@ export function ClientDetailPage() {
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [whatsappGroupModalOpen, setWhatsappGroupModalOpen] = useState(false)
+  const { isPrivacyMode } = usePrivacy()
 
   if (!client) {
     return <EmptyState title="Cliente não encontrado" action={<Button onClick={() => navigate('/clientes')}>Voltar</Button>} />
@@ -119,7 +122,7 @@ export function ClientDetailPage() {
             <ClientLogoUpload client={client} />
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-semibold text-slate-800">{client.companyName}</h1>
+                <h1 className="text-xl font-semibold text-slate-800"><PrivateData value={client.companyName} /></h1>
                 <Badge className={CLIENT_STATUS_BADGE[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>
                 {client.categoria && (
                   <Badge className={CLIENT_CATEGORY_BADGE[client.categoria]}>{CLIENT_CATEGORY_LABEL[client.categoria]}</Badge>
@@ -130,11 +133,22 @@ export function ClientDetailPage() {
                 )}
                 {(hasPT || hasSM || hasLP) && <ClientServiceBadges client={client} />}
               </div>
-              {client.contactName && <p className="text-sm text-slate-400">{client.contactName}</p>}
+              {client.contactName && (
+                <p className="text-sm text-slate-400">
+                  <PrivateData value={client.contactName} />
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            {client.whatsappGroupLink ? (
+            {isPrivacyMode ? (
+              <span
+                title="Grupo do WhatsApp oculto no modo apresentação"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 text-xs font-medium text-slate-400"
+              >
+                <MessageCircle size={13} /> ••••••
+              </span>
+            ) : client.whatsappGroupLink ? (
               <a
                 href={client.whatsappGroupLink}
                 target="_blank"
@@ -184,9 +198,21 @@ export function ClientDetailPage() {
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
-          {client.whatsapp && <span className="flex items-center gap-1"><Phone size={12} /> {client.whatsapp}</span>}
-          {client.email && <span className="flex items-center gap-1"><Mail size={12} /> {client.email}</span>}
-          {client.city && <span className="flex items-center gap-1"><MapPin size={12} /> {client.city}</span>}
+          {client.whatsapp && (
+            <span className="flex items-center gap-1">
+              <Phone size={12} /> <PrivateData value={client.whatsapp} mask="••• •••••-••••" />
+            </span>
+          )}
+          {client.email && (
+            <span className="flex items-center gap-1">
+              <Mail size={12} /> <PrivateData value={client.email} mask="••••••@••••••.com" />
+            </span>
+          )}
+          {client.city && (
+            <span className="flex items-center gap-1">
+              <MapPin size={12} /> <PrivateData value={client.city} />
+            </span>
+          )}
           {client.instagram && <span className="flex items-center gap-1"><Camera size={12} /> {client.instagram}</span>}
           {client.facebook && <span className="flex items-center gap-1"><ThumbsUp size={12} /> {client.facebook}</span>}
           {client.website && <span className="flex items-center gap-1"><Globe size={12} /> {client.website}</span>}

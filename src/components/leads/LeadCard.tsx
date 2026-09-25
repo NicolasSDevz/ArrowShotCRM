@@ -4,6 +4,8 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
+import { PrivateMoney } from '../ui/PrivateData'
+import { usePrivacy } from '../../context/PrivacyContext'
 import { LEAD_SOURCE_LABEL, formatFieldValue, type AppUser, type Lead, type PipelineField } from '../../types'
 
 function leadServiceLabel(lead: Lead): string {
@@ -20,6 +22,7 @@ function daysInStageLabel(stageChangedAt: Lead['stageChangedAt']): string {
 }
 
 export function LeadCard({ lead, assignee, onClick, fields = [] }: { lead: Lead; assignee?: AppUser; onClick: () => void; fields?: PipelineField[] }) {
+  const { isPrivacyMode } = usePrivacy()
   const cardFields = fields
     .filter((f) => f.showOnCard)
     .map((f) => ({ f, text: formatFieldValue(f, lead.customFields?.[f.id]) }))
@@ -39,8 +42,12 @@ export function LeadCard({ lead, assignee, onClick, fields = [] }: { lead: Lead;
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-800">{lead.contactName}</p>
-          {lead.companyName && <p className="truncate text-xs text-slate-400">{lead.companyName}</p>}
+          <p className="truncate text-sm font-semibold text-slate-800">
+            {isPrivacyMode ? 'Lead ••••••' : lead.contactName}
+          </p>
+          {lead.companyName && (
+            <p className="truncate text-xs text-slate-400">{isPrivacyMode ? 'Empresa ••••••' : lead.companyName}</p>
+          )}
         </div>
         <Avatar name={assignee?.name ?? '?'} photoURL={assignee?.photoURL} size="xs" />
       </div>
@@ -63,7 +70,7 @@ export function LeadCard({ lead, assignee, onClick, fields = [] }: { lead: Lead;
 
       {lead.estimatedValue != null && lead.estimatedValue > 0 && (
         <p className="text-sm font-semibold text-slate-700">
-          {lead.estimatedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          <PrivateMoney value={lead.estimatedValue} />
         </p>
       )}
 

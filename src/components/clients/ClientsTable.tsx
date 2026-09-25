@@ -4,7 +4,9 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
+import { PrivateData } from '../ui/PrivateData'
 import { ClientServiceBadges } from './ServiceBadges'
+import { usePrivacy } from '../../context/PrivacyContext'
 import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
 import type { AppUser } from '../../types'
 
@@ -20,6 +22,7 @@ export function ClientsTable({
   onDelete: (client: Client) => void
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const { isPrivacyMode } = usePrivacy()
 
   return (
     <div className="clients-table overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
@@ -41,6 +44,7 @@ export function ClientsTable({
         <tbody>
           {clients.map((client, i) => {
             const owners = ownersByClientId[client.id] ?? []
+            const displayName = isPrivacyMode ? `Cliente ${i + 1}` : client.companyName
             return (
               <tr
                 key={client.id}
@@ -49,17 +53,21 @@ export function ClientsTable({
               >
                 <td className="py-2.5 pl-4 text-right text-xs font-medium text-slate-400">{i + 1}</td>
                 <td className="py-2.5 pl-3">
-                  <Avatar name={client.companyName} photoURL={client.logoUrl} size="lg" />
+                  <Avatar name={displayName} photoURL={isPrivacyMode ? null : client.logoUrl} size="lg" />
                 </td>
                 <td className="max-w-[240px] py-2.5 pl-3 pr-3">
                   <div className="flex items-center gap-1.5">
-                    <p className="truncate font-medium text-slate-800">{client.companyName}</p>
+                    <p className="truncate font-medium text-slate-800">{displayName}</p>
                     {client.categoria && (
                       <Badge className={`shrink-0 ${CLIENT_CATEGORY_BADGE[client.categoria]}`}>
                         {CLIENT_CATEGORY_LABEL[client.categoria]}
                       </Badge>
                     )}
-                    {client.whatsappGroupLink ? (
+                    {isPrivacyMode ? (
+                      <span title="Grupo do WhatsApp oculto no modo apresentação" className="shrink-0 text-slate-300">
+                        <MessageCircle size={14} />
+                      </span>
+                    ) : client.whatsappGroupLink ? (
                       <a
                         href={client.whatsappGroupLink}
                         target="_blank"
@@ -76,7 +84,11 @@ export function ClientsTable({
                       </span>
                     )}
                   </div>
-                  {client.contactName && <p className="truncate text-xs text-slate-400">{client.contactName}</p>}
+                  {client.contactName && (
+                    <p className="truncate text-xs text-slate-400">
+                      <PrivateData value={client.contactName} />
+                    </p>
+                  )}
                 </td>
                 <td className="max-w-[140px] truncate py-2.5 pr-3 text-slate-500">{client.segment || '—'}</td>
                 <td className="py-2.5 pr-3">
@@ -101,7 +113,7 @@ export function ClientsTable({
                 <td className="max-w-[120px] truncate py-2.5 pr-3 text-slate-500">
                   {client.city ? (
                     <span className="flex items-center gap-1">
-                      <MapPin size={12} className="shrink-0 text-slate-400" /> {client.city}
+                      <MapPin size={12} className="shrink-0 text-slate-400" /> <PrivateData value={client.city} />
                     </span>
                   ) : (
                     '—'

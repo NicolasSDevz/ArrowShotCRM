@@ -28,6 +28,7 @@ import { ReportLineChart, type ChartSeries } from '../components/reports/ReportL
 import { ReportFunnelSection } from '../components/reports/ReportFunnelSection'
 import { previousPeriod } from '../utils/metaReportData'
 import { buildExecutiveSummary, buildFunnelSentence, pctChange } from '../utils/reportSummary'
+import { usePrivacy } from '../context/PrivacyContext'
 import type { ReportMetaSnapshot, ReportEntitySummary, ReportLandingPageSnapshot, ReportGoogleSnapshot, ReportGoogleCampaignSummary } from '../types'
 import { LANDING_PAGE_STATUS_LABEL } from '../types/landingPage'
 
@@ -37,10 +38,10 @@ import { LANDING_PAGE_STATUS_LABEL } from '../types/landingPage'
 type ReportGoogleSnapshotReady = Extract<ReportGoogleSnapshot, { available: true }>
 
 /* ---------- formatters ---------- */
-const fmtInt = (v?: number) => (v == null || Number.isNaN(v) ? '—' : Math.round(v).toLocaleString('pt-BR'))
-const fmtBRL = (v?: number) =>
-  v == null || Number.isNaN(v) ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const fmtPct = (v?: number) => (v == null || Number.isNaN(v) ? '—' : `${v.toFixed(2).replace('.', ',')}%`)
+const fmtInt = (v?: number, masked?: boolean) => (masked ? '•.•••' : v == null || Number.isNaN(v) ? '—' : Math.round(v).toLocaleString('pt-BR'))
+const fmtBRL = (v?: number, masked?: boolean) =>
+  masked ? 'R$ •.•••,••' : v == null || Number.isNaN(v) ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const fmtPct = (v?: number, masked?: boolean) => (masked ? '•,••%' : v == null || Number.isNaN(v) ? '—' : `${v.toFixed(2).replace('.', ',')}%`)
 const fmtDate = (d: Date) => (Number.isNaN(d?.getTime?.()) ? '—' : format(d, 'dd/MM/yyyy', { locale: ptBR }))
 
 /** Variação vs período anterior. A seta reflete a direção real; a cor reflete
@@ -123,23 +124,24 @@ function MetricCard({
 }
 
 function OverviewSection({ meta }: { meta: ReportMetaSnapshot }) {
+  const { isPrivacyMode: m } = usePrivacy()
   const c = meta.metrics.current
   const p = meta.metrics.previous
-  const costPerConv = (m?: { spend?: number; conversations?: number }) =>
-    m?.spend && m?.conversations ? m.spend / m.conversations : undefined
+  const costPerConv = (v?: { spend?: number; conversations?: number }) =>
+    v?.spend && v?.conversations ? v.spend / v.conversations : undefined
 
   return (
     <Section title="Meta Ads — Visão Geral">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.spend)} curr={c.spend} prev={p?.spend} goodWhen="down" explanation="Total gasto em anúncios no período" />
-        <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
-        <MetricCard icon={<Users size={18} />} name="Alcance" value={fmtInt(c.reach)} curr={c.reach} prev={p?.reach} explanation="Pessoas únicas que viram seus anúncios" />
-        <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
-        <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
-        <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.cpc)} curr={c.cpc} prev={p?.cpc} goodWhen="down" explanation="Custo médio por cada clique" />
-        <MetricCard icon={<Gauge size={18} />} name="CPM médio" value={fmtBRL(c.cpm)} curr={c.cpm} prev={p?.cpm} goodWhen="down" explanation="Custo a cada mil vezes que o anúncio aparece" />
-        <MetricCard icon={<MessageCircle size={18} />} name="Conversas iniciadas" value={fmtInt(c.conversations)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que mandaram mensagem pelo anúncio" />
-        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c))} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada nova conversa" />
+        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.spend, m)} curr={c.spend} prev={p?.spend} goodWhen="down" explanation="Total gasto em anúncios no período" />
+        <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions, m)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
+        <MetricCard icon={<Users size={18} />} name="Alcance" value={fmtInt(c.reach, m)} curr={c.reach} prev={p?.reach} explanation="Pessoas únicas que viram seus anúncios" />
+        <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks, m)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
+        <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr, m)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
+        <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.cpc, m)} curr={c.cpc} prev={p?.cpc} goodWhen="down" explanation="Custo médio por cada clique" />
+        <MetricCard icon={<Gauge size={18} />} name="CPM médio" value={fmtBRL(c.cpm, m)} curr={c.cpm} prev={p?.cpm} goodWhen="down" explanation="Custo a cada mil vezes que o anúncio aparece" />
+        <MetricCard icon={<MessageCircle size={18} />} name="Conversas iniciadas" value={fmtInt(c.conversations, m)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que mandaram mensagem pelo anúncio" />
+        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c), m)} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada nova conversa" />
       </div>
     </Section>
   )
@@ -149,6 +151,7 @@ function OverviewSection({ meta }: { meta: ReportMetaSnapshot }) {
 const pctPtBR = (v: number) => `${v.toFixed(1).replace('.', ',')}%`
 
 function FunnelSection({ meta }: { meta: ReportMetaSnapshot }) {
+  const { isPrivacyMode } = usePrivacy()
   const c = meta.metrics.current
   const stages: { label: string; value?: number; color: string; prevLabel?: string; prevValue?: number }[] = [
     { label: 'Impressões', value: c.impressions, color: '#1E3A8A' },
@@ -181,7 +184,7 @@ function FunnelSection({ meta }: { meta: ReportMetaSnapshot }) {
                   }}
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wide opacity-90">{s.label}</span>
-                  <span className="text-base font-bold">{fmtInt(s.value)}</span>
+                  <span className="text-base font-bold">{fmtInt(s.value, isPrivacyMode)}</span>
                   {i > 0 && s.prevLabel && (
                     <span className="text-[11px] opacity-90">
                       {ratio != null ? `${pctPtBR(Math.min(100, ratio))} ${s.prevLabel}` : `— ${s.prevLabel}`}
@@ -214,6 +217,7 @@ const CHART_METRICS = {
 type ChartMetricKey = keyof typeof CHART_METRICS
 
 function EvolutionSection({ meta, periodStart, periodEnd }: { meta: ReportMetaSnapshot; periodStart: Date; periodEnd: Date }) {
+  const { isPrivacyMode } = usePrivacy()
   const [a, setA] = useState<ChartMetricKey>('impressions')
   const [b, setB] = useState<ChartMetricKey>('conversations')
 
@@ -235,8 +239,9 @@ function EvolutionSection({ meta, periodStart, periodEnd }: { meta: ReportMetaSn
     }
   }, [daily, periodStart, periodEnd])
 
-  const seriesA: ChartSeries = { label: CHART_METRICS[a].label, color: CHART_METRICS[a].color, values: chart?.valuesFor(a) ?? [], format: CHART_METRICS[a].fmt }
-  const seriesB: ChartSeries = { label: CHART_METRICS[b].label, color: CHART_METRICS[b].color, values: chart?.valuesFor(b) ?? [], format: CHART_METRICS[b].fmt }
+  const fmtSeries = (v: number, key: ChartMetricKey) => (isPrivacyMode ? (key === 'spend' ? 'R$ •.•••' : '•.•••') : CHART_METRICS[key].fmt(v))
+  const seriesA: ChartSeries = { label: CHART_METRICS[a].label, color: CHART_METRICS[a].color, values: chart?.valuesFor(a) ?? [], format: (v) => fmtSeries(v, a) }
+  const seriesB: ChartSeries = { label: CHART_METRICS[b].label, color: CHART_METRICS[b].color, values: chart?.valuesFor(b) ?? [], format: (v) => fmtSeries(v, b) }
 
   return (
     <Section title="Desempenho ao longo do período">
@@ -280,6 +285,7 @@ function costPerResult(e: ReportEntitySummary) {
 }
 
 function CampaignsSection({ campaigns }: { campaigns: ReportEntitySummary[] }) {
+  const { isPrivacyMode: m } = usePrivacy()
   const withConv = campaigns.filter((c) => (c.conversations ?? 0) > 0)
   const best = withConv.length
     ? withConv.reduce((a, b) => ((costPerResult(a) ?? Infinity) <= (costPerResult(b) ?? Infinity) ? a : b))
@@ -308,12 +314,12 @@ function CampaignsSection({ campaigns }: { campaigns: ReportEntitySummary[] }) {
                 {campaigns.map((c, i) => (
                   <tr key={c.id || i} className={`border-t border-slate-100 text-slate-700 transition-colors hover:bg-[#F8FAFC] ${i % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}`}>
                     <td className="max-w-[240px] truncate px-4 py-2.5 font-medium text-slate-800">{c.name}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.conversations)}</td>
-                    <td className="px-4 py-2.5">{fmtBRL(costPerResult(c))}</td>
-                    <td className="px-4 py-2.5">{fmtBRL(c.spend)}</td>
-                    <td className="px-4 py-2.5">{fmtPct(c.ctr)}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.reach)}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.impressions)}</td>
+                    <td className="px-4 py-2.5">{fmtInt(c.conversations, m)}</td>
+                    <td className="px-4 py-2.5">{fmtBRL(costPerResult(c), m)}</td>
+                    <td className="px-4 py-2.5">{fmtBRL(c.spend, m)}</td>
+                    <td className="px-4 py-2.5">{fmtPct(c.ctr, m)}</td>
+                    <td className="px-4 py-2.5">{fmtInt(c.reach, m)}</td>
+                    <td className="px-4 py-2.5">{fmtInt(c.impressions, m)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -333,6 +339,7 @@ function CampaignsSection({ campaigns }: { campaigns: ReportEntitySummary[] }) {
 
 /* ---------- Section 5: top ads ---------- */
 function AdsSection({ ads }: { ads: ReportEntitySummary[] }) {
+  const { isPrivacyMode: m } = usePrivacy()
   const ranked = [...ads]
     .sort((a, b) => (b.conversations ?? 0) - (a.conversations ?? 0) || (b.spend ?? 0) - (a.spend ?? 0))
     .slice(0, 3)
@@ -352,11 +359,11 @@ function AdsSection({ ads }: { ads: ReportEntitySummary[] }) {
               )}
               <p className="truncate text-sm font-semibold text-slate-800" title={ad.name}>{ad.name}</p>
               <dl className="mt-2 space-y-1 text-xs text-slate-500">
-                <div className="flex justify-between"><dt>Resultado</dt><dd className="font-medium text-slate-700">{fmtInt(ad.conversations)}</dd></div>
-                <div className="flex justify-between"><dt>Custo / resultado</dt><dd className="font-medium text-slate-700">{fmtBRL(costPerResult(ad))}</dd></div>
-                <div className="flex justify-between"><dt>Investido</dt><dd className="font-medium text-slate-700">{fmtBRL(ad.spend)}</dd></div>
-                <div className="flex justify-between"><dt>CTR</dt><dd className="font-medium text-slate-700">{fmtPct(ad.ctr)}</dd></div>
-                <div className="flex justify-between"><dt>CPC</dt><dd className="font-medium text-slate-700">{fmtBRL(ad.cpc)}</dd></div>
+                <div className="flex justify-between"><dt>Resultado</dt><dd className="font-medium text-slate-700">{fmtInt(ad.conversations, m)}</dd></div>
+                <div className="flex justify-between"><dt>Custo / resultado</dt><dd className="font-medium text-slate-700">{fmtBRL(costPerResult(ad), m)}</dd></div>
+                <div className="flex justify-between"><dt>Investido</dt><dd className="font-medium text-slate-700">{fmtBRL(ad.spend, m)}</dd></div>
+                <div className="flex justify-between"><dt>CTR</dt><dd className="font-medium text-slate-700">{fmtPct(ad.ctr, m)}</dd></div>
+                <div className="flex justify-between"><dt>CPC</dt><dd className="font-medium text-slate-700">{fmtBRL(ad.cpc, m)}</dd></div>
               </dl>
             </Card>
           ))}
@@ -368,14 +375,15 @@ function AdsSection({ ads }: { ads: ReportEntitySummary[] }) {
 
 /* ---------- Section 6: FB vs IG ---------- */
 function PlatCard({ title, row }: { title: string; row?: { reach?: number; impressions?: number; clicks?: number; spend?: number } }) {
+  const { isPrivacyMode: m } = usePrivacy()
   return (
     <Card>
       <p className="mb-2 text-sm font-semibold text-slate-800">{title}</p>
       <dl className="space-y-1 text-xs text-slate-500">
-        <div className="flex justify-between"><dt>Alcance</dt><dd className="font-medium text-slate-700">{fmtInt(row?.reach)}</dd></div>
-        <div className="flex justify-between"><dt>Impressões</dt><dd className="font-medium text-slate-700">{fmtInt(row?.impressions)}</dd></div>
-        <div className="flex justify-between"><dt>Cliques</dt><dd className="font-medium text-slate-700">{fmtInt(row?.clicks)}</dd></div>
-        <div className="flex justify-between"><dt>Investido</dt><dd className="font-medium text-slate-700">{fmtBRL(row?.spend)}</dd></div>
+        <div className="flex justify-between"><dt>Alcance</dt><dd className="font-medium text-slate-700">{fmtInt(row?.reach, m)}</dd></div>
+        <div className="flex justify-between"><dt>Impressões</dt><dd className="font-medium text-slate-700">{fmtInt(row?.impressions, m)}</dd></div>
+        <div className="flex justify-between"><dt>Cliques</dt><dd className="font-medium text-slate-700">{fmtInt(row?.clicks, m)}</dd></div>
+        <div className="flex justify-between"><dt>Investido</dt><dd className="font-medium text-slate-700">{fmtBRL(row?.spend, m)}</dd></div>
       </dl>
     </Card>
   )
@@ -436,19 +444,20 @@ const GOOGLE_CAMPAIGN_STATUS_LABEL: Record<string, string> = {
 }
 
 function GoogleOverviewSection({ google }: { google: ReportGoogleSnapshotReady }) {
+  const { isPrivacyMode: m } = usePrivacy()
   const c = google.metrics.current
   const p = google.metrics.previous
 
   return (
     <Section title="Google Ads — Visão Geral">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.cost)} curr={c.cost} prev={p?.cost} goodWhen="down" explanation="Total gasto em anúncios no período" />
-        <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
-        <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
-        <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
-        <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.averageCpc)} curr={c.averageCpc} prev={p?.averageCpc} goodWhen="down" explanation="Custo médio por cada clique" />
-        <MetricCard icon={<Trophy size={18} />} name="Conversões" value={fmtInt(c.conversions)} curr={c.conversions} prev={p?.conversions} explanation="Ações completadas atribuídas aos anúncios" />
-        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversão" value={fmtBRL(c.costPerConversion)} curr={c.costPerConversion} prev={p?.costPerConversion} goodWhen="down" explanation="Quanto custou cada conversão" />
+        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.cost, m)} curr={c.cost} prev={p?.cost} goodWhen="down" explanation="Total gasto em anúncios no período" />
+        <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions, m)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
+        <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks, m)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
+        <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr, m)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
+        <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.averageCpc, m)} curr={c.averageCpc} prev={p?.averageCpc} goodWhen="down" explanation="Custo médio por cada clique" />
+        <MetricCard icon={<Trophy size={18} />} name="Conversões" value={fmtInt(c.conversions, m)} curr={c.conversions} prev={p?.conversions} explanation="Ações completadas atribuídas aos anúncios" />
+        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversão" value={fmtBRL(c.costPerConversion, m)} curr={c.costPerConversion} prev={p?.costPerConversion} goodWhen="down" explanation="Quanto custou cada conversão" />
       </div>
     </Section>
   )
@@ -471,6 +480,7 @@ function GoogleEvolutionSection({
   periodStart: Date
   periodEnd: Date
 }) {
+  const { isPrivacyMode } = usePrivacy()
   const [a, setA] = useState<GoogleChartMetricKey>('impressions')
   const [b, setB] = useState<GoogleChartMetricKey>('conversions')
 
@@ -492,8 +502,10 @@ function GoogleEvolutionSection({
     }
   }, [daily, periodStart, periodEnd])
 
-  const seriesA: ChartSeries = { label: GOOGLE_CHART_METRICS[a].label, color: GOOGLE_CHART_METRICS[a].color, values: chart?.valuesFor(a) ?? [], format: GOOGLE_CHART_METRICS[a].fmt }
-  const seriesB: ChartSeries = { label: GOOGLE_CHART_METRICS[b].label, color: GOOGLE_CHART_METRICS[b].color, values: chart?.valuesFor(b) ?? [], format: GOOGLE_CHART_METRICS[b].fmt }
+  const fmtGoogleSeries = (v: number, key: GoogleChartMetricKey) =>
+    isPrivacyMode ? (key === 'cost' ? 'R$ •.•••' : '•.•••') : GOOGLE_CHART_METRICS[key].fmt(v)
+  const seriesA: ChartSeries = { label: GOOGLE_CHART_METRICS[a].label, color: GOOGLE_CHART_METRICS[a].color, values: chart?.valuesFor(a) ?? [], format: (v) => fmtGoogleSeries(v, a) }
+  const seriesB: ChartSeries = { label: GOOGLE_CHART_METRICS[b].label, color: GOOGLE_CHART_METRICS[b].color, values: chart?.valuesFor(b) ?? [], format: (v) => fmtGoogleSeries(v, b) }
 
   return (
     <Section title="Desempenho ao longo do período — Google Ads">
@@ -529,6 +541,7 @@ function GoogleEvolutionSection({
 }
 
 function GoogleCampaignsSection({ campaigns }: { campaigns: ReportGoogleCampaignSummary[] }) {
+  const { isPrivacyMode: m } = usePrivacy()
   const withConv = campaigns.filter((c) => c.conversions > 0)
   const best = withConv.length
     ? withConv.reduce((a, b) => (a.cost / (a.conversions || 1) <= b.cost / (b.conversions || 1) ? a : b))
@@ -557,10 +570,10 @@ function GoogleCampaignsSection({ campaigns }: { campaigns: ReportGoogleCampaign
                   <tr key={c.name + i} className={`border-t border-slate-100 text-slate-700 transition-colors hover:bg-[#F8FAFC] ${i % 2 === 1 ? 'bg-[#F8FAFC]' : 'bg-white'}`}>
                     <td className="max-w-[240px] truncate px-4 py-2.5 font-medium text-slate-800">{c.name}</td>
                     <td className="px-4 py-2.5">{GOOGLE_CAMPAIGN_STATUS_LABEL[c.status] ?? c.status}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.conversions)}</td>
-                    <td className="px-4 py-2.5">{fmtBRL(c.cost)}</td>
-                    <td className="px-4 py-2.5">{fmtPct(c.ctr)}</td>
-                    <td className="px-4 py-2.5">{fmtInt(c.impressions)}</td>
+                    <td className="px-4 py-2.5">{fmtInt(c.conversions, m)}</td>
+                    <td className="px-4 py-2.5">{fmtBRL(c.cost, m)}</td>
+                    <td className="px-4 py-2.5">{fmtPct(c.ctr, m)}</td>
+                    <td className="px-4 py-2.5">{fmtInt(c.impressions, m)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -619,6 +632,7 @@ function toValidDate(ts: unknown): Date {
 
 export function MonthlyReportPage() {
   const { id } = useParams<{ id: string }>()
+  const { isPrivacyMode } = usePrivacy()
   const navigate = useNavigate()
   const { data: reports, loading } = useReports()
   const { data: clients } = useClients()
@@ -800,7 +814,7 @@ export function MonthlyReportPage() {
     <div className="flex flex-wrap items-center gap-4 bg-[#0F172A] px-6 py-5 text-white">
       <img src="/favicon.png" alt="Quiver" className="h-9 w-9 rounded-lg" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[24px] font-bold leading-tight">{clientName}</p>
+        <p className="truncate text-[24px] font-bold leading-tight">{isPrivacyMode ? '••••••' : clientName}</p>
         <p className="text-xs text-slate-300">
           {fmtDate(periodStart)} — {fmtDate(periodEnd)}
           <span className="ml-2 text-slate-500">vs {fmtDate(prev.start)} — {fmtDate(prev.end)}</span>

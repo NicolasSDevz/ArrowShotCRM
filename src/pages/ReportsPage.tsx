@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { useReports } from '../hooks/useReports'
 import { useClients } from '../hooks/useClients'
 import { useAuth } from '../context/AuthContext'
+import { usePrivacy } from '../context/PrivacyContext'
 import { usePersistedViewMode } from '../hooks/usePersistedViewMode'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -29,6 +30,7 @@ const TYPE_OPTIONS: { value: ReportType | ''; label: string }[] = [
 export function ReportsPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
+  const { isPrivacyMode } = usePrivacy()
   const { data: reports } = useReports()
   const { data: clients } = useClients()
   const [view, setView] = usePersistedViewMode<'blocks' | 'list'>('reportsView', 'blocks')
@@ -250,7 +252,7 @@ export function ReportsPage() {
                         null, e .toDate() nisso quebrava a tela até o valor real sincronizar. */}
                     {filtered.map((r) => (
                       <tr key={r.id} className="border-b border-slate-50 text-slate-700 last:border-0 hover:bg-slate-50">
-                        <td className="px-4 py-2.5 font-medium">{clientMap[r.clientId]?.companyName ?? '—'}</td>
+                        <td className="px-4 py-2.5 font-medium">{isPrivacyMode ? '••••••' : clientMap[r.clientId]?.companyName ?? '—'}</td>
                         <td className="px-4 py-2.5 text-slate-500">
                           {format(r.periodStart.toDate(), 'dd/MM/yyyy', { locale: ptBR })} – {format(r.periodEnd.toDate(), 'dd/MM/yyyy', { locale: ptBR })}
                         </td>

@@ -11,6 +11,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Field'
 import { EmptyState } from '../components/ui/EmptyState'
 import { InfoTip } from '../components/ui/InfoTip'
+import { usePrivacy } from '../context/PrivacyContext'
 import { updateClient } from '../services/clientService'
 import { getGoogleAdsInsights, type GoogleAdsInsightsSummary } from '../services/googleAdsApi'
 import { maskGoogleAdsId } from '../utils/masks'
@@ -121,6 +122,7 @@ function AccountIdCell({ client }: { client: Client }) {
 }
 
 export function GoogleAdsPage() {
+  const { isPrivacyMode } = usePrivacy()
   const { data: clients } = useClients()
   const { data: users } = useUsers()
   const googleAdsClients = useMemo(
@@ -272,10 +274,10 @@ export function GoogleAdsPage() {
       {/* Seção 1 — cards consolidados */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Total Investido', value: totals ? BRL(totals.cost) : '--', tip: TIPS.cost },
-          { label: 'Total de Conversões', value: totals ? INT(totals.conversions) : '--', tip: TIPS.conversions },
-          { label: 'CPC Médio', value: totals ? BRL(totals.cpc) : '--', tip: TIPS.cpc },
-          { label: 'CTR Médio', value: totals ? `${totals.ctr.toFixed(2)}%` : '--', tip: TIPS.ctr, color: ctrColor },
+          { label: 'Total Investido', value: totals ? (isPrivacyMode ? 'R$ •.•••,••' : BRL(totals.cost)) : '--', tip: TIPS.cost },
+          { label: 'Total de Conversões', value: totals ? (isPrivacyMode ? '•••' : INT(totals.conversions)) : '--', tip: TIPS.conversions },
+          { label: 'CPC Médio', value: totals ? (isPrivacyMode ? 'R$ •,••' : BRL(totals.cpc)) : '--', tip: TIPS.cpc },
+          { label: 'CTR Médio', value: totals ? (isPrivacyMode ? '•,••%' : `${totals.ctr.toFixed(2)}%`) : '--', tip: TIPS.ctr, color: ctrColor },
         ].map((card) => (
           <div key={card.label} className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
             <div className="flex items-center justify-between gap-2">
@@ -348,8 +350,8 @@ export function GoogleAdsPage() {
                     <tr key={client.id} className="border-b border-slate-50 text-slate-700 last:border-0">
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
-                          <Avatar name={client.companyName} photoURL={client.logoUrl} size="xs" />
-                          <span className="truncate font-medium text-slate-900">{client.companyName}</span>
+                          <Avatar name={isPrivacyMode ? 'Cliente' : client.companyName} photoURL={isPrivacyMode ? null : client.logoUrl} size="xs" />
+                          <span className="truncate font-medium text-slate-900">{isPrivacyMode ? '••••••' : client.companyName}</span>
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
@@ -358,10 +360,10 @@ export function GoogleAdsPage() {
                       <td className="px-3 py-2.5 whitespace-nowrap text-xs" title={result?.status === 'error' ? result.message : undefined}>
                         {status}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? BRL(result.summary.cost) : '--'}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? INT(result.summary.conversions) : '--'}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? BRL(result.summary.average_cpc) : '--'}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? `${result.summary.ctr.toFixed(2)}%` : '--'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? (isPrivacyMode ? 'R$ •.•••,••' : BRL(result.summary.cost)) : '--'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? (isPrivacyMode ? '•••' : INT(result.summary.conversions)) : '--'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? (isPrivacyMode ? 'R$ •,••' : BRL(result.summary.average_cpc)) : '--'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{result?.status === 'ok' ? (isPrivacyMode ? '•,••%' : `${result.summary.ctr.toFixed(2)}%`) : '--'}</td>
                       <td className="px-3 py-2.5 text-right">
                         <a
                           href="https://ads.google.com"

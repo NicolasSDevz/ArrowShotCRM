@@ -2,6 +2,8 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Avatar } from '../ui/Avatar'
 import { Badge } from '../ui/Badge'
+import { PrivateMoney } from '../ui/PrivateData'
+import { usePrivacy } from '../../context/PrivacyContext'
 import { LEAD_SOURCE_LABEL, locateLead, type AppUser, type Lead, type ResolvedPipeline } from '../../types'
 
 function leadServiceLabel(lead: Lead): string {
@@ -28,6 +30,7 @@ export function LeadsListView({
   userMap: Record<string, AppUser>
   onOpenLead: (id: string) => void
 }) {
+  const { isPrivacyMode } = usePrivacy()
   const sorted = [...leads].sort((a, b) => b.stageChangedAt.toMillis() - a.stageChangedAt.toMillis())
 
   return (
@@ -61,8 +64,10 @@ export function LeadsListView({
                     className="cursor-pointer border-t border-slate-50 text-slate-700 transition-colors duration-150 ease-in-out hover:bg-slate-50"
                   >
                     <td className="max-w-[220px] px-4 py-3">
-                      <p className="truncate font-medium text-slate-900">{lead.contactName}</p>
-                      {lead.companyName && <p className="truncate text-xs text-slate-400">{lead.companyName}</p>}
+                      <p className="truncate font-medium text-slate-900">{isPrivacyMode ? 'Lead ••••••' : lead.contactName}</p>
+                      {lead.companyName && (
+                        <p className="truncate text-xs text-slate-400">{isPrivacyMode ? 'Empresa ••••••' : lead.companyName}</p>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-600">
@@ -87,9 +92,7 @@ export function LeadsListView({
                       )}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700">
-                      {lead.estimatedValue != null && lead.estimatedValue > 0
-                        ? lead.estimatedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                        : '—'}
+                      {lead.estimatedValue != null && lead.estimatedValue > 0 ? <PrivateMoney value={lead.estimatedValue} /> : '—'}
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500">
                       {lead.nextActionDate ? format(lead.nextActionDate.toDate(), 'dd/MM/yyyy', { locale: ptBR }) : '—'}

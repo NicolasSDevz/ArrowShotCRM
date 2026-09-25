@@ -3,7 +3,9 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
+import { PrivateData } from '../ui/PrivateData'
 import { ClientServiceBadges } from './ServiceBadges'
+import { usePrivacy } from '../../context/PrivacyContext'
 import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
 import type { AppUser } from '../../types'
 
@@ -19,10 +21,12 @@ export function ClientsGrid({
   ownersByClientId: Record<string, AppUser[]>
   onRowClick: (client: Client) => void
 }) {
+  const { isPrivacyMode } = usePrivacy()
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {clients.map((client, i) => {
         const owners = ownersByClientId[client.id] ?? []
+        const displayName = isPrivacyMode ? `Cliente ${i + 1}` : client.companyName
         return (
           <button
             key={client.id}
@@ -31,10 +35,10 @@ export function ClientsGrid({
           >
             <div className="flex items-start gap-3">
               <span className="mt-1 shrink-0 text-xs font-medium text-slate-300">{i + 1}</span>
-              <Avatar name={client.companyName} photoURL={client.logoUrl} size="lg" />
+              <Avatar name={displayName} photoURL={isPrivacyMode ? null : client.logoUrl} size="lg" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <p className="truncate font-semibold text-slate-800">{client.companyName}</p>
+                  <p className="truncate font-semibold text-slate-800">{displayName}</p>
                   {client.categoria && (
                     <Badge className={`shrink-0 ${CLIENT_CATEGORY_BADGE[client.categoria]}`}>
                       {CLIENT_CATEGORY_LABEL[client.categoria]}
@@ -43,7 +47,7 @@ export function ClientsGrid({
                 </div>
                 <p className="truncate text-xs text-slate-400">{client.segment || 'Sem segmento'}</p>
               </div>
-              {client.whatsappGroupLink && (
+              {!isPrivacyMode && client.whatsappGroupLink && (
                 <a
                   href={client.whatsappGroupLink}
                   target="_blank"
@@ -66,7 +70,7 @@ export function ClientsGrid({
               <span className="flex items-center gap-1">
                 {client.city ? (
                   <>
-                    <MapPin size={12} className="shrink-0 text-slate-400" /> {client.city}
+                    <MapPin size={12} className="shrink-0 text-slate-400" /> <PrivateData value={client.city} />
                   </>
                 ) : (
                   '—'

@@ -28,6 +28,7 @@ import { refreshMetricsNow } from '../../services/metricsService'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { InfoTip } from '../ui/InfoTip'
+import { usePrivacy } from '../../context/PrivacyContext'
 import { ChurnDetailModal } from './ChurnDetailModal'
 import { ClientsStatusChart } from './ClientsStatusChart'
 import { UpsellRevenueChart } from './UpsellRevenueChart'
@@ -176,6 +177,7 @@ function MetricCard({
 }
 
 function MrrChart({ series }: { series: { label: string; mrr: number }[] }) {
+  const { isPrivacyMode } = usePrivacy()
   const [hover, setHover] = useState<number | null>(null)
   const W = 720
   const H = 240
@@ -199,7 +201,7 @@ function MrrChart({ series }: { series: { label: string; mrr: number }[] }) {
           <g key={g}>
             <line x1={padL} x2={W - padR} y1={padT + plotH * g} y2={padT + plotH * g} stroke="#E2E8F0" strokeWidth={1} />
             <text x={padL - 10} y={padT + plotH * g + 4} textAnchor="end" fontSize={11} fill="#94A3B8">
-              {BRL(top * (1 - g))}
+              {isPrivacyMode ? 'R$ ••.•••' : BRL(top * (1 - g))}
             </text>
           </g>
         ))}
@@ -222,7 +224,7 @@ function MrrChart({ series }: { series: { label: string; mrr: number }[] }) {
               <g>
                 <rect x={x(i) - 46} y={y(p.mrr) - 34} width={92} height={22} rx={5} fill="#1E293B" />
                 <text x={x(i)} y={y(p.mrr) - 19} textAnchor="middle" fontSize={11} fontWeight={700} fill="#fff">
-                  {BRL(p.mrr)}
+                  {isPrivacyMode ? 'R$ ••.•••' : BRL(p.mrr)}
                 </text>
               </g>
             )}
@@ -246,12 +248,13 @@ function GestorBar({
   total: number
   color: string
 }) {
+  const { isPrivacyMode } = usePrivacy()
   const pct = total > 0 ? (value / total) * 100 : 0
   return (
     <div>
       <div className="flex items-baseline justify-between">
         <span className="text-sm font-semibold text-slate-800">{name}</span>
-        <span className="text-sm font-bold text-slate-900">{BRL2(value)}</span>
+        <span className="text-sm font-bold text-slate-900">{isPrivacyMode ? 'R$ •.•••,••' : BRL2(value)}</span>
       </div>
       <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
@@ -265,6 +268,7 @@ function GestorBar({
 
 export function OverviewDashboard() {
   const navigate = useNavigate()
+  const { isPrivacyMode } = usePrivacy()
   const { data: clients } = useClients()
   const { data: leads } = useLeads()
   const { pipelines: leadPipelines } = useLeadPipelines()
@@ -441,7 +445,7 @@ export function OverviewDashboard() {
                 onClick={() => navigate(`/clientes/${c.id}`)}
                 className="rounded-md border border-amber-300 bg-white px-2 py-1 font-medium text-amber-800 hover:bg-amber-100"
               >
-                {c.companyName}
+                {isPrivacyMode ? '••••••' : c.companyName}
               </button>
             ))}
           </div>
@@ -454,7 +458,7 @@ export function OverviewDashboard() {
           icon={<DollarSign size={17} className="text-white" />}
           iconBg="bg-emerald-500"
           label="MRR"
-          value={BRL(m.mrr)}
+          value={isPrivacyMode ? 'R$ ••.•••' : BRL(m.mrr)}
           subtitle="Receita recorrente mensal"
           delta={mrrDelta}
           tip={TIPS.mrr}
@@ -481,7 +485,7 @@ export function OverviewDashboard() {
           icon={<Gem size={17} className="text-white" />}
           iconBg="bg-violet-500"
           label="LTV Médio"
-          value={BRL(m.ltv)}
+          value={isPrivacyMode ? 'R$ •.•••' : BRL(m.ltv)}
           subtitle="Valor médio por cliente"
           tip={TIPS.ltv}
         />
@@ -544,7 +548,7 @@ export function OverviewDashboard() {
           <div className="mt-3 border-t border-slate-100 pt-3">
             <div className="flex items-baseline justify-between">
               <span className="text-sm font-medium text-slate-500">MRR potencial</span>
-              <span className="text-lg font-extrabold text-emerald-600">{BRL(pipeline.potentialMrr)}</span>
+              <span className="text-lg font-extrabold text-emerald-600">{isPrivacyMode ? 'R$ ••.•••' : BRL(pipeline.potentialMrr)}</span>
             </div>
           </div>
         </Card>
@@ -567,7 +571,7 @@ export function OverviewDashboard() {
             <ul className="mt-2 flex flex-col gap-1.5">
               {upsellThisMonth.map((a) => (
                 <li key={a.id} className="text-xs text-slate-600">
-                  <span className="font-semibold text-slate-800">{clientMap[a.entityId]?.companyName ?? 'Cliente'}</span>
+                  <span className="font-semibold text-slate-800">{isPrivacyMode ? '••••••' : clientMap[a.entityId]?.companyName ?? 'Cliente'}</span>
                   {' — '}
                   {a.message.replace(/^expandiu o contrato:\s*/i, '')}
                 </li>
@@ -595,7 +599,7 @@ export function OverviewDashboard() {
                     onClick={() => navigate(`/clientes/${client.id}`)}
                     className="w-full rounded-md px-1 py-0.5 text-left hover:bg-slate-50"
                   >
-                    <span className="block truncate text-sm font-medium text-slate-800">{client.companyName}</span>
+                    <span className="block truncate text-sm font-medium text-slate-800">{isPrivacyMode ? '••••••' : client.companyName}</span>
                     <span className="text-xs text-red-600">{reasons.join(' • ')}</span>
                   </button>
                 </li>
@@ -626,7 +630,7 @@ export function OverviewDashboard() {
                       onClick={() => navigate(`/clientes/${c.id}`)}
                       className="truncate font-medium text-slate-700 hover:text-brand-600"
                     >
-                      {c.companyName}
+                      {isPrivacyMode ? '••••••' : c.companyName}
                     </button>
                     {d && <span className="shrink-0 text-slate-400">{format(d, 'dd/MM', { locale: ptBR })}</span>}
                   </li>

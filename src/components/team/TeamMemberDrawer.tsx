@@ -7,6 +7,7 @@ import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Select } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
+import { usePrivacy } from '../../context/PrivacyContext'
 import { useUsers } from '../../hooks/useUsers'
 import { useRoutineItemsFor } from '../../hooks/useRoutineItemsFor'
 import { deleteTeamMember } from '../../services/teamMemberService'
@@ -38,6 +39,7 @@ export function TeamMemberDrawer({
   onOpenEmergency: () => void
 }) {
   const { profile } = useAuth()
+  const { isPrivacyMode } = usePrivacy()
   const { data: users } = useUsers()
   const [tab, setTab] = useState<'profile' | 'health'>('profile')
   const linkedUser = member?.userId ? users.find((u) => u.id === member.userId) : undefined
@@ -144,12 +146,12 @@ export function TeamMemberDrawer({
           <div className="flex flex-col gap-1.5 text-sm text-slate-600">
             {member.email && (
               <span className="flex items-center gap-2">
-                <Mail size={14} className="text-slate-400" /> {member.email}
+                <Mail size={14} className="text-slate-400" /> {isPrivacyMode ? '••••••@••••••.com' : member.email}
               </span>
             )}
             {member.whatsapp && (
               <span className="flex items-center gap-2">
-                <Phone size={14} className="text-slate-400" /> {member.whatsapp}
+                <Phone size={14} className="text-slate-400" /> {isPrivacyMode ? '••• •••••-••••' : member.whatsapp}
               </span>
             )}
           </div>

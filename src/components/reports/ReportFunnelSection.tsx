@@ -5,6 +5,7 @@ import { Save, ChevronDown, TrendingUp, Wallet, Tag, Target, Handshake, Percent 
 import { Field, Input, Select } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
+import { usePrivacy } from '../../context/PrivacyContext'
 import { updateReportFunnel } from '../../services/reportService'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import {
@@ -146,6 +147,7 @@ function buildForm(report: Report): FormState {
 
 export function ReportFunnelSection({ report, editable = true }: { report: Report; editable?: boolean }) {
   const { profile } = useAuth()
+  const { isPrivacyMode } = usePrivacy()
   const [form, setForm] = useState<FormState>(buildForm(report))
   const [saving, setSaving] = useState(false)
 
@@ -362,10 +364,10 @@ export function ReportFunnelSection({ report, editable = true }: { report: Repor
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Métricas financeiras</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MetricCard icon={<TrendingUp size={20} />} label="ROI" value={fmtPct(roi)} tone={roi == null ? undefined : roi > 0 ? 'good' : roi < 0 ? 'bad' : undefined} />
-          <MetricCard icon={<Wallet size={20} />} label="Lucro líquido" value={fmtBRL(lucroLiquido)} tone={lucroLiquido == null ? undefined : lucroLiquido > 0 ? 'good' : lucroLiquido < 0 ? 'bad' : undefined} />
-          <MetricCard icon={<Tag size={20} />} label="Ticket médio" value={fmtBRL(ticketMedio)} />
-          <MetricCard icon={<Target size={20} />} label="Custo por lead" value={fmtBRL(custoPorLead)} />
-          <MetricCard icon={<Handshake size={20} />} label="Custo por contrato" value={fmtBRL(custoPorContrato)} />
+          <MetricCard icon={<Wallet size={20} />} label="Lucro líquido" value={isPrivacyMode ? 'R$ •.•••,••' : fmtBRL(lucroLiquido)} tone={lucroLiquido == null ? undefined : lucroLiquido > 0 ? 'good' : lucroLiquido < 0 ? 'bad' : undefined} />
+          <MetricCard icon={<Tag size={20} />} label="Ticket médio" value={isPrivacyMode ? 'R$ •.•••,••' : fmtBRL(ticketMedio)} />
+          <MetricCard icon={<Target size={20} />} label="Custo por lead" value={isPrivacyMode ? 'R$ ••,••' : fmtBRL(custoPorLead)} />
+          <MetricCard icon={<Handshake size={20} />} label="Custo por contrato" value={isPrivacyMode ? 'R$ •.•••,••' : fmtBRL(custoPorContrato)} />
           <MetricCard icon={<Percent size={20} />} label="Conversão lead → venda" value={fmtPct(conversaoLeadVenda)} tone={conversaoLeadVenda == null ? undefined : conversaoLeadVenda >= 10 ? 'good' : 'bad'} />
         </div>
       </div>
@@ -374,7 +376,11 @@ export function ReportFunnelSection({ report, editable = true }: { report: Repor
       <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Metas do período</p>
         <div className="flex flex-col gap-3">
-          <GoalBar label="Meta de faturamento" actualText={`${fmtBRL(faturamentoTotal)} / ${fmtBRL(metaFaturamento)}`} pct={pctFat} />
+          <GoalBar
+            label="Meta de faturamento"
+            actualText={isPrivacyMode ? 'R$ •.•••,•• / R$ •.•••,••' : `${fmtBRL(faturamentoTotal)} / ${fmtBRL(metaFaturamento)}`}
+            pct={pctFat}
+          />
           <GoalBar label="Meta de fechamentos" actualText={`${fmtInt(fechamentos)} / ${fmtInt(metaFechamentos)}`} pct={pctFech} />
           <GoalBar label="Meta de leads" actualText={`${fmtInt(conversas)} / ${fmtInt(metaLeads)}`} pct={pctLeads} />
         </div>

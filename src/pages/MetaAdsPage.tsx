@@ -11,6 +11,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { InfoTip } from '../components/ui/InfoTip'
+import { usePrivacy } from '../context/PrivacyContext'
 import { tokenValidity } from '../utils/metaTokenValidity'
 import { findUserIdByName } from '../utils/userLookup'
 import {
@@ -104,6 +105,7 @@ function MetricCard({
 }
 
 function SpendChart({ daily }: { daily: { date: string; spend: number }[] }) {
+  const { isPrivacyMode } = usePrivacy()
   const [hover, setHover] = useState<number | null>(null)
   if (daily.length === 0) return <EmptyState title="Sem investimento no período" />
 
@@ -127,7 +129,7 @@ function SpendChart({ daily }: { daily: { date: string; spend: number }[] }) {
           <g key={g}>
             <line x1={padL} x2={W - padR} y1={padT + plotH * g} y2={padT + plotH * g} stroke="#E2E8F0" strokeWidth={1} />
             <text x={padL - 10} y={padT + plotH * g + 4} textAnchor="end" fontSize={11} fill="#94A3B8">
-              {BRL0(top * (1 - g))}
+              {isPrivacyMode ? 'R$ •.•••' : BRL0(top * (1 - g))}
             </text>
           </g>
         ))}
@@ -147,7 +149,7 @@ function SpendChart({ daily }: { daily: { date: string; spend: number }[] }) {
                 <g>
                   <rect x={Math.min(x + bw / 2 - 44, W - 92)} y={y - 26} width={88} height={20} rx={4} fill="#1E293B" />
                   <text x={Math.min(x + bw / 2, W - 48)} y={y - 12} textAnchor="middle" fontSize={10} fontWeight={700} fill="#fff">
-                    {BRL(d.spend)}
+                    {isPrivacyMode ? 'R$ •.•••' : BRL(d.spend)}
                   </text>
                 </g>
               )}
@@ -161,6 +163,7 @@ function SpendChart({ daily }: { daily: { date: string; spend: number }[] }) {
 
 export function MetaAdsPage() {
   const { profile } = useAuth()
+  const { isPrivacyMode } = usePrivacy()
   const navigate = useNavigate()
   const { data: users } = useUsers()
   const { data: reports } = useReports()
@@ -319,23 +322,23 @@ export function MetaAdsPage() {
         <>
           {/* LINHA 1 — cards consolidados */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <MetricCard label="Total Investido" value={BRL(t!.spend)} delta={pct(t!.spend, p!.spend)} tip={TIPS.spend} />
+            <MetricCard label="Total Investido" value={isPrivacyMode ? 'R$ •.•••,••' : BRL(t!.spend)} delta={pct(t!.spend, p!.spend)} tip={TIPS.spend} />
             <MetricCard
               label="Conversas Iniciadas"
-              value={INT(t!.conversations)}
+              value={isPrivacyMode ? '•••' : INT(t!.conversations)}
               delta={pct(t!.conversations, p!.conversations)}
               tip={TIPS.conversations}
             />
             <MetricCard
               label="Custo por Conversa"
-              value={BRL(t!.costPerConversation)}
+              value={isPrivacyMode ? 'R$ ••,••' : BRL(t!.costPerConversation)}
               valueColor={cpcColor}
               subtitle="Total investido / conversas"
               tip={TIPS.costPerConversation}
             />
-            <MetricCard label="Alcance Total" value={INT(t!.reach)} delta={pct(t!.reach, p!.reach)} tip={TIPS.reach} />
-            <MetricCard label="Impressões Totais" value={INT(t!.impressions)} tip={TIPS.impressions} />
-            <MetricCard label="CTR Médio" value={`${t!.ctr.toFixed(2)}%`} valueColor={ctrColor} subtitle="Média ponderada" tip={TIPS.ctr} />
+            <MetricCard label="Alcance Total" value={isPrivacyMode ? '•••.•••' : INT(t!.reach)} delta={pct(t!.reach, p!.reach)} tip={TIPS.reach} />
+            <MetricCard label="Impressões Totais" value={isPrivacyMode ? '•••.•••' : INT(t!.impressions)} tip={TIPS.impressions} />
+            <MetricCard label="CTR Médio" value={isPrivacyMode ? '•,••%' : `${t!.ctr.toFixed(2)}%`} valueColor={ctrColor} subtitle="Média ponderada" tip={TIPS.ctr} />
           </div>
 
           {/* LINHA 2 — gráfico */}
@@ -441,22 +444,22 @@ export function MetaAdsPage() {
                         <tr key={r.clientId} className={`border-b border-slate-50 text-slate-700 last:border-0 ${rowBg}`}>
                           <td className="px-3 py-2.5">
                             <div className="flex items-center gap-2">
-                              <Avatar name={r.companyName} photoURL={r.logoUrl ?? undefined} size="xs" />
-                              <span className="truncate font-medium text-slate-900">{r.companyName}</span>
+                              <Avatar name={isPrivacyMode ? 'Cliente' : r.companyName} photoURL={isPrivacyMode ? undefined : r.logoUrl ?? undefined} size="xs" />
+                              <span className="truncate font-medium text-slate-900">{isPrivacyMode ? '••••••' : r.companyName}</span>
                             </div>
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap">{status}</td>
-                          <td className="px-3 py-2.5 text-right tabular-nums">{r.metrics ? BRL(r.metrics.spend) : '—'}</td>
-                          <td className="px-3 py-2.5 text-right tabular-nums">{r.metrics ? INT(r.metrics.conversations) : '—'}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{r.metrics ? (isPrivacyMode ? 'R$ •.•••,••' : BRL(r.metrics.spend)) : '—'}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{r.metrics ? (isPrivacyMode ? '•••' : INT(r.metrics.conversations)) : '—'}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums">
-                            {r.metrics && r.metrics.conversations > 0 ? BRL(r.metrics.costPerConversation) : '—'}
+                            {r.metrics && r.metrics.conversations > 0 ? (isPrivacyMode ? 'R$ ••,••' : BRL(r.metrics.costPerConversation)) : '—'}
                           </td>
-                          <td className="px-3 py-2.5 text-right tabular-nums">{r.metrics ? INT(r.metrics.reach) : '—'}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{r.metrics ? (isPrivacyMode ? '•••.•••' : INT(r.metrics.reach)) : '—'}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums">
-                            {r.metrics ? `${r.metrics.ctr.toFixed(2)}%` : '—'}
+                            {r.metrics ? (isPrivacyMode ? '•,••%' : `${r.metrics.ctr.toFixed(2)}%`) : '—'}
                           </td>
                           <td className="px-3 py-2.5 text-right tabular-nums">
-                            {r.balance != null ? BRL(r.balance) : '—'}
+                            {r.balance != null ? (isPrivacyMode ? 'R$ •.•••,••' : BRL(r.balance)) : '—'}
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap text-xs">
                             {r.hasToken ? tv.label.replace(/ —.*/, '') : '—'}

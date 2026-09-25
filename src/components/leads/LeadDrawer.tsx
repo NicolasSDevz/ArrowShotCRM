@@ -12,6 +12,7 @@ import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Tabs } from '../ui/Tabs'
 import { CommentsPanel } from '../comments/CommentsPanel'
 import { useAuth } from '../../context/AuthContext'
+import { usePrivacy } from '../../context/PrivacyContext'
 import { useUsers } from '../../hooks/useUsers'
 import { updateLead, deleteLead, convertLeadToClient, addLeadContact, moveLeadToPipeline } from '../../services/leadService'
 import { LeadForm } from './LeadForm'
@@ -194,6 +195,7 @@ function ContactHistoryTab({ lead }: { lead: Lead }) {
 
 export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
   const { profile } = useAuth()
+  const { isPrivacyMode } = usePrivacy()
   const { data: users } = useUsers()
   const navigate = useNavigate()
   const [converting, setConverting] = useState(false)
@@ -243,8 +245,10 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
       onClose={onClose}
       title={
         <div className="flex items-center gap-2">
-          <span>{lead.contactName}</span>
-          {lead.companyName && <span className="text-sm font-normal text-slate-400">— {lead.companyName}</span>}
+          <span>{isPrivacyMode ? 'Lead ••••••' : lead.contactName}</span>
+          {lead.companyName && (
+            <span className="text-sm font-normal text-slate-400">— {isPrivacyMode ? 'Empresa ••••••' : lead.companyName}</span>
+          )}
         </div>
       }
     >
