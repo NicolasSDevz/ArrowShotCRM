@@ -5,6 +5,7 @@ import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { exchangeMetaToken } from '../../services/metaApi'
+import { showError } from '../../utils/notifyError'
 
 /** Modal "Renovar Token Meta Ads" — troca um token curto do Explorador da
  *  API do Graph por um de longa duração (~60 dias) e salva na ficha do
@@ -45,7 +46,7 @@ export function MetaTokenRenewModal({
       setShortToken('')
       onDone?.()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao renovar o token')
+      showError(err, 'Erro ao renovar o token')
     } finally {
       setBusy(false)
     }

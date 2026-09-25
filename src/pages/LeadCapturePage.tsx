@@ -4,6 +4,7 @@ import { getPublicLeadForm, submitLeadFormResponse } from '../services/leadFormS
 import type { LeadForm } from '../types/leadForm'
 import { Spinner } from '../components/ui/FullPageSpinner'
 import { LeadFormRenderer } from '../components/leads/LeadFormRenderer'
+import { loadMetaPixel, trackMetaPixel } from '../utils/metaPixel'
 
 type Phase = 'loading' | 'invalid' | 'ready'
 
@@ -49,6 +50,11 @@ export function LeadCapturePage() {
       .catch(() => setPhase('invalid'))
   }, [formId])
 
+  // Pixel do Meta do formulário (se configurado): PageView ao abrir.
+  useEffect(() => {
+    if (form?.metaPixelId) loadMetaPixel(form.metaPixelId)
+  }, [form?.metaPixelId])
+
   if (phase === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -67,5 +73,12 @@ export function LeadCapturePage() {
     )
   }
 
-  return <LeadFormRenderer form={form} formId={form.id} onSubmitted={(answers, otherTexts) => submitLeadFormResponse(form, answers, otherTexts)} fillViewport />
+  return <LeadFormRenderer form={form} formId={form.id} onSubmitted={async (answers, otherTexts) => {
+        await submitLeadFormResponse(form, answers, otherTexts)
+        try {
+          if (form.metaPixelId) trackMetaPixel('Lead', { content_name: form.name })
+        } catch (err) {
+          console.warn('Pixel do Meta falhou (o lead já foi salvo)', err)
+        }
+      }} fillViewport />
 }

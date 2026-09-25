@@ -169,6 +169,7 @@ export function MemberHealthTab({ memberId, memberName }: { memberId: string; me
           <Field label="WhatsApp do contato de emergência">
             <Input
               value={form.emergencyContactWhatsapp}
+              validate="phone"
               onChange={(e) => set('emergencyContactWhatsapp', maskPhone(e.target.value))}
               placeholder="(00) 00000-0000"
               inputMode="tel"
@@ -177,6 +178,7 @@ export function MemberHealthTab({ memberId, memberName }: { memberId: string; me
           <Field label="Telefone alternativo">
             <Input
               value={form.emergencyAltPhone}
+              validate="phone"
               onChange={(e) => set('emergencyAltPhone', maskPhone(e.target.value))}
               placeholder="(00) 00000-0000"
               inputMode="tel"

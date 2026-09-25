@@ -6,6 +6,7 @@ import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { requestAccessToken, createMeetingEvent } from '../../services/googleCalendarService'
+import { showError } from '../../utils/notifyError'
 
 const DURATIONS = [
   { label: '30 minutos', minutes: 30 },
@@ -61,7 +62,7 @@ export function NewMeetingModal({ open, onClose, onCreated }: { open: boolean; o
       setSelectedEmails([])
     } catch (err) {
       console.error(err)
-      toast.error(err instanceof Error ? err.message : 'Erro ao criar reunião')
+      showError(err, 'Erro ao criar reunião')
     } finally {
       setCreating(false)
     }

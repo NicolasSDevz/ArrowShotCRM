@@ -16,6 +16,7 @@ import { buildWeeklyReportText } from '../../utils/metaWeeklyReportText'
 import { trafficServices } from '../../utils/clientServices'
 import type { ReportGoogleSnapshot, ReportLandingPageSnapshot, ReportMetaSnapshot, ReportPlatform, ReportType } from '../../types'
 import type { LandingPage } from '../../types/landingPage'
+import { showError } from '../../utils/notifyError'
 
 function buildLandingPageSnapshot(lp?: LandingPage): ReportLandingPageSnapshot | undefined {
   if (!lp) return undefined
@@ -205,7 +206,7 @@ export function ReportFormModal({
       setGenerated(true)
     } catch (err) {
       console.error(err)
-      toast.error(err instanceof Error ? err.message : 'Erro ao buscar dados das plataformas')
+      showError(err, 'Erro ao buscar dados das plataformas')
     } finally {
       setLoading(false)
     }

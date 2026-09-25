@@ -11,6 +11,7 @@ import {
   CLIENT_LOGO_ACCEPT_ATTR,
 } from '../../services/clientLogoService'
 import type { Client } from '../../types/client'
+import { showError } from '../../utils/notifyError'
 
 /** Header da ficha do cliente — logo circular 80px. Ao escolher o arquivo,
  *  abre o editor de recorte (ImageCropModal); o upload só acontece ao
@@ -26,7 +27,7 @@ export function ClientLogoUpload({ client }: { client: Client }) {
     try {
       assertValidLogo(file)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Imagem inválida')
+      showError(err, 'Imagem inválida')
       return
     }
     setPendingFile(file)
@@ -41,7 +42,7 @@ export function ClientLogoUpload({ client }: { client: Client }) {
       toast.success('Logo atualizada')
     } catch (err) {
       console.error(err)
-      toast.error(err instanceof Error ? err.message : 'Erro ao enviar a logo')
+      showError(err, 'Erro ao enviar a logo')
     } finally {
       setBusy(false)
     }

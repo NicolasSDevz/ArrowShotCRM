@@ -1,7 +1,7 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
 
-export type LeadFormQuestionType = 'short_text' | 'long_text' | 'single_choice' | 'multi_choice' | 'phone' | 'email'
+export type LeadFormQuestionType = 'short_text' | 'long_text' | 'single_choice' | 'multi_choice' | 'phone' | 'email' | 'address' | 'fields'
 
 export const LEAD_FORM_QUESTION_TYPE_LABEL: Record<LeadFormQuestionType, string> = {
   short_text: 'Texto curto',
@@ -10,6 +10,50 @@ export const LEAD_FORM_QUESTION_TYPE_LABEL: Record<LeadFormQuestionType, string>
   multi_choice: 'Múltipla escolha',
   phone: 'Telefone / WhatsApp',
   email: 'E-mail',
+  address: 'Endereço',
+  fields: 'Vários campos',
+}
+
+export type LeadFormSubfieldType = 'text' | 'number' | 'time' | 'date' | 'phone' | 'email' | 'cep'
+
+/** Um campo dentro de uma pergunta de "vários campos" (ex: "Abre às",
+ *  "Fecha às" num horário de funcionamento). `fill` = esse campo é
+ *  preenchido sozinho quando a pessoa digita um CEP num campo do tipo CEP. */
+export interface LeadFormSubfield {
+  id: string
+  label: string
+  type: LeadFormSubfieldType
+  required?: boolean
+  width?: 'full' | 'half' | 'third'
+  placeholder?: string
+  fill?: 'street' | 'neighborhood' | 'city' | 'state'
+}
+
+/** Partes de uma resposta do tipo Endereço, nessa ordem — a resposta é
+ *  guardada como string[] com uma posição por parte. */
+export const ADDRESS_PARTS = ['cep', 'street', 'number', 'complement', 'neighborhood', 'city', 'state'] as const
+export type AddressPart = (typeof ADDRESS_PARTS)[number]
+
+export const ADDRESS_PART_LABEL: Record<AddressPart, string> = {
+  cep: 'CEP',
+  street: 'Rua',
+  number: 'Número',
+  complement: 'Complemento',
+  neighborhood: 'Bairro',
+  city: 'Cidade',
+  state: 'Estado',
+}
+
+/** Partes obrigatórias quando a pergunta de endereço é obrigatória. */
+export const ADDRESS_REQUIRED_PARTS: AddressPart[] = ['cep', 'street', 'number', 'neighborhood', 'city']
+
+/** "Rua X, 123 (apto 4) - Bairro, Cidade/UF - CEP 00000-000" — como o
+ *  endereço aparece na ficha do lead. */
+export function formatAddressAnswer(parts: string[]): string {
+  const get = (p: AddressPart) => (parts[ADDRESS_PARTS.indexOf(p)] ?? '').trim()
+  const line1 = [get('street'), get('number')].filter(Boolean).join(', ') + (get('complement') ? ` (${get('complement')})` : '')
+  const cityUf = [get('city'), get('state')].filter(Boolean).join('/')
+  return [line1, get('neighborhood'), cityUf, get('cep') && `CEP ${get('cep')}`].filter(Boolean).join(' - ')
 }
 
 /** Marca uma pergunta como um dos campos fixos do Lead — a resposta alimenta
@@ -48,6 +92,8 @@ export interface LeadFormQuestion {
   role: LeadFormFieldRole
   /** Só usado por single_choice/multi_choice. */
   options?: LeadFormQuestionOption[]
+  /** Só usado por 'fields': os campos que a pessoa preenche nessa pergunta. */
+  subfields?: LeadFormSubfield[]
   /** Só escolha: acrescenta a opção "Outro" — ao marcá-la o lead precisa
    *  escrever o que é, e esse texto vai junto na resposta pro time avaliar
    *  se ainda se enquadra. */
@@ -60,6 +106,17 @@ export interface LeadFormQuestion {
 }
 
 export type LeadFormAlign = 'left' | 'center' | 'right'
+
+export type LeadFormScreenKey = 'welcome' | 'question' | 'end'
+
+/** Conjunto de cores de uma tela. `primaryColor` = botões e destaque. */
+export interface LeadFormColors {
+  backgroundColor?: string
+  cardColor?: string
+  primaryColor?: string
+  buttonTextColor?: string
+  textColor?: string
+}
 
 export type LeadFormBlockType = 'heading' | 'text' | 'image' | 'video' | 'button' | 'divider' | 'spacer'
 
@@ -79,23 +136,67 @@ export interface LeadFormBlock {
   bold?: boolean
   color?: 'default' | 'muted' | 'primary'
   width?: 'sm' | 'md' | 'full'
+  /** Imagem: formato (original = sem cortar) e cantos. */
+  ratio?: 'original' | 'square' | 'post' | 'banner'
+  shape?: 'rounded' | 'square' | 'circle'
 }
+
+/** Escala de espaçamento das telas finais (none = colado). */
+export type LeadFormSpace = 'none' | 'sm' | 'md' | 'lg' | 'xl'
 
 /** Aparência da página pública — aba "Design" do construtor. Tudo opcional:
  *  sem nada preenchido a página usa o visual padrão (mesmo de hoje).
  *  `subtitle` dobra como o parágrafo de descrição da tela de boas-vindas
  *  (a primeira tela, antes da primeira pergunta — estilo Typeform/YayForms). */
+/** Formato da imagem de destaque: faixa larga no topo (banner 3:1), quadrado
+ *  (1:1), post (4:5) ou do jeito que a imagem é (original, sem cortar). */
+export type LeadFormImageFormat = 'banner' | 'square' | 'post' | 'original'
+
 export interface LeadFormDesign {
   bannerUrl?: string | null
+  /** Formato da imagem de destaque. Sem valor = banner. */
+  bannerFormat?: LeadFormImageFormat
+  /** Parte da imagem que aparece quando o formato corta (topo/centro/baixo). */
+  bannerFocus?: 'top' | 'center' | 'bottom'
   logoUrl?: string | null
+  /** Tamanho e formato da foto/logo. Sem valor = média e redonda. */
+  logoSize?: 'sm' | 'md' | 'lg' | 'xl'
+  logoShape?: 'circle' | 'rounded' | 'original'
+  /** Espaçamento das telas finais: entre os itens, abaixo da foto do topo e
+   *  no topo da tela; e se o conteúdo fica no meio ou colado em cima. Sem
+   *  valor = espaçamento padrão. */
+  endGap?: LeadFormSpace
+  endImageGap?: LeadFormSpace
+  endTopSpace?: LeadFormSpace
+  endVAlign?: 'center' | 'top'
   title?: string
   subtitle?: string
   primaryColor?: string
   backgroundColor?: string
   /** Texto do botão da tela de boas-vindas. Default: "Começar". */
   welcomeButtonLabel?: string
-  /** Alinhamento dos textos da tela de início e das perguntas. Default: esquerda. */
+  /** Alinhamento dos textos da tela de início. Default: esquerda. */
   textAlign?: LeadFormAlign
+  /** Alinhamento do botão da tela de início. Sem valor = igual aos textos. */
+  welcomeButtonAlign?: LeadFormAlign
+  /** Alinhamento das perguntas. Sem valor = igual à tela de início
+   *  (formulários antigos usavam um alinhamento só pra tudo). */
+  questionAlign?: LeadFormAlign
+  /** true = escolha única avança sozinha ao clicar. Sem valor (padrão) = o
+   *  lead escolhe e toca em "Continuar". */
+  autoAdvance?: boolean
+  /** 'full' (padrão) = o formulário ocupa a tela inteira, sem quadrado;
+   *  'card' = conteúdo dentro de um cartão no meio da página. */
+  layout?: 'full' | 'card'
+  /** Fundo do cartão onde fica o conteúdo (só no layout 'card'). Default: branco. */
+  cardColor?: string
+  /** Cor do texto dos botões. Default: branco. */
+  buttonTextColor?: string
+  /** Cor dos textos (títulos, perguntas, mensagens). Default: cinza-escuro. */
+  textColor?: string
+  /** Cores só de uma etapa (início / perguntas / final) — o que ficar em
+   *  branco usa a cor geral acima. */
+  screenColors?: Partial<Record<LeadFormScreenKey, LeadFormColors>>
   /** Link do YouTube exibido na tela de início (VSL). */
   welcomeVideoUrl?: string
   /** Link do YouTube exibido na tela final — sobrescrevível por tela de
@@ -166,6 +267,8 @@ export interface LeadForm extends BaseDoc {
   outcomes?: LeadFormOutcome[]
   /** Conteúdo da tela final única (quando não há `outcomes`). */
   endBlocks?: LeadFormBlock[]
+  /** Id do Meta Pixel carregado na página pública (PageView ao abrir, Lead ao enviar). */
+  metaPixelId?: string | null
   /** Qual pergunta de escolha única decide a tela de resultado. */
   qualificationQuestionId?: string | null
 }

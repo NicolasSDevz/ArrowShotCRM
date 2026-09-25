@@ -27,9 +27,12 @@ export interface LeadFormFunnelStep {
   questionId: string
   label: string
   views: number
-  /** Diferença em relação ao passo anterior (ou às visualizações da tela de
-   *  boas-vindas, no primeiro passo) — quantas sessões pararam por ali. */
+  /** Sessões que viram essa pergunta, não viram nenhuma depois e não
+   *  enviaram — quem desistiu exatamente aqui. Contar assim (e não pela
+   *  diferença entre um passo e o anterior) não inventa desistência em
+   *  pergunta condicional, que só aparece pra parte das pessoas. */
   dropOff: number
+  /** dropOff em % de quem viu a pergunta. */
   dropOffPct: number
 }
 
@@ -40,6 +43,47 @@ export interface LeadFormAnalytics {
   completionRate: number
   avgDurationMs: number | null
   funnel: LeadFormFunnelStep[]
+  /** Um ponto por dia do período (dias sem movimento entram com zero). */
+  daily: LeadFormDailyPoint[]
+}
+
+export interface LeadFormDailyPoint {
+  /** yyyy-MM-dd (horário local) */
+  date: string
+  views: number
+  starts: number
+  submissions: number
+}
+
+const dayKey = (ms: number) => {
+  const d = new Date(ms)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Série diária do período: de `since` (ou do primeiro evento) até hoje. */
+function buildDaily(events: LeadFormEvent[], since?: Date): LeadFormDailyPoint[] {
+  const times = events.map((e) => e.createdAt?.toMillis?.() ?? 0).filter((t) => t > 0)
+  const start = since ? since.getTime() : times.length ? Math.min(...times) : Date.now()
+  const byDay = new Map<string, LeadFormDailyPoint>()
+  const cursor = new Date(start)
+  cursor.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  while (cursor <= today) {
+    const k = dayKey(cursor.getTime())
+    byDay.set(k, { date: k, views: 0, starts: 0, submissions: 0 })
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  for (const e of events) {
+    const t = e.createdAt?.toMillis?.()
+    if (!t) continue
+    const p = byDay.get(dayKey(t))
+    if (!p) continue
+    if (e.type === 'view') p.views++
+    else if (e.type === 'start') p.starts++
+    else if (e.type === 'submit') p.submissions++
+  }
+  return [...byDay.values()]
 }
 
 /** Busca (one-shot, não é live) todos os eventos de um formulário e agrega
@@ -49,10 +93,15 @@ export interface LeadFormAnalytics {
  *  firestore.rules). */
 export async function getLeadFormAnalytics(
   formId: string,
-  questions: { id: string; label: string }[]
+  questions: { id: string; label: string }[],
+  /** Só conta eventos a partir dessa data (sem valor = desde o começo). */
+  since?: Date
 ): Promise<LeadFormAnalytics> {
   const snap = await getDocs(query(collection(db, COLLECTION), where('formId', '==', formId)))
-  const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as LeadFormEvent)
+  const sinceMs = since?.getTime()
+  const events = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as unknown as LeadFormEvent)
+    .filter((e) => sinceMs === undefined || (e.createdAt?.toMillis?.() ?? 0) >= sinceMs)
 
   const views = events.filter((e) => e.type === 'view').length
   const starts = events.filter((e) => e.type === 'start').length
@@ -73,20 +122,32 @@ export async function getLeadFormAnalytics(
     sessionsByQuestion.get(e.questionId)!.add(e.sessionId)
   }
 
-  const funnel: LeadFormFunnelStep[] = []
-  let previousViews = starts
-  for (const q of questions) {
+  // Última pergunta (na ordem do formulário) que cada sessão viu, e quem enviou.
+  const order = new Map(questions.map((q, i) => [q.id, i]))
+  const submitted = new Set(submitEvents.map((e) => e.sessionId))
+  const lastSeen = new Map<string, number>()
+  for (const e of events) {
+    if (e.type !== 'question_view' || !e.questionId) continue
+    const i = order.get(e.questionId)
+    if (i === undefined) continue
+    if ((lastSeen.get(e.sessionId) ?? -1) < i) lastSeen.set(e.sessionId, i)
+  }
+  const stoppedAt = new Map<number, number>()
+  for (const [session, i] of lastSeen) {
+    if (!submitted.has(session)) stoppedAt.set(i, (stoppedAt.get(i) ?? 0) + 1)
+  }
+
+  const funnel: LeadFormFunnelStep[] = questions.map((q, i) => {
     const stepViews = sessionsByQuestion.get(q.id)?.size ?? 0
-    const dropOff = Math.max(0, previousViews - stepViews)
-    funnel.push({
+    const dropOff = stoppedAt.get(i) ?? 0
+    return {
       questionId: q.id,
       label: q.label,
       views: stepViews,
       dropOff,
-      dropOffPct: previousViews > 0 ? (dropOff / previousViews) * 100 : 0,
-    })
-    previousViews = stepViews
-  }
+      dropOffPct: stepViews > 0 ? (dropOff / stepViews) * 100 : 0,
+    }
+  })
 
-  return { views, starts, submissions, completionRate, avgDurationMs, funnel }
+  return { views, starts, submissions, completionRate, avgDurationMs, funnel, daily: buildDaily(events, since) }
 }

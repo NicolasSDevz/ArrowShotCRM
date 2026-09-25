@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Modal } from '../ui/Modal'
 import { Field, Input, Select } from '../ui/Field'
+import { contactError } from '../../utils/validation'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
@@ -65,6 +66,11 @@ export function TeamMemberFormModal({
 
   const handleSubmit = async () => {
     if (!form.name.trim() || !profile) return
+    const invalid = contactError('email', form.email) ?? contactError('phone', form.whatsapp)
+    if (invalid) {
+      toast.error(invalid)
+      return
+    }
     setSaving(true)
     try {
       const payload = {
@@ -113,7 +119,7 @@ export function TeamMemberFormModal({
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="E-mail">
-            <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
+            <Input type="email" validate="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
           </Field>
           <Field label="WhatsApp">
             <Input value={form.whatsapp} onChange={(e) => set('whatsapp', e.target.value)} placeholder="(11) 99999-9999" />

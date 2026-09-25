@@ -35,6 +35,7 @@ import { UpsellRevenueChart } from './UpsellRevenueChart'
 import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
 import { leadPipelineId, DEFAULT_PIPELINE_ID, type Activity } from '../../types'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
+import { showError } from '../../utils/notifyError'
 
 const BRL = (v: number) =>
   (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
@@ -407,7 +408,7 @@ export function OverviewDashboard() {
       toast.success('Métricas atualizadas')
     } catch (err) {
       console.error(err)
-      toast.error(err instanceof Error ? err.message : 'Falha ao atualizar métricas')
+      showError(err, 'Falha ao atualizar métricas')
     } finally {
       setRefreshing(false)
     }

@@ -1,11 +1,11 @@
 import { useRef, useState, type ReactNode } from 'react'
-import toast from 'react-hot-toast'
 import { Upload, X, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react'
 import { Spinner } from '../ui/FullPageSpinner'
 import { Input } from '../ui/Field'
 import { uploadLeadFormImage, LEAD_FORM_IMAGE_ACCEPT_ATTR } from '../../services/leadFormAssetService'
 import { parseYouTubeId } from '../../utils/youtube'
 import type { LeadFormDesign } from '../../types/leadForm'
+import { showError } from '../../utils/notifyError'
 
 /** Bloco com título + explicação curta — usado pra dividir o painel de edição
  *  de cada tela em grupos fáceis de bater o olho. */
@@ -69,34 +69,62 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
 /** Modelos prontos de cor (fundo + destaque) — um atalho pra quem não quer
  *  escolher cor por cor, sem tirar a opção de personalizar tudo à mão logo
  *  abaixo (os dois seletores de cor continuam livres pra qualquer valor). */
-const COLOR_PRESETS: { name: string; backgroundColor: string; primaryColor: string }[] = [
-  { name: 'Azul (padrão)', backgroundColor: '#F8FAFC', primaryColor: '#2563EB' },
-  { name: 'Verde', backgroundColor: '#F0FDF4', primaryColor: '#16A34A' },
-  { name: 'Roxo', backgroundColor: '#FAF5FF', primaryColor: '#9333EA' },
-  { name: 'Laranja', backgroundColor: '#FFF7ED', primaryColor: '#EA580C' },
-  { name: 'Rosa', backgroundColor: '#FDF2F8', primaryColor: '#DB2777' },
-  { name: 'Vermelho', backgroundColor: '#FEF2F2', primaryColor: '#DC2626' },
-  { name: 'Cinza', backgroundColor: '#F1F5F9', primaryColor: '#475569' },
-  { name: 'Escuro', backgroundColor: '#0F172A', primaryColor: '#38BDF8' },
+type ColorPreset = { name: string; backgroundColor: string; cardColor: string; primaryColor: string; buttonTextColor: string; textColor: string }
+
+/** Cada modelo define TODAS as cores (antes só fundo + botão, e uma cor de
+ *  texto/cartão escolhida antes ficava misturada — ex: texto claro em fundo claro). */
+/** Cores com que todo formulário novo começa (nada de página toda branca). */
+export const DEFAULT_FORM_COLORS: ColorPreset = { name: 'Escuro', backgroundColor: '#0F172A', cardColor: '#1E293B', primaryColor: '#38BDF8', buttonTextColor: '#0F172A', textColor: '#F1F5F9' }
+
+const COLOR_PRESETS: ColorPreset[] = [
+  DEFAULT_FORM_COLORS,
+  { name: 'Azul vivo', backgroundColor: '#1D4ED8', cardColor: '#1E40AF', primaryColor: '#FACC15', buttonTextColor: '#172554', textColor: '#FFFFFF' },
+  { name: 'Azul', backgroundColor: '#F8FAFC', cardColor: '#FFFFFF', primaryColor: '#2563EB', buttonTextColor: '#FFFFFF', textColor: '#0F172A' },
+  { name: 'Verde', backgroundColor: '#F0FDF4', cardColor: '#FFFFFF', primaryColor: '#16A34A', buttonTextColor: '#FFFFFF', textColor: '#14532D' },
+  { name: 'Roxo', backgroundColor: '#FAF5FF', cardColor: '#FFFFFF', primaryColor: '#9333EA', buttonTextColor: '#FFFFFF', textColor: '#3B0764' },
+  { name: 'Laranja', backgroundColor: '#FFF7ED', cardColor: '#FFFFFF', primaryColor: '#EA580C', buttonTextColor: '#FFFFFF', textColor: '#431407' },
+  { name: 'Rosa', backgroundColor: '#FDF2F8', cardColor: '#FFFFFF', primaryColor: '#DB2777', buttonTextColor: '#FFFFFF', textColor: '#500724' },
+  { name: 'Vermelho', backgroundColor: '#FEF2F2', cardColor: '#FFFFFF', primaryColor: '#DC2626', buttonTextColor: '#FFFFFF', textColor: '#450A0A' },
+  { name: 'Grafite', backgroundColor: '#F1F5F9', cardColor: '#FFFFFF', primaryColor: '#334155', buttonTextColor: '#FFFFFF', textColor: '#0F172A' },
+  { name: 'Preto', backgroundColor: '#0A0A0A', cardColor: '#171717', primaryColor: '#FACC15', buttonTextColor: '#0A0A0A', textColor: '#FAFAFA' },
 ]
+
+const same = (a?: string, b?: string) => (a ?? '').toLowerCase() === (b ?? '').toLowerCase()
 
 export function ColorPresetPicker({ design, onDesignChange }: { design: LeadFormDesign; onDesignChange: (next: LeadFormDesign) => void }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {COLOR_PRESETS.map((preset) => {
-        const active = (design.backgroundColor || '#F8FAFC') === preset.backgroundColor && (design.primaryColor || '#2563EB') === preset.primaryColor
+    <div className="grid grid-cols-3 gap-2">
+      {COLOR_PRESETS.map((p) => {
+        const active =
+          same(design.backgroundColor || '#F8FAFC', p.backgroundColor) &&
+          same(design.primaryColor || '#2563EB', p.primaryColor) &&
+          same(design.textColor || '#0F172A', p.textColor)
         return (
           <button
-            key={preset.name}
+            key={p.name}
             type="button"
-            title={preset.name}
-            onClick={() => onDesignChange({ ...design, backgroundColor: preset.backgroundColor, primaryColor: preset.primaryColor })}
-            className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 transition-colors ${
-              active ? 'border-brand-600' : 'border-slate-200 hover:border-slate-300'
-            }`}
-            style={{ backgroundColor: preset.backgroundColor }}
+            title={p.name}
+            onClick={() =>
+              onDesignChange({
+                ...design,
+                backgroundColor: p.backgroundColor,
+                cardColor: p.cardColor,
+                primaryColor: p.primaryColor,
+                buttonTextColor: p.buttonTextColor,
+                textColor: p.textColor,
+                screenColors: undefined,
+              })
+            }
+            className={`flex flex-col overflow-hidden rounded-lg border-2 text-left transition-colors ${active ? 'border-brand-600' : 'border-slate-200 hover:border-slate-300'}`}
           >
-            <span className="h-4 w-4 rounded-full" style={{ backgroundColor: preset.primaryColor }} />
+            {/* `background` (não backgroundColor) pro modo escuro do CRM não recolorir a amostra */}
+            <span className="flex h-11 w-full items-center justify-center gap-1.5 px-2" style={{ background: p.backgroundColor }}>
+              <span className="text-[11px] font-bold" style={{ color: p.textColor }}>Aa</span>
+              <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: p.primaryColor, color: p.buttonTextColor }}>
+                Botão
+              </span>
+            </span>
+            <span className="block w-full truncate bg-white px-1.5 py-1 text-center text-[11px] font-medium text-slate-600">{p.name}</span>
           </button>
         )
       })}
@@ -143,7 +171,7 @@ export function ImageUploadField({
     try {
       onChange(await uploadLeadFormImage(formId, assetKey, file, sizeHint))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao enviar imagem')
+      showError(err, 'Erro ao enviar imagem')
     } finally {
       setUploading(false)
     }

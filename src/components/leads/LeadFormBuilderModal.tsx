@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
+import { showError } from '../../utils/notifyError'
 import { X, Eye, EyeOff, Monitor, Smartphone, RotateCcw, Copy } from 'lucide-react'
 import { Input } from '../ui/Field'
 import { Button } from '../ui/Button'
@@ -8,14 +9,23 @@ import { createLeadForm, updateLeadForm, slugifyFormName } from '../../services/
 import { parseYouTubeId } from '../../utils/youtube'
 import { LeadFormStructureRail } from './LeadFormStructureRail'
 import { LeadFormQuestionEditor } from './LeadFormQuestionEditor'
-import { EndScreenEditor, ThemeEditor, WelcomeScreenEditor } from './LeadFormScreenEditors'
+import { EndScreenEditor, ThemeEditor, TrackingEditor, WelcomeScreenEditor } from './LeadFormScreenEditors'
+import { parseMetaPixelId } from '../../utils/metaPixel'
 import { LeadFormRenderer } from './LeadFormRenderer'
-import { Toggle } from './LeadFormBuilderParts'
+import { FIELD_GROUP_PRESETS } from './leadFormFieldGroups'
+import { DEFAULT_FORM_COLORS, Toggle } from './LeadFormBuilderParts'
 import { conditionProblem, isChoiceType, newQuestion, visibleOptions } from './leadFormMeta'
-import { effectiveEndBlocks, normalizeUrl, outcomeRules, type BuilderSelection, type LeadFormPreviewScreen } from './leadFormUtils'
+import { effectiveEndBlocks, normalizeUrl, outcomeRules, setDestination, type BuilderSelection, type LeadFormPreviewScreen } from './leadFormUtils'
+import { RoutingEditor } from './LeadFormRoutingEditor'
 import type { LeadForm, LeadFormBlock, LeadFormQuestion, LeadFormDesign, LeadFormOutcome, LeadFormFieldRole } from '../../types/leadForm'
 
 const DEFAULT_THANK_YOU = 'Obrigado! Recebemos suas informações e vamos entrar em contato em breve.'
+
+/** Design de um formulário novo: já começa com cor (o modelo Escuro). */
+function newFormDesign(): LeadFormDesign {
+  const c = DEFAULT_FORM_COLORS
+  return { backgroundColor: c.backgroundColor, cardColor: c.cardColor, primaryColor: c.primaryColor, buttonTextColor: c.buttonTextColor, textColor: c.textColor }
+}
 
 function newOutcome(label: string, message: string, isDefault = false): LeadFormOutcome {
   return { id: crypto.randomUUID(), label, message, matchValues: [], isDefault }
@@ -48,6 +58,7 @@ function snapshotOf(v: {
   design: LeadFormDesign
   outcomes: LeadFormOutcome[]
   endBlocks?: LeadFormBlock[]
+  metaPixelId?: string | null
 }) {
   return JSON.stringify(v)
 }
@@ -78,6 +89,7 @@ export function LeadFormBuilderModal({
   const [design, setDesign] = useState<LeadFormDesign>({})
   const [outcomes, setOutcomes] = useState<LeadFormOutcome[]>([])
   const [endBlocks, setEndBlocks] = useState<LeadFormBlock[] | undefined>(undefined)
+  const [metaPixelId, setMetaPixelId] = useState('')
   const [saving, setSaving] = useState(false)
 
   const [selection, setSelection] = useState<BuilderSelection>({ kind: 'welcome' })
@@ -85,6 +97,8 @@ export function LeadFormBuilderModal({
   const [previewMode, setPreviewMode] = useState<'screen' | 'test'>('screen')
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [testRun, setTestRun] = useState(0)
+  // Tela mostrada no preview enquanto se edita 'Cores e tema' (acompanha a aba Início/Perguntas/Final).
+  const [themePreview, setThemePreview] = useState<'welcome' | 'question' | 'end'>('welcome')
   const initialSnapshot = useRef('')
   const editorScrollRef = useRef<HTMLDivElement>(null)
   const selectionKey = selection.kind === 'question' || selection.kind === 'end' ? `${selection.kind}-${selection.id}` : selection.kind
@@ -92,6 +106,8 @@ export function LeadFormBuilderModal({
   // Trocar de tela começa o painel de edição sempre do topo.
   useEffect(() => {
     editorScrollRef.current?.scrollTo(0, 0)
+    // Ao abrir "Cores e tema" o editor começa na aba Início; o preview acompanha.
+    setThemePreview('welcome')
   }, [selectionKey])
 
   useEffect(() => {
@@ -105,8 +121,9 @@ export function LeadFormBuilderModal({
           design: form.design ?? {},
           outcomes: migrateOutcomes(form.outcomes ?? [], form.qualificationQuestionId ?? null),
           endBlocks: form.endBlocks,
+          metaPixelId: form.metaPixelId ?? '',
         }
-      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: {}, outcomes: [], endBlocks: undefined }
+      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: newFormDesign(), outcomes: [], endBlocks: undefined, metaPixelId: '' }
     setName(initial.name)
     setSlug(form ? form.id : '')
     setSlugTouched(!!form)
@@ -116,6 +133,7 @@ export function LeadFormBuilderModal({
     setDesign(initial.design)
     setOutcomes(initial.outcomes)
     setEndBlocks(initial.endBlocks)
+    setMetaPixelId(initial.metaPixelId ?? '')
     setSelection({ kind: 'welcome' })
     setPreviewMode('screen')
     initialSnapshot.current = snapshotOf(initial)
@@ -123,7 +141,7 @@ export function LeadFormBuilderModal({
 
   const dirty =
     open &&
-    snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks }) !== initialSnapshot.current
+    snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId }) !== initialSnapshot.current
 
   const requestClose = () => {
     if (dirty && !confirm('Você tem alterações não salvas. Fechar mesmo assim?')) return
@@ -199,7 +217,7 @@ export function LeadFormBuilderModal({
     // Nasce com o mesmo conteúdo da tela atual (copiado) pra não abrir vazia.
     const extra = { ...newOutcome('Lead qualificado', ''), blocks: cloneBlocks(def.blocks), rules: [] }
     setOutcomes([extra, def])
-    setSelection({ kind: 'end', id: extra.id })
+    setSelection({ kind: 'routing' })
   }
 
   const disableRouting = () => {
@@ -256,9 +274,12 @@ export function LeadFormBuilderModal({
       const sel: BuilderSelection = { kind: 'question', id: q.id }
       if (!q.label.trim()) return fail(`A pergunta ${i + 1} está sem texto`, sel)
       if (isChoiceType(q.type) && visibleOptions(q).length < 2) return fail(`A pergunta ${i + 1} precisa de pelo menos 2 opções (o "Outro" conta)`, sel)
+      if (q.type === 'fields' && ((q.subfields ?? []).length === 0 || (q.subfields ?? []).some((f) => !f.label.trim())))
+        return fail(`A pergunta ${i + 1} precisa de pelo menos 1 campo, e todo campo precisa de um nome`, sel)
       const problem = conditionProblem(q, i, questions)
       if (problem) return fail(`Pergunta ${i + 1}: ${problem}`, sel)
     }
+    if (metaPixelId.trim() && !parseMetaPixelId(metaPixelId)) return fail('Não reconheci o pixel do Meta — cole o número do pixel ou o código inteiro', { kind: 'tracking' })
     if (!usedRoles.has('name')) return fail('Marque uma pergunta como "Nome do lead" — sem isso o lead chega sem nome')
     if (!usedRoles.has('whatsapp')) return fail('Marque uma pergunta como "WhatsApp do lead" — é como o time entra em contato')
 
@@ -272,13 +293,17 @@ export function LeadFormBuilderModal({
         const name = o.label || 'sem nome'
         const rules = outcomeRules({ qualificationQuestionId: null }, o)
         if (!o.isDefault) {
-          if (rules.length === 0) return fail(`A tela final "${name}" ainda não tem nenhuma regra — escolha qual pergunta e quais respostas levam a ela`, sel)
-          for (const r of rules) {
-            const rq = questions.find((q) => q.id === r.questionId)
-            if (!rq || !isChoiceType(rq.type)) return fail(`A tela final "${name}" usa uma pergunta que não existe mais`, sel)
-            if (r.values.length === 0) return fail(`Na tela final "${name}", marque pelo menos uma resposta em cada regra`, sel)
-          }
+          if (rules.length === 0) return fail(`Nenhuma resposta leva pra tela final "${name}" — escolha em "Qual resposta vai pra qual tela"`, { kind: 'routing' })
         }
+        for (const r of rules) {
+          const rq = questions.find((q) => q.id === r.questionId)
+          if (!rq || !isChoiceType(rq.type)) return fail(`A tela final "${name}" usa uma pergunta que não existe mais`, { kind: 'routing' })
+        }
+        const liveRule = rules.some((r) => {
+          const rq = questions.find((q) => q.id === r.questionId)
+          return !!rq && visibleOptions(rq).some((opt) => r.values.includes(opt.id))
+        })
+        if (!o.isDefault && !liveRule) return fail(`As respostas que levavam pra tela final "${name}" foram apagadas — escolha de novo em "Qual resposta vai pra qual tela"`, { kind: 'routing' })
         if (badVideo(o.design?.resultVideoUrl)) return fail(`O link do vídeo da tela final "${name}" não é válido`, sel)
       }
       if (!outcomes.some((o) => o.isDefault)) return fail('Uma das telas finais precisa ser a padrão')
@@ -305,7 +330,15 @@ export function LeadFormBuilderModal({
         questions: questions.map((q) =>
           isChoiceType(q.type)
             ? { ...q, label: q.label.trim(), options: (q.options ?? []).filter((o) => o.label.trim()) }
-            : { ...q, label: q.label.trim(), options: undefined, allowOther: undefined, otherLabel: undefined, otherPrompt: undefined }
+            : {
+                ...q,
+                label: q.label.trim(),
+                options: undefined,
+                allowOther: undefined,
+                otherLabel: undefined,
+                otherPrompt: undefined,
+                subfields: q.type === 'fields' ? (q.subfields ?? []).map((f) => ({ ...f, label: f.label.trim() })) : undefined,
+              }
         ),
         thankYouMessage: thankYouMessage.trim() || DEFAULT_THANK_YOU,
         design,
@@ -313,6 +346,7 @@ export function LeadFormBuilderModal({
         qualificationQuestionId: null,
         outcomes,
         endBlocks: outcomes.length > 0 ? undefined : endBlocks,
+        metaPixelId: parseMetaPixelId(metaPixelId),
       }
       if (isEditing) {
         await updateLeadForm(form!.id, payload, profile.id)
@@ -326,11 +360,11 @@ export function LeadFormBuilderModal({
         }
         toast.success('Formulário criado')
       }
-      initialSnapshot.current = snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks })
+      initialSnapshot.current = snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId })
       onClose()
     } catch (err) {
       console.error(err)
-      toast.error('Erro ao salvar o formulário')
+      showError(err, 'Não foi possível salvar o formulário. Tente de novo.')
     } finally {
       setSaving(false)
     }
@@ -361,7 +395,11 @@ export function LeadFormBuilderModal({
         ? { kind: 'question', questionId: sel.id }
         : sel.kind === 'end'
           ? { kind: 'end', outcomeId: sel.id }
-          : { kind: 'welcome' }
+          : sel.kind === 'theme' && themePreview === 'question' && questions.length > 0
+            ? { kind: 'question', questionId: questions[0].id }
+            : sel.kind === 'theme' && themePreview === 'end'
+              ? { kind: 'end', outcomeId: null }
+              : { kind: 'welcome' }
 
   const publicUrl = slug ? `${window.location.origin}/captura/${slug}` : ''
   const previewForm = {
@@ -446,6 +484,10 @@ export function LeadFormBuilderModal({
               selection={sel}
               onSelect={setSelection}
               onAddQuestion={(type) => addQuestion(newQuestion(type))}
+              onAddFieldsPreset={(key) => {
+                const preset = FIELD_GROUP_PRESETS.find((p) => p.key === key)
+                if (preset) addQuestion(newQuestion('fields', { label: preset.question, subfields: preset.make() }))
+              }}
               onAddLeadField={(p) => addQuestion(newQuestion(p.type, { label: p.label, role: p.role, required: p.required }))}
               onReorder={reorderQuestions}
               onAddOutcome={addOutcome}
@@ -510,7 +552,8 @@ export function LeadFormBuilderModal({
           <div ref={editorScrollRef} className={`min-w-0 overflow-y-auto border-l border-slate-100 bg-white ${showPreview ? 'flex-1 lg:w-[400px] lg:flex-none' : 'flex-1'}`}>
             <div className={`p-4 ${showPreview ? '' : 'mx-auto max-w-2xl'}`}>
               {sel.kind === 'welcome' && <WelcomeScreenEditor design={design} onDesignChange={setDesign} formId={slug || 'preview'} canUpload={canUpload} />}
-              {sel.kind === 'theme' && <ThemeEditor design={design} onDesignChange={setDesign} />}
+              {sel.kind === 'tracking' && <TrackingEditor value={metaPixelId} onChange={setMetaPixelId} />}
+              {sel.kind === 'theme' && <ThemeEditor design={design} onDesignChange={setDesign} onPreviewScreen={setThemePreview} />}
               {sel.kind === 'question' && selectedQuestionIndex >= 0 && (
                 <LeadFormQuestionEditor
                   key={sel.id}
@@ -522,6 +565,17 @@ export function LeadFormBuilderModal({
                   onChange={(patch) => updateQuestion(sel.id, patch)}
                   onDelete={() => removeQuestion(sel.id)}
                   onDuplicate={() => duplicateQuestion(sel.id)}
+                />
+              )}
+              {sel.kind === 'routing' && (
+                <RoutingEditor
+                  questions={questions}
+                  outcomes={outcomes}
+                  onSetDestination={(qid, optId, outcomeId) => setOutcomes((prev) => setDestination(prev, qid, optId, outcomeId))}
+                  onMoveOutcome={moveOutcome}
+                  onSetDefault={setDefaultOutcome}
+                  onOpenOutcome={(id) => setSelection({ kind: 'end', id })}
+                  onEnableRouting={enableRouting}
                 />
               )}
               {sel.kind === 'end' && (
@@ -539,6 +593,8 @@ export function LeadFormBuilderModal({
                   onOutcomeChange={(patch) => selectedOutcome && updateOutcome(selectedOutcome.id, patch)}
                   onSetDefault={() => selectedOutcome && setDefaultOutcome(selectedOutcome.id)}
                   onRemoveOutcome={() => selectedOutcome && removeOutcome(selectedOutcome.id)}
+                  onOpenRouting={() => setSelection({ kind: 'routing' })}
+                  onDesignChange={setDesign}
                   formId={slug || 'preview'}
                   canUpload={canUpload}
                 />

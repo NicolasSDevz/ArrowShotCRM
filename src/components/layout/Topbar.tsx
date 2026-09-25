@@ -9,6 +9,7 @@ import { NotificationBell } from './NotificationBell'
 import { TeamPresence } from './TeamPresence'
 import { compressImageToDataUrl } from '../../utils/imageToDataUrl'
 import { updateUserPhoto } from '../../services/userService'
+import { showError } from '../../utils/notifyError'
 
 export function Topbar({
   search,
@@ -35,7 +36,7 @@ export function Topbar({
       toast.success('Foto atualizada')
     } catch (err) {
       console.error(err)
-      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar foto')
+      showError(err, 'Erro ao atualizar foto')
     } finally {
       setUploadingPhoto(false)
     }

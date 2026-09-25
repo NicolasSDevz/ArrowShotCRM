@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { ErrorDialogHost } from './components/ui/ErrorDialogHost'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
 import { PrivacyProvider } from './context/PrivacyContext'
@@ -37,7 +38,8 @@ function App() {
     <AuthProvider>
     <PrivacyProvider>
       <BrowserRouter>
-        <Toaster position="top-right" toastOptions={{ style: { fontSize: '13px' } }} />
+        <Toaster position="top-right" toastOptions={{ className: 'app-toast', style: { fontSize: '13px' } }} />
+        <ErrorDialogHost />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/aprovar/:contentId/:token" element={<PublicApprovalPage />} />

@@ -51,7 +51,7 @@ function newBlock(type: LeadFormBlockType): LeadFormBlock {
   }
 }
 
-function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; content: ReactNode; title: string }[]; onChange: (v: T) => void; label: string }) {
+export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; content: ReactNode; title: string }[]; onChange: (v: T) => void; label: string }) {
   return (
     <div>
       <span className="mb-1 block text-[11px] font-medium text-slate-400">{label}</span>
@@ -199,6 +199,27 @@ export function LeadFormBlocksEditor({
                       ]}
                     />
                   </div>
+                  <Segmented
+                    label="Formato"
+                    value={b.shape === 'circle' ? 'square' : (b.ratio ?? 'original')}
+                    onChange={(v) => update(b.id, { ratio: v, shape: v !== 'square' && b.shape === 'circle' ? 'rounded' : b.shape })}
+                    options={[
+                      { value: 'original', content: 'Original', title: 'Do jeito que a imagem é, sem cortar' },
+                      { value: 'square', content: 'Quadrado', title: '1:1' },
+                      { value: 'post', content: 'Post', title: '4:5, estilo Instagram' },
+                      { value: 'banner', content: 'Banner', title: 'Faixa larga 3:1' },
+                    ]}
+                  />
+                  <Segmented
+                    label="Cantos"
+                    value={b.shape ?? 'rounded'}
+                    onChange={(v) => update(b.id, { shape: v, ratio: v === 'circle' ? 'square' : b.ratio })}
+                    options={[
+                      { value: 'rounded', content: 'Arredondado', title: 'Cantos arredondados' },
+                      { value: 'square', content: 'Reto', title: 'Cantos retos' },
+                      { value: 'circle', content: 'Círculo', title: 'Foto redonda (fica quadrada)' },
+                    ]}
+                  />
                 </>
               )}
 

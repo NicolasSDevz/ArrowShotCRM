@@ -5,7 +5,8 @@
 // login. A API key da Anthropic só existe aqui no servidor
 // (process.env.ANTHROPIC_API_KEY), nunca no frontend.
 //
-// POST /api/ai/chat { message, context, history } -> { response, usage }
+// POST /api/ai/chat { message, context, history } -> { response, usage, quota }
+// GET  /api/ai/chat -> { quota: { used, limit } }  (quantas mensagens o usuário já usou hoje)
 
 import { withInternalAuth } from '../_lib/auth.js'
 import { getDoc, setDoc } from '../_lib/firebaseAdmin.js'
@@ -55,6 +56,18 @@ function todayKey() {
  *  duas mensagens no mesmíssimo instante poderiam raramente passar do
  *  limite por 1, o que é aceitável pra um controle de custo, não uma trava
  *  de segurança). */
+/** Quantas mensagens o usuário já mandou hoje (sem contar esta). */
+async function getDailyUsage(uid) {
+  const snap = await getDoc(`aiUsage/${uid}_${todayKey()}`)
+  return snap.exists ? snap.data()?.count || 0 : 0
+}
+
+/** Nunca mostra mais que o limite (tentativas depois de bater o limite
+ *  também incrementam o contador, mas não viram mensagem). */
+function quotaOf(used) {
+  return { used: Math.min(used, DAILY_MESSAGE_LIMIT), limit: DAILY_MESSAGE_LIMIT }
+}
+
 async function incrementDailyUsage(uid) {
   const docPath = `aiUsage/${uid}_${todayKey()}`
   const snap = await getDoc(docPath)
@@ -65,6 +78,17 @@ async function incrementDailyUsage(uid) {
 }
 
 async function handler(req, res, user) {
+  // Mesmo arquivo (não uma rota nova) porque o projeto está no limite de
+  // Functions do plano da Vercel.
+  if (req.method === 'GET') {
+    try {
+      return res.status(200).json({ quota: quotaOf(await getDailyUsage(user.uid)) })
+    } catch (err) {
+      console.error('[ai/chat] falha ao ler o uso do dia', err)
+      return res.status(500).json({ error: 'Não foi possível ler o uso de hoje' })
+    }
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -78,10 +102,12 @@ async function handler(req, res, user) {
     return res.status(400).json({ error: 'message é obrigatório' })
   }
 
+  let quota
   try {
     const usageCount = await incrementDailyUsage(user.uid)
+    quota = quotaOf(usageCount)
     if (usageCount > DAILY_MESSAGE_LIMIT) {
-      return res.status(429).json({ error: 'Limite diário de mensagens atingido. Tente novamente amanhã.' })
+      return res.status(429).json({ error: 'Limite diário de mensagens atingido. Tente novamente amanhã.', quota })
     }
   } catch (err) {
     console.error('[ai/chat] falha ao checar limite de uso — segue sem bloquear', err)
@@ -120,7 +146,7 @@ async function handler(req, res, user) {
     }
 
     const text = data.content?.find((block) => block.type === 'text')?.text || ''
-    return res.status(200).json({ response: text, usage: data.usage })
+    return res.status(200).json({ response: text, usage: data.usage, quota })
   } catch (err) {
     console.error('[ai/chat] erro inesperado:', err)
     return res.status(500).json({ error: `Erro interno: ${err?.message || 'desconhecido'}` })

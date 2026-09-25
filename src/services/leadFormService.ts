@@ -11,7 +11,8 @@ import {
   type FirestoreError,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
-import { OTHER_OPTION_ID, type LeadForm, type LeadFormInput, type LeadFormAnswer, type LeadFormQuestion } from '../types/leadForm'
+import { formatFieldsAnswer } from '../components/leads/leadFormFieldGroups'
+import { formatAddressAnswer, OTHER_OPTION_ID, type LeadForm, type LeadFormInput, type LeadFormAnswer, type LeadFormQuestion } from '../types/leadForm'
 import type { Lead } from '../types/lead'
 
 const COLLECTION = 'leadForms'
@@ -111,6 +112,8 @@ function findRoleAnswer(
  *  internamente, mas na ficha do lead o time precisa ler o texto da opção —
  *  e, quando o lead marcou "Outro", o que ele escreveu ("Outro: pintura"). */
 function answerToText(q: LeadFormQuestion, raw: string | string[], otherText?: string): string {
+  if (q.type === 'fields') return Array.isArray(raw) ? formatFieldsAnswer(q, raw) : raw
+  if (q.type === 'address') return Array.isArray(raw) ? formatAddressAnswer(raw) : raw
   if (q.type !== 'single_choice' && q.type !== 'multi_choice') return Array.isArray(raw) ? raw.join(', ') : raw
   const ids = Array.isArray(raw) ? raw : [raw]
   return ids
