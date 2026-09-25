@@ -6,8 +6,12 @@ import { ADDRESS_PARTS, ADDRESS_REQUIRED_PARTS, OTHER_OPTION_ID, type AddressPar
 import { AddressQuestionField } from './AddressQuestionField'
 import { FieldGroupQuestionField } from './FieldGroupQuestionField'
 import { invalidSubfields, missingSubfields } from './leadFormFieldGroups'
-import { contactError, type ContactKind } from '../../utils/validation'
-import { maskPhone } from '../../utils/masks'
+import { contactError, documentError, linkError, type ContactKind } from '../../utils/validation'
+import { maskDocument, maskPhone } from '../../utils/masks'
+import { orderedOptions } from './leadFormMeta'
+import { LeadFormRichText } from './LeadFormRichText'
+import { ConfirmAnswerField, FileAnswerField, ListAnswerField } from './LeadFormExtraFields'
+import type { LeadFormUploadedFile } from '../../utils/leadFormFiles'
 import { JUSTIFY_CLASS, LeadFormBlocksView, SPACE_PX, TEXT_ALIGN_CLASS, VideoEmbed, buttonAnimationClass } from './LeadFormBlocksView'
 import {
   effectiveEndBlocks,
@@ -23,7 +27,7 @@ import {
 } from './leadFormUtils'
 
 type Phase = 'welcome' | 'question' | 'submitting' | 'done'
-type FieldError = 'required' | 'other' | 'invalid'
+type FieldError = 'required' | 'other' | 'invalid' | 'uploading'
 
 /** Renderiza a página de um formulário de captura no estilo Typeform/
  *  YayForms — uma tela de boas-vindas, depois uma pergunta por tela (com
@@ -42,6 +46,7 @@ export function LeadFormRenderer({
   onSubmitted,
   fillViewport = false,
   previewScreen = null,
+  onUploadFile,
 }: {
   form: LeadFormContent
   /** Id real do formulário (slug da URL) — só usado pra registrar
@@ -53,6 +58,8 @@ export function LeadFormRenderer({
    *  no preview do construtor, onde o componente pai já define a altura. */
   fillViewport?: boolean
   previewScreen?: LeadFormPreviewScreen | null
+  /** Envio de arquivo das perguntas do tipo "Arquivo" (só na página pública). */
+  onUploadFile?: (file: File) => Promise<LeadFormUploadedFile>
 }) {
   const isTracking = !!onSubmitted && !!formId
   const forced = previewScreen
@@ -68,6 +75,7 @@ export function LeadFormRenderer({
   const submittingRef = useRef(false)
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [submitError, setSubmitError] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     if (isTracking) trackLeadFormEvent(formId!, sessionId, 'view')
@@ -144,7 +152,13 @@ export function LeadFormRenderer({
           ? missingSubfields(q, Array.isArray(v) ? v : []).length > 0
           : q.type === 'address'
           ? !Array.isArray(v) || ADDRESS_REQUIRED_PARTS.some((p) => !(v[ADDRESS_PARTS.indexOf(p as AddressPart)] ?? '').trim())
-          : v === undefined || (Array.isArray(v) ? v.length === 0 : !v.trim())
+          : q.type === 'confirm'
+          ? v !== 'yes'
+          : v === undefined || (Array.isArray(v) ? v.filter((x) => x.trim()).length === 0 : !v.trim())
+      if (q.type === 'file' && uploading) {
+        setErrors((prev) => ({ ...prev, [q.id]: 'uploading' }))
+        return
+      }
       if ((q.required || q.type === 'fields') && empty) {
         setErrors((prev) => ({ ...prev, [q.id]: 'required' }))
         return
@@ -152,6 +166,10 @@ export function LeadFormRenderer({
       // WhatsApp/e-mail preenchido errado (pela pergunta ou pelo campo do lead que ela alimenta).
       const kind = contactKindOf(q)
       if (kind && typeof v === 'string' && contactError(kind, v)) {
+        setErrors((prev) => ({ ...prev, [q.id]: 'invalid' }))
+        return
+      }
+      if ((q.type === 'document' || q.type === 'link') && typeof v === 'string' && (q.type === 'document' ? documentError(v) : linkError(v))) {
         setErrors((prev) => ({ ...prev, [q.id]: 'invalid' }))
         return
       }
@@ -198,7 +216,8 @@ export function LeadFormRenderer({
 
   const handleAnswerChange = (q: LeadFormQuestion, v: string | string[]) => {
     setAnswer(q.id, v)
-    if (q.type === 'single_choice' && !forced && v !== OTHER_OPTION_ID && form.design?.autoAdvance) {
+    const hasMessage = !!orderedOptions(q).find((o) => o.id === v)?.message?.trim()
+    if (q.type === 'single_choice' && !forced && v !== OTHER_OPTION_ID && !hasMessage && form.design?.autoAdvance) {
       // Avanço automático estilo Typeform — dá um respiro visual pra
       // mostrar a opção marcada antes de trocar de tela.
       // Clicou em outra opção logo em seguida: só um avanço (senão pula a próxima pergunta).
@@ -399,6 +418,11 @@ export function LeadFormRenderer({
                 onToggleOption={(optId) => toggleMultiOption(currentQuestion, optId)}
                 onOtherTextChange={(t) => handleOtherText(currentQuestion, t)}
                 onEnter={goNext}
+                onUploadFile={onUploadFile}
+                onUploadingChange={(u) => {
+                  setUploading(u)
+                  if (!u) setErrors((prev) => ({ ...prev, [currentQuestion.id]: undefined }))
+                }}
               />
 
               {submitError && isLast && (
@@ -464,6 +488,8 @@ function QuestionField({
   onToggleOption,
   onOtherTextChange,
   onEnter,
+  onUploadFile,
+  onUploadingChange,
 }: {
   question: LeadFormQuestion
   value: string | string[] | undefined
@@ -476,14 +502,46 @@ function QuestionField({
   onToggleOption: (optionId: string) => void
   onOtherTextChange: (text: string) => void
   onEnter: () => void
+  onUploadFile?: (file: File) => Promise<LeadFormUploadedFile>
+  onUploadingChange: (uploading: boolean) => void
 }) {
+  const mutedText = theme.text ? { color: theme.text, opacity: 0.7 } : undefined
+  const buttons = (question.buttons ?? []).filter((b) => b.label.trim() && b.url.trim())
+  // Botões com link (ex: "Enviar fotos no Drive") — abrem em outra aba, o lead continua no formulário.
+  const linkButtons =
+    buttons.length > 0 ? (
+      <div className={`mb-3 flex flex-wrap gap-2 ${JUSTIFY_CLASS[align]}`}>
+        {buttons.map((b) => (
+          <a
+            key={b.id}
+            href={normalizeUrl(b.url) ?? '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ background: theme.primary, color: theme.buttonText }}
+            className={`inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 ${buttonAnimationClass(b.animation)}`}
+          >
+            {b.label}
+          </a>
+        ))}
+      </div>
+    ) : null
+  const note = question.note?.trim() ? (
+    <p className={`mt-3 whitespace-pre-wrap text-xs leading-relaxed text-slate-500 ${TEXT_ALIGN_CLASS[align]}`} style={mutedText}>
+      <LeadFormRichText text={question.note} linkColor={theme.primary} />
+    </p>
+  ) : null
   const heading = (
     <>
-      <span className={`mb-1.5 block text-base font-medium text-slate-800 ${TEXT_ALIGN_CLASS[align]}`} style={theme.text ? { color: theme.text } : undefined}>
+      <span className={`mb-1.5 block whitespace-pre-wrap text-base font-medium text-slate-800 ${TEXT_ALIGN_CLASS[align]}`} style={theme.text ? { color: theme.text } : undefined}>
         {question.label || <span className="text-slate-300">Texto da pergunta</span>}
         {question.required && <span className="text-red-400"> *</span>}
       </span>
-      {question.description && <span className={`mb-2.5 block whitespace-pre-wrap text-sm text-slate-500 ${TEXT_ALIGN_CLASS[align]}`} style={theme.text ? { color: theme.text, opacity: 0.7 } : undefined}>{question.description}</span>}
+      {question.description && (
+        <span className={`mb-3 block whitespace-pre-wrap text-sm leading-relaxed text-slate-500 ${TEXT_ALIGN_CLASS[align]}`} style={mutedText}>
+          <LeadFormRichText text={question.description} linkColor={theme.primary} />
+        </span>
+      )}
+      {linkButtons}
     </>
   )
   const inputClass = `w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
@@ -500,8 +558,9 @@ function QuestionField({
     return (
       <label className="block">
         {heading}
-        <textarea rows={4} autoFocus={autoFocus} className={`${inputClass} resize-none`} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+        <textarea rows={4} autoFocus={autoFocus} placeholder={question.placeholder} className={`${inputClass} resize-none`} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
         {error === 'required' && <p className="mt-1 text-xs text-red-500">Campo obrigatório</p>}
+        {note}
       </label>
     )
   }
@@ -509,11 +568,10 @@ function QuestionField({
   if (question.type === 'single_choice' || question.type === 'multi_choice') {
     const isMulti = question.type === 'multi_choice'
     const selected = isMulti ? ((value as string[] | undefined) ?? []) : value ? [value as string] : []
-    const options = [
-      ...(question.options ?? []).filter((o) => o.label.trim()),
-      ...(question.allowOther ? [{ id: OTHER_OPTION_ID, label: question.otherLabel?.trim() || 'Outro' }] : []),
-    ]
+    const options = orderedOptions(question).filter((o) => o.id === OTHER_OPTION_ID || o.label.trim())
     const otherPicked = selected.includes(OTHER_OPTION_ID)
+    // Mensagens das opções marcadas (ex: "Perfeito! Nossa equipe vai te chamar").
+    const messages = options.filter((o) => selected.includes(o.id) && o.message?.trim())
     return (
       <div>
         {heading}
@@ -555,8 +613,18 @@ function QuestionField({
             />
           </label>
         )}
+        {messages.map((o) => (
+          <div
+            key={o.id}
+            className={`lf-message mt-3 whitespace-pre-wrap rounded-lg border px-3.5 py-3 text-sm font-medium leading-relaxed text-slate-700 ${TEXT_ALIGN_CLASS[align]}`}
+            style={{ borderColor: `${theme.primary}55`, background: `${theme.primary}14`, color: theme.text || undefined }}
+          >
+            <LeadFormRichText text={o.message!} linkColor={theme.primary} />
+          </div>
+        ))}
         {error === 'required' && <p className="mt-1 text-xs text-red-500">{isMulti ? 'Escolha ao menos uma opção' : 'Escolha uma opção'}</p>}
         {error === 'other' && <p className="mt-1 text-xs text-red-500">Conte pra gente o que é</p>}
+        {note}
       </div>
     )
   }
@@ -582,6 +650,7 @@ function QuestionField({
         />
         {error === 'required' && <p className="mt-1 text-xs text-red-500">Preencha os campos marcados</p>}
         {error === 'invalid' && <p className="mt-1 text-xs text-red-500">Confira os campos marcados: WhatsApp com DDD e e-mail no formato nome@empresa.com</p>}
+        {note}
       </div>
     )
   }
@@ -592,7 +661,93 @@ function QuestionField({
         {heading}
         <AddressQuestionField value={Array.isArray(value) ? value : []} onChange={onChange as unknown as (v: string[]) => void} autoFocus={autoFocus} invalid={error === 'required'} />
         {error === 'required' && <p className="mt-1 text-xs text-red-500">Preencha CEP, rua, número, bairro e cidade</p>}
+        {note}
       </div>
+    )
+  }
+
+  if (question.type === 'list') {
+    return (
+      <div>
+        {heading}
+        <ListAnswerField
+          value={Array.isArray(value) ? value : value ? [value] : []}
+          onChange={onChange as unknown as (v: string[]) => void}
+          placeholder={question.placeholder}
+          addLabel={question.addLabel}
+          autoFocus={autoFocus}
+          invalid={error === 'required'}
+          inputClass={inputClass}
+          theme={theme}
+        />
+        {error === 'required' && <p className="mt-1 text-xs text-red-500">Escreva pelo menos um</p>}
+        {note}
+      </div>
+    )
+  }
+
+  if (question.type === 'file') {
+    return (
+      <div>
+        {heading}
+        <FileAnswerField
+          value={Array.isArray(value) ? value : []}
+          onChange={onChange as unknown as (v: string[]) => void}
+          onUpload={onUploadFile}
+          onUploadingChange={onUploadingChange}
+          invalid={error === 'required'}
+          theme={theme}
+        />
+        {error === 'required' && <p className="mt-1 text-xs text-red-500">Envie o arquivo pra continuar</p>}
+        {error === 'uploading' && <p className="mt-1 text-xs text-red-500">Espere o envio terminar</p>}
+        {note}
+      </div>
+    )
+  }
+
+  if (question.type === 'confirm') {
+    return (
+      <div>
+        {heading}
+        <ConfirmAnswerField
+          checked={value === 'yes'}
+          label={question.confirmLabel?.trim() || 'Confirmo'}
+          onChange={(c) => onChange(c ? 'yes' : '')}
+          invalid={error === 'required'}
+          theme={theme}
+        />
+        {error === 'required' && <p className="mt-1 text-xs text-red-500">Marque a caixinha pra continuar</p>}
+        {note}
+      </div>
+    )
+  }
+
+  if (question.type === 'document' || question.type === 'link') {
+    const isDoc = question.type === 'document'
+    const problem = error === 'invalid' ? (isDoc ? documentError(value as string) : linkError(value as string)) : null
+    return (
+      <label className="block">
+        {heading}
+        <input
+          autoFocus={autoFocus}
+          type={isDoc ? 'text' : 'url'}
+          inputMode={isDoc ? 'numeric' : 'url'}
+          autoCapitalize="off"
+          placeholder={question.placeholder || (isDoc ? '00.000.000/0000-00 ou 000.000.000-00' : 'https://')}
+          className={`${inputClass} ${error === 'invalid' ? 'border-red-300' : ''}`}
+          value={(value as string) ?? ''}
+          onChange={(e) => onChange(isDoc ? maskDocument(e.target.value) : e.target.value)}
+          onKeyDown={handleEnterKey}
+        />
+        {isDoc && !error && (
+          <p className="mt-1 text-xs text-slate-400" style={mutedText}>
+            Ainda não tem CNPJ? Pode colocar o CPF.
+          </p>
+        )}
+        {error === 'required' && <p className="mt-1 text-xs text-red-500">Campo obrigatório</p>}
+        {problem && <p className="mt-1 text-xs text-red-500">{problem}</p>}
+        {note}
+      </label>
     )
   }
 
@@ -605,7 +760,7 @@ function QuestionField({
         autoFocus={autoFocus}
         type={inputType}
         inputMode={kind === 'phone' ? 'tel' : kind === 'email' ? 'email' : undefined}
-        placeholder={kind === 'phone' ? '(00) 00000-0000' : kind === 'email' ? 'nome@empresa.com' : undefined}
+        placeholder={question.placeholder || (kind === 'phone' ? '(00) 00000-0000' : kind === 'email' ? 'nome@empresa.com' : undefined)}
         className={`${inputClass} ${error === 'invalid' ? 'border-red-300' : ''}`}
         value={(value as string) ?? ''}
         onChange={(e) => onChange(kind === 'phone' ? maskPhone(e.target.value) : e.target.value)}
@@ -613,6 +768,7 @@ function QuestionField({
       />
       {error === 'required' && <p className="mt-1 text-xs text-red-500">Campo obrigatório</p>}
       {error === 'invalid' && kind && <p className="mt-1 text-xs text-red-500">{contactError(kind, value as string)}</p>}
+      {note}
     </label>
   )
 }

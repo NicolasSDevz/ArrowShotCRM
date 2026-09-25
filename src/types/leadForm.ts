@@ -1,7 +1,25 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
 
-export type LeadFormQuestionType = 'short_text' | 'long_text' | 'single_choice' | 'multi_choice' | 'phone' | 'email' | 'address' | 'fields'
+export type LeadFormQuestionType =
+  | 'short_text'
+  | 'long_text'
+  | 'single_choice'
+  | 'multi_choice'
+  | 'phone'
+  | 'email'
+  | 'address'
+  | 'fields'
+  /** CPF ou CNPJ, com a máscara certa conforme a quantidade de números. */
+  | 'document'
+  /** Vários itens de texto — o lead escreve um e toca em "+ Adicionar outro". */
+  | 'list'
+  /** O lead envia um ou mais arquivos (ex: a logo da empresa). */
+  | 'file'
+  /** Um endereço de site/link (Instagram, Google Drive, site…). */
+  | 'link'
+  /** Caixinha de confirmação (ex: "Já enviei as fotos"). */
+  | 'confirm'
 
 export const LEAD_FORM_QUESTION_TYPE_LABEL: Record<LeadFormQuestionType, string> = {
   short_text: 'Texto curto',
@@ -12,6 +30,11 @@ export const LEAD_FORM_QUESTION_TYPE_LABEL: Record<LeadFormQuestionType, string>
   email: 'E-mail',
   address: 'Endereço',
   fields: 'Vários campos',
+  document: 'CPF / CNPJ',
+  list: 'Lista (adicionar mais)',
+  file: 'Enviar arquivo',
+  link: 'Link',
+  confirm: 'Confirmação',
 }
 
 export type LeadFormSubfieldType = 'text' | 'number' | 'time' | 'date' | 'phone' | 'email' | 'cep'
@@ -65,6 +88,18 @@ export type LeadFormFieldRole = 'name' | 'whatsapp' | 'email' | 'company' | null
 export interface LeadFormQuestionOption {
   id: string
   label: string
+  /** Mensagem que aparece na tela quando o lead escolhe essa opção
+   *  (ex: "Perfeito! Nossa equipe vai te chamar no WhatsApp"). */
+  message?: string
+}
+
+/** Botão com link dentro de uma pergunta (ex: "📁 Enviar fotos no Drive") —
+ *  abre em outra aba, sem tirar o lead do formulário. */
+export interface LeadFormQuestionButton {
+  id: string
+  label: string
+  url: string
+  animation?: LeadFormButtonAnimation
 }
 
 /** Exibe a pergunta só quando a resposta da pergunta `questionId` (anterior
@@ -102,6 +137,20 @@ export interface LeadFormQuestion {
   otherLabel?: string
   /** Pergunta mostrada no campo de texto do "Outro" (padrão "Qual?"). */
   otherPrompt?: string
+  /** Posição do "Outro" entre as opções (0 = primeiro). Sem valor = último. */
+  otherIndex?: number
+  /** Mensagem mostrada quando o lead escolhe o "Outro". */
+  otherMessage?: string
+  /** Botões com link mostrados abaixo do texto de apoio. */
+  buttons?: LeadFormQuestionButton[]
+  /** Dica curta mostrada embaixo da resposta. */
+  note?: string
+  /** Texto de exemplo dentro do campo (texto, lista, link, CPF/CNPJ). */
+  placeholder?: string
+  /** Lista: texto do botão de adicionar (padrão "Adicionar outro"). */
+  addLabel?: string
+  /** Confirmação: o texto ao lado da caixinha. */
+  confirmLabel?: string
   condition?: LeadFormCondition | null
 }
 

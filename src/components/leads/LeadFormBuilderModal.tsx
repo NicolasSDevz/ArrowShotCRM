@@ -14,10 +14,10 @@ import { parseMetaPixelId } from '../../utils/metaPixel'
 import { LeadFormRenderer } from './LeadFormRenderer'
 import { FIELD_GROUP_PRESETS } from './leadFormFieldGroups'
 import { DEFAULT_FORM_COLORS, Toggle } from './LeadFormBuilderParts'
-import { conditionProblem, isChoiceType, newQuestion, visibleOptions } from './leadFormMeta'
+import { conditionProblem, fromOrderedOptions, isChoiceType, newQuestion, orderedOptions, visibleOptions } from './leadFormMeta'
 import { effectiveEndBlocks, normalizeUrl, outcomeRules, setDestination, type BuilderSelection, type LeadFormPreviewScreen } from './leadFormUtils'
 import { RoutingEditor } from './LeadFormRoutingEditor'
-import type { LeadForm, LeadFormBlock, LeadFormQuestion, LeadFormDesign, LeadFormOutcome, LeadFormFieldRole } from '../../types/leadForm'
+import { OTHER_OPTION_ID, type LeadForm, type LeadFormBlock, type LeadFormQuestion, type LeadFormDesign, type LeadFormOutcome, type LeadFormFieldRole } from '../../types/leadForm'
 
 const DEFAULT_THANK_YOU = 'Obrigado! Recebemos suas informações e vamos entrar em contato em breve.'
 
@@ -330,7 +330,12 @@ export function LeadFormBuilderModal({
         active,
         questions: questions.map((q) =>
           isChoiceType(q.type)
-            ? { ...q, label: q.label.trim(), options: (q.options ?? []).filter((o) => o.label.trim()) }
+            ? {
+                ...q,
+                label: q.label.trim(),
+                // Tira as opções em branco sem mudar a posição do "Outro".
+                ...fromOrderedOptions(orderedOptions(q).filter((o) => o.id === OTHER_OPTION_ID || o.label.trim())),
+              }
             : {
                 ...q,
                 label: q.label.trim(),
@@ -338,6 +343,8 @@ export function LeadFormBuilderModal({
                 allowOther: undefined,
                 otherLabel: undefined,
                 otherPrompt: undefined,
+                otherIndex: undefined,
+                otherMessage: undefined,
                 subfields: q.type === 'fields' ? (q.subfields ?? []).map((f) => ({ ...f, label: f.label.trim() })) : undefined,
               }
         ),

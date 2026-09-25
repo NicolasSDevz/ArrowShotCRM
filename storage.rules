@@ -50,6 +50,29 @@ service firebase.storage {
       allow delete: if isSignedIn();
     }
 
+    // /leadFormUploads/{formId}/{fileName} — arquivos que o LEAD envia numa
+    // pergunta do tipo "Arquivo" do formulário público (ex: a logo da empresa),
+    // sem login. Só dá pra CRIAR (nunca ler, trocar ou apagar sem login), com
+    // limite de 20 MB e só imagem, PDF, formatos de designer (AI/EPS/PSD/CDR)
+    // e ZIP. Quem baixa é a equipe, pela ficha do lead.
+    match /leadFormUploads/{formId}/{fileName} {
+      allow create: if request.resource.size < 20 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+          || request.resource.contentType in [
+            'application/pdf',
+            'application/postscript',
+            'application/illustrator',
+            'application/vnd.adobe.photoshop',
+            'application/x-coreldraw',
+            'application/cdr',
+            'application/zip',
+            'application/x-zip-compressed',
+            'application/octet-stream'
+          ]);
+      allow read: if isSignedIn();
+      allow update, delete: if false;
+    }
+
     // Deny everything else by default.
     match /{allPaths=**} {
       allow read, write: if false;

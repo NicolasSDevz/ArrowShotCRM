@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { Plus, Trash2, Copy, GitBranch, CornerDownRight, AlertTriangle, Info } from 'lucide-react'
+import { Plus, Trash2, Copy, GitBranch, CornerDownRight, AlertTriangle, Info, ArrowUp, ArrowDown, MessageSquareText } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { InfoTip } from '../ui/InfoTip'
 import { FieldGroupEditor } from './FieldGroupEditor'
 import { FIELD_GROUP_PRESETS } from './leadFormFieldGroups'
 import { EditorSection, Toggle, ImageUploadField } from './LeadFormBuilderParts'
-import { QUESTION_TYPE_META, ROLE_LABEL, conditionProblem, isChoiceType, visibleOptions } from './leadFormMeta'
-import type { LeadFormFieldRole, LeadFormQuestion, LeadFormQuestionType } from '../../types/leadForm'
+import { NO_ROLE_TYPES, QUESTION_TYPE_META, ROLE_LABEL, conditionProblem, fromOrderedOptions, isChoiceType, orderedOptions, visibleOptions } from './leadFormMeta'
+import { ButtonAnimationPicker } from './LeadFormBlocksEditor'
+import { OTHER_OPTION_ID, type LeadFormFieldRole, type LeadFormQuestion, type LeadFormQuestionButton, type LeadFormQuestionOption, type LeadFormQuestionType } from '../../types/leadForm'
 
 /** Painel de edição de UMA pergunta (a que está selecionada na lista de
  *  telas): texto, tipo, opções (com "Outro"), obrigatoriedade, lógica
@@ -31,8 +32,13 @@ export function LeadFormQuestionEditor({
   onDuplicate: () => void
 }) {
   const [focusOptionId, setFocusOptionId] = useState<string | null>(null)
+  // Opções com a caixa de "mensagem ao escolher" aberta (as que já têm mensagem ficam abertas sempre).
+  const [messageOpen, setMessageOpen] = useState<Set<string>>(new Set())
   const isChoice = isChoiceType(q.type)
   const options = q.options ?? []
+  // Ordem que o lead vê, com o "Outro" na posição dele — é essa lista que sobe/desce.
+  const ordered = orderedOptions(q)
+  const saveOrdered = (list: LeadFormQuestionOption[]) => onChange(fromOrderedOptions(list))
   const usedRoles = new Set(questions.filter((o) => o.id !== q.id).map((o) => o.role).filter((r): r is NonNullable<LeadFormFieldRole> => !!r))
 
   const setType = (type: LeadFormQuestionType) => {
@@ -44,31 +50,48 @@ export function LeadFormQuestionEditor({
         { id: crypto.randomUUID(), label: '' },
       ]
     }
-    if (isChoiceType(type) || type === 'address' || type === 'fields') patch.role = null
+    if (NO_ROLE_TYPES.has(type)) patch.role = null
+    if (type === 'confirm' && !q.confirmLabel) patch.confirmLabel = 'Confirmo'
     if (type === 'fields' && !(q.subfields ?? []).length) patch.subfields = FIELD_GROUP_PRESETS.find((p) => p.key === 'custom')!.make()
     onChange(patch)
   }
 
   const updateOption = (optId: string, label: string) => onChange({ options: options.map((o) => (o.id === optId ? { ...o, label } : o)) })
-  const removeOption = (optId: string) => onChange({ options: options.filter((o) => o.id !== optId) })
+  const setOptionMessage = (optId: string, message: string) =>
+    optId === OTHER_OPTION_ID
+      ? onChange({ otherMessage: message })
+      : onChange({ options: options.map((o) => (o.id === optId ? { ...o, message } : o)) })
+  const removeOption = (optId: string) => saveOrdered(ordered.filter((o) => o.id !== optId))
+  const moveOption = (optId: string, dir: -1 | 1) => {
+    const i = ordered.findIndex((o) => o.id === optId)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= ordered.length) return
+    const next = [...ordered]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    saveOrdered(next)
+  }
   const addOptionAfter = (afterId?: string) => {
     const created = { id: crypto.randomUUID(), label: '' }
-    const at = afterId ? options.findIndex((o) => o.id === afterId) + 1 : options.length
-    onChange({ options: [...options.slice(0, at), created, ...options.slice(at)] })
+    // Sem referência: entra no fim das opções normais (antes do "Outro" se ele for o último).
+    const at = afterId ? ordered.findIndex((o) => o.id === afterId) + 1 : q.otherIndex == null ? ordered.filter((o) => o.id !== OTHER_OPTION_ID).length : ordered.length
+    saveOrdered([...ordered.slice(0, at), created, ...ordered.slice(at)])
     setFocusOptionId(created.id)
   }
+  const buttons = q.buttons ?? []
+  const setButtons = (next: LeadFormQuestionButton[]) => onChange({ buttons: next })
+  const updateButton = (id: string, patch: Partial<LeadFormQuestionButton>) => setButtons(buttons.map((b) => (b.id === id ? { ...b, ...patch } : b)))
   /** Colar uma lista (uma opção por linha) cria todas de uma vez. */
   const pasteOptions = (optId: string, text: string) => {
     const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
     if (lines.length < 2) return false
-    const at = options.findIndex((o) => o.id === optId)
-    const current = options[at]
+    const at = ordered.findIndex((o) => o.id === optId)
+    const current = ordered[at]
     const replaceCurrent = !current.label.trim()
     const created = lines.slice(replaceCurrent ? 1 : 0).map((label) => ({ id: crypto.randomUUID(), label }))
-    const next = options.map((o) => (o.id === optId && replaceCurrent ? { ...o, label: lines[0] } : o))
+    const next = ordered.map((o) => (o.id === optId && replaceCurrent ? { ...o, label: lines[0] } : o))
     next.splice(at + 1, 0, ...created)
     // Os campos em branco que já existiam só atrapalham depois de colar a lista.
-    onChange({ options: next.filter((o) => o.label.trim()) })
+    saveOrdered(next.filter((o) => o.id === OTHER_OPTION_ID || o.label.trim()))
     return true
   }
 
@@ -107,7 +130,15 @@ export function LeadFormQuestionEditor({
           <Textarea rows={2} value={q.label} onChange={(e) => onChange({ label: e.target.value })} placeholder='Ex: "Qual serviço você está procurando?"' />
         </Field>
         <Field label="Texto de apoio (opcional)">
-          <Input value={q.description ?? ''} onChange={(e) => onChange({ description: e.target.value })} placeholder="Uma dica curta abaixo da pergunta" />
+          <Textarea
+            rows={Math.min(8, Math.max(3, (q.description ?? '').split('\n').length + 1))}
+            value={q.description ?? ''}
+            onChange={(e) => onChange({ description: e.target.value })}
+            placeholder={'Uma explicação abaixo da pergunta.\nPode quebrar linha, usar emoji e **negrito**.'}
+          />
+          <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+            Enter quebra a linha · **texto** fica em negrito · links (https://… ou www.…) ficam clicáveis
+          </p>
         </Field>
 
         <div>
@@ -139,41 +170,92 @@ export function LeadFormQuestionEditor({
       {isChoice && (
         <EditorSection title="Opções de resposta" hint="Dica: cole uma lista (uma opção por linha) no primeiro campo e todas são criadas de uma vez. Enter cria a próxima.">
           <div className="flex flex-col gap-1.5">
-            {options.map((opt, i) => (
-              <div key={opt.id} className="flex items-center gap-1.5">
-                <span className="w-4 shrink-0 text-center text-[11px] text-slate-300">{i + 1}</span>
-                <Input
-                  autoFocus={opt.id === focusOptionId}
-                  value={opt.label}
-                  onChange={(e) => updateOption(opt.id, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addOptionAfter(opt.id)
-                    }
-                  }}
-                  onPaste={(e) => {
-                    if (pasteOptions(opt.id, e.clipboardData.getData('text'))) e.preventDefault()
-                  }}
-                  placeholder={`Opção ${i + 1}`}
-                  className="flex-1"
-                />
-                <button type="button" onClick={() => removeOption(opt.id)} disabled={options.length <= 1} className="rounded p-1.5 text-slate-300 hover:text-red-500 disabled:opacity-30">
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            ))}
-            {q.allowOther && (
-              <div className="flex items-center gap-1.5">
-                <span className="w-4 shrink-0 text-center text-[11px] text-slate-300">
-                  <CornerDownRight size={11} />
-                </span>
-                <div className="flex h-[38px] flex-1 items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 text-sm text-slate-500">
-                  {q.otherLabel?.trim() || 'Outro'} <span className="ml-1.5 text-xs text-slate-400">(o lead escreve o que é)</span>
+            {ordered.map((opt, i) => {
+              const isOther = opt.id === OTHER_OPTION_ID
+              const showMessage = messageOpen.has(opt.id) || !!opt.message
+              return (
+                <div key={opt.id} className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1">
+                    <span className="w-4 shrink-0 text-center text-[11px] text-slate-300">{isOther ? <CornerDownRight size={11} className="mx-auto" /> : i + 1}</span>
+                    {isOther ? (
+                      <div className="flex h-[38px] min-w-0 flex-1 items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 text-sm text-slate-500">
+                        <span className="truncate">{q.otherLabel?.trim() || 'Outro'}</span>
+                        <span className="ml-1.5 shrink-0 text-xs text-slate-400">(o lead escreve)</span>
+                      </div>
+                    ) : (
+                      <Input
+                        autoFocus={opt.id === focusOptionId}
+                        value={opt.label}
+                        onChange={(e) => updateOption(opt.id, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            addOptionAfter(opt.id)
+                          }
+                        }}
+                        onPaste={(e) => {
+                          if (pasteOptions(opt.id, e.clipboardData.getData('text'))) e.preventDefault()
+                        }}
+                        placeholder={`Opção ${i + 1}`}
+                        className="min-w-0 flex-1"
+                      />
+                    )}
+                    <div className="flex shrink-0 flex-col">
+                      <button type="button" onClick={() => moveOption(opt.id, -1)} disabled={i === 0} title="Subir" className="rounded p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-30">
+                        <ArrowUp size={12} />
+                      </button>
+                      <button type="button" onClick={() => moveOption(opt.id, 1)} disabled={i === ordered.length - 1} title="Descer" className="rounded p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-30">
+                        <ArrowDown size={12} />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMessageOpen((prev) => new Set(prev).add(opt.id))}
+                      title="Mostrar uma mensagem quando escolherem esta opção"
+                      className={`shrink-0 rounded p-1.5 hover:text-brand-600 ${opt.message ? 'text-brand-600' : 'text-slate-300'}`}
+                    >
+                      <MessageSquareText size={13} />
+                    </button>
+                    {!isOther && (
+                      <button type="button" onClick={() => removeOption(opt.id)} disabled={options.length <= 1} title="Excluir opção" className="shrink-0 rounded p-1.5 text-slate-300 hover:text-red-500 disabled:opacity-30">
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                  {showMessage && (
+                    <div className="ml-5 flex items-start gap-1.5">
+                      <Textarea
+                        rows={2}
+                        autoFocus={messageOpen.has(opt.id) && !opt.message}
+                        value={opt.message ?? ''}
+                        onChange={(e) => setOptionMessage(opt.id, e.target.value)}
+                        placeholder="Mensagem que aparece ao escolher (ex: Perfeito! Nossa equipe vai te chamar no WhatsApp com a proposta.)"
+                        className="flex-1 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOptionMessage(opt.id, '')
+                          setMessageOpen((prev) => {
+                            const next = new Set(prev)
+                            next.delete(opt.id)
+                            return next
+                          })
+                        }}
+                        title="Tirar a mensagem"
+                        className="mt-1 rounded p-1 text-slate-300 hover:text-red-500"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )
+            })}
           </div>
+          <p className="text-[11px] leading-relaxed text-slate-400">
+            As setas mudam a ordem (o "Outro" também). O balãozinho <MessageSquareText size={10} className="inline" /> mostra uma mensagem na tela quando a opção é escolhida.
+          </p>
           <button type="button" onClick={() => addOptionAfter()} className="flex w-fit items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
             <Plus size={12} /> Adicionar opção
           </button>
@@ -212,11 +294,90 @@ export function LeadFormQuestionEditor({
         </EditorSection>
       )}
 
+      {(q.type === 'short_text' || q.type === 'long_text' || q.type === 'document' || q.type === 'link' || q.type === 'list') && (
+        <EditorSection title="Campo de resposta" collapsible defaultOpen={q.type === 'list' || !!q.placeholder}>
+          <Field label="Texto de exemplo dentro do campo (opcional)">
+            <Input
+              value={q.placeholder ?? ''}
+              onChange={(e) => onChange({ placeholder: e.target.value })}
+              placeholder={q.type === 'link' ? 'Ex: instagram.com/suaempresa' : q.type === 'list' ? 'Ex: Limpeza pós-obra' : q.type === 'document' ? '00.000.000/0000-00' : 'Ex: Escreva aqui'}
+            />
+          </Field>
+          {q.type === 'list' && (
+            <Field label="Texto do botão de adicionar">
+              <Input value={q.addLabel ?? ''} onChange={(e) => onChange({ addLabel: e.target.value })} placeholder="Adicionar outro" />
+            </Field>
+          )}
+          {q.type === 'document' && <p className="text-xs text-slate-400">Aceita CNPJ ou CPF (quem ainda não tem empresa aberta). A máscara e a checagem dos números são automáticas.</p>}
+          {q.type === 'link' && <p className="text-xs text-slate-400">Aceita com ou sem "https://" — o link já vai clicável pra ficha do lead.</p>}
+        </EditorSection>
+      )}
+
+      {q.type === 'confirm' && (
+        <EditorSection title="Caixinha de confirmação">
+          <Field label="Texto ao lado da caixinha" required>
+            <Input value={q.confirmLabel ?? ''} onChange={(e) => onChange({ confirmLabel: e.target.value })} placeholder="Já enviei as fotos da fachada" />
+          </Field>
+          <p className="text-xs text-slate-400">Com "Resposta obrigatória" ligado, o lead só continua depois de marcar. Fica registrado na ficha do lead.</p>
+        </EditorSection>
+      )}
+
+      {q.type === 'file' && (
+        <EditorSection title="Arquivos">
+          <p className="text-xs leading-relaxed text-slate-500">
+            O lead escolhe até 5 arquivos (imagem, PDF, AI, CDR, PSD, SVG ou ZIP, até 20 MB cada). Eles ficam na ficha do lead, em
+            "Respostas do formulário", com botão de baixar.
+          </p>
+        </EditorSection>
+      )}
+
+      <EditorSection
+        title="Botões com link (opcional)"
+        hint='Ex: "📁 Enviar fotos no Drive". Aparecem abaixo do texto de apoio e abrem em outra aba — o lead não sai do formulário.'
+        collapsible
+        defaultOpen={buttons.length > 0}
+        badge={buttons.length > 0 ? <span className="rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700">{buttons.length}</span> : undefined}
+      >
+        {buttons.map((b, i) => (
+          <div key={b.id} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">Botão {i + 1}</span>
+              <button type="button" onClick={() => setButtons(buttons.filter((x) => x.id !== b.id))} title="Excluir botão" className="rounded p-1 text-slate-300 hover:text-red-500">
+                <Trash2 size={13} />
+              </button>
+            </div>
+            <Field label="Texto do botão">
+              <Input value={b.label} onChange={(e) => updateButton(b.id, { label: e.target.value })} placeholder="📁 Enviar fotos no Drive" />
+            </Field>
+            <Field label="Link">
+              <Input value={b.url} onChange={(e) => updateButton(b.id, { url: e.target.value })} placeholder="https://drive.google.com/…" />
+            </Field>
+            <ButtonAnimationPicker value={b.animation} onChange={(animation) => updateButton(b.id, { animation })} />
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => setButtons([...buttons, { id: crypto.randomUUID(), label: '', url: '' }])}
+          className="flex w-fit items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
+        >
+          <Plus size={12} /> Adicionar botão
+        </button>
+      </EditorSection>
+
+      <EditorSection title="Dica embaixo da resposta (opcional)" collapsible defaultOpen={!!q.note}>
+        <Textarea
+          rows={2}
+          value={q.note ?? ''}
+          onChange={(e) => onChange({ note: e.target.value })}
+          placeholder="Ex: Tire as fotos de dia, de frente e mostrando a placa com o nome da empresa."
+        />
+      </EditorSection>
+
       <EditorSection title="Regras">
         <Toggle checked={q.required} onChange={(v) => onChange({ required: v })} label="Resposta obrigatória" hint="O lead não avança sem responder." />
         <Field label="Guardar essa resposta no cadastro do lead como">
           <div className="flex items-center gap-1.5">
-            <Select value={q.role ?? ''} onChange={(e) => onChange({ role: (e.target.value || null) as LeadFormFieldRole })} disabled={isChoice || q.type === 'address' || q.type === 'fields'}>
+            <Select value={q.role ?? ''} onChange={(e) => onChange({ role: (e.target.value || null) as LeadFormFieldRole })} disabled={NO_ROLE_TYPES.has(q.type)}>
               <option value="">Só resposta (fica na ficha do lead)</option>
               {(Object.entries(ROLE_LABEL) as [NonNullable<LeadFormFieldRole>, string][]).map(([r, l]) => (
                 <option key={r} value={r} disabled={usedRoles.has(r) && q.role !== r}>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FormAnswerValue } from './FormAnswerValue'
 import { useNavigate } from 'react-router-dom'
 import { Timestamp } from 'firebase/firestore'
 import { format } from 'date-fns'
@@ -74,7 +75,7 @@ function InfoTab({ lead }: { lead: Lead }) {
             {lead.formAnswers.map((a) => (
               <div key={a.questionId}>
                 <p className="text-xs text-slate-400">{a.label}</p>
-                <p className="text-sm text-slate-700">{a.value}</p>
+                <FormAnswerValue value={a.value} />
               </div>
             ))}
           </div>

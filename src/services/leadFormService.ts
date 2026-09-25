@@ -10,7 +10,11 @@ import {
   Timestamp,
   type FirestoreError,
 } from 'firebase/firestore'
-import { db } from '../firebase/config'
+import { ref, uploadBytes } from 'firebase/storage'
+import { db, storage } from '../firebase/config'
+import { orderedOptions } from '../components/leads/leadFormMeta'
+import { normalizeLinkAnswer } from '../utils/validation'
+import type { LeadFormUploadedFile } from '../utils/leadFormFiles'
 import { formatFieldsAnswer } from '../components/leads/leadFormFieldGroups'
 import { formatAddressAnswer, OTHER_OPTION_ID, type LeadForm, type LeadFormInput, type LeadFormAnswer, type LeadFormQuestion } from '../types/leadForm'
 import type { Lead } from '../types/lead'
@@ -114,6 +118,10 @@ function findRoleAnswer(
 function answerToText(q: LeadFormQuestion, raw: string | string[], otherText?: string): string {
   if (q.type === 'fields') return Array.isArray(raw) ? formatFieldsAnswer(q, raw) : raw
   if (q.type === 'address') return Array.isArray(raw) ? formatAddressAnswer(raw) : raw
+  if (q.type === 'list') return (Array.isArray(raw) ? raw : [raw]).map((v) => v.trim()).filter(Boolean).map((v) => `• ${v}`).join('\n')
+  if (q.type === 'file') return (Array.isArray(raw) ? raw : [raw]).filter(Boolean).join('\n')
+  if (q.type === 'confirm') return raw === 'yes' ? `Sim — ${q.confirmLabel?.trim() || 'confirmado'}` : ''
+  if (q.type === 'link' && typeof raw === 'string') return normalizeLinkAnswer(raw)
   if (q.type !== 'single_choice' && q.type !== 'multi_choice') return Array.isArray(raw) ? raw.join(', ') : raw
   const ids = Array.isArray(raw) ? raw : [raw]
   return ids
@@ -122,7 +130,7 @@ function answerToText(q: LeadFormQuestion, raw: string | string[], otherText?: s
         const label = q.otherLabel?.trim() || 'Outro'
         return otherText?.trim() ? `${label}: ${otherText.trim()}` : label
       }
-      return q.options?.find((o) => o.id === id)?.label ?? id
+      return orderedOptions(q).find((o) => o.id === id)?.label ?? id
     })
     .join(', ')
 }
@@ -170,4 +178,14 @@ export async function submitLeadFormResponse(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+}
+
+/** Arquivo enviado pelo lead numa pergunta do tipo "Arquivo" (página pública,
+ *  sem login). O nome ganha um prefixo aleatório pra dois envios com o mesmo
+ *  nome não se sobrescreverem. */
+export async function uploadLeadFormFile(formId: string, file: File): Promise<LeadFormUploadedFile> {
+  const safe = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(-80) || 'arquivo'
+  const path = `leadFormUploads/${formId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safe}`
+  await uploadBytes(ref(storage, path), file, { contentType: file.type || 'application/octet-stream' })
+  return { name: file.name, path }
 }
