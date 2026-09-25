@@ -10,7 +10,6 @@ import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
-  AlertTriangle,
   ArrowUpRight,
   UserPlus,
   Info,
@@ -30,6 +29,8 @@ import { EmptyState } from '../ui/EmptyState'
 import { InfoTip } from '../ui/InfoTip'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { ChurnDetailModal } from './ChurnDetailModal'
+import { Card, CardTitle } from './DashboardCard'
+import { AlertsCard, ClientFlowCard, RevenueGeneratedCard, SalesSection } from './GrowthSections'
 import { ClientsStatusChart } from './ClientsStatusChart'
 import { UpsellRevenueChart } from './UpsellRevenueChart'
 import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
@@ -87,25 +88,6 @@ const TIPS = {
     body: 'Soma dos contratos mensais dos clientes de cada gestor. Mostra o peso de cada gestor na receita total da agência.',
   },
 } as const
-
-function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <div
-      className={`flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)] ${className}`}
-    >
-      {children}
-    </div>
-  )
-}
-
-function CardTitle({ children, tip }: { children: ReactNode; tip?: { title?: string; body: ReactNode } }) {
-  return (
-    <div className="mb-3 flex items-start justify-between gap-2">
-      <p className="text-[15px] font-semibold text-slate-900">{children}</p>
-      {tip && <InfoTip title={tip.title}>{tip.body}</InfoTip>}
-    </div>
-  )
-}
 
 function DeltaChip({ pct }: { pct: number | null }) {
   if (pct == null || !Number.isFinite(pct)) return null
@@ -433,25 +415,14 @@ export function OverviewDashboard() {
         </Button>
       </div>
 
-      {clientsWithoutValueList.length > 0 && (
-        <div className="flex flex-col gap-2 self-start rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          <p className="flex items-center gap-2 font-medium">
-            <AlertTriangle size={13} />
-            {clientsWithoutValueList.length} {clientsWithoutValueList.length === 1 ? 'cliente sem' : 'clientes sem'} valor cadastrado — clique para completar a ficha
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {clientsWithoutValueList.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => navigate(`/clientes/${c.id}`)}
-                className="rounded-md border border-amber-300 bg-white px-2 py-1 font-medium text-amber-800 hover:bg-amber-100"
-              >
-                {isPrivacyMode ? '••••••' : c.companyName}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Alertas: o que precisa de atenção agora (inclui clientes sem valor cadastrado). */}
+      <AlertsCard
+        leads={leads}
+        pipelines={leadPipelines}
+        tasks={tasks}
+        atRiskCount={atRisk.length}
+        clientsWithoutValue={clientsWithoutValueList}
+      />
 
       {/* LINHA 1 — Cards de métricas */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -497,6 +468,12 @@ export function OverviewDashboard() {
         <CardTitle>Evolução do MRR — últimos 6 meses</CardTitle>
         <MrrChart series={mrrSeries} />
       </Card>
+
+      {/* LINHA 2.2 — Receita gerada no mês + Entradas e saídas de clientes */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <RevenueGeneratedCard clients={clients} upsells={upsellActivities} />
+        <ClientFlowCard clients={clients} />
+      </div>
 
       {/* LINHA 2.5 — Carteira de clientes + Receita de Upsell */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -554,6 +531,9 @@ export function OverviewDashboard() {
           </div>
         </Card>
       </div>
+
+      {/* LINHA 3.5 — Vendas e marketing: origem dos leads + comercial */}
+      <SalesSection leads={leads} pipelines={leadPipelines} />
 
       {/* LINHA 4 — Upsell / Risco / Novos */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
