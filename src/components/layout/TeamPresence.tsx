@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Users } from 'lucide-react'
 import { useUsers } from '../../hooks/useUsers'
 import { useNow } from '../../hooks/useNow'
 import { useAuth } from '../../context/AuthContext'
 import { PresenceAvatar } from '../ui/PresenceAvatar'
-import { Avatar } from '../ui/Avatar'
 import { getPresence } from '../../utils/presence'
 
 /** Botão da barra superior "quem está online" — abre uma lista estilo
@@ -14,7 +13,18 @@ export function TeamPresence() {
   const { profile } = useAuth()
   const { data: users } = useUsers()
   const now = useNow()
-  const [open, setOpen] = useState(false)
+  // Abre ao passar o mouse (e fecha ao sair); clicar deixa aberto até clicar fora — útil no celular.
+  const [hovering, setHovering] = useState(false)
+  const [pinned, setPinned] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const open = hovering || pinned
+  const onEnter = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    setHovering(true)
+  }
+  const onLeave = () => {
+    closeTimer.current = setTimeout(() => setHovering(false), 150)
+  }
 
   const people = useMemo(
     () =>
@@ -25,40 +35,27 @@ export function TeamPresence() {
     [users, now]
   )
   const onlineCount = people.filter((p) => p.presence.online).length
-  // No botão: rostos de quem MAIS está online (você sempre está, não precisa aparecer).
+  // Você sempre está online — o pontinho verde só acende se tem MAIS alguém.
   const othersOnline = people.filter((p) => p.presence.online && p.user.id !== profile?.id)
-  const shown = othersOnline.slice(0, 3)
-  const extra = othersOnline.length - shown.length
 
   return (
-    <div className="relative">
+    <div className="relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
       <button
-        onClick={() => setOpen((v) => !v)}
-        title={othersOnline.length === 0 ? 'Ninguém mais online agora' : `Online agora: ${othersOnline.map((p) => p.user.name.split(' ')[0]).join(', ')}`}
+        onClick={() => setPinned((v) => !v)}
         aria-label="Quem está online"
-        className="flex h-9 items-center rounded-full px-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+        aria-expanded={open}
+        className="relative rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
       >
-        {shown.length === 0 ? (
-          <Users size={17} className="mx-0.5" />
-        ) : (
-          <span className="flex items-center">
-            <span className="flex -space-x-2">
-              {shown.map(({ user }) => (
-                <span key={user.id} className="topbar-stack-ring rounded-full ring-2 ring-white">
-                  <Avatar name={user.name} photoURL={user.photoURL} size="sm" />
-                </span>
-              ))}
-            </span>
-            {extra > 0 && <span className="ml-1 text-xs font-semibold text-slate-500">+{extra}</span>}
-            <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-          </span>
-        )}
+        <Users size={18} />
+        {othersOnline.length > 0 && <span className="topbar-stack-ring absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />}
       </button>
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-lg">
+          {pinned && <div className="fixed inset-0 z-10" onClick={() => { setPinned(false); setHovering(false) }} />}
+          {/* pt-2 (e não mt-2): o espaço entre o botão e a lista também conta como "em cima", senão fecharia no caminho. */}
+          <div className="absolute right-0 z-20 pt-2">
+          <div className="w-72 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-lg">
             <div className="border-b border-slate-100 px-3.5 py-2.5">
               <p className="text-sm font-semibold text-slate-800">Equipe</p>
               <p className="text-xs text-slate-400">
@@ -80,6 +77,7 @@ export function TeamPresence() {
               ))}
               {people.length === 0 && <li className="px-3.5 py-3 text-sm text-slate-400">Ninguém cadastrado ainda.</li>}
             </ul>
+          </div>
           </div>
         </>
       )}
