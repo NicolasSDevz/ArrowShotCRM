@@ -562,3 +562,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .lf-anim, .lf-anim::after { animation: none !important; }
 }
+
+/* Topo: anel dos rostos empilhados e da bolinha do sino acompanha o fundo do header. */
+:root[data-theme="dark"] .topbar-stack-ring {
+  --tw-ring-color: var(--dk-surface) !important;
+}

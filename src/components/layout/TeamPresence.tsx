@@ -4,6 +4,7 @@ import { useUsers } from '../../hooks/useUsers'
 import { useNow } from '../../hooks/useNow'
 import { useAuth } from '../../context/AuthContext'
 import { PresenceAvatar } from '../ui/PresenceAvatar'
+import { Avatar } from '../ui/Avatar'
 import { getPresence } from '../../utils/presence'
 
 /** Botão da barra superior "quem está online" — abre uma lista estilo
@@ -24,19 +25,32 @@ export function TeamPresence() {
     [users, now]
   )
   const onlineCount = people.filter((p) => p.presence.online).length
+  // No botão: rostos de quem MAIS está online (você sempre está, não precisa aparecer).
+  const othersOnline = people.filter((p) => p.presence.online && p.user.id !== profile?.id)
+  const shown = othersOnline.slice(0, 3)
+  const extra = othersOnline.length - shown.length
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        title="Quem está online"
+        title={othersOnline.length === 0 ? 'Ninguém mais online agora' : `Online agora: ${othersOnline.map((p) => p.user.name.split(' ')[0]).join(', ')}`}
         aria-label="Quem está online"
-        className="relative rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+        className="flex h-9 items-center rounded-full px-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
       >
-        <Users size={18} />
-        {onlineCount > 0 && (
-          <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold leading-none text-white">
-            {onlineCount}
+        {shown.length === 0 ? (
+          <Users size={17} className="mx-0.5" />
+        ) : (
+          <span className="flex items-center">
+            <span className="flex -space-x-2">
+              {shown.map(({ user }) => (
+                <span key={user.id} className="topbar-stack-ring rounded-full ring-2 ring-white">
+                  <Avatar name={user.name} photoURL={user.photoURL} size="sm" />
+                </span>
+              ))}
+            </span>
+            {extra > 0 && <span className="ml-1 text-xs font-semibold text-slate-500">+{extra}</span>}
+            <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
           </span>
         )}
       </button>
