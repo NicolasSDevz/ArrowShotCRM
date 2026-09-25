@@ -36,18 +36,23 @@ const QUOTES = [
   'A pergunta certa pro cliente vale mais que dez slides de relatório.',
 ]
 
-/** Escolhe uma frase por dia — mesma pro dia inteiro pra todo mundo,
- *  troca sozinha à meia-noite (sem precisar de Firestore/cron: é só o
- *  dia do ano usado como índice, com wraparound na lista). */
-function quoteOfTheDay(): string {
+/** Escolhe uma frase por dia útil — mesma pro dia inteiro pra todo mundo,
+ *  troca sozinha à meia-noite (sem precisar de Firestore/cron). Sábado e
+ *  domingo não tem frase. O índice conta só dias úteis desde uma data fixa,
+ *  então nenhuma frase é "gasta" num fim de semana. */
+function quoteOfTheDay(): string | null {
   const now = new Date()
-  const start = new Date(now.getFullYear(), 0, 0)
-  const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86_400_000)
-  return QUOTES[dayOfYear % QUOTES.length]
+  const dow = now.getDay()
+  if (dow === 0 || dow === 6) return null
+  // 05/01/1970 foi uma segunda-feira: semanas completas × 5 + dia da semana.
+  const days = Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(1970, 0, 5)) / 86_400_000)
+  const businessDays = Math.floor(days / 7) * 5 + (days % 7)
+  return QUOTES[businessDays % QUOTES.length]
 }
 
 export function MotivationalQuoteBanner() {
   const quote = useMemo(() => quoteOfTheDay(), [])
+  if (!quote) return null
 
   return (
     <div className="flex items-start gap-3 rounded-2xl bg-gradient-to-r from-brand-600 to-brand-700 p-4 text-white shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
