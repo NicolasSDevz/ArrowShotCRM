@@ -147,3 +147,50 @@ export async function respondMetaGraphRequest(req, res, { label, path, params })
   console.log(`[meta] ${label} OK — linhas: ${Array.isArray(data?.data) ? data.data.length : '(sem data[])'}`)
   return res.status(200).json(data)
 }
+
+const LEVEL_NAME_FIELD = { campaign: 'campaign_name', adset: 'adset_name', ad: 'ad_name' }
+
+/** Insights quebrados por campanha, conjunto ou anúncio (os de maior gasto
+ *  primeiro) — usado pelas ferramentas do Archer (/api/ai/chat). */
+export async function fetchLevelInsights(token, accountId, since, until, level = 'campaign', limit = 50) {
+  const nameField = LEVEL_NAME_FIELD[level] || LEVEL_NAME_FIELD.campaign
+  const fields = [
+    'campaign_name',
+    level !== 'campaign' ? 'adset_name' : null,
+    level === 'ad' ? 'ad_name' : null,
+    'spend,impressions,reach,frequency,clicks,ctr,cpc,cpm,actions',
+  ]
+    .filter(Boolean)
+    .join(',')
+  const params = new URLSearchParams({
+    fields,
+    level: LEVEL_NAME_FIELD[level] ? level : 'campaign',
+    access_token: token,
+    time_range: JSON.stringify({ since, until }),
+    sort: 'spend_descending',
+    limit: String(limit),
+  })
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${accountId}/insights?${params.toString()}`
+  const res = await fetch(url, { signal: AbortSignal.timeout(20_000) })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body?.error?.message || `Graph ${res.status}`)
+  return (Array.isArray(body.data) ? body.data : []).map((r) => {
+    const conversas = conversationsFrom(r.actions)
+    const spend = num(r.spend)
+    return {
+      nome: r[nameField] ?? '—',
+      ...(level !== 'campaign' ? { campanha: r.campaign_name ?? '—' } : {}),
+      ...(level === 'ad' ? { conjunto: r.adset_name ?? '—' } : {}),
+      investido: spend,
+      impressoes: num(r.impressions),
+      alcance: num(r.reach),
+      frequencia: num(r.frequency),
+      cliques: num(r.clicks),
+      ctr: num(r.ctr),
+      cpc: num(r.cpc),
+      cpm: num(r.cpm),
+      conversasIniciadas: conversas,
+      custoPorConversa: conversas > 0 ? spend / conversas : null,
+    }
+  })
+}

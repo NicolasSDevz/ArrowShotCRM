@@ -41,17 +41,18 @@ export async function sendAiChatMessage(
   message: string,
   context: AiPageContext,
   history: AiChatMessage[]
-): Promise<{ text: string; quota: AiQuota | null }> {
+): Promise<{ text: string; quota: AiQuota | null; sources: string[] }> {
   let res: Response
   try {
     res = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-      body: JSON.stringify({ message, context, history }),
+      body: JSON.stringify({ message, context, history: history.map(({ role, content }) => ({ role, content })) }),
       // Sem timeout, uma resposta lenta (Anthropic, Firestore) deixa o
-      // Archer "digitando" pra sempre sem erro nenhum aparecer — 50s cobre
-      // folgado o tempo normal de resposta.
-      signal: AbortSignal.timeout(50_000),
+      // Archer "digitando" pra sempre sem erro nenhum aparecer. 115s: agora
+      // ele pode consultar Google/Meta Ads algumas vezes antes de responder
+      // (o servidor corta em ~100s, ver api/ai/chat.js).
+      signal: AbortSignal.timeout(115_000),
     })
   } catch (err) {
     if (err instanceof DOMException && err.name === 'TimeoutError') {
@@ -64,5 +65,5 @@ export async function sendAiChatMessage(
   if (res.status === 429) throw new AiUsageLimitError(body.error || 'Limite diário de mensagens atingido.', body.quota)
   if (!res.ok) throw new Error(body.error || 'Falha ao falar com o assistente')
 
-  return { text: body.response as string, quota: body.quota ?? null }
+  return { text: body.response as string, quota: body.quota ?? null, sources: Array.isArray(body.toolsUsed) ? body.toolsUsed : [] }
 }

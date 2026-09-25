@@ -56,14 +56,19 @@ function ensureBlankLineAfterTables(markdown: string): string {
 
 function TypingDots() {
   return (
-    <div className="ai-bubble flex items-center gap-1 rounded-2xl px-3.5 py-2.5" style={{ border: `1px solid ${C.border}`, backgroundColor: C.white }}>
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="h-1.5 w-1.5 animate-bounce rounded-full"
-          style={{ backgroundColor: C.slate300, animationDelay: `${i * 0.15}s` }}
-        />
-      ))}
+    <div className="ai-bubble flex w-fit items-center gap-2 rounded-2xl px-3.5 py-2.5" style={{ border: `1px solid ${C.border}`, backgroundColor: C.white }}>
+      <span className="flex items-center gap-1">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="h-1.5 w-1.5 animate-bounce rounded-full"
+            style={{ backgroundColor: C.slate300, animationDelay: `${i * 0.15}s` }}
+          />
+        ))}
+      </span>
+      <span className="text-xs" style={{ color: C.muted }}>
+        Analisando os dados…
+      </span>
     </div>
   )
 }
@@ -87,6 +92,11 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
           style={{ border: `1px solid ${C.border}`, backgroundColor: C.white, color: C.dark }}
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{ensureBlankLineAfterTables(message.content)}</ReactMarkdown>
+          {message.sources && message.sources.length > 0 && (
+            <p className="mt-2 border-t pt-1.5 text-[11px]" style={{ borderColor: C.border, color: C.slate400 }}>
+              Consultou: {message.sources.join(', ')}
+            </p>
+          )}
         </div>
       )}
     </div>

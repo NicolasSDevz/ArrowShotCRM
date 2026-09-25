@@ -5,6 +5,9 @@
 export interface AiChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** O que o Archer consultou pra responder (ex: "Google Ads") — só pra
+   *  mostrar no painel; o backend ignora no histórico. */
+  sources?: string[]
 }
 
 export type AiPageContextType = 'client' | 'meta_ads' | 'google_ads' | 'dashboard' | 'generic'

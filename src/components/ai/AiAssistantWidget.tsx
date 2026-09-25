@@ -62,7 +62,7 @@ export function AiAssistantWidget() {
       const fullContext = await resolveContext()
       const reply = await sendAiChatMessage(content, fullContext, messages)
       if (reply.quota) setQuota(reply.quota)
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply.text }])
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply.text, sources: reply.sources }])
       if (!open || minimized) setUnread((n) => n + 1)
     } catch (err) {
       if (err instanceof AiUsageLimitError && err.quota) setQuota(err.quota)
