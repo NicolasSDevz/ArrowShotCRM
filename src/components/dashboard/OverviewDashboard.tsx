@@ -419,7 +419,6 @@ export function OverviewDashboard() {
       <AlertsCard
         leads={leads}
         pipelines={leadPipelines}
-        tasks={tasks}
         atRiskCount={atRisk.length}
         clientsWithoutValue={clientsWithoutValueList}
       />

@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, isPast, isToday, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { AlertTriangle, BellRing, CheckCircle2, Clock, ListTodo, PhoneMissed, UserX, Wallet } from 'lucide-react'
+import { AlertTriangle, BellRing, CheckCircle2, Clock, PhoneMissed, UserX, Wallet } from 'lucide-react'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { Card, CardTitle } from './DashboardCard'
 import {
@@ -14,7 +14,6 @@ import {
   type Lead,
   type LeadSource,
   type ResolvedPipeline,
-  type Task,
 } from '../../types'
 
 const BRL = (v: number) =>
@@ -50,18 +49,16 @@ interface AlertItem {
 }
 
 /** "O que precisa de atenção agora" — junta o que hoje fica espalhado pelo
- *  CRM: lead sem contato, lead parado, próxima ação vencida, tarefa
- *  atrasada, cliente em risco e cliente sem valor cadastrado. */
+ *  CRM: lead sem contato, lead parado, próxima ação vencida, cliente em
+ *  risco e cliente sem valor cadastrado. */
 export function AlertsCard({
   leads,
   pipelines,
-  tasks,
   atRiskCount,
   clientsWithoutValue,
 }: {
   leads: Lead[]
   pipelines: ResolvedPipeline[]
-  tasks: Task[]
   atRiskCount: number
   clientsWithoutValue: Client[]
 }) {
@@ -120,16 +117,6 @@ export function AlertsCard({
         action: { label: 'Ver leads', to: '/leads' },
       })
 
-    const overdueTasks = tasks.filter((t) => t.status !== 'done' && t.dueDate && isPast(t.dueDate.toDate()) && !isToday(t.dueDate.toDate()))
-    if (overdueTasks.length)
-      out.push({
-        key: 'tasks',
-        icon: <ListTodo size={15} />,
-        tone: overdueTasks.length >= 5 ? 'red' : 'amber',
-        title: `${overdueTasks.length} ${overdueTasks.length === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'}`,
-        action: { label: 'Operacional', to: '/operacional' },
-      })
-
     if (atRiskCount > 0)
       out.push({
         key: 'risk',
@@ -149,7 +136,7 @@ export function AlertsCard({
         names: clientsWithoutValue.slice(0, 6).map((c) => ({ id: c.id, label: c.companyName, to: `/clientes/${c.id}` })),
       })
     return out
-  }, [leads, pipelines, tasks, atRiskCount, clientsWithoutValue])
+  }, [leads, pipelines, atRiskCount, clientsWithoutValue])
 
   return (
     <Card>
