@@ -103,7 +103,7 @@ export function AiAssistantWidget() {
         onClick={handleToggleButton}
         aria-label="Assistente de IA"
         title="Falar com Archer"
-        className="ai-fab fixed bottom-6 right-6 z-50 flex h-[52px] w-[52px] items-center justify-center rounded-full text-2xl transition-transform duration-150 ease-in-out"
+        className="ai-fab fixed bottom-6 right-6 z-30 flex h-[52px] w-[52px] items-center justify-center rounded-full text-2xl transition-transform duration-150 ease-in-out"
         style={{ backgroundColor: '#2563EB', color: '#FFFFFF', boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}
       >
         🏹

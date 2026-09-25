@@ -38,7 +38,7 @@ function App() {
     <AuthProvider>
     <PrivacyProvider>
       <BrowserRouter>
-        <Toaster position="top-right" toastOptions={{ className: 'app-toast', style: { fontSize: '13px' } }} />
+        <Toaster position="bottom-center" toastOptions={{ className: 'app-toast', style: { fontSize: '13px' } }} />
         <ErrorDialogHost />
         <Routes>
           <Route path="/login" element={<LoginPage />} />

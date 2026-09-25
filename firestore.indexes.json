@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "clientSuccessEvaluations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId", "order": "ASCENDING" },
+        { "fieldPath": "referenceMonth", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "comments",
       "queryScope": "COLLECTION",
       "fields": [

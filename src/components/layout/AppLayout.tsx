@@ -20,7 +20,8 @@ export function AppLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onOpenMobileNav={() => setMobileNavOpen(true)} />
         <PrivacyModeBanner />
-        <main className="flex-1 overflow-y-auto p-8">
+        {/* pb-28: o fim da página rola pra cima do botão do Archer (fixo no canto) em vez de ficar escondido embaixo dele. */}
+        <main className="flex-1 overflow-y-auto p-8 pb-28">
           <ErrorBoundary resetKey={location.pathname}>
             <Outlet />
           </ErrorBoundary>

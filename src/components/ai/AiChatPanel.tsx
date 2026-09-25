@@ -155,7 +155,7 @@ export function AiChatPanel({
 
   return (
     <div
-      className="fixed bottom-[92px] right-6 z-50 flex w-[380px] flex-col overflow-hidden rounded-2xl shadow-2xl"
+      className="fixed bottom-[92px] right-6 z-30 flex w-[380px] flex-col overflow-hidden rounded-2xl shadow-2xl"
       style={{ height: 520, backgroundColor: C.white, animation: 'ai-panel-in 180ms ease-out' }}
     >
       <style>{`
