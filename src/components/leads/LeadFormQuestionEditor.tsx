@@ -148,7 +148,10 @@ export function LeadFormQuestionEditor({
         <div>
           <span className="mb-1.5 block text-xs font-medium text-slate-500">Tipo de resposta</span>
           <div className="grid grid-cols-3 gap-1.5">
-            {(Object.entries(QUESTION_TYPE_META) as [LeadFormQuestionType, (typeof QUESTION_TYPE_META)[LeadFormQuestionType]][]).map(([type, m]) => {
+            {(Object.entries(QUESTION_TYPE_META) as [LeadFormQuestionType, (typeof QUESTION_TYPE_META)[LeadFormQuestionType]][])
+              // "Arquivo" saiu do construtor (sem Storage nem pasta compartilhada) — só aparece numa pergunta antiga que já seja desse tipo.
+              .filter(([type]) => type !== 'file' || q.type === 'file')
+              .map(([type, m]) => {
               const Icon = m.icon
               const active = q.type === type
               return (

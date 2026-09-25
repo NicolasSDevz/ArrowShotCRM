@@ -242,7 +242,7 @@ export function LeadFormStructureRail({
           </div>
           <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Outras perguntas</p>
           <div className="grid grid-cols-1 gap-1">
-            {(['single_choice', 'multi_choice', 'short_text', 'long_text', 'list', 'document', 'link', 'file', 'confirm', 'fields'] as LeadFormQuestionType[]).map((type) => {
+            {(['single_choice', 'multi_choice', 'short_text', 'long_text', 'list', 'document', 'link', 'confirm', 'fields'] as LeadFormQuestionType[]).map((type) => {
               const m = QUESTION_TYPE_META[type]
               const Icon = m.icon
               return (
