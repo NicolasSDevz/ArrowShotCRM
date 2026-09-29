@@ -16,7 +16,7 @@ export function Tabs({ tabs }: { tabs: { label: string; content: ReactNode; seco
     <button
       key={t.label}
       onClick={() => setActive(t.i)}
-      className={`shrink-0 whitespace-nowrap border-b-2 px-2 py-2.5 text-sm font-medium transition-colors ${
+      className={`shrink-0 whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
         active === t.i
           ? 'border-brand-600 text-brand-700'
           : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -28,13 +28,13 @@ export function Tabs({ tabs }: { tabs: { label: string; content: ReactNode; seco
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 px-5">
+      <div className={`flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6 ${showAll ? "" : "justify-between"}`}>
         {primary.map(tabButton)}
         {visibleSecondary.map(tabButton)}
         {secondary.length > 0 && (
           <button
             onClick={() => setShowAll((v) => !v)}
-            className="ml-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+            className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600"
           >
             {showAll ? (
               <>
