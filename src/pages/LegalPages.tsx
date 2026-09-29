@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
-const LAST_UPDATED = '7 de setembro de 2026'
+const LAST_UPDATED = '29 de setembro de 2026'
 
 function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -49,6 +49,29 @@ export function PrivacyPolicyPage() {
         apenas para consultar métricas e informações das contas de anúncios dos clientes da agência,
         com o único objetivo de acompanhar e gerenciar as campanhas. Nenhuma informação obtida por
         meio dessas APIs é compartilhada com terceiros ou usada para qualquer outra finalidade.
+      </p>
+      <p>
+        <strong>Google Agenda.</strong> Quando um membro da equipe conecta a própria conta Google, a
+        plataforma solicita a permissão <em>calendar.events</em> apenas para criar, no Google Agenda
+        desse usuário, o evento de uma reunião agendada na Quiver (com link do Google Meet e convite
+        para os participantes informados). A plataforma não armazena nem compartilha outros eventos da
+        agenda. O acesso é temporário, fica somente no navegador do usuário e pode ser revogado a
+        qualquer momento em{' '}
+        <a href="https://myaccount.google.com/permissions" className="text-brand-700 underline">
+          myaccount.google.com/permissions
+        </a>
+        .
+      </p>
+      <p>
+        O uso e a transferência, para qualquer outro aplicativo, de informações recebidas das APIs do
+        Google seguem a{' '}
+        <a
+          href="https://developers.google.com/terms/api-services-user-data-policy"
+          className="text-brand-700 underline"
+        >
+          Política de Dados do Usuário dos Serviços de API do Google
+        </a>
+        , incluindo os requisitos de Uso Limitado.
       </p>
       <p>
         <strong>Acesso.</strong> O acesso à plataforma é restrito aos membros autorizados da equipe,
