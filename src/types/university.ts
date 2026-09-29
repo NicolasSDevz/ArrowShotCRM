@@ -24,8 +24,13 @@ export interface Module extends BaseDoc {
   description: string
   /** Rich text content, rendered as markdown. */
   content: string
+  /** YouTube ou arquivo de vídeo do Google Drive. */
   videoUrl?: string
+  /** Link do material; se for do Google Drive/Docs, abre dentro da aula. */
   materialUrl?: string
+  /** Pasta do Google Drive mostrada dentro da aula (lista de arquivos). Os
+   *  arquivos ficam no Drive — o CRM só guarda o link. */
+  driveFolderUrl?: string
   checklist: ChecklistItem[]
   quiz: QuizQuestion[]
   order: number

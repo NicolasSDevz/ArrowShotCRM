@@ -32,6 +32,7 @@ import { ClientMeetingsTab } from '../components/clients/ClientMeetingsTab'
 import { ClientOptimizationsTab } from '../components/clients/ClientOptimizationsTab'
 import { ClientContentsTab } from '../components/clients/ClientContentsTab'
 import { ClientSuccessTab } from '../components/clients/ClientSuccessTab'
+import { ClientAccessTab } from '../components/clients/ClientAccessTab'
 import { WhatsappGroupLinkModal } from '../components/clients/WhatsappGroupLinkModal'
 import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, CLIENT_STATUS_BADGE, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
 import { TASK_STATUS_LABEL } from '../types/task'
@@ -237,6 +238,7 @@ export function ClientDetailPage() {
         <Tabs
           tabs={[
             { label: 'Briefing', content: <ClientBriefingTab client={client} /> },
+            { label: 'Acessos', content: <ClientAccessTab client={client} /> },
             ...trafficTabs,
             ...contentTab,
             ...landingPageTab,

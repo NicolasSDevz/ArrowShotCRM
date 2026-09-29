@@ -11,8 +11,13 @@
 // GET    /api/meta/token               → { tokens: [{ clientId, ... }] }  (todos)
 // POST   /api/meta/token { clientId, token } → salva/substitui
 // DELETE /api/meta/token?client_id=X   → remove
+//
+// ?scope=credentials → acessos (login/senha) dos clientes — ver
+// api/_lib/credentialsHandler.js. Mora aqui porque o plano Hobby da Vercel
+// está no limite de funções.
 
 import { withInternalAuth } from '../_lib/auth.js'
+import { credentialsHandler } from '../_lib/credentialsHandler.js'
 import {
   setClientToken,
   deleteClientToken,
@@ -96,4 +101,9 @@ async function handler(req, res, user) {
   return res.status(405).json({ error: 'Método não permitido' })
 }
 
-export default withInternalAuth(handler)
+const metaTokenHandler = withInternalAuth(handler)
+
+export default function route(req, res) {
+  if (req.query.scope === 'credentials') return credentialsHandler(req, res)
+  return metaTokenHandler(req, res)
+}

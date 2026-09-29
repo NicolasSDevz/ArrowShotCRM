@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { driveFileEmbedUrl, driveFolderEmbedUrl } from '../../utils/googleDrive'
+import { toYoutubeEmbedUrl } from '../../utils/youtubeEmbed'
 import toast from 'react-hot-toast'
 import { Modal } from '../ui/Modal'
 import { Field, Input, Textarea } from '../ui/Field'
@@ -30,6 +32,7 @@ export function ModuleFormModal({
   const [content, setContent] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
   const [materialUrl, setMaterialUrl] = useState('')
+  const [driveFolderUrl, setDriveFolderUrl] = useState('')
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
   const [quiz, setQuiz] = useState<QuizQuestion[]>([])
   const [saving, setSaving] = useState(false)
@@ -41,6 +44,7 @@ export function ModuleFormModal({
     setContent(module?.content ?? '')
     setVideoUrl(module?.videoUrl ?? '')
     setMaterialUrl(module?.materialUrl ?? '')
+    setDriveFolderUrl(module?.driveFolderUrl ?? '')
     setChecklist(module?.checklist ?? [])
     setQuiz(module?.quiz ?? [])
   }, [open, module])
@@ -55,6 +59,7 @@ export function ModuleFormModal({
         content,
         videoUrl: videoUrl.trim() || undefined,
         materialUrl: materialUrl.trim() || undefined,
+        driveFolderUrl: driveFolderUrl.trim() || undefined,
         checklist,
         quiz,
       }
@@ -88,13 +93,26 @@ export function ModuleFormModal({
         </Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Link do vídeo (YouTube, opcional)">
-            <Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://youtube.com/..." />
+          <Field label="Vídeo (YouTube ou Google Drive, opcional)">
+            <Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://youtube.com/… ou https://drive.google.com/file/…" />
+            {videoUrl.trim() && !toYoutubeEmbedUrl(videoUrl.trim()) && !driveFileEmbedUrl(videoUrl) && (
+              <p className="mt-1 text-xs text-amber-600">Não reconheci esse link — use um link do YouTube ou de um arquivo do Drive.</p>
+            )}
           </Field>
-          <Field label="Material de apoio (PDF/URL, opcional)">
-            <Input value={materialUrl} onChange={(e) => setMaterialUrl(e.target.value)} placeholder="https://..." />
+          <Field label="Material de apoio (PDF, Doc, Apresentação ou link, opcional)">
+            <Input value={materialUrl} onChange={(e) => setMaterialUrl(e.target.value)} placeholder="https://drive.google.com/file/… ou qualquer link" />
           </Field>
         </div>
+        <Field label="Pasta do Google Drive (opcional)">
+          <Input value={driveFolderUrl} onChange={(e) => setDriveFolderUrl(e.target.value)} placeholder="https://drive.google.com/drive/folders/…" />
+          {driveFolderUrl.trim() && !driveFolderEmbedUrl(driveFolderUrl) && (
+            <p className="mt-1 text-xs text-amber-600">Isso não parece o link de uma pasta do Drive (precisa ter /folders/ no endereço).</p>
+          )}
+        </Field>
+        <p className="-mt-1 rounded-lg bg-slate-50 p-2.5 text-xs leading-relaxed text-slate-500">
+          Os arquivos ficam no Google Drive e abrem dentro da aula — nada é enviado pro CRM. No Drive, compartilhe o arquivo/pasta como
+          <strong> "Qualquer pessoa com o link: Leitor"</strong> (ou com o e-mail de cada pessoa da equipe), senão aparece "Você precisa de acesso".
+        </p>
 
         <Field label="Checklist de aprendizado">
           <ChecklistEditor items={checklist} onChange={setChecklist} />

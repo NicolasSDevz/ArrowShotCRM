@@ -443,6 +443,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Acessos (login/senha) dos clientes e os links pro cliente preencher —
+    // só o servidor lê e grava (api/_lib/credentialsStore.js, senha sempre
+    // criptografada). O navegador nunca acessa direto, nem a equipe.
+    match /clientCredentials/{clientId}/{rest=**} {
+      allow read, write: if false;
+    }
+    match /credentialRequests/{token} {
+      allow read, write: if false;
+    }
+
     // Contador diário de mensagens do assistente de IA por usuário (ver
     // api/ai/chat.js — id do doc é {uid}_{yyyy-MM-dd}). Só o backend, via
     // Firebase Admin (service account), lê/escreve — o SDK do cliente nunca

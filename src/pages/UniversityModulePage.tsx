@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import ReactMarkdown from 'react-markdown'
-import { ArrowLeft, CheckCircle2, FileText } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ExternalLink, FileText, FolderOpen } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useModules } from '../hooks/useModules'
@@ -13,6 +13,7 @@ import { QuizBlock } from '../components/university/QuizBlock'
 import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/FullPageSpinner'
 import { toYoutubeEmbedUrl } from '../utils/youtubeEmbed'
+import { driveFileEmbedUrl, driveFolderEmbedUrl } from '../utils/googleDrive'
 import { QUIZ_PASS_THRESHOLD, type ChecklistItem } from '../types'
 
 export function UniversityModulePage() {
@@ -36,7 +37,10 @@ export function UniversityModulePage() {
     setQuizScore(null)
   }, [module?.id])
 
-  const embedUrl = useMemo(() => (module?.videoUrl ? toYoutubeEmbedUrl(module.videoUrl) : null), [module?.videoUrl])
+  // Vídeo do YouTube ou arquivo do Drive; material e pasta do Drive abrem dentro da aula.
+  const embedUrl = useMemo(() => (module?.videoUrl ? toYoutubeEmbedUrl(module.videoUrl) ?? driveFileEmbedUrl(module.videoUrl) : null), [module?.videoUrl])
+  const materialEmbed = useMemo(() => driveFileEmbedUrl(module?.materialUrl), [module?.materialUrl])
+  const folderEmbed = useMemo(() => driveFolderEmbedUrl(module?.driveFolderUrl), [module?.driveFolderUrl])
 
   const checklistDone = checklist.length === 0 || checklist.every((i) => i.done)
   const hasQuiz = (module?.quiz?.length ?? 0) > 0
@@ -109,15 +113,43 @@ export function UniversityModulePage() {
         </div>
       )}
 
-      {module.materialUrl && (
-        <a
-          href={module.materialUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="flex w-fit items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
-        >
-          <FileText size={15} /> Material de apoio
-        </a>
+      {module.materialUrl &&
+        (materialEmbed ? (
+          <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+              <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <FileText size={15} /> Material de apoio
+              </p>
+              <a href={module.materialUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+                <ExternalLink size={12} /> Abrir no Drive
+              </a>
+            </div>
+            <iframe src={materialEmbed} title="Material de apoio" className="h-[70vh] w-full" allow="autoplay" />
+          </div>
+        ) : (
+          <a
+            href={module.materialUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex w-fit items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+          >
+            <FileText size={15} /> Material de apoio
+          </a>
+        ))}
+
+      {folderEmbed && (
+        <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <FolderOpen size={15} /> Arquivos da aula
+            </p>
+            <a href={module.driveFolderUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+              <ExternalLink size={12} /> Abrir pasta no Drive
+            </a>
+          </div>
+          {/* A lista vem do próprio Drive — clicar num arquivo abre ele no Drive, em outra aba. */}
+          <iframe src={folderEmbed} title="Arquivos da aula" className="h-[420px] w-full" />
+        </div>
       )}
 
       <ChecklistBlock
