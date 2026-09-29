@@ -215,6 +215,12 @@ export const CLIENT_STATUS_LABEL: Record<ClientStatus, string> = {
   prospect: 'Onboarding',
 }
 
+/** Cliente que está sendo trabalhado (Ativo ou Onboarding). Pausado e
+ *  Encerrado saem das otimizações, relatórios e listas de trabalho — o
+ *  Encerrado ainda conta como churn no Dashboard. */
+export const isClientInOperation = (client: Pick<Client, 'status'>) =>
+  client.status !== 'churned' && client.status !== 'paused'
+
 export const CLIENT_CATEGORY_LABEL: Record<ClientCategory, string> = {
   A: 'Cliente A',
   B: 'Cliente B',

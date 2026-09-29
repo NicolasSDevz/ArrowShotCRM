@@ -10,6 +10,7 @@ import { useClients } from '../../hooks/useClients'
 import { useOptimizationSchedule, useTodayOptimizations } from '../../hooks/useOptimizations'
 import { findUserIdByName } from '../../utils/userLookup'
 import { trafficServices, platformBadgeLabel, hasContractedPaidTraffic } from '../../utils/clientServices'
+import { isClientInOperation } from '../../types/client'
 import { Avatar } from '../ui/Avatar'
 
 const OWNER_EMAIL = 'gestorarrowshotmkt@gmail.com'
@@ -41,7 +42,7 @@ function GestorOptimizationsCard({ name }: { name: string }) {
       .filter((r) => r.userId === userId && r.weekdays.includes(weekday))
       .map((r) => {
         const client = clients.find((c) => c.id === r.clientId)
-        return client && client.status !== 'churned' && hasContractedPaidTraffic(client)
+        return client && isClientInOperation(client) && hasContractedPaidTraffic(client)
           ? { id: client.id, name: client.companyName, platforms: trafficServices(client).platforms, done: doneIds.has(client.id) }
           : null
       })

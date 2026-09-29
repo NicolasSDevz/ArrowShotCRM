@@ -18,7 +18,7 @@ import { getGoogleAdsInsights, type GoogleAdsInsightsSummary } from '../services
 import { maskGoogleAdsId } from '../utils/masks'
 import { findUserIdByName } from '../utils/userLookup'
 import { EMPTY_CAMPAIGN_PLANNING, EMPTY_CAMPAIGN_PLANNING_ACCESS } from '../types/campaignPlanning'
-import { getClientOwnerIds, type Client } from '../types/client'
+import { getClientOwnerIds, isClientInOperation, type Client } from '../types/client'
 
 type PeriodPreset = 'last_7d' | 'last_14d' | 'last_30d' | 'this_month' | 'last_month' | 'custom'
 
@@ -127,7 +127,7 @@ export function GoogleAdsPage() {
   const { data: clients } = useClients()
   const { data: users } = useUsers()
   const googleAdsClients = useMemo(
-    () => clients.filter((c) => !!c.modules?.googleAds && c.status !== 'churned'),
+    () => clients.filter((c) => !!c.modules?.googleAds && isClientInOperation(c)),
     [clients]
   )
   const clientsWithAccount = useMemo(

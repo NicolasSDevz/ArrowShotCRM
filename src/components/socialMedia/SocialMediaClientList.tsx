@@ -10,7 +10,7 @@ import { Avatar } from '../ui/Avatar'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
-import { CLIENT_PACKAGE_LABEL, STYLE_CATALOG_LABEL, getClientOwnerIds, type Client } from '../../types/client'
+import { CLIENT_PACKAGE_LABEL, STYLE_CATALOG_LABEL, getClientOwnerIds, isClientInOperation, type Client } from '../../types/client'
 import type { Content } from '../../types/content'
 
 /** Mesmo padrão de ClientsPage.tsx: filtro de gestor com default pro
@@ -55,7 +55,7 @@ export function SocialMediaClientList() {
 
   const filtered = useMemo(() => {
     return clients.filter((c) => {
-      if (c.status === 'churned' || !c.modules?.socialMedia) return false
+      if (!isClientInOperation(c) || !c.modules?.socialMedia) return false
       if (managerFilter && !ownerNames(c).includes(managerFilter)) return false
       return true
     })

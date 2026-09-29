@@ -8,6 +8,7 @@ import { useClients } from '../../hooks/useClients'
 import { useOptimizationSchedule, useRecentOptimizations } from '../../hooks/useOptimizations'
 import { findUserIdByName } from '../../utils/userLookup'
 import { hasContractedPaidTraffic } from '../../utils/clientServices'
+import { isClientInOperation } from '../../types/client'
 import { dateInputToTimestamp } from '../../utils/dateInput'
 import type { Task } from '../../types/task'
 
@@ -129,7 +130,7 @@ export function TeamWeeklyReportWidget() {
   )
 
   const eligibleClientIds = useMemo(
-    () => new Set(clients.filter((c) => c.status !== 'churned' && hasContractedPaidTraffic(c)).map((c) => c.id)),
+    () => new Set(clients.filter((c) => isClientInOperation(c) && hasContractedPaidTraffic(c)).map((c) => c.id)),
     [clients]
   )
 

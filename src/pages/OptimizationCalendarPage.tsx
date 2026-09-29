@@ -19,7 +19,7 @@ import { seedOptimizationSchedule } from '../services/optimizationSeed'
 import { findUserIdByName } from '../utils/userLookup'
 import { trafficServices, platformBadgeLabel, hasContractedPaidTraffic } from '../utils/clientServices'
 import { OPTIMIZATION_WEEKDAYS, type OptimizationScheduleRow } from '../types/optimization'
-import { getClientOwnerIds, type Client } from '../types/client'
+import { getClientOwnerIds, isClientInOperation, type Client } from '../types/client'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 
@@ -228,7 +228,7 @@ export function OptimizationCalendarPage() {
       for (const row of rows) {
         if (row.userId !== gid) continue
         const client = clientById[row.clientId]
-        if (!client || client.status === 'churned' || !hasContractedPaidTraffic(client)) continue
+        if (!client || !isClientInOperation(client) || !hasContractedPaidTraffic(client)) continue
         const chip: ChipData = {
           clientId: client.id,
           companyName: client.companyName,
@@ -253,7 +253,7 @@ export function OptimizationCalendarPage() {
     const out: Record<string, ChipData[]> = {}
     for (const name of GESTORES) out[name] = []
     for (const client of clients) {
-      if (client.status === 'churned' || !hasContractedPaidTraffic(client)) continue
+      if (!isClientInOperation(client) || !hasContractedPaidTraffic(client)) continue
       const svc = trafficServices(client)
       const row = rows.find((r) => r.clientId === client.id)
       const daysCount = row?.weekdays.length ?? 0
@@ -279,7 +279,7 @@ export function OptimizationCalendarPage() {
         for (const row of rows) {
           if (row.userId !== gid) continue
           const client = clientById[row.clientId]
-          if (!client || client.status === 'churned' || !hasContractedPaidTraffic(client)) continue
+          if (!client || !isClientInOperation(client) || !hasContractedPaidTraffic(client)) continue
           clientIds.add(row.clientId)
           for (const d of row.weekdays) if (perDay[d] != null) perDay[d] += 1
         }
@@ -311,7 +311,7 @@ export function OptimizationCalendarPage() {
       rows
         .filter((r) => {
           const c = clientById[r.clientId]
-          return !c || c.status === 'churned' || !hasContractedPaidTraffic(c)
+          return !c || !isClientInOperation(c) || !hasContractedPaidTraffic(c)
         })
         .map((r) => r.clientId)
     )
@@ -451,7 +451,7 @@ export function OptimizationCalendarPage() {
       const idsFromRows = rows.filter((r) => r.userId === gid).map((r) => r.clientId)
       const idsFromBank = (bankByGestor[name] ?? []).map((c) => c.clientId)
       const clientIds = [...new Set([...idsFromRows, ...idsFromBank])]
-        .filter((id) => clientById[id] && clientById[id].status !== 'churned' && hasContractedPaidTraffic(clientById[id]))
+        .filter((id) => clientById[id] && isClientInOperation(clientById[id]) && hasContractedPaidTraffic(clientById[id]))
         .sort((a, b) => clientById[a].companyName.localeCompare(clientById[b].companyName))
 
       const assignment = assignBalancedPairs(clientIds)

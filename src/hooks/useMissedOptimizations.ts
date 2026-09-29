@@ -3,6 +3,7 @@ import { useClients } from './useClients'
 import { useOptimizationSchedule, useRecentOptimizations } from './useOptimizations'
 import { previousBusinessDay } from '../utils/businessDays'
 import { hasContractedPaidTraffic, trafficServices } from '../utils/clientServices'
+import { isClientInOperation } from '../types/client'
 import type { OptimizationPlatform } from '../types'
 
 export interface MissedOptimization {
@@ -29,7 +30,7 @@ export function useMissedOptimizations(userId: string | undefined) {
     for (const r of rows) {
       if (r.userId !== userId || !r.weekdays.includes(day.getDay()) || r.weekdays.includes(today.getDay())) continue
       const client = clients.find((c) => c.id === r.clientId)
-      if (!client || client.status === 'churned' || !hasContractedPaidTraffic(client) || doneSince.has(client.id)) continue
+      if (!client || !isClientInOperation(client) || !hasContractedPaidTraffic(client) || doneSince.has(client.id)) continue
       items.push({ clientId: client.id, name: client.companyName, platforms: trafficServices(client).platforms })
     }
     items.sort((a, b) => a.name.localeCompare(b.name))
