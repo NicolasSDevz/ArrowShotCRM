@@ -80,6 +80,7 @@ export function ClientDetailPage() {
         { label: 'Planejamento de Campanha', content: <ClientCampaignPlanningPanel client={client} /> },
         {
           label: 'Tarefas',
+          secondary: true,
           content: (
             <div className="flex flex-col gap-2">
               <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreatingTask(true)} className="self-end">
@@ -103,13 +104,13 @@ export function ClientDetailPage() {
             </div>
           ),
         },
-        { label: 'Otimizações', content: <ClientOptimizationsTab client={client} /> },
+        { label: 'Otimizações', secondary: true, content: <ClientOptimizationsTab client={client} /> },
       ]
     : []
 
-  const contentTab = hasSM ? [{ label: 'Conteúdos', content: <ClientContentsTab client={client} /> }] : []
+  const contentTab = hasSM ? [{ label: 'Conteúdos', secondary: true, content: <ClientContentsTab client={client} /> }] : []
 
-  const landingPageTab = hasLP ? [{ label: 'Landing Page', content: <ClientLandingPagePanel client={client} /> }] : []
+  const landingPageTab = hasLP ? [{ label: 'Landing Page', secondary: true, content: <ClientLandingPagePanel client={client} /> }] : []
 
   return (
     <div className="flex flex-col gap-4">
@@ -244,6 +245,7 @@ export function ClientDetailPage() {
             ...landingPageTab,
             {
               label: 'Calendário',
+              secondary: true,
               content: (
                 <ScheduleList
                   items={[
@@ -255,11 +257,11 @@ export function ClientDetailPage() {
                 />
               ),
             },
-            { label: 'Reuniões', content: <ClientMeetingsTab client={client} /> },
+            { label: 'Reuniões', secondary: true, content: <ClientMeetingsTab client={client} /> },
             { label: 'Sucesso do Cliente', content: <ClientSuccessTab clientId={client.id} clientName={client.companyName} /> },
-            { label: 'Arquivos', content: <FilesPanel clientId={client.id} category="documents" relatedType="client" relatedId={client.id} /> },
-            { label: 'Comentários', content: <CommentsPanel entityType="client" entityId={client.id} clientId={client.id} /> },
-            { label: 'Histórico', content: <ActivityPanel entityType="client" entityId={client.id} /> },
+            { label: 'Arquivos', secondary: true, content: <FilesPanel clientId={client.id} category="documents" relatedType="client" relatedId={client.id} /> },
+            { label: 'Comentários', secondary: true, content: <CommentsPanel entityType="client" entityId={client.id} clientId={client.id} /> },
+            { label: 'Histórico', secondary: true, content: <ActivityPanel entityType="client" entityId={client.id} /> },
           ]}
         />
       </div>
