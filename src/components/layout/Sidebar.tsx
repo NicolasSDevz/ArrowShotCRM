@@ -37,10 +37,10 @@ function readCollapsed(): boolean {
 const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/operacional', label: 'Operacional', icon: ListChecks },
-  { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { to: '/clientes', label: 'Clientes', icon: Users },
   // Reuniões e Calendário são a mesma página (abas) — o item fica aceso nas duas rotas.
   { to: '/reunioes', label: 'Reuniões', icon: CalendarDays, alsoActive: ['/calendario'] },
+  { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { to: '/metricas', label: 'Métricas', icon: Gauge },
   { to: '/leads', label: 'Leads', icon: UserPlus },
   { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
