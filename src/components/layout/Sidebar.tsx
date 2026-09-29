@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   ListChecks,
@@ -39,10 +39,11 @@ const mainNav = [
   { to: '/operacional', label: 'Operacional', icon: ListChecks },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { to: '/clientes', label: 'Clientes', icon: Users },
+  // Reuniões e Calendário são a mesma página (abas) — o item fica aceso nas duas rotas.
+  { to: '/reunioes', label: 'Reuniões', icon: CalendarDays, alsoActive: ['/calendario'] },
   { to: '/metricas', label: 'Métricas', icon: Gauge },
   { to: '/leads', label: 'Leads', icon: UserPlus },
   { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
-  { to: '/calendario', label: 'Calendário', icon: CalendarDays },
 ]
 
 export function Sidebar({
@@ -53,6 +54,7 @@ export function Sidebar({
   onCloseMobile: () => void
 }) {
   const { profile } = useAuth()
+  const { pathname } = useLocation()
   const { data: teamMembers } = useTeamMembers()
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Recolhido (só no computador): vira uma faixa fina só com ícones — bom pra
@@ -110,7 +112,7 @@ export function Sidebar({
         </div>
 
         <nav className={`sidebar flex-1 space-y-0.5 overflow-y-auto py-2 ${c ? 'px-2 md:px-2.5' : 'px-2'}`}>
-          {mainNav.map(({ to, label, icon: Icon }) => (
+          {mainNav.map(({ to, label, icon: Icon, alsoActive }) => (
             <NavLink
               key={to}
               to={to}
@@ -118,7 +120,7 @@ export function Sidebar({
               onClick={onCloseMobile}
               className={({ isActive }) =>
                 `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] font-medium transition-all duration-150 ease-in-out ${linkLayout} ${
-                  isActive ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
+                  isActive || alsoActive?.some((p) => pathname.startsWith(p)) ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
                 }`
               }
             >
