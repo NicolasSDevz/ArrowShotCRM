@@ -4,6 +4,8 @@ import { Plus, Upload, Kanban, List, Settings2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
+import { useClients } from '../hooks/useClients'
+import { findClientMatch } from '../utils/leadDuplicates'
 import { useLeadPipelines } from '../hooks/useLeadPipelines'
 import { useLeadForms } from '../hooks/useLeadForms'
 import { leadFormColor, type LeadFormTag } from '../components/leads/leadFormColors'
@@ -20,13 +22,15 @@ import { LeadFormsPanel } from '../components/leads/LeadFormsPanel'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Field, Select, Textarea } from '../components/ui/Field'
-import { moveLeadStatus, convertLeadToClient } from '../services/leadService'
+import { moveLeadStatus } from '../services/leadService'
+import { ConvertLeadModal } from '../components/leads/ConvertLeadModal'
 import { LEAD_LOST_REASON_LABEL, DEFAULT_PIPELINE_ID, leadPipelineId, stageOfLead, type Lead, type LeadLostReason } from '../types'
 
 export function LeadsPage() {
   const { profile } = useAuth()
   const { data: leads } = useLeads()
   const { data: users } = useUsers()
+  const { data: clients } = useClients()
   const { pipelines } = useLeadPipelines()
   const { data: leadForms } = useLeadForms()
   const navigate = useNavigate()
@@ -64,6 +68,7 @@ export function LeadsPage() {
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
   const formTags: Record<string, LeadFormTag> = Object.fromEntries(leadForms.map((f) => [f.id, { name: f.name, color: leadFormColor(f) }]))
   const formTagOf = (l: Lead) => (l.sourceFormId ? formTags[l.sourceFormId] : undefined)
+  const existingClientOf = (l: Lead) => (l.convertedClientId ? undefined : findClientMatch(l, clients)?.client.companyName)
   const openLead = leads.find((l) => l.id === openLeadId) ?? null
 
   const pipelineLeads = leads.filter((l) => leadPipelineId(l) === activePipeline.id)
@@ -114,22 +119,6 @@ export function LeadsPage() {
     } catch (err) {
       console.error(err)
       toast.error('Erro ao mover o lead')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const confirmConvert = async () => {
-    if (!profile || !convertPrompt) return
-    setBusy(true)
-    try {
-      const clientId = await convertLeadToClient(convertPrompt, profile.id, profile.name, users)
-      toast.success('Lead convertido em cliente')
-      setConvertPrompt(null)
-      navigate(`/clientes/${clientId}`)
-    } catch (err) {
-      console.error(err)
-      toast.error('Erro ao converter lead')
     } finally {
       setBusy(false)
     }
@@ -227,7 +216,7 @@ export function LeadsPage() {
                 items={pipelineLeads}
                 getStatus={(l) => stageOfLead(activePipeline, l.status).id}
                 renderCard={(l) => (
-                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} formTag={formTagOf(l)} />
+                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} formTag={formTagOf(l)} existingClientName={existingClientOf(l)} />
                 )}
                 onMove={handleMove}
               />
@@ -279,22 +268,20 @@ export function LeadsPage() {
         </div>
       </Modal>
 
-      <Modal open={!!convertPrompt} onClose={() => setConvertPrompt(null)} title="Converter em cliente">
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-slate-500">
+      <ConvertLeadModal
+        lead={convertPrompt}
+        onClose={() => setConvertPrompt(null)}
+        onDone={(clientId) => {
+          setConvertPrompt(null)
+          navigate(`/clientes/${clientId}`)
+        }}
+        intro={
+          <>
             <span className="font-semibold text-slate-700">{convertPrompt?.companyName?.trim() || convertPrompt?.contactName}</span> foi movido para{' '}
-            <span className="font-semibold text-slate-700">{stageOfLead(activePipeline, convertPrompt?.status ?? '').label}</span>. Deseja criar o cliente agora? As tarefas de onboarding serão geradas automaticamente.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setConvertPrompt(null)} disabled={busy}>
-              Agora não
-            </Button>
-            <Button onClick={confirmConvert} loading={busy} className="bg-emerald-600 hover:bg-emerald-700">
-              Converter em cliente
-            </Button>
-          </div>
-        </div>
-      </Modal>
+            <span className="font-semibold text-slate-700">{stageOfLead(activePipeline, convertPrompt?.status ?? '').label}</span>.
+          </>
+        }
+      />
     </div>
   )
 }

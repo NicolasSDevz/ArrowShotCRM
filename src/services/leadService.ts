@@ -1,5 +1,6 @@
 import { orderBy, Timestamp, type FirestoreError } from 'firebase/firestore'
-import type { AppUser, Lead, LeadContactEntry, LeadInput, LeadStatus, ResolvedPipeline } from '../types'
+import type { AppUser, Client, Lead, LeadContactEntry, LeadInput, LeadStatus, ResolvedPipeline } from '../types'
+import { contactKeys } from '../utils/leadDuplicates'
 import { LEAD_STATUS_LABEL, LEAD_LOST_REASON_LABEL } from '../types/lead'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
@@ -43,7 +44,10 @@ export async function createLead(
 /** Importação em massa via CSV (ver utils/leadImport.ts). Cria cada lead na
  *  coluna "Novo Lead" com o responsável informado (Bruno, por padrão),
  *  suprime a notificação individual e, ao final, manda UMA notificação-resumo
- *  aos admins. Devolve o total criado e as linhas que falharam ao gravar. */
+ *  aos admins. Pula quem já existe (mesmo WhatsApp ou e-mail de um lead já
+ *  cadastrado ou de uma linha anterior da própria planilha) — importar a
+ *  mesma planilha duas vezes não duplica nada. Devolve o total criado, as
+ *  linhas puladas por duplicado e as que falharam ao gravar. */
 export async function importLeads(
   rows: {
     contactName: string
@@ -61,13 +65,23 @@ export async function importLeads(
   userId: string,
   userName: string,
   /** Pipeline de destino (padrão: "Vendas", primeira etapa). */
-  target?: { pipelineId?: string | null; status: string }
-): Promise<{ created: number; failedLines: number[] }> {
+  target: { pipelineId?: string | null; status: string } | undefined,
+  /** Leads já cadastrados (todos os pipelines) — base da checagem de duplicado. */
+  existingLeads: Lead[]
+): Promise<{ created: number; failedLines: number[]; duplicateLines: number[] }> {
   const failedLines: number[] = []
+  const duplicateLines: number[] = []
   let created = 0
   const now = Date.now()
+  const seen = new Set(existingLeads.flatMap(contactKeys))
 
   for (const [i, row] of rows.entries()) {
+    const keys = contactKeys(row)
+    if (keys.some((k) => seen.has(k))) {
+      duplicateLines.push(row.line)
+      continue
+    }
+    keys.forEach((k) => seen.add(k))
     try {
       await createLead(
         {
@@ -107,7 +121,7 @@ export async function importLeads(
     })
   }
 
-  return { created, failedLines }
+  return { created, failedLines, duplicateLines }
 }
 
 export async function updateLead(id: string, data: Partial<LeadInput>, userId: string, userName: string) {
@@ -252,7 +266,12 @@ export async function addLeadContact(
  *  um cadastro manual — createClient já notifica a equipe e
  *  createInitialWorkflowTasks já cria as tarefas de onboarding), e marca o
  *  lead como convertido. Chamado a partir da coluna FECHADO. */
-export async function convertLeadToClient(lead: Lead, userId: string, userName: string, users: AppUser[]) {
+export async function convertLeadToClient(staleLead: Lead, userId: string, userName: string, users: AppUser[]) {
+  // Relê do banco: se outra pessoa (ou outra tela) já converteu esse lead,
+  // devolve o cliente que já existe em vez de criar outro.
+  const lead = (await base.getById(staleLead.id)) ?? staleLead
+  if (lead.convertedClientId) return lead.convertedClientId
+
   const companyName = lead.companyName?.trim() || lead.contactName
   const modules = {
     paidTraffic: !!(lead.services.paidTraffic || lead.services.metaAds || lead.services.googleAds),
@@ -311,6 +330,22 @@ export async function convertLeadToClient(lead: Lead, userId: string, userName: 
   await emitCelebration(companyName, userName)
 
   return clientId
+}
+
+/** Lead que já é cliente (ex: veio de outro CRM, ou a mesma pessoa voltou
+ *  por outro canal): liga o lead ao cadastro existente em vez de criar um
+ *  cliente novo — sem onboarding, notificação de cliente novo nem comemoração. */
+export async function linkLeadToClient(lead: Lead, client: Client, userId: string, userName: string) {
+  await base.update(lead.id, { convertedClientId: client.id, convertedAt: Timestamp.now() }, userId)
+  await logActivity({
+    entityType: 'lead',
+    entityId: lead.id,
+    clientId: client.id,
+    action: 'updated',
+    message: `vinculou o lead ao cliente já existente "${client.companyName}"`,
+    userId,
+    userName,
+  })
 }
 
 export function getLead(id: string) {

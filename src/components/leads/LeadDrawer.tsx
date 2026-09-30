@@ -5,7 +5,7 @@ import { Timestamp } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
-import { Trash2, ArrowRightCircle, Plus, Phone, MessageCircle, Mail, Video, MoreHorizontal } from 'lucide-react'
+import { Trash2, ArrowRightCircle, Plus, Phone, MessageCircle, Mail, Video, MoreHorizontal, TriangleAlert } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
@@ -15,7 +15,11 @@ import { CommentsPanel } from '../comments/CommentsPanel'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { useUsers } from '../../hooks/useUsers'
-import { updateLead, deleteLead, convertLeadToClient, addLeadContact, moveLeadToPipeline } from '../../services/leadService'
+import { updateLead, deleteLead, addLeadContact, moveLeadToPipeline } from '../../services/leadService'
+import { ConvertLeadModal } from './ConvertLeadModal'
+import { useClients } from '../../hooks/useClients'
+import { useLeads } from '../../hooks/useLeads'
+import { findClientMatch, findDuplicateLeads, MATCH_REASON_LABEL } from '../../utils/leadDuplicates'
 import { LeadForm } from './LeadForm'
 import { useProducts } from '../../hooks/useProducts'
 import { contactError } from '../../utils/validation'
@@ -204,13 +208,16 @@ function ContactHistoryTab({ lead }: { lead: Lead }) {
 export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
   const { profile } = useAuth()
   const { isPrivacyMode } = usePrivacy()
-  const { data: users } = useUsers()
   const navigate = useNavigate()
   const [converting, setConverting] = useState(false)
   const { pipelines } = useLeadPipelines()
+  const { data: clients } = useClients()
+  const { data: allLeads } = useLeads()
 
   if (!lead || !profile) return null
   const { pipeline: leadPipeline, stage: leadStage } = locateLead(pipelines, lead)
+  const clientMatch = lead.convertedClientId ? null : findClientMatch(lead, clients)
+  const duplicateLeads = findDuplicateLeads(lead, allLeads)
 
   const handlePipelineChange = async (id: string) => {
     const target = pipelines.find((p) => p.id === id)
@@ -231,91 +238,124 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
     onClose()
   }
 
-  const handleConvert = async () => {
-    if (!(await askConfirm({ title: `Converter "${lead.contactName}" em cliente?`, message: 'Cria o cadastro do cliente com os dados deste lead.', confirmLabel: 'Converter' }))) return
-    setConverting(true)
-    try {
-      const clientId = await convertLeadToClient(lead, profile.id, profile.name, users)
-      toast.success('Lead convertido em cliente')
-      onClose()
-      navigate(`/clientes/${clientId}`)
-    } catch (err) {
-      console.error(err)
-      toast.error('Erro ao converter lead')
-    } finally {
-      setConverting(false)
-    }
-  }
+  const handleConvert = () => setConverting(true)
 
   return (
-    <Drawer
-      open={!!lead}
-      onClose={onClose}
-      title={
-        <div className="flex items-center gap-2">
-          <span>{isPrivacyMode ? 'Lead ••••••' : lead.contactName}</span>
-          {lead.companyName && (
-            <span className="text-sm font-normal text-slate-400">— {isPrivacyMode ? 'Empresa ••••••' : lead.companyName}</span>
-          )}
-        </div>
-      }
-    >
-      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge style={{ backgroundColor: `${leadStage.color}1A`, color: leadStage.color }}>{leadStage.label}</Badge>
-            {pipelines.length > 1 && (
-              <select
-                value={leadPipeline.id}
-                onChange={(e) => void handlePipelineChange(e.target.value)}
-                title="Mover o lead pra outro pipeline"
-                className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-xs text-slate-600 focus:border-brand-600 focus:outline-none"
-              >
-                {pipelines.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+    <>
+      <Drawer
+        open={!!lead}
+        onClose={onClose}
+        title={
+          <div className="flex items-center gap-2">
+            <span>{isPrivacyMode ? 'Lead ••••••' : lead.contactName}</span>
+            {lead.companyName && (
+              <span className="text-sm font-normal text-slate-400">— {isPrivacyMode ? 'Empresa ••••••' : lead.companyName}</span>
             )}
           </div>
-          {leadStage.kind === 'lost' && lead.lostReason && (
-            <p className="text-xs text-slate-400">
-              Motivo: {LEAD_LOST_REASON_LABEL[lead.lostReason]}
-              {lead.lostReasonNote ? ` — ${lead.lostReasonNote}` : ''}
-            </p>
-          )}
+        }
+      >
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge style={{ backgroundColor: `${leadStage.color}1A`, color: leadStage.color }}>{leadStage.label}</Badge>
+              {pipelines.length > 1 && (
+                <select
+                  value={leadPipeline.id}
+                  onChange={(e) => void handlePipelineChange(e.target.value)}
+                  title="Mover o lead pra outro pipeline"
+                  className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-xs text-slate-600 focus:border-brand-600 focus:outline-none"
+                >
+                  {pipelines.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {leadStage.kind === 'lost' && lead.lostReason && (
+              <p className="text-xs text-slate-400">
+                Motivo: {LEAD_LOST_REASON_LABEL[lead.lostReason]}
+                {lead.lostReasonNote ? ` — ${lead.lostReasonNote}` : ''}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {leadStage.kind === 'won' &&
+              (lead.convertedClientId ? (
+                <Button size="sm" variant="secondary" onClick={() => navigate(`/clientes/${lead.convertedClientId}`)}>
+                  Ver cliente
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  icon={<ArrowRightCircle size={14} />}
+                  onClick={handleConvert}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  Converter em cliente
+                </Button>
+              ))}
+            <button onClick={handleDelete} aria-label="Excluir lead" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500">
+              <Trash2 size={15} />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          {leadStage.kind === 'won' &&
-            (lead.convertedClientId ? (
-              <Button size="sm" variant="secondary" onClick={() => navigate(`/clientes/${lead.convertedClientId}`)}>
-                Ver cliente
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                icon={<ArrowRightCircle size={14} />}
-                onClick={handleConvert}
-                loading={converting}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                Converter em cliente
-              </Button>
-            ))}
-          <button onClick={handleDelete} aria-label="Excluir lead" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500">
-            <Trash2 size={15} />
-          </button>
-        </div>
-      </div>
 
-      <Tabs
-        tabs={[
-          { label: 'Informações', content: <InfoTab lead={lead} /> },
-          { label: 'Histórico de contatos', content: <ContactHistoryTab lead={lead} /> },
-          { label: 'Comentários', content: <CommentsPanel entityType="lead" entityId={lead.id} /> },
-        ]}
+        {(clientMatch || duplicateLeads.length > 0) && (
+          <div className="flex flex-col gap-2 border-b border-slate-100 px-5 py-3">
+            {clientMatch && (
+              <div className="flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-800">
+                <TriangleAlert size={15} className="shrink-0" />
+                <p className="min-w-0 flex-1">
+                  Esse contato já é cliente: <span className="font-semibold">{isPrivacyMode ? '••••••' : clientMatch.client.companyName}</span> (
+                  {MATCH_REASON_LABEL[clientMatch.reason]}).
+                </p>
+                <Button size="sm" variant="secondary" onClick={() => navigate(`/clientes/${clientMatch.client.id}`)}>
+                  Ver cliente
+                </Button>
+                <Button size="sm" onClick={handleConvert}>
+                  Vincular
+                </Button>
+              </div>
+            )}
+            {duplicateLeads.length > 0 && (
+              <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-800">
+                <TriangleAlert size={15} className="mt-0.5 shrink-0" />
+                <p className="min-w-0 flex-1">
+                  {duplicateLeads.length === 1 ? 'Outro lead tem' : `Outros ${duplicateLeads.length} leads têm`} o mesmo WhatsApp ou e-mail:{' '}
+                  {duplicateLeads
+                    .map((d) => {
+                      const where = locateLead(pipelines, d)
+                      const label = isPrivacyMode ? 'Lead ••••••' : d.companyName?.trim() ? `${d.contactName} (${d.companyName.trim()})` : d.contactName
+                      return `${label} — ${where.pipeline.name} / ${where.stage.label}`
+                    })
+                    .join('; ')}
+                  . Se for a mesma pessoa, mantenha um e exclua o outro.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <Tabs
+          tabs={[
+            { label: 'Informações', content: <InfoTab lead={lead} /> },
+            { label: 'Histórico de contatos', content: <ContactHistoryTab lead={lead} /> },
+            { label: 'Comentários', content: <CommentsPanel entityType="lead" entityId={lead.id} /> },
+          ]}
+        />
+      </Drawer>
+
+      <ConvertLeadModal
+        lead={converting ? lead : null}
+        onClose={() => setConverting(false)}
+        onDone={(clientId) => {
+          setConverting(false)
+          onClose()
+          navigate(`/clientes/${clientId}`)
+        }}
       />
-    </Drawer>
+    </>
   )
 }

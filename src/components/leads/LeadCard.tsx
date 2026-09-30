@@ -29,6 +29,7 @@ export function LeadCard({
   onClick,
   fields = [],
   formTag,
+  existingClientName,
 }: {
   lead: Lead
   assignee?: AppUser
@@ -36,6 +37,8 @@ export function LeadCard({
   fields?: PipelineField[]
   /** Formulário de onde o lead veio (nome + cor) — deixa o cartão colorido. */
   formTag?: LeadFormTag
+  /** Cliente já cadastrado com o mesmo contato (lead ainda não vinculado). */
+  existingClientName?: string
 }) {
   // "Novo" nas primeiras 24h depois de chegar pelo formulário.
   const isFresh = !!formTag && !!lead.createdAt && differenceInHours(new Date(), lead.createdAt.toDate()) < 24
@@ -94,6 +97,11 @@ export function LeadCard({
         <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>
         {lead.services.landingPage && <Badge className="badge-service-landing">Landing Page</Badge>}
         {!formTag && <Badge className="bg-slate-100 text-[11px] text-slate-500">{LEAD_SOURCE_LABEL[lead.source]}</Badge>}
+        {existingClientName && (
+          <Badge className="bg-amber-50 text-[11px] text-amber-700" title={isPrivacyMode ? undefined : `Já é cliente: ${existingClientName}`}>
+            Já é cliente
+          </Badge>
+        )}
       </div>
 
       {cardFields.length > 0 && (

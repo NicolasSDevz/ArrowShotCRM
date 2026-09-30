@@ -6,6 +6,7 @@ import { Button } from '../ui/Button'
 import { Select } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
+import { useLeads } from '../../hooks/useLeads'
 import { importLeads } from '../../services/leadService'
 import type { ResolvedPipeline } from '../../types'
 import { findUserIdByName } from '../../utils/userLookup'
@@ -38,6 +39,7 @@ function serviceLabel(services: ParsedLeadRow['services']): string {
 export function ImportLeadsModal({ open, onClose, pipeline }: { open: boolean; onClose: () => void; pipeline?: ResolvedPipeline }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
+  const { data: existingLeads } = useLeads()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [dragOver, setDragOver] = useState(false)
@@ -121,21 +123,30 @@ export function ImportLeadsModal({ open, onClose, pipeline }: { open: boolean; o
     setBusy(true)
     try {
       const assignedTo = findUserIdByName(users, 'Bruno')
-      const { created, failedLines } = await importLeads(
+      const { created, failedLines, duplicateLines } = await importLeads(
         valid,
         assignedTo,
         profile.id,
         profile.name,
-        pipeline ? { pipelineId: pipeline.isDefault ? null : pipeline.id, status: pipeline.stages[0].id } : undefined
+        pipeline ? { pipelineId: pipeline.isDefault ? null : pipeline.id, status: pipeline.stages[0].id } : undefined,
+        existingLeads
       )
 
       if (created > 0) {
         toast.success(`${created} ${pluralize(created, 'lead importado', 'leads importados')} com sucesso`)
+      } else if (duplicateLines.length > 0 && failedLines.length === 0) {
+        toast.error('Nenhum lead novo: todos já estavam cadastrados.')
       } else {
         toast.error('Nenhum lead foi importado.')
       }
+      if (duplicateLines.length > 0) {
+        toast(
+          `${duplicateLines.length} ${pluralize(duplicateLines.length, 'contato já existia e foi pulado', 'contatos já existiam e foram pulados')} (mesmo WhatsApp ou e-mail): ${pluralize(duplicateLines.length, 'linha', 'linhas')} ${duplicateLines.join(', ')}`,
+          { icon: '↩️', duration: 8000 }
+        )
+      }
       const problemLines = [...errors.map((e) => e.line), ...failedLines].sort((a, b) => a - b)
-      if (created > 0 && problemLines.length > 0) {
+      if (problemLines.length > 0) {
         toast.error(
           `${problemLines.length} ${pluralize(problemLines.length, 'linha ignorada', 'linhas ignoradas')} por erro: ${problemLines.join(', ')}`
         )
