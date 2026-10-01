@@ -49,7 +49,7 @@ export function ClientSuccessTab({ clientId, clientName }: { clientId: string; c
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-base font-semibold text-slate-800">Avaliação de Sucesso do Cliente</p>
+          <h3 className="text-base font-semibold text-slate-800">Avaliação de Sucesso do Cliente de {clientName}</h3>
           <p className="text-sm text-slate-400">Mensure o engajamento e saúde do relacionamento com o cliente</p>
         </div>
         <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreating(true)}>
@@ -67,7 +67,7 @@ export function ClientSuccessTab({ clientId, clientName }: { clientId: string; c
           {evaluations.map((evaluation) => (
             <div key={evaluation.id} className="rounded-xl border border-slate-100 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold capitalize text-slate-800">{monthLabel(evaluation.referenceMonth)}</p>
+                <h4 className="text-sm font-semibold capitalize text-slate-800">{monthLabel(evaluation.referenceMonth)}</h4>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-slate-700">{evaluation.score.toFixed(1)}/5</span>
                   <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${CLIENT_SUCCESS_TIER_BADGE[evaluation.tier]}`}>
@@ -78,8 +78,9 @@ export function ClientSuccessTab({ clientId, clientName }: { clientId: string; c
                     onClick={() => handleDelete(evaluation)}
                     className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
                     title="Excluir avaliação"
+                    aria-label={`Excluir a avaliação de ${monthLabel(evaluation.referenceMonth)}`}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={14} aria-hidden="true" />
                   </button>
                 </div>
               </div>

@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { MeetingFormModal } from '../components/meetings/MeetingFormModal'
 import { MeetingDrawer } from '../components/meetings/MeetingDrawer'
-import { MeetingRow } from '../components/meetings/MeetingRow'
+import { MeetingRow, MeetingSections } from '../components/meetings/MeetingRow'
 import { MEETING_TYPE_LABEL, MEETING_TYPE_GROUP_LABEL, MEETING_TYPE_GROUPS, type MeetingType } from '../types'
 
 export function MeetingsPage() {
@@ -76,10 +76,12 @@ export function MeetingsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por pauta, decisão, cliente..."
+          aria-label="Buscar reuniões por pauta, decisão ou cliente"
           className="h-[38px] w-56 rounded-lg border border-slate-200 px-3 text-sm outline-none transition-all duration-150 ease-in-out focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
         />
         <select
           value={typeFilter}
+          aria-label="Filtrar por tipo de reunião"
           onChange={(e) => setTypeFilter(e.target.value as MeetingType | '')}
           className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100"
         >
@@ -94,6 +96,7 @@ export function MeetingsPage() {
         </select>
         <select
           value={clientFilter}
+          aria-label="Filtrar por cliente"
           onChange={(e) => setClientFilter(e.target.value)}
           className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100"
         >
@@ -105,6 +108,7 @@ export function MeetingsPage() {
         <input
           type="date"
           value={startDate}
+          aria-label="A partir da data"
           onChange={(e) => setStartDate(e.target.value)}
           className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm outline-none transition-all duration-150 ease-in-out focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
         />
@@ -112,6 +116,7 @@ export function MeetingsPage() {
         <input
           type="date"
           value={endDate}
+          aria-label="Até a data"
           onChange={(e) => setEndDate(e.target.value)}
           className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm outline-none transition-all duration-150 ease-in-out focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
         />
@@ -129,17 +134,17 @@ export function MeetingsPage() {
           }
         />
       ) : (
-        <div className="flex flex-col gap-2">
-          {filtered.map((m) => (
+        <MeetingSections
+          meetings={filtered}
+          renderRow={(m) => (
             <MeetingRow
-              key={m.id}
               meeting={m}
               clientName={m.clientId ? clientMap[m.clientId]?.companyName : undefined}
               participants={(m.participantIds ?? []).map((id) => userMap[id]).filter((u): u is NonNullable<typeof u> => !!u)}
               onClick={() => setOpenMeetingId(m.id)}
             />
-          ))}
-        </div>
+          )}
+        />
       )}
 
       <MeetingFormModal open={creating} onClose={() => setCreating(false)} />

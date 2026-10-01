@@ -90,6 +90,8 @@ export interface Meeting extends BaseDoc {
   date: Timestamp
   /** "HH:mm", opcional. */
   time?: string
+  /** Duração em minutos (para mostrar o horário de término). */
+  durationMin?: number
   /** uids da equipe interna presentes. */
   participantIds: string[]
   /** Só relevante para tipos do grupo "Reuniões com clientes" — ver
@@ -102,8 +104,40 @@ export interface Meeting extends BaseDoc {
   actionItems: MeetingActionItem[]
   /** Link do Google Drive com a gravação. */
   recordingLink?: string
+  /** Sala do Google Meet criada pelo CRM (evento no Google Agenda de quem criou). */
+  meetLink?: string
+  googleEventId?: string
+  /** true = a gravação automática do Meet foi ligada na criação da sala. */
+  autoRecording?: boolean
   notes?: string
 }
 
 /** Payload editável (form) — tudo que create/updateMeeting recebem. */
 export type MeetingInput = Omit<Meeting, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'>
+
+/** Opções de duração do formulário de reunião. */
+export const MEETING_DURATIONS = [
+  { label: '30 minutos', minutes: 30 },
+  { label: '45 minutos', minutes: 45 },
+  { label: '1 hora', minutes: 60 },
+  { label: '1 hora e meia', minutes: 90 },
+  { label: '2 horas', minutes: 120 },
+]
+
+/** Início e fim da reunião como Date (null se não tiver horário). */
+export function meetingStartEnd(meeting: Pick<Meeting, 'date' | 'time' | 'durationMin'>): { start: Date; end: Date } | null {
+  if (!meeting.time) return null
+  const [h, m] = meeting.time.split(':').map(Number)
+  const start = new Date(meeting.date.toDate())
+  start.setHours(h, m, 0, 0)
+  return { start, end: new Date(start.getTime() + (meeting.durationMin ?? 60) * 60_000) }
+}
+
+/** "das 14:00 às 15:00" (ou "às 14:00" sem duração; "" sem horário). */
+export function meetingTimeLabel(meeting: Pick<Meeting, 'date' | 'time' | 'durationMin'>): string {
+  const range = meetingStartEnd(meeting)
+  if (!range) return ''
+  if (!meeting.durationMin) return `às ${meeting.time}`
+  const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `das ${hhmm(range.start)} às ${hhmm(range.end)}`
+}

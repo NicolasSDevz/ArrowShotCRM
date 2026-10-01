@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
-import { Pencil, Trash2, ExternalLink, CheckSquare, Square } from 'lucide-react'
+import { Pencil, Trash2, ExternalLink, CheckSquare, Square, Video, Clock } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
@@ -14,7 +13,8 @@ import { useAllTasks } from '../../hooks/useTasks'
 import { updateMeeting, deleteMeeting } from '../../services/meetingService'
 import { MeetingForm } from './MeetingForm'
 import { meetingToFormState, formStateToMeetingInput, type MeetingFormState } from './meetingFormState'
-import { MEETING_TYPE_LABEL, MEETING_TYPE_BADGE, isClientMeetingType, type Meeting } from '../../types'
+import { MEETING_TYPE_LABEL, MEETING_TYPE_BADGE, isClientMeetingType, meetingTimeLabel, type Meeting } from '../../types'
+import { meetingDayLabel } from './MeetingRow'
 
 export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; onClose: () => void }) {
   const { profile } = useAuth()
@@ -74,7 +74,8 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
     handleClose()
   }
 
-  const dateLabel = format(meeting.date.toDate(), 'dd/MM/yyyy', { locale: ptBR })
+  const dayLabel = meetingDayLabel(meeting)
+  const timeLabel = meetingTimeLabel(meeting)
 
   return (
     <Drawer open={!!meeting} onClose={handleClose} title={editing ? 'Editar reunião' : MEETING_TYPE_LABEL[meeting.type]}>
@@ -96,15 +97,11 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
             <div className="flex items-start justify-between gap-2">
               <div>
                 <Badge className={MEETING_TYPE_BADGE[meeting.type]}>{MEETING_TYPE_LABEL[meeting.type]}</Badge>
-                <p className="mt-2 text-sm text-slate-500">
-                  {dateLabel}
-                  {meeting.time && ` às ${meeting.time}`}
-                  {client && (
-                    <>
-                      {' — '}
-                      <span className="font-medium text-slate-700">{client.companyName}</span>
-                    </>
-                  )}
+                {client && <p className="mt-2 text-sm font-medium text-slate-700">{client.companyName}</p>}
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600">
+                  <Clock size={14} aria-hidden="true" />
+                  <span className="capitalize">{dayLabel}</span>
+                  <span className="font-semibold text-slate-800">{timeLabel || ', sem horário'}</span>
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -175,6 +172,24 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
                     )
                   })}
                 </div>
+              </div>
+            )}
+
+            {meeting.meetLink && (
+              <div className="flex flex-col gap-1.5 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                <a
+                  href={meeting.meetLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex w-fit items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  <Video size={14} aria-hidden="true" /> Entrar no Google Meet
+                </a>
+                <p className="text-xs text-slate-600">
+                  {meeting.autoRecording
+                    ? 'Gravação automática ligada: a gravação começa sozinha e vai para o Google Drive de quem criou a reunião.'
+                    : 'Gravação automática desligada: para gravar, clique em Atividades e depois em Gravação dentro do Meet.'}
+                </p>
               </div>
             )}
 

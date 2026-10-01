@@ -4,6 +4,8 @@
 interface GoogleTokenResponse {
   access_token?: string
   expires_in?: number
+  /** Escopos concedidos, separados por espaço. */
+  scope?: string
   error?: string
   error_description?: string
 }

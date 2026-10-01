@@ -37,6 +37,8 @@ import { WhatsappGroupLinkModal } from '../components/clients/WhatsappGroupLinkM
 import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, CLIENT_STATUS_BADGE, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
 import { TASK_STATUS_LABEL } from '../types/task'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
+import { useAuth } from '../context/AuthContext'
+import { resolveRoutinePersonKey } from '../services/dailyRoutineTemplates'
 
 export function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -57,6 +59,9 @@ export function ClientDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [whatsappGroupModalOpen, setWhatsappGroupModalOpen] = useState(false)
   const { isPrivacyMode } = usePrivacy()
+  const { profile } = useAuth()
+  // Jamilson (CS) usa leitor de tela: Reuniões fica sempre visível, sem passar pelo "Mais".
+  const isJamilson = !!profile && resolveRoutinePersonKey(profile.name) === 'jamilson'
 
   if (!client) {
     return <EmptyState title="Cliente não encontrado" action={<Button onClick={() => navigate('/clientes')}>Voltar</Button>} />
@@ -235,8 +240,12 @@ export function ClientDetailPage() {
 
       <ClientOnboardingMeetingsSection client={client} />
 
-      <div className="rounded-xl border border-slate-100 bg-white">
+      <section aria-labelledby="client-sections-title" className="rounded-xl border border-slate-100 bg-white">
+        <h2 id="client-sections-title" className="sr-only">
+          Seções da ficha de {client.companyName}
+        </h2>
         <Tabs
+          label={`Seções da ficha de ${client.companyName}`}
           tabs={[
             { label: 'Briefing', content: <ClientBriefingTab client={client} /> },
             { label: 'Acessos', content: <ClientAccessTab client={client} /> },
@@ -257,14 +266,14 @@ export function ClientDetailPage() {
                 />
               ),
             },
-            { label: 'Reuniões', secondary: true, content: <ClientMeetingsTab client={client} /> },
+            { label: 'Reuniões', secondary: !isJamilson, content: <ClientMeetingsTab client={client} /> },
             { label: 'Sucesso do Cliente', content: <ClientSuccessTab clientId={client.id} clientName={client.companyName} /> },
             { label: 'Arquivos', secondary: true, content: <FilesPanel clientId={client.id} category="documents" relatedType="client" relatedId={client.id} /> },
             { label: 'Comentários', secondary: true, content: <CommentsPanel entityType="client" entityId={client.id} clientId={client.id} /> },
             { label: 'Histórico', secondary: true, content: <ActivityPanel entityType="client" entityId={client.id} /> },
           ]}
         />
-      </div>
+      </section>
 
       <ClientFormModal open={editing} onClose={() => setEditing(false)} client={client} />
       <WhatsappGroupLinkModal open={whatsappGroupModalOpen} onClose={() => setWhatsappGroupModalOpen(false)} client={client} />

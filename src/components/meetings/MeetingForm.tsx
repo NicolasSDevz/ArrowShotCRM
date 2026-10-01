@@ -1,4 +1,4 @@
-import { Plus, X } from 'lucide-react'
+import { Plus, Video, X } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
@@ -9,6 +9,7 @@ import {
   MEETING_TYPE_GROUPS,
   MEETING_TYPE_SCHEDULE_HINT,
   MEETING_DEFAULT_PARTICIPANT_NAMES,
+  MEETING_DURATIONS,
   isClientMeetingType,
   type AppUser,
   type Client,
@@ -21,16 +22,20 @@ export function MeetingForm({
   onChange,
   users,
   clients,
+  allowMeet = false,
 }: {
   value: MeetingFormState
   onChange: (next: MeetingFormState) => void
   users: AppUser[]
   clients: Client[]
+  /** Mostra a opção de criar a sala no Google Meet (só na criação). */
+  allowMeet?: boolean
 }) {
   const set = <K extends keyof MeetingFormState>(key: K, v: MeetingFormState[K]) => onChange({ ...value, [key]: v })
 
   const internalUsers = users.filter((u) => u.role !== 'client')
   const activeClients = clients.filter((c) => c.status === 'active')
+  const selectedClient = clients.find((c) => c.id === value.clientId)
 
   const handleTypeChange = (type: MeetingType) => {
     const defaultNames = MEETING_DEFAULT_PARTICIPANT_NAMES[type]
@@ -72,11 +77,72 @@ export function MeetingForm({
           <Field label="Data" required>
             <Input type="date" value={value.dateStr} onChange={(e) => set('dateStr', e.target.value)} />
           </Field>
-          <Field label="Horário">
+          <Field label="Horário de início" required={value.createMeet}>
             <Input type="time" value={value.time} onChange={(e) => set('time', e.target.value)} />
           </Field>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Duração">
+          <Select value={value.durationMin} onChange={(e) => set('durationMin', Number(e.target.value))}>
+            {MEETING_DURATIONS.map((d) => (
+              <option key={d.minutes} value={d.minutes}>{d.label}</option>
+            ))}
+          </Select>
+        </Field>
+        {value.time && (
+          <p className="self-end pb-2 text-sm text-slate-500" aria-live="polite">
+            Termina às {endTime(value.time, value.durationMin)}
+          </p>
+        )}
+      </div>
+
+      {allowMeet && (
+        <fieldset className="rounded-lg border border-slate-200 p-3">
+          <legend className="flex items-center gap-1.5 px-1 text-sm font-semibold text-slate-700">
+            <Video size={14} aria-hidden="true" /> Google Meet
+          </legend>
+          <label className="flex items-start gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={value.createMeet}
+              onChange={(e) => onChange({ ...value, createMeet: e.target.checked })}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+            />
+            <span>
+              Criar sala no Google Meet e mandar o convite no Google Agenda para os participantes
+            </span>
+          </label>
+          {value.createMeet && (
+            <div className="mt-2 flex flex-col gap-2 pl-6">
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={value.autoRecording}
+                  onChange={(e) => set('autoRecording', e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                />
+                <span>Gravar automaticamente (a gravação começa sozinha quando a reunião iniciar)</span>
+              </label>
+              {isClientMeetingType(value.type) && selectedClient?.email && (
+                <label className="flex items-start gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={value.inviteClient}
+                    onChange={(e) => set('inviteClient', e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                  />
+                  <span>Convidar também o cliente ({selectedClient.email})</span>
+                </label>
+              )}
+              <p className="text-xs text-slate-400">
+                Na primeira vez o Google pede permissão para acessar sua agenda e as configurações do Meet.
+              </p>
+            </div>
+          )}
+        </fieldset>
+      )}
 
       {isClientMeetingType(value.type) && (
         <Field label="Cliente vinculado">
@@ -189,4 +255,10 @@ export function MeetingForm({
       </Field>
     </div>
   )
+}
+
+function endTime(time: string, durationMin: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const total = (h * 60 + m + durationMin) % (24 * 60)
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }

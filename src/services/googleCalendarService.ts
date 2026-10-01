@@ -1,25 +1,31 @@
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events'
+/** Permite ligar a gravação automática nas salas do Meet criadas pelo Google Agenda. */
+export const MEET_SETTINGS_SCOPE = 'https://www.googleapis.com/auth/meetings.space.settings'
 const STORAGE_KEY = 'google_calendar_token'
 
 interface StoredToken {
   accessToken: string
   expiresAt: number // epoch ms
+  /** Escopos concedidos, separados por espaço (tokens antigos não têm). */
+  scope?: string
 }
 
-function readStoredToken(): StoredToken | null {
+function readStoredToken(extraScopes: string[] = []): StoredToken | null {
   const raw = sessionStorage.getItem(STORAGE_KEY)
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as StoredToken
     if (parsed.expiresAt < Date.now() + 60_000) return null // expired / about to expire
+    const granted = (parsed.scope ?? SCOPE).split(' ')
+    if (extraScopes.some((s) => !granted.includes(s))) return null // falta escopo pedido agora
     return parsed
   } catch {
     return null
   }
 }
 
-function storeToken(accessToken: string, expiresInSeconds: number) {
-  const stored: StoredToken = { accessToken, expiresAt: Date.now() + expiresInSeconds * 1000 }
+function storeToken(accessToken: string, expiresInSeconds: number, scope?: string) {
+  const stored: StoredToken = { accessToken, expiresAt: Date.now() + expiresInSeconds * 1000, scope }
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
 }
 
@@ -34,8 +40,8 @@ export function clearAccessToken() {
 /** Opens the Google consent popup (or silently renews if already granted).
  *  Resolves with a short-lived access token — never a refresh token, this is
  *  a pure client-side "public client" flow with nothing stored server-side. */
-export function requestAccessToken(interactive: boolean): Promise<string> {
-  const cached = readStoredToken()
+export function requestAccessToken(interactive: boolean, extraScopes: string[] = []): Promise<string> {
+  const cached = readStoredToken(extraScopes)
   if (cached && !interactive) return Promise.resolve(cached.accessToken)
 
   if (!window.google) {
@@ -47,13 +53,13 @@ export function requestAccessToken(interactive: boolean): Promise<string> {
     // is created per call — cheap, and keeps each call's resolve/reject scoped correctly.
     const client = window.google!.accounts.oauth2.initTokenClient({
       client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-      scope: SCOPE,
+      scope: [SCOPE, ...extraScopes].join(' '),
       callback: (response) => {
         if (response.error || !response.access_token) {
           reject(new Error(response.error_description || response.error || 'Autorização recusada'))
           return
         }
-        storeToken(response.access_token, response.expires_in ?? 3600)
+        storeToken(response.access_token, response.expires_in ?? 3600, response.scope)
         resolve(response.access_token)
       },
     })
@@ -141,4 +147,27 @@ export async function createMeetingEvent(
     htmlLink: item.htmlLink,
     attendees: item.attendees,
   }
+}
+
+/** Liga a gravação automática da sala do Meet (Meet REST API v2). Só funciona
+ *  em conta Google Workspace com gravação liberada e com o escopo
+ *  MEET_SETTINGS_SCOPE concedido; lança erro com o motivo quando não dá. */
+export async function enableMeetAutoRecording(accessToken: string, meetLink: string): Promise<void> {
+  const code = meetLink.split('/').pop()?.split('?')[0]
+  if (!code) throw new Error('Link do Meet inválido')
+  const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+
+  const spaceRes = await fetch(`https://meet.googleapis.com/v2/spaces/${encodeURIComponent(code)}`, { headers })
+  if (!spaceRes.ok) throw new Error(`Não achei a sala do Meet (${spaceRes.status}): ${await spaceRes.text()}`)
+  const space = (await spaceRes.json()) as { name: string }
+
+  const res = await fetch(
+    `https://meet.googleapis.com/v2/${space.name}?updateMask=config.artifactConfig.recordingConfig.autoRecordingGeneration`,
+    {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ config: { artifactConfig: { recordingConfig: { autoRecordingGeneration: 'ON' } } } }),
+    }
+  )
+  if (!res.ok) throw new Error(`Não consegui ligar a gravação automática (${res.status}): ${await res.text()}`)
 }

@@ -14,6 +14,7 @@ export function ClientBriefingTab({ client }: { client: Client }) {
   if (hasPaidTraffic && hasSocialMedia) {
     return (
       <Tabs
+        label="Tipos de briefing"
         tabs={[
           { label: 'Tráfego Pago', content: <ClientPaidTrafficBriefingPanel client={client} /> },
           { label: 'Social Mídia', content: <ClientBriefingPanel client={client} /> },

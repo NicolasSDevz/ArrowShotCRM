@@ -6,7 +6,7 @@ import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { MeetingFormModal } from '../meetings/MeetingFormModal'
 import { MeetingDrawer } from '../meetings/MeetingDrawer'
-import { MeetingRow } from '../meetings/MeetingRow'
+import { MeetingRow, MeetingSections } from '../meetings/MeetingRow'
 import type { Client } from '../../types'
 
 /** Aba "Reuniões" da ficha do cliente — só as reuniões vinculadas a este
@@ -23,22 +23,22 @@ export function ClientMeetingsTab({ client }: { client: Client }) {
   return (
     <div className="flex flex-col gap-3">
       <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreating(true)} className="self-start">
-        Registrar reunião
+        Nova reunião
       </Button>
 
       {meetings.length === 0 ? (
         <EmptyState title="Nenhuma reunião registrada para este cliente" />
       ) : (
-        <div className="flex flex-col gap-2">
-          {meetings.map((m) => (
+        <MeetingSections
+          meetings={meetings}
+          renderRow={(m) => (
             <MeetingRow
-              key={m.id}
               meeting={m}
               participants={(m.participantIds ?? []).map((id) => userMap[id]).filter((u): u is NonNullable<typeof u> => !!u)}
               onClick={() => setOpenMeetingId(m.id)}
             />
-          ))}
-        </div>
+          )}
+        />
       )}
 
       <MeetingFormModal open={creating} onClose={() => setCreating(false)} defaultClientId={client.id} />
