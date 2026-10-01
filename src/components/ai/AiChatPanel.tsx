@@ -7,7 +7,7 @@ import type { AiQuota } from '../../services/aiChatService'
 
 const WELCOME_MESSAGE = `Olá! Sou o **Archer**, assistente de IA do Quiver. 🏹
 
-Posso te ajudar com análise de campanhas, performance dos clientes, sugestões de otimização e muito mais.
+Leio o CRM inteiro (clientes, tarefas, leads, reuniões, conteúdos e otimizações), analiso Google e Meta Ads e preencho os briefings — é só colar as anotações da reunião e pedir.
 
 O que você precisa hoje?`
 

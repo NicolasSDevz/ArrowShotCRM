@@ -139,6 +139,7 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
             '💡 Sugestões de otimização',
             '📋 Resumo desse cliente',
             '⚠️ Algum ponto de atenção?',
+            '✍️ O que falta no briefing desse cliente?',
           ],
         }
       }
@@ -181,6 +182,8 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
           '🔴 Quais clientes precisam de atenção?',
           '📈 Como está o MRR esse mês?',
           '✅ O que foi concluído hoje?',
+          '⏰ Quem está com tarefa atrasada?',
+          '🤝 Como está o funil de leads?',
         ],
       }
     }
@@ -193,6 +196,7 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
       suggestedQuestions: [
         '🔴 Quais clientes precisam de atenção?',
         '📈 Como está o MRR esse mês?',
+        '🧭 O que priorizar hoje?',
       ],
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

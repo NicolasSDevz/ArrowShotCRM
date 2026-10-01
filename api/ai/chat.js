@@ -16,7 +16,21 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { withInternalAuth } from '../_lib/auth.js'
-import { getDoc, setDoc, listDocs, queryDocs } from '../_lib/firebaseAdmin.js'
+import { getDoc, setDoc } from '../_lib/firebaseAdmin.js'
+import {
+  CRM_TOOLS,
+  CRM_TOOL_LABEL,
+  createCrmDirectory,
+  toolAgencyOverview,
+  toolClientDetails,
+  toolContents,
+  toolLeads,
+  toolMeetings,
+  toolOptimizations,
+  toolTasks,
+  toolWritePaidTrafficBriefing,
+  toolWriteSocialBriefing,
+} from '../_lib/archerCrm.js'
 import {
   DATE_RE,
   aggregateResults,
@@ -34,13 +48,15 @@ import { resolveMetaToken } from '../_lib/metaTokenStore.js'
 const ANTHROPIC_MODEL = 'claude-sonnet-5'
 const DAILY_MESSAGE_LIMIT = 50
 /** Rodadas de ferramenta por mensagem (cada rodada pode chamar várias em paralelo). */
-const MAX_TOOL_ROUNDS = 6
+const MAX_TOOL_ROUNDS = 8
 /** Prazo total da resposta — abaixo do maxDuration da function (vercel.json). */
 const TOTAL_BUDGET_MS = 100_000
 
 const BASE_SYSTEM_PROMPT = `Você é o Archer, assistente de IA do Quiver — plataforma de gestão da Arrow Shot, agência de marketing digital especializada no nicho de limpeza e facilities no Brasil.
 
 Seu papel é ajudar a equipe da agência com:
+- Ler e analisar o CRM inteiro: carteira de clientes, MRR, tarefas (abertas/atrasadas por pessoa), leads e funil comercial, reuniões (o que foi decidido), conteúdos de Social Media, otimizações registradas e sucesso do cliente
+- Preencher os briefings dos clientes (Tráfego Pago e Social Media) com o que o usuário passar
 - Análise de performance de campanhas (Meta Ads e Google Ads), no nível que a pergunta pedir: conta, campanha, conjunto, anúncio, palavra-chave e termo de pesquisa
 - Otimizações concretas: termos pra negativar, palavras-chave pra pausar ou reforçar, ajustes de correspondência, anúncios/conjuntos pra escalar ou cortar
 - Resumo de clientes e histórico
@@ -62,13 +78,25 @@ Você tem ferramentas que buscam dados reais e atualizados. Use-as sempre que a 
 - Pergunta de Meta Ads sobre criativos ou públicos: busque no nível anuncios ou conjuntos.
 - Pra comparar períodos (ex: "caiu em relação ao mês passado?"), busque os dois períodos com data_inicio/data_fim.
 - Chame ferramentas independentes em paralelo, na mesma rodada.
+- Pergunta geral sobre a agência ("como estamos?", "o que está pegando?", "o que priorizar hoje?"): comece por resumo_agencia e aprofunde com tarefas/leads/otimizacoes.
+- Pergunta sobre um cliente ("resumo do cliente", "o que combinamos com ele?"): detalhes_cliente + reunioes do cliente (+ Google/Meta Ads se for de tráfego).
+- Análise de conta de anúncio fica melhor com contexto: cruze os números com o briefing (ticket médio, resultado esperado, região) e o planejamento (verba) que vêm em detalhes_cliente.
+
+## Escrevendo no briefing
+- Use preencher_briefing_trafego / preencher_briefing_social quando o usuário pedir pra preencher, completar, salvar ou atualizar o briefing — por exemplo colando anotações ou a transcrição de uma reunião. Extraia de lá o que couber em cada campo.
+- Grave SÓ o que o usuário disse ou colou. Nunca invente nem "complete" com suposição — o que não estiver no texto fica vazio.
+- Se o usuário só conversou sobre o cliente e não pediu pra gravar, não grave: ofereça ("quer que eu salve isso no briefing?").
+- Por padrão só preenche campo vazio. Se a ferramenta devolver "pulados" (campo já tinha valor), mostre o valor atual vs. o novo e pergunte se pode substituir — só então chame de novo com sobrescrever=true.
+- Depois de gravar, confirme em lista curta o que foi salvo, o que foi pulado e o que continua faltando no briefing.
+- Fora os dois briefings, você não altera nada no CRM. Se pedirem pra criar tarefa, mover lead etc., diga que ainda não faz isso e o que a pessoa precisa fazer.
 
 ## Como analisar
 - Termos de pesquisa: aponte termos irrelevantes pro nicho (ex: emprego/vaga, "como limpar", produto de limpeza, curso, grátis, cidade fora da região atendida) com custo e sem conversão → sugira negativar (e em qual correspondência). Termos que convertem e ainda não são palavra-chave (statusDoTermo NONE) → sugira adicionar.
 - Palavras-chave: custo alto sem conversão ou custo por conversão bem acima da média da conta → pausar/reduzir lance; índice de qualidade baixo (≤4) → revisar anúncio/página; boas performers → reforçar orçamento.
 - Meta Ads: compare custo por conversa, CTR e frequência entre campanhas/conjuntos/anúncios; frequência alta (>3) com CTR caindo indica criativo saturado.
 - Sempre cite os números que embasam cada recomendação e priorize pelo impacto em dinheiro.
-- Termine com uma conclusão concreta e acionável (o que fazer primeiro). Nunca responda só com uma tabela sem interpretar.
+- Termine com uma conclusão concreta e acionável (o que fazer primeiro).
+- Tarefas/leads/otimizações: aponte nomes (de quem está atrasado, qual lead esfriou, qual cliente ficou sem otimização) — a equipe quer saber quem agir, não só o número. Nunca responda só com uma tabela sem interpretar.
 
 Seja direto, objetivo e profissional. Responda sempre em português brasileiro. Nunca invente dados — use só o que veio do contexto ou das ferramentas; se uma ferramenta falhar, diga qual dado faltou.
 
@@ -84,7 +112,7 @@ const TOOLS = [
   {
     name: 'detalhes_cliente',
     description:
-      'Ficha de um cliente: segmento, serviços, valor mensal, verbas planejadas, briefing de tráfego (ticket médio, público, desafios) e as últimas otimizações registradas pela equipe.',
+      'Ficha COMPLETA de um cliente: cadastro, responsáveis na agência, valor mensal, anotações, Briefing de Tráfego Pago e Briefing de Social Media inteiros (campos vazios não aparecem = ainda não preenchidos), Planejamento de Campanha, Funil Comercial, notas de Sucesso do Cliente e últimas otimizações.',
     input_schema: {
       type: 'object',
       properties: { cliente: { type: 'string', description: 'Nome do cliente (pode ser parcial).' } },
@@ -129,6 +157,10 @@ const TOOLS = [
   },
 ]
 
+// Ferramentas que leem/escrevem o próprio CRM (tarefas, leads, reuniões,
+// briefings...) ficam em api/_lib/archerCrm.js.
+const ALL_TOOLS = [...TOOLS, ...CRM_TOOLS]
+
 const TOOL_LABEL = {
   listar_clientes: 'lista de clientes',
   detalhes_cliente: 'ficha do cliente',
@@ -153,46 +185,15 @@ function resolvePeriod(input) {
   return { dateFrom: isoInSaoPaulo(from), dateTo: isoInSaoPaulo(to) }
 }
 
-// ---------------------------------------------------------------- clientes
-
-const normalize = (s) =>
-  String(s || '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .trim()
-
-/** Uma lista de clientes por mensagem (várias ferramentas podem precisar). */
-function createClientDirectory() {
-  let promise = null
-  const all = () => (promise ??= listDocs('clients'))
-  return {
-    all,
-    /** Acha o cliente pelo nome (exato > começa com > contém). Erro amigável se nenhum ou vários. */
-    async find(name) {
-      const q = normalize(name)
-      if (!q) throw new Error('Informe o nome do cliente.')
-      const clients = (await all()).filter((c) => c.status !== 'churned' || normalize(c.companyName) === q)
-      const exact = clients.filter((c) => normalize(c.companyName) === q)
-      const starts = clients.filter((c) => normalize(c.companyName).startsWith(q))
-      const contains = clients.filter((c) => normalize(c.companyName).includes(q))
-      const hits = exact.length ? exact : starts.length ? starts : contains
-      if (hits.length === 1) return hits[0]
-      if (hits.length === 0) throw new Error(`Nenhum cliente encontrado com "${name}". Use listar_clientes pra ver os nomes.`)
-      throw new Error(`Mais de um cliente bate com "${name}": ${hits.map((c) => c.companyName).join(', ')}. Seja mais específico.`)
-    },
-  }
-}
+// ---------------------------------------------------------------- ferramentas
 
 const activeModules = (c) =>
   Object.entries(c.modules || {})
     .filter(([, v]) => v)
     .map(([k]) => k)
 
-// ---------------------------------------------------------------- ferramentas
-
 async function toolListClients(dir) {
-  const clients = await dir.all()
+  const clients = await dir.clients()
   return clients
     .filter((c) => c.status !== 'churned')
     .map((c) => ({
@@ -200,51 +201,12 @@ async function toolListClients(dir) {
       status: c.status,
       segmento: c.segment || null,
       servicos: activeModules(c),
+      valorMensal: c.monthlyValue ?? null,
       temGoogleAds: !!c.campaignPlanning?.acessos?.googleAdsAccountId,
       temMetaAds: !!c.campaignPlanning?.acessos?.metaAdsAccountId,
+      briefingTrafegoPreenchido: !!c.paidTrafficBriefing?.filledAt,
+      briefingSocialPreenchido: !!c.briefing?.filledAt,
     }))
-}
-
-async function toolClientDetails(dir, input) {
-  const c = await dir.find(input.cliente)
-  const planning = c.campaignPlanning || {}
-  const briefing = c.paidTrafficBriefing || {}
-  let optimizations = []
-  try {
-    optimizations = (await queryDocs('optimizations', [['clientId', c.id]]))
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
-      .slice(0, 5)
-      .map((o) => ({
-        data: String(o.date || '').slice(0, 10),
-        plataformas: o.platforms,
-        otimizacoes: o.optimizationsText || [o.metaOptimizationsText, o.googleOptimizationsText].filter(Boolean).join(' | '),
-        observacoes: o.notes || undefined,
-      }))
-  } catch (err) {
-    console.warn('[ai/chat] falha ao ler otimizações', err.message)
-  }
-  return {
-    cliente: c.companyName,
-    status: c.status,
-    segmento: c.segment || null,
-    servicos: activeModules(c),
-    valorMensal: c.monthlyValue ?? null,
-    verbaMetaAds: planning.metaAds?.verbaMensal ?? null,
-    verbaGoogleAds: planning.googleAds?.verbaMensal ?? null,
-    temGoogleAds: !!planning.acessos?.googleAdsAccountId,
-    temMetaAds: !!planning.acessos?.metaAdsAccountId,
-    siteUrl: planning.acessos?.siteUrl || null,
-    briefing: briefing.filledAt
-      ? {
-          resultadoEsperado: briefing.resultadoEsperado || null,
-          ticketMedio: briefing.ticketMedio ?? null,
-          faturamentoMensal: briefing.faturamentoMensal ?? null,
-          desafiosAtuais: briefing.desafiosAtuais || null,
-          publicoAlvo: briefing.b2cDorPrincipal || briefing.b2bSetor || null,
-        }
-      : null,
-    ultimasOtimizacoes: optimizations,
-  }
 }
 
 async function toolGoogleAds(dir, input, googleToken) {
@@ -295,6 +257,22 @@ async function runTool(name, input, deps) {
       return toolGoogleAds(deps.dir, input, deps.googleToken)
     case 'meta_ads':
       return toolMetaAds(deps.dir, input)
+    case 'resumo_agencia':
+      return toolAgencyOverview(deps.dir)
+    case 'tarefas':
+      return toolTasks(deps.dir, input)
+    case 'leads':
+      return toolLeads(deps.dir, input)
+    case 'reunioes':
+      return toolMeetings(deps.dir, input)
+    case 'conteudos':
+      return toolContents(deps.dir, input)
+    case 'otimizacoes':
+      return toolOptimizations(deps.dir, input)
+    case 'preencher_briefing_trafego':
+      return toolWritePaidTrafficBriefing(deps, input)
+    case 'preencher_briefing_social':
+      return toolWriteSocialBriefing(deps, input)
     default:
       throw new Error(`Ferramenta desconhecida: ${name}`)
   }
@@ -316,12 +294,12 @@ function pageContextBlock(context) {
 
 /** Conversa com o modelo executando as ferramentas que ele pedir, até ele
  *  responder em texto (ou acabar o limite de rodadas/tempo). */
-export async function runArcher({ message, context, history }) {
+export async function runArcher({ message, context, history, user }) {
   const client = new Anthropic({ timeout: 60_000, maxRetries: 1 })
   const startedAt = Date.now()
-  const dir = createClientDirectory()
+  const dir = createCrmDirectory()
   let googleTokenPromise = null
-  const deps = { dir, googleToken: () => (googleTokenPromise ??= getAccessToken()) }
+  const deps = { dir, user, googleToken: () => (googleTokenPromise ??= getAccessToken()) }
 
   // Prompt fixo + ferramentas primeiro (cacheados); o que muda por mensagem vem depois.
   const system = [
@@ -338,7 +316,7 @@ export async function runArcher({ message, context, history }) {
       model: ANTHROPIC_MODEL,
       max_tokens: 8000,
       system,
-      tools: TOOLS,
+      tools: ALL_TOOLS,
       // Última rodada: proíbe novas consultas e força a resposta com o que já tem.
       // (As ferramentas continuam declaradas — o histórico já tem tool_use/tool_result.)
       ...(outOfRounds ? { tool_choice: { type: 'none' } } : {}),
@@ -370,7 +348,7 @@ export async function runArcher({ message, context, history }) {
     const calls = response.content.filter((b) => b.type === 'tool_use')
     const results = await Promise.all(
       calls.map(async (call) => {
-        toolsUsed.add(TOOL_LABEL[call.name] || call.name)
+        toolsUsed.add(TOOL_LABEL[call.name] || CRM_TOOL_LABEL[call.name] || call.name)
         try {
           const data = await runTool(call.name, call.input || {}, deps)
           return { type: 'tool_result', tool_use_id: call.id, content: JSON.stringify(data) }
@@ -458,7 +436,7 @@ async function handler(req, res, user) {
     : []
 
   try {
-    const { text, usage, toolsUsed } = await runArcher({ message, context, history: cleanHistory })
+    const { text, usage, toolsUsed } = await runArcher({ message, context, history: cleanHistory, user })
     return res.status(200).json({ response: text, usage, quota, toolsUsed })
   } catch (err) {
     if (err instanceof Anthropic.APIError) {

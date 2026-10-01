@@ -159,6 +159,23 @@ export async function updateDoc(path, data) {
   if (!res.ok) throw new Error(`Firestore PATCH(mask) ${path}: ${body?.error?.message || res.status}`)
 }
 
+/** Atualiza campos aninhados (ex: 'paidTrafficBriefing.ticketMedio') sem
+ *  tocar no resto do mapa. `data` vem já aninhado ({ paidTrafficBriefing: {
+ *  ticketMedio: 10 } }) e `fieldPaths` diz exatamente quais folhas gravar. */
+export async function updateDocPaths(path, data, fieldPaths) {
+  const token = await getAccessToken()
+  const url = new URL(`${FS_BASE}/${path}`)
+  for (const p of fieldPaths) url.searchParams.append('updateMask.fieldPaths', p)
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: toFields(data) }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(`Firestore PATCH(paths) ${path}: ${body?.error?.message || res.status}`)
+}
+
 /** Lista todos os documentos de uma coleção. Retorna [{ id, ...campos }].
  *  Pagina sozinho via nextPageToken. */
 export async function listDocs(collectionPath) {
