@@ -13,6 +13,7 @@ const BRUNO_LAYOUT = layout([
   ['rotina_equipe', 'full'],
   ['otimizacoes_equipe', 'full'],
   ['tarefas_equipe', 'full'],
+  ['consultorias_mes', 'full'],
   ['tarefas_atrasadas', 'full'],
   ['proximas_7dias', 'full'],
   ['resumo_clientes', 'full'],
@@ -48,6 +49,23 @@ const DEFAULT_LAYOUTS: Record<RoutinePersonKey | 'default', DashboardWidgetConfi
   ciane: GESTORES_LAYOUT,
   nicolas: GESTORES_LAYOUT,
   default: GESTORES_LAYOUT,
+}
+
+/** Widgets criados depois que a pessoa já tinha salvo o próprio layout —
+ *  entram no fim do layout salvo de quem tem esse widget no padrão do cargo
+ *  (ver useUserDashboardLayout). Widget que a pessoa removeu continua no
+ *  array salvo com `visible: false`, então nunca reaparece sozinho. */
+const LATE_ADDED_WIDGETS: DashboardWidgetConfig['id'][] = ['consultorias_mes']
+
+export function withLateAddedWidgets(
+  saved: DashboardWidgetConfig[],
+  profile: Pick<AppUser, 'name'> | null | undefined
+): DashboardWidgetConfig[] {
+  const savedIds = new Set(saved.map((w) => w.id))
+  const missing = getDefaultLayout(profile).filter((w) => LATE_ADDED_WIDGETS.includes(w.id) && !savedIds.has(w.id))
+  if (missing.length === 0) return saved
+  const maxOrder = saved.reduce((max, w) => Math.max(max, w.order), 0)
+  return [...saved, ...missing.map((w, i) => ({ ...w, order: maxOrder + i + 1 }))]
 }
 
 export function getDefaultLayout(profile: Pick<AppUser, 'name'> | null | undefined): DashboardWidgetConfig[] {

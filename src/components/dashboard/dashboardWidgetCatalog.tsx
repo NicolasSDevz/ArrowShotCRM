@@ -20,6 +20,7 @@ import { ClientSummaryWidget } from './ClientSummaryWidget'
 import { QuickTaskWidget } from './QuickTaskWidget'
 import { RegisterUpsellWidget } from './RegisterUpsellWidget'
 import { TeamWeeklyReportWidget } from './TeamWeeklyReportWidget'
+import { MonthlyConsultingWidget } from './MonthlyConsultingWidget'
 
 /** Rótulo exibido no card do widget em modo de edição e no painel
  *  "adicionar widget". `conteudos_aprovados` não faz parte da lista pedida
@@ -44,6 +45,7 @@ export const WIDGET_LABEL: Record<DashboardWidgetId, string> = {
   nova_tarefa: 'Criar tarefa rápida',
   registrar_upsell: 'Registrar upsell',
   relatorio_semanal_equipe: 'Relatório da semana — equipe',
+  consultorias_mes: 'Consultorias do mês',
 }
 
 export const ALL_WIDGET_IDS = Object.keys(WIDGET_LABEL) as DashboardWidgetId[]
@@ -78,6 +80,8 @@ export function renderDashboardWidget(id: DashboardWidgetId, data: DashboardWidg
       return <RegisterUpsellWidget />
     case 'relatorio_semanal_equipe':
       return <TeamWeeklyReportWidget />
+    case 'consultorias_mes':
+      return <MonthlyConsultingWidget onNavigateClient={data.onNavigateClient} />
     case 'tarefas_atrasadas':
       return <OverdueTasksWidget tasks={data.buckets.overdue} clientMap={data.clientMap} onOpenTask={data.onOpenTask} />
     case 'tarefas_hoje':

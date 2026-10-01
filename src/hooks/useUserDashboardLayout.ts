@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { AppUser } from '../types/user'
 import type { DashboardWidgetConfig } from '../types/dashboardLayout'
 import { subscribeUserDashboard } from '../services/userDashboardService'
-import { getDefaultLayout } from '../utils/dashboardDefaults'
+import { getDefaultLayout, withLateAddedWidgets } from '../utils/dashboardDefaults'
 
 /** Layout salvo do usuário pro dashboard `dashboardKey` — cai pro padrão do
  *  cargo/pessoa (ver dashboardDefaults.ts) enquanto não existir doc salvo. */
@@ -14,7 +14,7 @@ export function useUserDashboardLayout(profile: AppUser | null, dashboardKey: st
     if (!profile) return
     setLoading(true)
     const unsubscribe = subscribeUserDashboard(profile.id, dashboardKey, (layout) => {
-      setWidgets(layout?.widgets?.length ? layout.widgets : getDefaultLayout(profile))
+      setWidgets(layout?.widgets?.length ? withLateAddedWidgets(layout.widgets, profile) : getDefaultLayout(profile))
       setLoading(false)
     })
     return unsubscribe

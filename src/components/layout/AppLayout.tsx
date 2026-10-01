@@ -8,11 +8,13 @@ import { CelebrationOverlay } from '../CelebrationOverlay'
 import { TaskCelebrationOverlay } from '../TaskCelebrationOverlay'
 import { AiAssistantWidget } from '../ai/AiAssistantWidget'
 import { useTaskDueDateSweep } from '../../hooks/useTaskDueDateSweep'
+import { useMonthlyConsultingSync } from '../../hooks/useMonthlyConsultingSync'
 
 export function AppLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const location = useLocation()
   useTaskDueDateSweep()
+  useMonthlyConsultingSync()
 
   // print:*: "Baixar PDF" do relatório imprime só o conteúdo da página (sem menu, topo nem Archer).
   return (

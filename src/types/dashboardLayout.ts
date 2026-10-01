@@ -25,6 +25,7 @@ export type DashboardWidgetId =
   | 'nova_tarefa'
   | 'registrar_upsell'
   | 'relatorio_semanal_equipe'
+  | 'consultorias_mes'
 
 export type DashboardWidgetWidth = 'full' | 'half'
 
