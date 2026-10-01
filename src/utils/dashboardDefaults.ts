@@ -23,6 +23,7 @@ const BRUNO_LAYOUT = layout([
 
 const JAMILSON_LAYOUT = layout([
   ['rotina', 'full'],
+  ['consultorias_mes', 'full'],
   ['tarefas_hoje', 'half'],
   ['tarefas_atrasadas', 'half'],
   ['proximas_publicacoes', 'full'],

@@ -14,6 +14,8 @@ export function MeetingFormModal({
   open,
   onClose,
   defaultClientId,
+  defaultType: defaultTypeProp,
+  title = 'Nova reunião',
 }: {
   open: boolean
   onClose: () => void
@@ -21,12 +23,16 @@ export function MeetingFormModal({
    *  clientes") + this client — used by the ficha do cliente's "Registrar
    *  reunião" button. */
   defaultClientId?: string
+  /** Força o tipo inicial — ex. "Consultoria Mensal" ao agendar pelo widget
+   *  Consultorias do mês (um clique a menos pro Jamilson, que usa leitor de tela). */
+  defaultType?: MeetingType
+  title?: string
 }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
   const { data: clients } = useClients()
 
-  const defaultType: MeetingType = defaultClientId ? 'onboarding' : 'daily'
+  const defaultType: MeetingType = defaultTypeProp ?? (defaultClientId ? 'onboarding' : 'daily')
   const [form, setForm] = useState<MeetingFormState>(() => buildDefaultMeetingForm({ type: defaultType, clientId: defaultClientId ?? '' }))
   const [saving, setSaving] = useState(false)
 
@@ -57,7 +63,7 @@ export function MeetingFormModal({
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Nova reunião" width="max-w-2xl">
+    <Modal open={open} onClose={handleClose} title={title} width="max-w-2xl">
       <div className="flex flex-col gap-4">
         <MeetingForm value={form} onChange={setForm} users={users} clients={clients} />
         <div className="flex justify-end gap-2">

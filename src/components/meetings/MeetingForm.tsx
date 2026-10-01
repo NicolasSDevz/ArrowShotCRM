@@ -89,8 +89,8 @@ export function MeetingForm({
         </Field>
       )}
 
-      <div>
-        <span className="mb-1.5 block text-xs font-medium text-slate-500">Participantes</span>
+      <div role="group" aria-labelledby="meeting-participants-label">
+        <span id="meeting-participants-label" className="mb-1.5 block text-xs font-medium text-slate-500">Participantes</span>
         <div className="flex flex-wrap gap-2">
           {internalUsers.map((u) => {
             const checked = value.participantIds.includes(u.id)
@@ -99,11 +99,14 @@ export function MeetingForm({
                 key={u.id}
                 type="button"
                 onClick={() => toggleParticipant(u.id)}
+                aria-pressed={checked}
                 className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors duration-150 ease-in-out ${
                   checked ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                <Avatar name={u.name} photoURL={u.photoURL} size="xs" />
+                <span aria-hidden="true">
+                  <Avatar name={u.name} photoURL={u.photoURL} size="xs" />
+                </span>
                 {u.name}
               </button>
             )
@@ -120,8 +123,10 @@ export function MeetingForm({
         />
       </Field>
 
-      <div>
-        <span className="mb-1.5 block text-sm font-semibold text-slate-700">📌 Decisões e encaminhamentos</span>
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+          <span aria-hidden="true">📌 </span>Decisões e encaminhamentos
+        </span>
         <textarea
           rows={3}
           value={value.decisions}
@@ -129,7 +134,7 @@ export function MeetingForm({
           placeholder="Liste as decisões e encaminhamentos definidos..."
           className="w-full resize-none rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-slate-800 outline-none transition-all duration-150 ease-in-out placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
         />
-      </div>
+      </label>
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">
@@ -146,23 +151,24 @@ export function MeetingForm({
             >
               <Input
                 placeholder="Descrição da ação"
+                aria-label="Descrição da ação"
                 value={item.description}
                 onChange={(e) => updateActionItem(item.id, { description: e.target.value })}
               />
-              <Select value={item.assignedTo} onChange={(e) => updateActionItem(item.id, { assignedTo: e.target.value })}>
+              <Select aria-label="Responsável pela ação" value={item.assignedTo} onChange={(e) => updateActionItem(item.id, { assignedTo: e.target.value })}>
                 <option value="">Responsável...</option>
                 {internalUsers.map((u) => (
                   <option key={u.id} value={u.id}>{u.name}</option>
                 ))}
               </Select>
-              <Input type="date" value={item.dueDateStr} onChange={(e) => updateActionItem(item.id, { dueDateStr: e.target.value })} />
+              <Input type="date" aria-label="Prazo da ação" value={item.dueDateStr} onChange={(e) => updateActionItem(item.id, { dueDateStr: e.target.value })} />
               <button
                 type="button"
                 onClick={() => removeActionItem(item.id)}
                 aria-label="Remover ação"
                 className="justify-self-end rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
               >
-                <X size={15} />
+                <X size={15} aria-hidden="true" />
               </button>
             </div>
           ))}

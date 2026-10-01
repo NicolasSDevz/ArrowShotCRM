@@ -114,6 +114,7 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => title.trim() && title !== task.title && save({ title: title.trim() })}
+          aria-label="Título da tarefa"
           className="w-full border-none bg-transparent text-base font-semibold text-slate-800 outline-none"
         />
       }
@@ -188,12 +189,14 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
               <Input
                 type="date"
                 value={briefingDateInput}
+                aria-label="Data da reunião de briefing"
                 onChange={(e) => setBriefingDateInput(e.target.value)}
                 onBlur={commitBriefingMeeting}
               />
               <Input
                 type="time"
                 value={briefingTimeInput}
+                aria-label="Horário da reunião de briefing"
                 onChange={(e) => setBriefingTimeInput(e.target.value)}
                 onBlur={commitBriefingMeeting}
               />
@@ -212,17 +215,22 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
           />
         </Field>
 
-        <Field label="Checklist">
+        {/* Não usa <Field> (que é um <label>): um label envolvendo vários
+            checkboxes faria o leitor de tela ler "Checklist" no primeiro item. */}
+        <section aria-labelledby="task-checklist-heading">
+          <h3 id="task-checklist-heading" className="mb-1 block text-xs font-medium text-slate-500">
+            Checklist
+          </h3>
           <ChecklistEditor
             items={task.checklist ?? []}
             onChange={handleChecklistChange}
           />
-        </Field>
+        </section>
 
         {task.recurrence && (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2">
             <p className="flex items-center gap-1.5 text-xs font-medium text-brand-700">
-              <Repeat size={13} /> {formatRecurrence(task.recurrence)}
+              <Repeat size={13} aria-hidden="true" /> {formatRecurrence(task.recurrence)}
             </p>
             <Button variant="ghost" size="sm" onClick={handleDuplicateNext}>
               Duplicar próxima ocorrência

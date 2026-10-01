@@ -2,7 +2,7 @@ import { doc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firest
 import { endOfMonth, format, isSameMonth, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { db } from '../firebase/config'
-import { setTaskChecklist } from './taskService'
+import { setTaskChecklist, updateTask } from './taskService'
 import { logActivity } from './activityService'
 import { createNotification } from './notificationService'
 import { findUserIdByName } from '../utils/userLookup'
@@ -30,9 +30,20 @@ export function isMonthlyConsultingTask(task: Pick<Task, 'id'>): boolean {
   return task.id.startsWith(TASK_ID_PREFIX)
 }
 
+/** Textos pensados pra leitor de tela (o Jamilson é cego): sem travessão,
+ *  sem emoji, mês por extenso e o nome do cliente sempre primeiro. */
 function monthLabel(month: Date): string {
+  return format(month, "MMMM 'de' yyyy", { locale: ptBR })
+}
+
+export function monthlyConsultingTaskTitle(month: Date): string {
+  return `Consultorias de ${monthLabel(month)}`
+}
+
+/** Título da primeira versão (com travessão) — renomeado na sincronização. */
+function legacyTaskTitle(month: Date): string {
   const s = format(month, "MMMM'/'yyyy", { locale: ptBR })
-  return s.charAt(0).toUpperCase() + s.slice(1)
+  return `Consultorias do mês — ${s.charAt(0).toUpperCase() + s.slice(1)}`
 }
 
 /** Data/hora real da reunião — `date` vem à meia-noite e `time` ("HH:mm") é
@@ -103,8 +114,8 @@ function buildChecklist(rows: ConsultingStatusRow[], existing: ChecklistItem[]):
   for (const row of rows) {
     const name = row.client.companyName
     const entries: [string, string, boolean][] = [
-      [scheduledItemId(row.client.id), `${name} — consultoria agendada`, row.scheduled],
-      [doneItemId(row.client.id), `${name} — consultoria realizada`, row.done],
+      [scheduledItemId(row.client.id), `${name}: consultoria agendada`, row.scheduled],
+      [doneItemId(row.client.id), `${name}: consultoria realizada`, row.done],
     ]
     for (const [id, text, auto] of entries) {
       const prev = byId.get(id)
@@ -127,6 +138,12 @@ function sameChecklist(a: ChecklistItem[], b: ChecklistItem[]): boolean {
   return a.every((item, i) => item.id === b[i].id && item.text === b[i].text && item.done === b[i].done)
 }
 
+const CONSULTING_TASK_DESCRIPTION =
+  'Tarefa automática do mês. Para cada cliente ativo há dois itens: consultoria agendada e consultoria realizada. ' +
+  'Os itens se marcam sozinhos: agendada, quando existe uma reunião do tipo Consultoria Mensal do cliente neste mês; ' +
+  'realizada, quando o dia e o horário dessa reunião já passaram. ' +
+  'Para agendar, use o botão Agendar consultoria no quadro Consultorias do mês, no Operacional.'
+
 function resolveJamilsonId(users: AppUser[]): string | undefined {
   return findUserIdByName(users, 'Jamilson') ?? findUserIdByName(users, 'Janilson')
 }
@@ -139,11 +156,8 @@ async function ensureMonthTask(month: Date, checklist: ChecklistItem[], assigned
     const snap = await tx.get(ref)
     if (snap.exists()) return false
     tx.set(ref, {
-      title: `Consultorias do mês — ${monthLabel(month)}`,
-      description:
-        'Tarefa automática. Confira se cada cliente ativo já tem a Consultoria Mensal agendada e se ela foi realizada. ' +
-        'Os itens se marcam sozinhos quando a reunião do tipo "Consultoria Mensal" é registrada em Reuniões ' +
-        '(agendada = existe reunião no mês; realizada = a data/hora da reunião já passou).',
+      title: monthlyConsultingTaskTitle(month),
+      description: CONSULTING_TASK_DESCRIPTION,
       assignedTo,
       dueDate: Timestamp.fromDate(endOfMonth(month)),
       priority: 'normal',
@@ -193,13 +207,13 @@ export async function syncMonthlyConsultingTask({ clients, meetings, tasks, user
       const checklist = buildChecklist(rows, [])
       const created = await ensureMonthTask(month, checklist, jamilsonId, userId)
       if (created) {
-        const title = `Consultorias do mês — ${monthLabel(month)}`
+        const title = monthlyConsultingTaskTitle(month)
         await logActivity({ entityType: 'task', entityId: id, action: 'created', message: `criou a tarefa "${title}"`, userId, userName })
         if (jamilsonId !== userId) {
           await createNotification({
             userId: jamilsonId,
             type: 'task_assigned',
-            message: `Nova tarefa do mês: "${title}" — confira o agendamento das consultorias`,
+            message: `Nova tarefa: ${title}. Confira se cada cliente ativo tem a consultoria do mês agendada e realizada.`,
             entityType: 'task',
             entityId: id,
           })
@@ -209,6 +223,9 @@ export async function syncMonthlyConsultingTask({ clients, meetings, tasks, user
     }
 
     if (task.status === 'done') continue
+    if (task.title === legacyTaskTitle(month)) {
+      await updateTask(task.id, { title: monthlyConsultingTaskTitle(month), description: CONSULTING_TASK_DESCRIPTION }, userId, userName)
+    }
     const next = buildChecklist(rows, task.checklist ?? [])
     if (!sameChecklist(next, task.checklist ?? [])) {
       await setTaskChecklist(task.id, next, userId)
