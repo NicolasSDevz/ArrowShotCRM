@@ -9,6 +9,15 @@ import {
 import { auth } from '../firebase/config'
 import { ensureUserProfile, subscribeUserProfile } from '../services/userService'
 import { usePresenceHeartbeat } from '../hooks/usePresenceHeartbeat'
+import {
+  checkServerSession,
+  markManualSignOut,
+  noteAuthError,
+  noteAuthOk,
+  noteDbBlocked,
+  noteSignedIn,
+  noteSignedOut,
+} from '../services/sessionDiagnostics'
 import type { AppUser } from '../types'
 
 interface AuthContextValue {
@@ -24,7 +33,7 @@ interface AuthContextValue {
  *  doc do perfil a cada 30s, e isso não pode virar um "perfil novo" que faz o
  *  app inteiro renderizar de novo. */
 function sameProfile(a: AppUser, b: AppUser): boolean {
-  const strip = ({ lastSeenAt: _l, presenceState: _p, ...rest }: AppUser & { lastSeenAt?: unknown; presenceState?: unknown }) => rest
+  const strip = ({ lastSeenAt: _l, presenceState: _p, session: _s, lastSessionIssue: _i, ...rest }: AppUser) => rest
   return JSON.stringify(strip(a)) === JSON.stringify(strip(b))
 }
 
@@ -38,6 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let stopProfile: (() => void) | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let tokenTimer: ReturnType<typeof setInterval> | null = null
+    // Falhas seguidas do perfil e se a sessão já foi conferida neste login (diagnóstico de queda).
+    let profileFailures = 0
+    let sessionCheckedFor: string | null = null
     const clearProfileWatch = () => {
       stopProfile?.()
       stopProfile = null
@@ -56,7 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       stopProfile = subscribeUserProfile(
         user.uid,
         async (p, fromCache) => {
+          profileFailures = 0
           if (p) {
+            if (!fromCache && sessionCheckedFor !== user.uid) {
+              sessionCheckedFor = user.uid
+              void checkServerSession(user.uid, p.session ?? undefined)
+            }
             setProfile((prev) => (prev && sameProfile(prev, p) ? prev : p))
             setLoading(false)
             return
@@ -73,6 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         (err) => {
           console.error('Falha ao carregar o perfil, tentando de novo', err)
+          profileFailures += 1
+          if (profileFailures === 3) noteDbBlocked(err.code)
           setLoading(false)
           clearProfileWatch()
           retryTimer = setTimeout(() => watchProfile(user), 3000)
@@ -80,11 +100,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       )
     }
 
+    // Renovar o login de tempos em tempos expõe quando algo (extensão,
+    // antivírus) bloqueia o securetoken.googleapis.com — ver sessionDiagnostics.
+    const checkToken = (user: FirebaseUser) =>
+      user
+        .getIdToken()
+        .then(noteAuthOk)
+        .catch((err: { code?: string }) => noteAuthError(err?.code ?? 'desconhecido'))
+
     const unsub = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user)
+      if (tokenTimer) clearInterval(tokenTimer)
+      tokenTimer = null
       if (user) {
+        noteSignedIn(user.uid)
+        tokenTimer = setInterval(() => void checkToken(user), 5 * 60_000)
         watchProfile(user)
       } else {
+        noteSignedOut()
+        sessionCheckedFor = null
         clearProfileWatch()
         setProfile(null)
         setLoading(false)
@@ -92,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     return () => {
       unsub()
+      if (tokenTimer) clearInterval(tokenTimer)
       clearProfileWatch()
     }
   }, [])
@@ -104,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    await markManualSignOut(auth.currentUser?.uid)
     await fbSignOut(auth)
   }
 

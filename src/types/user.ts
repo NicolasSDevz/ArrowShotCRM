@@ -15,6 +15,10 @@ export interface AppUser {
   lastSeenAt?: Timestamp | null
   /** 'away' = a pessoa saiu da aba/ficou ociosa (some da lista de online na hora). */
   presenceState?: 'online' | 'away' | null
+  /** Diagnóstico de queda de login (ver services/sessionDiagnostics): sessão aberta neste navegador. */
+  session?: { open: boolean; deviceId: string; ua: string; at?: Timestamp } | null
+  /** Último motivo de desconexão detectado. */
+  lastSessionIssue?: { kind: string; at: Timestamp; detail: string | null; ua: string } | null
   createdAt: Timestamp
   updatedAt: Timestamp
 }
