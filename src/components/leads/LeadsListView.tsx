@@ -52,7 +52,7 @@ export function LeadsListView({
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] text-left text-sm">
-          <thead className="border-b border-slate-100 bg-slate-50 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
+          <thead className="whitespace-nowrap border-b border-slate-100 bg-slate-50 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
             <tr>
               <th className="px-4 py-3">Contato</th>
               <th className="px-4 py-3">Etapa</th>
@@ -108,7 +108,7 @@ export function LeadsListView({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-1">
-                        <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>
+                        {leadServiceLabel(lead) !== '—' && <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>}
                         {formTagOf?.(lead) ? (
                           <span
                             className="inline-flex max-w-[180px] items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold"

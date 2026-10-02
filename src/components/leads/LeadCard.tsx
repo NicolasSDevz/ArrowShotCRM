@@ -100,7 +100,7 @@ export function LeadCard({
             {LEAD_TEMPERATURE_LABEL[temperature]} · {bantTotal(lead.bant)}
           </Badge>
         )}
-        <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>
+        {leadServiceLabel(lead) !== '—' && <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>}
         {lead.services.landingPage && <Badge className="badge-service-landing">Landing Page</Badge>}
         {!formTag && <Badge className="bg-slate-100 text-[11px] text-slate-500">{LEAD_SOURCE_LABEL[lead.source]}</Badge>}
         {existingClientName && (
