@@ -23,7 +23,7 @@ import { useCalendarEvents } from '../hooks/useCalendarEvents'
 import { upcomingBirthdays } from '../services/birthdayService'
 import { birthdayWhatsappLink } from '../utils/birthdayMessage'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
-import { MEETING_TYPE_LABEL, MEETING_TYPE_DOT } from '../types/meeting'
+import { MEETING_TYPE_LABEL, MEETING_TYPE_DOT, MEETING_TYPE_BADGE } from '../types/meeting'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
 import { MeetingDrawer } from '../components/meetings/MeetingDrawer'
 import { NewMeetingModal } from '../components/calendar/NewMeetingModal'
@@ -86,6 +86,9 @@ export function CalendarPage() {
         title: ev.title,
         kind: 'event',
         date: ev.date.toDate(),
+        time: ev.time,
+        shortTitle: ev.title.includes(' — ') ? ev.title.split(' — ').slice(1).join(' — ') : undefined,
+        subtitle: ev.title.includes(' — ') ? ev.title.split(' — ')[0] : undefined,
         clientName: ev.clientId ? clientMap[ev.clientId]?.companyName : undefined,
       }))
     // Aniversários: recorrentes — renderiza a ocorrência de cada ano visível.
@@ -111,7 +114,10 @@ export function CalendarPage() {
         date: m.date.toDate(),
         time: m.time,
         clientName,
+        shortTitle: clientName ?? MEETING_TYPE_LABEL[m.type],
+        subtitle: clientName ? MEETING_TYPE_LABEL[m.type] : undefined,
         dot: MEETING_TYPE_DOT[m.type],
+        tint: MEETING_TYPE_BADGE[m.type],
       }
     })
     return [...fromTasks, ...fromMeetings, ...fromEvents, ...fromBirthdays, ...fromInternalMeetings]
@@ -134,31 +140,39 @@ export function CalendarPage() {
   }
 
   const birthdaysBox = birthdays30.length > 0 && (
-    <div className="rounded-xl border border-pink-100 bg-pink-50/60 p-4">
-      <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-pink-700">
-        <Cake size={15} /> Próximos aniversários
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.05)]">
+      <p className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-900">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-pink-50 text-pink-600" aria-hidden="true">
+          <Cake size={15} />
+        </span>
+        Próximos aniversários
       </p>
-      <ul className="flex flex-col divide-y divide-pink-100">
+      <ul className="flex flex-col divide-y divide-slate-100">
         {birthdays30.map((b) => {
           const wa = birthdayWhatsappLink(b.name, b.whatsapp)
           return (
-            <li key={b.eventId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-sm">
-              <span className="w-28 shrink-0 font-medium text-pink-700">
-                {b.daysUntil === 0 ? 'hoje' : b.daysUntil === 1 ? 'amanhã' : `em ${b.daysUntil} dias`}{' '}
-                <span className="text-pink-400">· {format(b.next, 'dd/MM')}</span>
+            <li key={b.eventId} className="flex items-center gap-3 px-4 py-2.5">
+              <span className="flex w-11 shrink-0 flex-col items-center rounded-lg bg-pink-50 py-1 text-pink-700">
+                <span className="text-sm font-bold leading-none">{format(b.next, 'dd')}</span>
+                <span className="text-[10px] font-semibold uppercase">{format(b.next, 'MMM', { locale: ptBR }).replace('.', '')}</span>
               </span>
-              <span className="font-medium text-slate-800">{b.name}</span>
-              {b.clientId && clientMap[b.clientId] && <span className="text-slate-400">· {clientMap[b.clientId].companyName}</span>}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-slate-800">{b.name}</span>
+                <span className="block truncate text-xs text-slate-500">
+                  {b.daysUntil === 0 ? 'Hoje' : b.daysUntil === 1 ? 'Amanhã' : `Em ${b.daysUntil} dias`}
+                  {b.clientId && clientMap[b.clientId] ? ` · ${clientMap[b.clientId].companyName}` : ''}
+                </span>
+              </span>
               {wa && (
-                <a href={wa} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-emerald-600 hover:underline">
-                  Abrir WhatsApp
+                <a href={wa} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                  WhatsApp
                 </a>
               )}
             </li>
           )
         })}
       </ul>
-    </div>
+    </section>
   )
 
   const drawers = (
@@ -179,7 +193,7 @@ export function CalendarPage() {
           cursor={cursor}
           onCursor={setCursor}
           onOpenItem={openItem}
-          top={birthdaysBox}
+          side={birthdaysBox}
           actions={
             google.connected ? (
               <>

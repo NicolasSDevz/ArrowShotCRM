@@ -16,7 +16,7 @@ import {
   subWeeks,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Cake, CalendarClock, CheckSquare, ChevronLeft, ChevronRight, Video, X } from 'lucide-react'
+import { Cake, CalendarClock, CalendarDays, CheckSquare, ChevronLeft, ChevronRight, Video } from 'lucide-react'
 
 export type CalItemKind = 'task' | 'meeting' | 'internalMeeting' | 'event' | 'birthday'
 
@@ -29,8 +29,14 @@ export type CalItem = {
   time?: string
   clientName?: string
   link?: string
-  /** Classe da cor sólida (bolinha/barra) — reuniões usam a cor do tipo. */
+  /** Título curto pro quadradinho do mês (ex.: só o nome do cliente). */
+  shortTitle?: string
+  /** Linha de apoio (ex.: tipo da reunião quando o título é o cliente). */
+  subtitle?: string
+  /** Cor sólida (barra lateral) — reuniões usam a cor do tipo. */
   dot?: string
+  /** Fundo + texto do bloco — reuniões usam o badge do tipo. */
+  tint?: string
 }
 
 const KIND_LABEL: Record<CalItemKind, string> = {
@@ -44,9 +50,17 @@ const KIND_LABEL: Record<CalItemKind, string> = {
 const KIND_DOT: Record<CalItemKind, string> = {
   task: 'bg-slate-400',
   meeting: 'bg-amber-500',
-  internalMeeting: 'bg-brand-500',
+  internalMeeting: 'bg-blue-500',
   event: 'bg-violet-500',
   birthday: 'bg-pink-500',
+}
+
+const KIND_TINT: Record<CalItemKind, string> = {
+  task: 'bg-slate-100 text-slate-600',
+  meeting: 'bg-amber-50 text-amber-700',
+  internalMeeting: 'bg-blue-50 text-blue-700',
+  event: 'bg-violet-50 text-violet-700',
+  birthday: 'bg-pink-50 text-pink-700',
 }
 
 function KindIcon({ kind, size = 12 }: { kind: CalItemKind; size?: number }) {
@@ -68,7 +82,7 @@ export function ModernCalendar({
   onCursor,
   onOpenItem,
   actions,
-  top,
+  side,
 }: {
   items: CalItem[]
   mode: 'month' | 'week'
@@ -78,8 +92,8 @@ export function ModernCalendar({
   onOpenItem: (item: CalItem) => void
   /** Botões do lado direito da barra (Google Agenda, nova reunião). */
   actions?: ReactNode
-  /** Conteúdo acima do calendário (ex.: próximos aniversários). */
-  top?: ReactNode
+  /** Conteúdo extra na coluna lateral, abaixo do dia selecionado. */
+  side?: ReactNode
 }) {
   const [selected, setSelected] = useState<Date>(new Date())
 
@@ -104,15 +118,24 @@ export function ModernCalendar({
   const title =
     mode === 'month'
       ? format(cursor, 'MMMM yyyy', { locale: ptBR })
-      : `${format(rangeStart, "d MMM", { locale: ptBR })} a ${format(rangeEnd, "d MMM yyyy", { locale: ptBR })}`
+      : `${format(rangeStart, "d 'de' MMM", { locale: ptBR })} a ${format(rangeEnd, "d 'de' MMM", { locale: ptBR })}`
 
   const selectedItems = itemsOf(selected)
+  const monthCount = items.filter((i) => isSameMonth(i.date, cursor) && i.kind !== 'task').length
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {/* Barra */}
-      <div className="flex flex-wrap items-center gap-3">
-        <h2 className="min-w-[180px] text-xl font-bold capitalize text-slate-900">{title}</h2>
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.05)]">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600" aria-hidden="true">
+          <CalendarDays size={20} />
+        </span>
+        <div className="min-w-[170px]">
+          <h2 className="text-lg font-bold capitalize leading-tight text-slate-900">{title}</h2>
+          <p className="text-xs text-slate-500">
+            {monthCount} {monthCount === 1 ? 'compromisso' : 'compromissos'} no mês
+          </p>
+        </div>
         <div className="flex items-center gap-1">
           <button onClick={() => go(-1)} aria-label="Anterior" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
             <ChevronLeft size={18} />
@@ -122,7 +145,7 @@ export function ModernCalendar({
               onCursor(new Date())
               setSelected(new Date())
             }}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Hoje
           </button>
@@ -147,27 +170,16 @@ export function ModernCalendar({
         <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
       </div>
 
-      {/* Legenda */}
-      <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-        {(Object.keys(KIND_LABEL) as CalItemKind[]).map((k) => (
-          <span key={k} className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${KIND_DOT[k]}`} aria-hidden="true" /> {KIND_LABEL[k]}
-          </span>
-        ))}
-      </div>
-
-      {top}
-
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.05)]">
-          <div className="min-w-[700px]">
-            <div className="grid grid-cols-7 border-b border-slate-100">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.05)]">
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
               {days.slice(0, 7).map((d) => (
-                <div key={d.toISOString()} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  {format(d, 'EEE', { locale: ptBR })}
+                <div key={d.toISOString()} className="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  {format(d, 'EEE', { locale: ptBR }).replace('.', '')}
                   {mode === 'week' && (
                     <span
-                      className={`ml-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold normal-case ${
+                      className={`mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-base font-bold normal-case ${
                         isToday(d) ? 'bg-brand-600 text-white' : 'text-slate-800'
                       }`}
                     >
@@ -183,40 +195,42 @@ export function ModernCalendar({
                 const list = itemsOf(day)
                 const outside = mode === 'month' && !isSameMonth(day, cursor)
                 const isSel = isSameDay(day, selected)
+                const today = isToday(day)
                 const max = mode === 'month' ? 3 : 50
                 return (
                   <div
                     key={day.toISOString()}
                     onClick={() => setSelected(day)}
-                    className={`group flex cursor-pointer flex-col gap-1 border-slate-100 p-1.5 transition-colors ${
+                    className={`relative flex min-w-0 cursor-pointer flex-col gap-1 border-slate-100 p-1.5 transition-colors ${
                       i % 7 !== 6 ? 'border-r' : ''
-                    } ${i < days.length - 7 ? 'border-b' : ''} ${mode === 'month' ? 'min-h-[118px]' : 'min-h-[420px]'} ${
-                      isSel ? 'bg-brand-50/50' : isWeekend(day) || outside ? 'bg-slate-50/60 hover:bg-slate-50' : 'hover:bg-slate-50/70'
-                    }`}
+                    } ${i < days.length - 7 ? 'border-b' : ''} ${mode === 'month' ? 'min-h-[128px]' : 'min-h-[460px]'} ${
+                      isSel ? 'bg-brand-50' : outside ? 'bg-slate-50' : isWeekend(day) ? 'bg-slate-50/50 hover:bg-slate-50' : 'hover:bg-slate-50'
+                    } ${isSel ? 'ring-2 ring-inset ring-brand-400' : ''}`}
                   >
                     {mode === 'month' && (
-                      <span
-                        className={`mb-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                          isToday(day) ? 'bg-brand-600 text-white' : outside ? 'text-slate-300' : 'text-slate-600'
-                        }`}
-                      >
-                        {format(day, 'd')}
-                      </span>
+                      <div className="flex items-center justify-between px-0.5">
+                        <span
+                          className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold ${
+                            today ? 'bg-brand-600 text-white shadow-sm' : outside ? 'text-slate-300' : 'text-slate-700'
+                          }`}
+                        >
+                          {format(day, 'd')}
+                        </span>
+                        {list.length > 0 && !outside && (
+                          <span className="text-[10px] font-medium text-slate-400">{list.length}</span>
+                        )}
+                      </div>
                     )}
-                    {list.slice(0, max).map((it) =>
-                      mode === 'month' ? (
-                        <ItemChip key={`${it.kind}-${it.id}`} item={it} onOpen={onOpenItem} faded={outside} />
-                      ) : (
-                        <ItemCard key={`${it.kind}-${it.id}`} item={it} onOpen={onOpenItem} />
-                      )
-                    )}
+                    {list.slice(0, max).map((it) => (
+                      <ItemBlock key={`${it.kind}-${it.id}`} item={it} onOpen={onOpenItem} faded={outside} roomy={mode === 'week'} />
+                    ))}
                     {list.length > max && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           setSelected(day)
                         }}
-                        className="rounded px-1.5 text-left text-[11px] font-semibold text-brand-600 hover:underline"
+                        className="mt-auto rounded-md px-1.5 py-0.5 text-left text-[11px] font-semibold text-brand-600 hover:bg-brand-50"
                       >
                         +{list.length - max} mais
                       </button>
@@ -226,42 +240,68 @@ export function ModernCalendar({
               })}
             </div>
           </div>
+
+          {/* Legenda */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-xs text-slate-500">
+            {(Object.keys(KIND_LABEL) as CalItemKind[]).map((k) => (
+              <span key={k} className="flex items-center gap-1.5">
+                <span className={`h-2.5 w-2.5 rounded-sm ${KIND_DOT[k]}`} aria-hidden="true" /> {KIND_LABEL[k]}
+              </span>
+            ))}
+          </div>
         </div>
 
-        {/* Dia selecionado */}
-        <aside className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.05)]">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {isToday(selected) ? 'Hoje' : format(selected, 'EEEE', { locale: ptBR })}
-              </p>
-              <p className="text-lg font-bold capitalize text-slate-900">{format(selected, "d 'de' MMMM", { locale: ptBR })}</p>
+        {/* Lateral: dia selecionado + extras */}
+        <div className="flex flex-col gap-4 xl:sticky xl:top-4">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.05)]">
+            <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
+              <span
+                className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl ${
+                  isToday(selected) ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                <span className="text-[10px] font-semibold uppercase leading-none">{format(selected, 'MMM', { locale: ptBR }).replace('.', '')}</span>
+                <span className="text-lg font-bold leading-tight">{format(selected, 'd')}</span>
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold capitalize text-slate-900">
+                  {isToday(selected) ? 'Hoje' : format(selected, 'EEEE', { locale: ptBR })}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {selectedItems.length === 0
+                    ? 'Nada marcado'
+                    : `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'itens'}`}
+                </p>
+              </div>
             </div>
-            {!isToday(selected) && (
-              <button onClick={() => setSelected(new Date())} aria-label="Voltar para hoje" className="rounded-md p-1 text-slate-400 hover:bg-slate-100">
-                <X size={15} />
-              </button>
-            )}
-          </div>
-          {selectedItems.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">Nada marcado neste dia.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {selectedItems.map((it) => (
-                <li key={`${it.kind}-${it.id}`}>
-                  <ItemCard item={it} onOpen={onOpenItem} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </aside>
+            <div className="max-h-[460px] overflow-y-auto p-3">
+              {selectedItems.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-400">Dia livre.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {selectedItems.map((it) => (
+                    <li key={`${it.kind}-${it.id}`}>
+                      <ItemBlock item={it} onOpen={onOpenItem} roomy />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+          {side}
+        </div>
       </div>
     </div>
   )
 }
 
-function ItemChip({ item, onOpen, faded }: { item: CalItem; onOpen: (i: CalItem) => void; faded?: boolean }) {
-  const dot = item.dot ?? KIND_DOT[item.kind]
+/** Bloco colorido de um item. No mês fica compacto (horário + título em até
+ *  2 linhas); na semana e no painel do dia mostra também tipo/cliente. */
+function ItemBlock({ item, onOpen, faded, roomy }: { item: CalItem; onOpen: (i: CalItem) => void; faded?: boolean; roomy?: boolean }) {
+  const tint = item.tint ?? KIND_TINT[item.kind]
+  const bar = item.dot ?? KIND_DOT[item.kind]
+  const label = roomy ? item.title : item.shortTitle ?? item.title
+  const sub = roomy ? item.subtitle ?? (item.clientName && !item.title.includes(item.clientName) ? item.clientName : undefined) : undefined
   return (
     <button
       onClick={(e) => {
@@ -269,38 +309,19 @@ function ItemChip({ item, onOpen, faded }: { item: CalItem; onOpen: (i: CalItem)
         onOpen(item)
       }}
       title={item.title}
-      className={`flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] transition-colors hover:bg-white hover:shadow-sm ${
-        faded ? 'opacity-50' : ''
-      } ${item.kind === 'internalMeeting' || item.kind === 'meeting' ? 'bg-slate-50' : ''}`}
+      className={`relative flex w-full min-w-0 flex-col overflow-hidden rounded-md text-left transition-all hover:brightness-95 hover:shadow-sm ${tint} ${
+        roomy ? 'gap-0.5 py-2 pl-3 pr-2' : 'py-1 pl-2.5 pr-1.5'
+      } ${faded ? 'opacity-50' : ''} ${item.kind === 'task' ? 'opacity-90' : ''}`}
     >
-      <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
-      {item.time && <span className="shrink-0 font-semibold text-slate-500">{item.time}</span>}
-      <span className={`truncate font-medium ${item.kind === 'task' ? 'text-slate-500' : 'text-slate-800'}`}>{item.title}</span>
-    </button>
-  )
-}
-
-function ItemCard({ item, onOpen }: { item: CalItem; onOpen: (i: CalItem) => void }) {
-  const dot = item.dot ?? KIND_DOT[item.kind]
-  return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation()
-        onOpen(item)
-      }}
-      className="flex w-full items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white text-left transition-all hover:-translate-y-px hover:shadow-md"
-    >
-      <span className={`w-1 shrink-0 ${dot}`} aria-hidden="true" />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-2.5 py-2">
-        <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-          <KindIcon kind={item.kind} size={11} />
+      <span className={`absolute inset-y-0 left-0 w-[3px] ${bar}`} aria-hidden="true" />
+      {(item.time || roomy) && (
+        <span className="flex items-center gap-1 text-[10px] font-semibold opacity-80">
+          {roomy && <KindIcon kind={item.kind} size={11} />}
           {item.time ?? KIND_LABEL[item.kind]}
         </span>
-        <span className="line-clamp-2 text-xs font-semibold text-slate-800">{item.title}</span>
-        {item.clientName && !item.title.includes(item.clientName) && (
-          <span className="truncate text-[11px] text-slate-500">{item.clientName}</span>
-        )}
-      </span>
+      )}
+      <span className={`line-clamp-2 break-words font-semibold leading-snug ${roomy ? 'text-[13px]' : 'text-[11px]'}`}>{label}</span>
+      {sub && <span className="truncate text-[11px] opacity-75">{sub}</span>}
     </button>
   )
 }

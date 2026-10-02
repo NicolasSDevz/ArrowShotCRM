@@ -46,7 +46,7 @@ export function CalendarMeetingsPage({ initialTab = 'reunioes' }: { initialTab?:
         ))}
       </div>
 
-      <div className="flex-1 overflow-hidden">{tab === 'calendario' ? <CalendarPage /> : <MeetingsPage />}</div>
+      <div className="flex-1">{tab === 'calendario' ? <CalendarPage /> : <MeetingsPage />}</div>
     </div>
   )
 }
