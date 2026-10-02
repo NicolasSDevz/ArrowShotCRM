@@ -20,12 +20,12 @@ const pct = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 100)}%` :
  *  leads do pipeline aberto: lead qualificado, comparecimento, fechamento e
  *  churn em 90 dias por faixa. */
 export function LeadBantMetrics({ leads, pipeline, clients }: { leads: Lead[]; pipeline: ResolvedPipeline; clients: Client[] }) {
-  // Lembra se o painel ficou aberto ou fechado (o quadro de leads ganha espaço fechado).
+  // Começa fechado (o quadro de leads precisa do espaço) e lembra a escolha.
   const [open, setOpenState] = useState(() => {
     try {
-      return localStorage.getItem('leadsBantPanel') !== 'closed'
+      return localStorage.getItem('leadsBantPanel') === 'open'
     } catch {
-      return true
+      return false
     }
   })
   const setOpen = (fn: (v: boolean) => boolean) =>
