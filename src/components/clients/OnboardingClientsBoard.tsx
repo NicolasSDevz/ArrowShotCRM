@@ -5,35 +5,10 @@ import { Check, CalendarClock, Circle } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
 import { useAllMeetings } from '../../hooks/useMeetings'
 import { usePrivacy } from '../../context/PrivacyContext'
-import { meetingHasEnded, meetingStartEnd, type Meeting, type MeetingType } from '../../types'
-import { ONBOARDING_MEETING_LABEL, type Client, type OnboardingMeetingKey } from '../../types/client'
+import type { Client } from '../../types/client'
+import { groupMeetingsByClientType, onboardingSteps, type OnboardingStepState } from '../../utils/onboardingProgress'
 
-const STEPS: { key: OnboardingMeetingKey; meetingType: MeetingType }[] = [
-  { key: 'onboarding', meetingType: 'onboarding' },
-  { key: 'briefing', meetingType: 'briefing' },
-  { key: 'estrategia', meetingType: 'strategy_access' },
-]
-
-type StepState = { status: 'done' | 'scheduled' | 'pending'; date?: Date; time?: string }
-
-/** Estado de cada uma das 3 reuniões do onboarding: conta tanto o registro do
- *  cliente (ClientOnboardingMeetingsSection) quanto as reuniões do módulo de
- *  Reuniões com o tipo correspondente. */
-function stepState(client: Client, key: OnboardingMeetingKey, meetings: Meeting[]): StepState {
-  const record = client.onboardingMeetings?.[key]
-  const ended = meetings.filter((m) => meetingHasEnded(m))
-  const upcoming = meetings.filter((m) => !meetingHasEnded(m))
-  if (record?.done) return { status: 'done', date: record.date?.toDate(), time: record.time }
-  if (ended.length > 0) {
-    const last = ended[ended.length - 1]
-    return { status: 'done', date: last.date.toDate(), time: last.time }
-  }
-  if (upcoming.length > 0) return { status: 'scheduled', date: upcoming[0].date.toDate(), time: upcoming[0].time }
-  if (record?.date) return { status: 'scheduled', date: record.date.toDate(), time: record.time }
-  return { status: 'pending' }
-}
-
-function stepText(label: string, s: StepState): string {
+function stepText(label: string, s: OnboardingStepState): string {
   const when = s.date ? `${format(s.date, 'dd/MM')}${s.time ? ` às ${s.time}` : ''}` : ''
   if (s.status === 'done') return `${label}: feita${when ? ` em ${when}` : ''}`
   if (s.status === 'scheduled') return `${label}: agendada para ${when}`
@@ -47,20 +22,9 @@ export function OnboardingClientsBoard({ clients, onOpen }: { clients: Client[];
   const { isPrivacyMode } = usePrivacy()
 
   const rows = useMemo(() => {
-    const byClientType = new Map<string, Meeting[]>()
-    for (const m of meetings) {
-      if (!m.clientId) continue
-      const k = `${m.clientId}:${m.type}`
-      const list = byClientType.get(k) ?? []
-      list.push(m)
-      byClientType.set(k, list)
-    }
-    const startOf = (m: Meeting) => meetingStartEnd(m)?.start.getTime() ?? m.date.toMillis()
+    const byClientType = groupMeetingsByClientType(meetings)
     return clients.map((client) => {
-      const steps = STEPS.map(({ key, meetingType }) => {
-        const list = [...(byClientType.get(`${client.id}:${meetingType}`) ?? [])].sort((a, b) => startOf(a) - startOf(b))
-        return { key, label: ONBOARDING_MEETING_LABEL[key], state: stepState(client, key, list) }
-      })
+      const steps = onboardingSteps(client, byClientType)
       const doneCount = steps.filter((s) => s.state.status === 'done').length
       return { client, steps, doneCount }
     })
@@ -84,7 +48,7 @@ export function OnboardingClientsBoard({ clients, onOpen }: { clients: Client[];
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-slate-800">{name}</p>
                   <p className="text-xs text-slate-500">
-                    {next ? `Próximo passo: ${next.label}` : 'Todas as reuniões feitas, pode virar Ativo'}
+                    {next ? `Próximo passo: ${next.label}` : 'Todas as reuniões feitas, passando para Ativo'}
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">

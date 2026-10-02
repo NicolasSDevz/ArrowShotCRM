@@ -206,6 +206,10 @@ export interface Client extends BaseDoc {
    *  clientes com `modules.paidTraffic`, mas o campo em si é opcional (fica
    *  undefined até a primeira reunião ser agendada). */
   onboardingMeetings?: Partial<Record<OnboardingMeetingKey, OnboardingMeetingRecord>>
+  /** Quando o CRM passou o cliente de Onboarding pra Ativo sozinho (3 reuniões
+   *  feitas). Gravado pra não repetir: se alguém voltar o status pra Onboarding
+   *  na mão, o CRM respeita. */
+  onboardingAutoActivatedAt?: Timestamp
 }
 
 export const CLIENT_STATUS_LABEL: Record<ClientStatus, string> = {

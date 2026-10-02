@@ -1,4 +1,4 @@
-import { orderBy, where, doc, writeBatch, type DocumentReference, type QueryConstraint, type FirestoreError } from 'firebase/firestore'
+import { orderBy, where, doc, writeBatch, Timestamp, type DocumentReference, type QueryConstraint, type FirestoreError } from 'firebase/firestore'
 import type { AppUser, Client } from '../types'
 import { db } from '../firebase/config'
 import { collectionService } from './firestore'
@@ -78,6 +78,21 @@ export async function updateClient(
     clientId: id,
     action: 'updated',
     message: 'atualizou os dados do cliente',
+    userId,
+    userName,
+  })
+}
+
+/** As 3 reuniões do onboarding foram feitas: o cliente sai de Onboarding e
+ *  vira Ativo (ver useOnboardingAutoActivate). Fica no histórico do cliente. */
+export async function activateClientAfterOnboarding(id: string, userId: string, userName: string) {
+  await base.update(id, { status: 'active', onboardingAutoActivatedAt: Timestamp.now() }, userId)
+  await logActivity({
+    entityType: 'client',
+    entityId: id,
+    clientId: id,
+    action: 'status_changed',
+    message: 'concluiu as 3 reuniões de onboarding e o cliente passou para Ativo',
     userId,
     userName,
   })
