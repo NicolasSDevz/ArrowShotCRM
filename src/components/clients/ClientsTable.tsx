@@ -7,7 +7,7 @@ import { Avatar } from '../ui/Avatar'
 import { PrivateData } from '../ui/PrivateData'
 import { ClientServiceBadges } from './ServiceBadges'
 import { usePrivacy } from '../../context/PrivacyContext'
-import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
+import { clientStatusLabel, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
 import type { AppUser } from '../../types'
 
 export function ClientsTable({
@@ -95,7 +95,7 @@ export function ClientsTable({
                   <ClientServiceBadges client={client} />
                 </td>
                 <td className="py-2.5 pr-3">
-                  <Badge className={CLIENT_STATUS_BADGE[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>
+                  <Badge className={client.status === 'churned' && client.churnType === 'completed' ? 'bg-emerald-50 text-emerald-700' : CLIENT_STATUS_BADGE[client.status]}>{clientStatusLabel(client)}</Badge>
                 </td>
                 <td className="py-2.5 pr-3">
                   {owners.length > 0 ? (

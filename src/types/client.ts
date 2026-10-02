@@ -219,18 +219,20 @@ export interface Client extends BaseDoc {
   onboardingAutoActivatedAt?: Timestamp
 }
 
-export type ChurnType = 'voluntary' | 'involuntary' | 'early'
+export type ChurnType = 'voluntary' | 'involuntary' | 'early' | 'completed'
 
 export const CHURN_TYPE_LABEL: Record<ChurnType, string> = {
   voluntary: 'Churn Voluntário',
   involuntary: 'Churn Involuntário',
   early: 'Early Churn (Precoce)',
+  completed: 'Concluído (serviço pontual)',
 }
 
 export const CHURN_TYPE_DESCRIPTION: Record<ChurnType, string> = {
   voluntary: 'O cliente decidiu romper o contrato e deixar de usar os serviços da agência.',
   involuntary: 'O contrato terminou por motivos alheios à vontade ou à insatisfação do cliente (ex.: fechou a empresa, problema de pagamento, mudança de dono).',
   early: 'Cancelou logo no início da relação, poucos dias ou semanas depois de fechar.',
+  completed: 'Não é churn: o cliente contratou um projeto único (ex.: Landing Page, Google Meu Negócio) e o trabalho foi entregue.',
 }
 
 /** Se cada tipo entra no Churn Rate por padrão — dá pra mudar na hora de encerrar. */
@@ -238,6 +240,7 @@ export const CHURN_TYPE_COUNTS_DEFAULT: Record<ChurnType, boolean> = {
   voluntary: true,
   involuntary: false,
   early: true,
+  completed: false,
 }
 
 /** Contrato com menos que isso ao encerrar é sugerido como Early Churn. */
@@ -247,6 +250,11 @@ export const EARLY_CHURN_DAYS = 90
 export function clientChurnDate(client: Pick<Client, 'status' | 'churnedAt' | 'updatedAt'>): Date | null {
   if (client.status !== 'churned') return null
   return client.churnedAt?.toDate?.() ?? client.updatedAt?.toDate?.() ?? null
+}
+
+/** Encerrado que é perda de receita recorrente (Concluído não é: era projeto único). */
+export function isRevenueChurn(client: Pick<Client, 'status' | 'churnType'>): boolean {
+  return client.status === 'churned' && client.churnType !== 'completed'
 }
 
 /** Encerrado que entra no Churn Rate. */
@@ -277,6 +285,11 @@ export const CLIENT_CATEGORY_LABEL: Record<ClientCategory, string> = {
 export const CLIENT_CATEGORY_BADGE: Record<ClientCategory, string> = {
   A: 'badge-category-a',
   B: 'badge-category-b',
+}
+
+/** Rótulo do status na tela: encerrado como Concluído aparece "Concluído". */
+export function clientStatusLabel(client: Pick<Client, 'status' | 'churnType'>): string {
+  return client.status === 'churned' && client.churnType === 'completed' ? 'Concluído' : CLIENT_STATUS_LABEL[client.status]
 }
 
 /** Classes de badge por status (ver index.css). */

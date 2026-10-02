@@ -60,7 +60,7 @@ export function ChurnDetailModal({
     return { labels, series }
   }, [snapshots])
 
-  const totalValueLost = churned.reduce((sum, c) => sum + (c.monthlyValue ?? 0), 0)
+  const totalValueLost = churned.filter((c) => c.churnType !== 'completed').reduce((sum, c) => sum + (c.monthlyValue ?? 0), 0)
 
   /** Churn de Receita do mês: o dinheiro perdido, não a quantidade de
    *  clientes. Bruto = encerrados + reduções de contrato; Líquido = bruto
@@ -69,7 +69,7 @@ export function ChurnDetailModal({
   const revenue = useMemo(() => {
     const start = startOfMonth(new Date())
     const inMonth = (d?: Date | null) => !!d && d >= start
-    const lostChurn = churned.filter((c) => inMonth(c.when)).reduce((s, c) => s + (c.monthlyValue ?? 0), 0)
+    const lostChurn = churned.filter((c) => inMonth(c.when) && c.churnType !== 'completed').reduce((s, c) => s + (c.monthlyValue ?? 0), 0)
     const lostDownsell = downsells.filter((a) => inMonth(a.createdAt?.toDate?.())).reduce((s, a) => s + (a.amount ?? 0), 0)
     const gained = upsells.filter((a) => inMonth(a.createdAt?.toDate?.())).reduce((s, a) => s + (a.amount ?? 0), 0)
     const gross = lostChurn + lostDownsell
@@ -162,7 +162,7 @@ export function ChurnDetailModal({
                   <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
                     <span
                       className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
-                        c.churnType ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-500'
+                        c.churnType === 'completed' ? 'bg-emerald-50 text-emerald-700' : c.churnType ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-500'
                       }`}
                     >
                       {c.churnType ? CHURN_TYPE_LABEL[c.churnType] : 'Tipo não informado'}

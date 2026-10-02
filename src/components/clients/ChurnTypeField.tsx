@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { CHURN_TYPE_DESCRIPTION, CHURN_TYPE_LABEL, type ChurnType } from '../../types/client'
 
-const TYPES: ChurnType[] = ['voluntary', 'involuntary', 'early']
+const TYPES: ChurnType[] = ['completed', 'voluntary', 'involuntary', 'early']
 
 /** Escolha do tipo de churn ao encerrar um cliente + se ele entra no Churn
  *  Rate. Radios nativos (leitor de tela lê nome e descrição de cada um). */
@@ -10,6 +10,7 @@ export function ChurnTypeField({
   counts,
   suggestedEarly,
   contractDays,
+  services,
   onChange,
   onCountsChange,
 }: {
@@ -17,17 +18,38 @@ export function ChurnTypeField({
   counts: boolean
   suggestedEarly: boolean
   contractDays: number | null
+  /** Serviços contratados, separados por cobrança (ver productBilling). */
+  services: { recurring: string[]; oneTime: string[] }
   onChange: (type: ChurnType) => void
   onCountsChange: (counts: boolean) => void
 }) {
   const name = useId()
+  const onlyOneTime = services.oneTime.length > 0 && services.recurring.length === 0
   return (
     <div className="flex flex-col gap-3">
+      <div
+        role="status"
+        className={`rounded-lg p-3 text-sm ${onlyOneTime ? 'bg-emerald-50 text-emerald-800' : 'bg-white text-slate-700'}`}
+      >
+        <p className="font-semibold">
+          {onlyOneTime
+            ? 'Este cliente só tem serviços pontuais: o normal é encerrar como Concluído (não é churn).'
+            : services.recurring.length > 0
+              ? 'Este cliente tem serviço mensal: encerrar é churn.'
+              : 'Nenhum serviço do catálogo marcado neste cliente.'}
+        </p>
+        {(services.recurring.length > 0 || services.oneTime.length > 0) && (
+          <p className="mt-0.5 text-xs opacity-80">
+            {services.recurring.length > 0 && `Mensais: ${services.recurring.join(', ')}. `}
+            {services.oneTime.length > 0 && `Pontuais: ${services.oneTime.join(', ')}.`}
+          </p>
+        )}
+      </div>
       <fieldset>
         <legend className="mb-2 text-sm font-semibold text-slate-800">
-          Tipo de churn <span className="text-red-500">*</span>
+          Tipo de encerramento <span className="text-red-500">*</span>
         </legend>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {TYPES.map((t) => {
             const checked = value === t
             const descId = `${name}-${t}-desc`
@@ -53,6 +75,10 @@ export function ChurnTypeField({
                 <span id={descId} className="text-xs leading-snug text-slate-500">
                   {CHURN_TYPE_DESCRIPTION[t]}
                 </span>
+                {t === 'completed' && onlyOneTime && <span className="text-xs font-medium text-emerald-700">Sugerido pelos serviços contratados.</span>}
+                {t === 'completed' && services.recurring.length > 0 && (
+                  <span className="text-xs font-medium text-amber-700">Atenção: o cliente tem serviço mensal.</span>
+                )}
                 {t === 'early' && suggestedEarly && contractDays != null && (
                   <span className="text-xs font-medium text-amber-700">Sugerido: contrato com {contractDays} dias.</span>
                 )}

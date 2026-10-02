@@ -1,4 +1,4 @@
-import type { Product, ProductModuleKey } from '../types/product'
+import type { Product, ProductBilling, ProductModuleKey } from '../types/product'
 
 export const PRODUCT_MODULE_LABEL: Record<ProductModuleKey, string> = {
   socialMedia: 'Social Mídia',
@@ -36,6 +36,21 @@ export function inferProductModules(name: string): ProductModuleKey[] {
   if (google) out.push('googleAds')
   if (!meta && !google && /trafego|anuncio|\bads\b/.test(n)) out.push('paidTraffic')
   return out
+}
+
+/** Sugestão de cobrança pelo NOME — Landing Page, site, Google Meu Negócio,
+ *  setup, identidade visual e logo são projetos únicos; o resto é mensal. */
+export function inferProductBilling(name: string): ProductBilling {
+  const n = strip(name)
+  if (/landing|pagina de vendas|pagina de venda|site|meu negocio|gmn|perfil (da|de) empresa|google (my )?business|setup|implantacao|identidade visual|logo|logotipo/.test(n)) {
+    return 'one_time'
+  }
+  return 'recurring'
+}
+
+/** Cobrança do produto: a configurada pelo admin ou a sugerida pelo nome. */
+export function productBilling(p: Pick<Product, 'name' | 'billing'>): ProductBilling {
+  return p.billing ?? inferProductBilling(p.name)
 }
 
 export interface ProductModules {

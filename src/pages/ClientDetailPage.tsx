@@ -34,7 +34,7 @@ import { ClientContentsTab } from '../components/clients/ClientContentsTab'
 import { ClientSuccessTab } from '../components/clients/ClientSuccessTab'
 import { ClientAccessTab } from '../components/clients/ClientAccessTab'
 import { WhatsappGroupLinkModal } from '../components/clients/WhatsappGroupLinkModal'
-import { CLIENT_PACKAGE_LABEL, CLIENT_STATUS_LABEL, CLIENT_STATUS_BADGE, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
+import { CLIENT_PACKAGE_LABEL, clientStatusLabel, CLIENT_STATUS_BADGE, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
 import { TASK_STATUS_LABEL } from '../types/task'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 import { useAuth } from '../context/AuthContext'
@@ -130,7 +130,7 @@ export function ClientDetailPage() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-semibold text-slate-800"><PrivateData value={client.companyName} /></h1>
-                <Badge className={CLIENT_STATUS_BADGE[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>
+                <Badge className={client.status === 'churned' && client.churnType === 'completed' ? 'bg-emerald-50 text-emerald-700' : CLIENT_STATUS_BADGE[client.status]}>{clientStatusLabel(client)}</Badge>
                 {client.categoria && (
                   <Badge className={CLIENT_CATEGORY_BADGE[client.categoria]}>{CLIENT_CATEGORY_LABEL[client.categoria]}</Badge>
                 )}

@@ -20,6 +20,16 @@ export interface ProductTier {
 
 export type DiscountType = 'percent' | 'fixed'
 
+/** Mensal (recorrente) ou projeto único (pontual, ex.: Landing Page, Google
+ *  Meu Negócio). Cliente só com serviços pontuais termina como "Concluído",
+ *  não como churn (ver ChurnTypeField). */
+export type ProductBilling = 'recurring' | 'one_time'
+
+export const PRODUCT_BILLING_LABEL: Record<ProductBilling, string> = {
+  recurring: 'Mensal (recorrente)',
+  one_time: 'Projeto único (pontual)',
+}
+
 /** Desconto que o admin deixa pronto pra um serviço (ex: "Pagamento à vista
  *  — 10%", "Indicação — R$ 100"). */
 export interface ProductDiscount {
@@ -46,6 +56,9 @@ export interface Product extends BaseDoc {
   /** O que contratar esse serviço liga no CRM. Sem valor = produto antigo:
    *  o CRM sugere pelo nome (ver utils/productModules) até o admin configurar. */
   activates?: ProductModuleKey[]
+  /** Tipo de cobrança. Sem valor = produto antigo: o CRM sugere pelo nome
+   *  (ver utils/productModules.productBilling). */
+  billing?: ProductBilling
   /** Níveis do serviço, cada um com preço próprio (opcional). */
   tiers?: ProductTier[]
   /** Descontos disponíveis pra esse serviço. */

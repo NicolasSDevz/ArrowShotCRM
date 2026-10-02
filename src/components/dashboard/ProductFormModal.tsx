@@ -6,8 +6,8 @@ import { Field, Input, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { createProduct, updateProduct } from '../../services/productService'
-import { inferProductModules, PRODUCT_MODULE_KEYS, PRODUCT_MODULE_LABEL } from '../../utils/productModules'
-import type { DiscountType, Product, ProductModuleKey } from '../../types'
+import { inferProductBilling, inferProductModules, PRODUCT_MODULE_KEYS, PRODUCT_MODULE_LABEL } from '../../utils/productModules'
+import { PRODUCT_BILLING_LABEL, type DiscountType, type Product, type ProductBilling, type ProductModuleKey } from '../../types'
 
 const EMPTY = {
   name: '',
@@ -47,6 +47,7 @@ export function ProductFormModal({
   // Áreas do CRM que esse serviço liga no cliente. Produto antigo (sem valor
   // salvo) já abre com a sugestão feita pelo nome, pra o admin só confirmar.
   const [activates, setActivates] = useState<ProductModuleKey[]>([])
+  const [billing, setBilling] = useState<ProductBilling>('recurring')
   const [tiers, setTiers] = useState<TierRow[]>([])
   const [discounts, setDiscounts] = useState<DiscountRow[]>([])
   const [saving, setSaving] = useState(false)
@@ -62,12 +63,14 @@ export function ProductFormModal({
       })
       setBonuses(toBonusRows(product.bonuses))
       setActivates(product.activates ?? inferProductModules(product.name))
+      setBilling(product.billing ?? inferProductBilling(product.name))
       setTiers((product.tiers ?? []).map((t) => ({ id: t.id, name: t.name, price: t.price != null ? String(t.price) : '', description: t.description ?? '' })))
       setDiscounts((product.discounts ?? []).map((d) => ({ id: d.id, name: d.name, type: d.type, value: String(d.value) })))
     } else {
       setForm(EMPTY)
       setBonuses([])
       setActivates([])
+      setBilling('recurring')
       setTiers([])
       setDiscounts([])
     }
@@ -104,6 +107,7 @@ export function ProductFormModal({
         active: form.active,
         order: product?.order ?? nextOrder,
         activates,
+        billing,
         tiers: tiers
           .filter((t) => t.name.trim())
           .map((t) => ({ id: t.id, name: t.name.trim(), price: t.price.trim() ? Number(t.price) : undefined, description: t.description.trim() || undefined })),
@@ -246,6 +250,27 @@ export function ProductFormModal({
             </Button>
           </div>
         </div>
+
+        <fieldset className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de cobrança</legend>
+          <div className="mt-1 flex flex-wrap gap-4">
+            {(Object.keys(PRODUCT_BILLING_LABEL) as ProductBilling[]).map((b) => (
+              <label key={b} className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="radio"
+                  name="product-billing"
+                  checked={billing === b}
+                  onChange={() => setBilling(b)}
+                  className="h-3.5 w-3.5 border-slate-300 text-brand-600 focus:ring-brand-400"
+                />
+                {PRODUCT_BILLING_LABEL[b]}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-slate-400">
+            Projeto único (ex.: Landing Page, Google Meu Negócio): quando o cliente só tem esse tipo de serviço e o trabalho termina, ele é encerrado como "Concluído", sem contar como churn.
+          </p>
+        </fieldset>
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">O que esse serviço liga no CRM</p>

@@ -6,7 +6,7 @@ import { Avatar } from '../ui/Avatar'
 import { PrivateData } from '../ui/PrivateData'
 import { ClientServiceBadges } from './ServiceBadges'
 import { usePrivacy } from '../../context/PrivacyContext'
-import { CLIENT_STATUS_LABEL, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
+import { clientStatusLabel, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
 import type { AppUser } from '../../types'
 
 /** Visão alternativa em cartões — mesmas informações da ClientsTable, só
@@ -62,7 +62,7 @@ export function ClientsGrid({
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
-              <Badge className={CLIENT_STATUS_BADGE[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>
+              <Badge className={client.status === 'churned' && client.churnType === 'completed' ? 'bg-emerald-50 text-emerald-700' : CLIENT_STATUS_BADGE[client.status]}>{clientStatusLabel(client)}</Badge>
               <ClientServiceBadges client={client} />
             </div>
 

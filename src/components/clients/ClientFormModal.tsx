@@ -16,7 +16,7 @@ import { removeClientBirthdays } from '../../services/birthdayService'
 import { uploadClientLogo, removeClientLogo } from '../../services/clientLogoService'
 import { ClientLogoField } from './ClientLogoField'
 import { computedPrice, discountLabel, formatBRL } from '../../utils/pricing'
-import { modulesFromProducts, productModules, resolveServices, PRODUCT_MODULE_SHORT } from '../../utils/productModules'
+import { modulesFromProducts, productBilling, productModules, resolveServices, PRODUCT_MODULE_SHORT } from '../../utils/productModules'
 import { maskPhone, isPhoneComplete, maskDocument, maskCurrencyInput, parseCurrencyToNumber, maskCep, isCepComplete } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import { fetchAddressByCep } from '../../services/viaCepService'
@@ -208,6 +208,21 @@ export function ClientFormModal({
       const final = draft?.price ? parseCurrencyToNumber(draft.price) : calc
       return { product: p, draft, calc, final }
     })
+  /** Serviços do cliente separados por cobrança — decide se encerrar é churn
+   *  ou "Concluído" (só projetos únicos). Áreas ligadas sem produto do
+   *  catálogo contam pelo tipo: Social Mídia e Tráfego são mensais, Landing
+   *  Page é pontual. */
+  const servicesByBilling = (() => {
+    const recurring: string[] = []
+    const oneTime: string[] = []
+    for (const { product } of selectedContracts) (productBilling(product) === 'one_time' ? oneTime : recurring).push(product.name)
+    if (socialMedia && !derived.socialMedia) recurring.push('Social Mídia')
+    if (paidTraffic && !derived.paidTraffic) recurring.push('Tráfego Pago')
+    if (landingPage && !derived.landingPage) oneTime.push('Landing Page')
+    return { recurring, oneTime }
+  })()
+  const onlyOneTime = servicesByBilling.oneTime.length > 0 && servicesByBilling.recurring.length === 0
+
   const servicesTotal = selectedContracts.reduce((sum, c) => sum + (c.final ?? 0), 0)
   const showLegacyRow = (k: 'socialMedia' | 'landingPage' | 'paidTraffic') => !catalogEmpty && !!client?.modules?.[k] && !origCovered[k] && !derived[k]
     useEffect(() => {
@@ -321,6 +336,7 @@ export function ClientFormModal({
   const handleStatusChange = (status: ClientStatus) => {
     setForm((f) => {
       if (status !== 'churned' || f.churnType) return { ...f, status }
+      if (onlyOneTime) return { ...f, status, churnType: 'completed', churnCounts: CHURN_TYPE_COUNTS_DEFAULT.completed }
       const early = contractDays != null && contractDays < EARLY_CHURN_DAYS
       return early ? { ...f, status, churnType: 'early', churnCounts: CHURN_TYPE_COUNTS_DEFAULT.early } : { ...f, status }
     })
@@ -619,6 +635,7 @@ export function ClientFormModal({
               counts={form.churnCounts}
               suggestedEarly={contractDays != null && contractDays < EARLY_CHURN_DAYS}
               contractDays={contractDays}
+              services={servicesByBilling}
               onChange={(type) => setForm((f) => ({ ...f, churnType: type, churnCounts: CHURN_TYPE_COUNTS_DEFAULT[type] }))}
               onCountsChange={(v) => set('churnCounts', v)}
             />
