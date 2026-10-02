@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, Gauge } from 'lucide-react'
+import { useMemo } from 'react'
+import { Gauge } from 'lucide-react'
+import { Modal } from '../ui/Modal'
 import {
   LEAD_TEMPERATURE_BADGE,
   LEAD_TEMPERATURE_LABEL,
@@ -19,26 +20,19 @@ const pct = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 100)}%` :
 /** Métricas do material BANT ("Métricas para acompanhar"), calculadas com os
  *  leads do pipeline aberto: lead qualificado, comparecimento, fechamento e
  *  churn em 90 dias por faixa. */
-export function LeadBantMetrics({ leads, pipeline, clients }: { leads: Lead[]; pipeline: ResolvedPipeline; clients: Client[] }) {
-  // Começa fechado (o quadro de leads precisa do espaço) e lembra a escolha.
-  const [open, setOpenState] = useState(() => {
-    try {
-      return localStorage.getItem('leadsBantPanel') === 'open'
-    } catch {
-      return false
-    }
-  })
-  const setOpen = (fn: (v: boolean) => boolean) =>
-    setOpenState((v) => {
-      const next = fn(v)
-      try {
-        localStorage.setItem('leadsBantPanel', next ? 'open' : 'closed')
-      } catch {
-        /* sem localStorage: só não lembra */
-      }
-      return next
-    })
-
+export function LeadBantMetrics({
+  open,
+  onClose,
+  leads,
+  pipeline,
+  clients,
+}: {
+  open: boolean
+  onClose: () => void
+  leads: Lead[]
+  pipeline: ResolvedPipeline
+  clients: Client[]
+}) {
   const data = useMemo(() => {
     const clientById = new Map(clients.map((c) => [c.id, c]))
     const meetingIdx = pipeline.stages.findIndex((s) => s.id === 'meeting_scheduled' || /reuni/i.test(s.label))
@@ -79,27 +73,20 @@ export function LeadBantMetrics({ leads, pipeline, clients }: { leads: Lead[]; p
   }, [leads, pipeline, clients])
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.05)]">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left"
-      >
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-600" aria-hidden="true">
-          <Gauge size={15} />
+    <Modal
+      open={open}
+      onClose={onClose}
+      width="max-w-3xl"
+      title={
+        <span className="flex items-center gap-2">
+          <Gauge size={16} aria-hidden="true" /> Métricas BANT
+          <span className="text-xs font-normal text-slate-500">
+            {data.scored} de {data.total} leads avaliados
+          </span>
         </span>
-        <span className="text-sm font-bold text-slate-900">Qualificação BANT</span>
-        <span className="text-xs text-slate-500">
-          {data.scored} de {data.total} leads avaliados
-        </span>
-        <span className="ml-auto text-slate-400" aria-hidden="true">
-          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </span>
-      </button>
-
-      {open && (
-        <div className="flex flex-col gap-3 border-t border-slate-100 p-4">
+      }
+    >
+        <div className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <Stat label="Lead qualificado" value={pct(data.hot, data.total)} hint={`${data.hot} quentes de ${data.total} leads`} />
             <Stat label="Comparecimento" value={pct(data.held, data.scheduled)} hint={`${data.held} reuniões feitas de ${data.scheduled} agendadas`} />
@@ -144,8 +131,7 @@ export function LeadBantMetrics({ leads, pipeline, clients }: { leads: Lead[]; p
             Meça por faixa de score para calibrar o scorecard: se os mornos fecham tanto quanto os quentes, ou os quentes dão churn cedo, ajuste os critérios.
           </p>
         </div>
-      )}
-    </section>
+    </Modal>
   )
 }
 

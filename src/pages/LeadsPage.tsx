@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Upload, Kanban, List, Settings2 } from 'lucide-react'
+import { Plus, Upload, Kanban, List, Settings2, Gauge } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
@@ -66,6 +66,7 @@ export function LeadsPage() {
   const [convertPrompt, setConvertPrompt] = useState<Lead | null>(null)
   const [busy, setBusy] = useState(false)
   // Filtro por faixa do BANT ('' = todos, 'none' = ainda não avaliados).
+  const [bantOpen, setBantOpen] = useState(false)
   const [tempFilter, setTempFilter] = useState<LeadTemperature | 'none' | ''>('')
 
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
@@ -206,6 +207,9 @@ export function LeadsPage() {
                 <List size={15} />
               </button>
             </div>
+            <Button variant="secondary" icon={<Gauge size={14} />} onClick={() => setBantOpen(true)}>
+              Métricas BANT
+            </Button>
             <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)}>
               Importar leads
             </Button>
@@ -213,8 +217,6 @@ export function LeadsPage() {
               Novo lead
             </Button>
           </div>
-
-          <LeadBantMetrics leads={allPipelineLeads} pipeline={activePipeline} clients={clients} />
 
           <div role="group" aria-label="Filtrar por faixa do BANT" className="flex flex-wrap items-center gap-1.5">
             {([
@@ -259,6 +261,7 @@ export function LeadsPage() {
         </>
       )}
 
+      <LeadBantMetrics open={bantOpen} onClose={() => setBantOpen(false)} leads={allPipelineLeads} pipeline={activePipeline} clients={clients} />
       <LeadFormModal open={creating} onClose={() => setCreating(false)} pipeline={activePipeline} />
       <ImportLeadsModal open={importing} onClose={() => setImporting(false)} pipeline={activePipeline} />
       <LeadPipelineModal
