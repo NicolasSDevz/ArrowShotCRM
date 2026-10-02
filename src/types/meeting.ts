@@ -141,3 +141,41 @@ export function meetingTimeLabel(meeting: Pick<Meeting, 'date' | 'time' | 'durat
   const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   return `das ${hhmm(range.start)} às ${hhmm(range.end)}`
 }
+
+/** Cor sólida por tipo (barrinha lateral e bolinha no calendário). */
+export const MEETING_TYPE_DOT: Record<MeetingType, string> = {
+  daily: 'bg-blue-500',
+  continuous_improvement: 'bg-cyan-500',
+  partnership: 'bg-violet-500',
+  one_on_one: 'bg-emerald-500',
+  monthly_team: 'bg-slate-400',
+  onboarding: 'bg-amber-500',
+  briefing: 'bg-orange-500',
+  strategy_access: 'bg-fuchsia-500',
+  monthly_consulting: 'bg-rose-500',
+}
+
+/** Fim da reunião: horário + duração, ou o fim do dia quando não tem horário. */
+export function meetingEnd(meeting: Pick<Meeting, 'date' | 'time' | 'durationMin'>): Date {
+  const range = meetingStartEnd(meeting)
+  if (range) return range.end
+  const d = new Date(meeting.date.toDate())
+  d.setHours(23, 59, 59, 999)
+  return d
+}
+
+/** A reunião já terminou? Antes disso, decisões, próximos passos e gravação
+ *  ainda não fazem sentido — a tela trata como "agendada". */
+export function meetingHasEnded(meeting: Pick<Meeting, 'date' | 'time' | 'durationMin'>, now = new Date()): boolean {
+  return meetingEnd(meeting) < now
+}
+
+/** Já terminou, mas ninguém registrou decisões, próximos passos nem gravação. */
+export function meetingMissingRecord(meeting: Meeting, now = new Date()): boolean {
+  return (
+    meetingHasEnded(meeting, now) &&
+    !meeting.decisions?.trim() &&
+    (meeting.actionItems?.length ?? 0) === 0 &&
+    !meeting.recordingLink
+  )
+}

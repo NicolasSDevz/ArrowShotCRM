@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase/firestore'
-import { isClientMeetingType, type Meeting, type MeetingInput, type MeetingType } from '../../types'
+import { isClientMeetingType, meetingHasEnded, type Meeting, type MeetingInput, type MeetingType } from '../../types'
 
 export interface ActionItemFormState {
   id: string
@@ -121,4 +121,18 @@ export function formStateToMeetingInput(state: MeetingFormState): MeetingInput {
     googleEventId: state.googleEventId,
     autoRecording: state.meetAutoRecording,
   }
+}
+
+/** A reunião do formulário já terminou (data + horário + duração)? Sem data
+ *  válida, trata como agendada. */
+export function formMeetingHasEnded(state: Pick<MeetingFormState, 'dateStr' | 'time' | 'durationMin'>, now = new Date()): boolean {
+  if (!state.dateStr) return false
+  const [y, m, d] = state.dateStr.split('-').map(Number)
+  const date = Timestamp.fromDate(new Date(y, m - 1, d))
+  return meetingHasEnded({ date, time: state.time || undefined, durationMin: state.durationMin }, now)
+}
+
+/** Já tem algo preenchido nos campos de depois da reunião? */
+export function formHasRecord(state: MeetingFormState): boolean {
+  return !!state.decisions.trim() || state.actionItems.length > 0 || !!state.recordingLink.trim() || !!state.notes.trim()
 }

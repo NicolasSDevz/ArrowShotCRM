@@ -13,7 +13,7 @@ import { useAllTasks } from '../../hooks/useTasks'
 import { updateMeeting, deleteMeeting } from '../../services/meetingService'
 import { MeetingForm } from './MeetingForm'
 import { meetingToFormState, formStateToMeetingInput, type MeetingFormState } from './meetingFormState'
-import { MEETING_TYPE_LABEL, MEETING_TYPE_BADGE, isClientMeetingType, meetingTimeLabel, type Meeting } from '../../types'
+import { MEETING_TYPE_LABEL, MEETING_TYPE_BADGE, isClientMeetingType, meetingHasEnded, meetingMissingRecord, meetingTimeLabel, type Meeting } from '../../types'
 import { meetingDayLabel } from './MeetingRow'
 
 export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; onClose: () => void }) {
@@ -76,6 +76,8 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
 
   const dayLabel = meetingDayLabel(meeting)
   const timeLabel = meetingTimeLabel(meeting)
+  const ended = meetingHasEnded(meeting)
+  const missingRecord = meetingMissingRecord(meeting)
 
   return (
     <Drawer open={!!meeting} onClose={handleClose} title={editing ? 'Editar reunião' : MEETING_TYPE_LABEL[meeting.type]}>
@@ -103,6 +105,11 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
                   <span className="capitalize">{dayLabel}</span>
                   <span className="font-semibold text-slate-800">{timeLabel || ', sem horário'}</span>
                 </p>
+                <p className="mt-2">
+                  <Badge className={ended ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}>
+                    {ended ? 'Realizada' : 'Agendada, ainda não aconteceu'}
+                  </Badge>
+                </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Button variant="secondary" size="sm" icon={<Pencil size={13} />} onClick={startEditing}>
@@ -129,6 +136,15 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
                     </span>
                   )
                 })}
+              </div>
+            )}
+
+            {missingRecord && (
+              <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-amber-800">A reunião já aconteceu e ainda falta registrar as decisões e os próximos passos.</p>
+                <Button size="sm" onClick={startEditing}>
+                  Registrar resultado
+                </Button>
               </div>
             )}
 

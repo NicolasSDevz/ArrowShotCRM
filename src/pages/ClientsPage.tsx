@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { usePersistedViewMode } from '../hooks/usePersistedViewMode'
 import { ClientsTable } from '../components/clients/ClientsTable'
 import { ClientsGrid } from '../components/clients/ClientsGrid'
+import { OnboardingClientsBoard } from '../components/clients/OnboardingClientsBoard'
 import { ClientFormModal } from '../components/clients/ClientFormModal'
 import { DeleteClientModal } from '../components/clients/DeleteClientModal'
 import { Button } from '../components/ui/Button'
@@ -41,20 +42,18 @@ function sortClients(list: Client[], sort: SortOption): Client[] {
  *  e compara pelo nome. */
 const MANAGER_FILTER_NAMES = ['Ciane', 'Nicolas']
 
-/** Opções do filtro de status. "ativos" = tudo menos Encerrado (padrão);
- *  "all" = inclui Encerrado. */
-const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: 'ativos', label: 'Ativos' },
-  { value: 'active', label: 'Ativo' },
-  { value: 'prospect', label: 'Onboarding' },
-  { value: 'paused', label: 'Pausado' },
-  { value: 'churned', label: 'Encerrado' },
+/** Abas de status. "Ativos" mostra só quem já está ativo — quem ainda está
+ *  nas reuniões de onboarding fica na aba própria, com o andamento. */
+const STATUS_TABS: { value: string; label: string }[] = [
+  { value: 'active', label: 'Ativos' },
+  { value: 'prospect', label: 'Em onboarding' },
+  { value: 'paused', label: 'Pausados' },
+  { value: 'churned', label: 'Encerrados' },
   { value: 'all', label: 'Todos' },
 ]
 
 function statusMatches(filter: string, status: ClientStatus): boolean {
   if (filter === 'all') return true
-  if (filter === 'ativos') return status !== 'churned'
   return status === filter
 }
 
@@ -78,7 +77,7 @@ export function ClientsPage() {
   const { data: users } = useUsers()
   const { profile } = useAuth()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('ativos')
+  const [statusFilter, setStatusFilter] = useState('active')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [serviceFilter, setServiceFilter] = useState('')
   // null = ainda não interagido → deriva do usuário logado (Ciane/Nicolas
@@ -113,16 +112,31 @@ export function ClientsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, search, statusFilter, categoryFilter, serviceFilter, managerFilter, sort, userMap])
 
+  /** Quantos clientes cada aba de status teria com os outros filtros atuais. */
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: 0 }
+    for (const c of clients) {
+      if (search && !c.companyName.toLowerCase().includes(search.toLowerCase())) continue
+      if (categoryFilter && c.categoria !== categoryFilter) continue
+      if (!serviceMatches(serviceFilter, c.modules)) continue
+      if (managerFilter && !ownerNames(c).includes(managerFilter)) continue
+      counts[c.status] = (counts[c.status] ?? 0) + 1
+      counts.all++
+    }
+    return counts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients, search, categoryFilter, serviceFilter, managerFilter, userMap])
+
   const ownersByClientId = useMemo(() => {
     return Object.fromEntries(
       filtered.map((c) => [c.id, getClientOwnerIds(c).map((id) => userMap[id]).filter(Boolean)]),
     )
   }, [filtered, userMap])
 
-  const hasActiveFilters = !!search || statusFilter !== 'ativos' || !!categoryFilter || !!serviceFilter || managerFilterChoice !== null
+  const hasActiveFilters = !!search || statusFilter !== 'active' || !!categoryFilter || !!serviceFilter || managerFilterChoice !== null
   const clearFilters = () => {
     setSearch('')
-    setStatusFilter('ativos')
+    setStatusFilter('active')
     setCategoryFilter('')
     setServiceFilter('')
     setManagerFilterChoice(null)
@@ -140,6 +154,30 @@ export function ClientsPage() {
         </Button>
       </div>
 
+      <div role="group" aria-label="Status dos clientes" className="flex flex-wrap gap-1.5">
+        {STATUS_TABS.map((t) => {
+          const selected = statusFilter === t.value
+          const count = statusCounts[t.value] ?? 0
+          return (
+            <button
+              key={t.value}
+              onClick={() => setStatusFilter(t.value)}
+              aria-pressed={selected}
+              className={`flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors duration-150 ease-in-out ${
+                selected ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {t.label}
+              <span
+                className={`rounded-full px-1.5 text-xs font-semibold ${selected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
@@ -151,11 +189,6 @@ export function ClientsPage() {
               className="h-[38px] rounded-lg border border-slate-200 pl-8 pr-3 text-sm outline-none transition-all duration-150 ease-in-out focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
             />
           </div>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
             <option value="">Todas as categorias</option>
             {Object.entries(CLIENT_CATEGORY_LABEL).map(([v, l]) => (
@@ -217,6 +250,8 @@ export function ClientsPage() {
 
       {!loading && filtered.length === 0 ? (
         <EmptyState title="Nenhum cliente encontrado" description="Ajuste os filtros ou cadastre um novo cliente." />
+      ) : statusFilter === 'prospect' ? (
+        <OnboardingClientsBoard clients={filtered} onOpen={(c) => navigate(`/clientes/${c.id}`)} />
       ) : view === 'grid' ? (
         <ClientsGrid clients={filtered} ownersByClientId={ownersByClientId} onRowClick={(c) => navigate(`/clientes/${c.id}`)} />
       ) : (

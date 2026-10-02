@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Plus, Video, X } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
@@ -15,7 +16,7 @@ import {
   type Client,
   type MeetingType,
 } from '../../types'
-import type { ActionItemFormState, MeetingFormState } from './meetingFormState'
+import { formHasRecord, formMeetingHasEnded, type ActionItemFormState, type MeetingFormState } from './meetingFormState'
 
 export function MeetingForm({
   value,
@@ -32,6 +33,12 @@ export function MeetingForm({
   allowMeet?: boolean
 }) {
   const set = <K extends keyof MeetingFormState>(key: K, v: MeetingFormState[K]) => onChange({ ...value, [key]: v })
+  // Reunião que ainda não aconteceu não mostra decisões/próximos passos/gravação
+  // (parecia que já tinha sido feita) — a não ser que já tenha algo preenchido
+  // ou a pessoa peça para abrir.
+  const ended = formMeetingHasEnded(value)
+  const [recordOpen, setRecordOpen] = useState(false)
+  const showRecord = ended || recordOpen || formHasRecord(value)
 
   const internalUsers = users.filter((u) => u.role !== 'client')
   const activeClients = clients.filter((c) => c.status === 'active')
@@ -180,14 +187,29 @@ export function MeetingForm({
         </div>
       </div>
 
-      <Field label="Pauta">
+      <Field label={ended ? 'Pauta' : 'Pauta (o que vai ser tratado)'}>
         <Textarea
           rows={3}
           value={value.agenda}
           onChange={(e) => set('agenda', e.target.value)}
-          placeholder="Descreva os principais pontos discutidos na reunião..."
+          placeholder={ended ? 'Principais pontos tratados na reunião...' : 'Assuntos que vão ser tratados na reunião...'}
         />
       </Field>
+
+      {!showRecord ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            Reunião agendada. Decisões, próximos passos e gravação são preenchidos depois que a reunião acontecer.
+          </p>
+          <Button type="button" variant="ghost" size="sm" aria-expanded={false} onClick={() => setRecordOpen(true)}>
+            Preencher resultado agora
+          </Button>
+        </div>
+      ) : (
+        <section aria-labelledby="meeting-record-heading" className="flex flex-col gap-4 border-t border-slate-100 pt-4">
+          <h3 id="meeting-record-heading" className="text-sm font-semibold text-slate-800">
+            Resultado da reunião
+          </h3>
 
       <label className="block">
         <span className="mb-1.5 block text-sm font-semibold text-slate-700">
@@ -253,6 +275,8 @@ export function MeetingForm({
       <Field label="Observações adicionais">
         <Textarea rows={2} value={value.notes} onChange={(e) => set('notes', e.target.value)} />
       </Field>
+        </section>
+      )}
     </div>
   )
 }

@@ -23,25 +23,16 @@ import { useCalendarEvents } from '../hooks/useCalendarEvents'
 import { upcomingBirthdays } from '../services/birthdayService'
 import { birthdayWhatsappLink } from '../utils/birthdayMessage'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
-import { MEETING_TYPE_LABEL } from '../types/meeting'
+import { MEETING_TYPE_LABEL, MEETING_TYPE_DOT } from '../types/meeting'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
 import { MeetingDrawer } from '../components/meetings/MeetingDrawer'
 import { NewMeetingModal } from '../components/calendar/NewMeetingModal'
 import { Button } from '../components/ui/Button'
+import { ModernCalendar, type CalItem } from '../components/calendar/ModernCalendar'
+import { useIsJamilson } from '../hooks/useIsJamilson'
 
-type CalItem = {
-  id: string
-  title: string
-  // 'meeting' = evento do Google Calendar sincronizado; 'internalMeeting' =
-  // registro do módulo de Reuniões da plataforma (ver types/meeting.ts).
-  // Conteúdos de Social Mídia não entram mais aqui — têm calendário próprio
-  // (ver SocialMediaGlobalCalendar, aba "Calendário geral" de Social Mídia).
-  kind: 'task' | 'meeting' | 'internalMeeting' | 'event' | 'birthday'
-  date: Date
-  clientName?: string
-  link?: string
-}
-
+// Conteúdos de Social Mídia não entram aqui — têm calendário próprio
+// (ver SocialMediaGlobalCalendar, aba "Calendário geral" de Social Mídia).
 const KIND_STYLE: Record<CalItem['kind'], string> = {
   task: 'bg-blue-50 text-blue-700',
   meeting: 'bg-amber-50 text-amber-700',
@@ -58,6 +49,8 @@ export function CalendarPage() {
   const { data: clients } = useClients()
   const { data: calendarEvents } = useCalendarEvents()
   const google = useGoogleCalendar()
+  // Jamilson (leitor de tela) fica com a grade simples; o resto vê o calendário novo.
+  const isJamilson = useIsJamilson()
   const [mode, setMode] = useState<'month' | 'week'>('month')
   const [cursor, setCursor] = useState(new Date())
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -83,6 +76,7 @@ export function CalendarPage() {
       title: ev.summary,
       kind: 'meeting',
       date: new Date(ev.start),
+      time: ev.start.includes('T') ? format(new Date(ev.start), 'HH:mm') : undefined,
       link: ev.hangoutLink || ev.htmlLink,
     }))
     const fromEvents: CalItem[] = calendarEvents
@@ -115,7 +109,9 @@ export function CalendarPage() {
         title: clientName ? `${MEETING_TYPE_LABEL[m.type]} — ${clientName}` : MEETING_TYPE_LABEL[m.type],
         kind: 'internalMeeting',
         date: m.date.toDate(),
+        time: m.time,
         clientName,
+        dot: MEETING_TYPE_DOT[m.type],
       }
     })
     return [...fromTasks, ...fromMeetings, ...fromEvents, ...fromBirthdays, ...fromInternalMeetings]
@@ -135,6 +131,80 @@ export function CalendarPage() {
 
   const navigate = (dir: -1 | 1) => {
     setCursor((c) => (mode === 'month' ? (dir === 1 ? addMonths(c, 1) : subMonths(c, 1)) : dir === 1 ? addWeeks(c, 1) : subWeeks(c, 1)))
+  }
+
+  const birthdaysBox = birthdays30.length > 0 && (
+    <div className="rounded-xl border border-pink-100 bg-pink-50/60 p-4">
+      <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-pink-700">
+        <Cake size={15} /> Próximos aniversários
+      </p>
+      <ul className="flex flex-col divide-y divide-pink-100">
+        {birthdays30.map((b) => {
+          const wa = birthdayWhatsappLink(b.name, b.whatsapp)
+          return (
+            <li key={b.eventId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-sm">
+              <span className="w-28 shrink-0 font-medium text-pink-700">
+                {b.daysUntil === 0 ? 'hoje' : b.daysUntil === 1 ? 'amanhã' : `em ${b.daysUntil} dias`}{' '}
+                <span className="text-pink-400">· {format(b.next, 'dd/MM')}</span>
+              </span>
+              <span className="font-medium text-slate-800">{b.name}</span>
+              {b.clientId && clientMap[b.clientId] && <span className="text-slate-400">· {clientMap[b.clientId].companyName}</span>}
+              {wa && (
+                <a href={wa} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs font-medium text-emerald-600 hover:underline">
+                  Abrir WhatsApp
+                </a>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+
+  const drawers = (
+    <>
+      <TaskDrawer key={`task-${openTaskId ?? 'none'}`} task={openTask} onClose={() => setOpenTaskId(null)} />
+      <MeetingDrawer key={`meeting-${openMeetingId ?? 'none'}`} meeting={openInternalMeeting} onClose={() => setOpenMeetingId(null)} />
+      <NewMeetingModal open={creatingMeeting} onClose={() => setCreatingMeeting(false)} onCreated={google.refresh} />
+    </>
+  )
+
+  if (!isJamilson) {
+    return (
+      <>
+        <ModernCalendar
+          items={items}
+          mode={mode}
+          onMode={setMode}
+          cursor={cursor}
+          onCursor={setCursor}
+          onOpenItem={openItem}
+          top={birthdaysBox}
+          actions={
+            google.connected ? (
+              <>
+                <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreatingMeeting(true)}>
+                  Nova reunião
+                </Button>
+                <button
+                  onClick={google.disconnect}
+                  title="Desconectar Google Calendar"
+                  aria-label="Desconectar Google Calendar"
+                  className="rounded-lg border border-slate-200 p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                >
+                  <LogOut size={14} />
+                </button>
+              </>
+            ) : (
+              <Button size="sm" variant="secondary" icon={<Video size={13} />} onClick={google.connect} loading={google.loading}>
+                Conectar Google Calendar
+              </Button>
+            )
+          }
+        />
+        {drawers}
+      </>
+    )
   }
 
   return (

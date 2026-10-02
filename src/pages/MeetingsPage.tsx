@@ -9,12 +9,16 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { MeetingFormModal } from '../components/meetings/MeetingFormModal'
 import { MeetingDrawer } from '../components/meetings/MeetingDrawer'
 import { MeetingRow, MeetingSections } from '../components/meetings/MeetingRow'
+import { MeetingsAgenda } from '../components/meetings/MeetingsAgenda'
+import { useIsJamilson } from '../hooks/useIsJamilson'
 import { MEETING_TYPE_LABEL, MEETING_TYPE_GROUP_LABEL, MEETING_TYPE_GROUPS, type MeetingType } from '../types'
 
 export function MeetingsPage() {
   const { data: meetings } = useAllMeetings()
   const { data: clients } = useClients()
   const { data: users } = useUsers()
+  // O Jamilson usa leitor de tela e gosta da lista simples; o resto da equipe vê a agenda.
+  const isJamilson = useIsJamilson()
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<MeetingType | ''>('')
@@ -122,7 +126,14 @@ export function MeetingsPage() {
         />
       </div>
 
-      {filtered.length === 0 ? (
+      {!isJamilson ? (
+        <MeetingsAgenda
+          meetings={filtered}
+          clientName={(m) => (m.clientId ? clientMap[m.clientId]?.companyName : undefined)}
+          participantsOf={(m) => (m.participantIds ?? []).map((id) => userMap[id]).filter((u): u is NonNullable<typeof u> => !!u)}
+          onOpen={(m) => setOpenMeetingId(m.id)}
+        />
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Video size={28} />}
           title="Nenhuma reunião encontrada"

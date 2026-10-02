@@ -9,7 +9,7 @@ import { createMeeting } from '../../services/meetingService'
 import { requestAccessToken, createMeetingEvent, enableMeetAutoRecording, MEET_SETTINGS_SCOPE } from '../../services/googleCalendarService'
 import { showError } from '../../utils/notifyError'
 import { MeetingForm } from './MeetingForm'
-import { buildDefaultMeetingForm, formStateToMeetingInput, type MeetingFormState } from './meetingFormState'
+import { buildDefaultMeetingForm, formMeetingHasEnded, formStateToMeetingInput, type MeetingFormState } from './meetingFormState'
 import { isClientMeetingType, MEETING_TYPE_LABEL, type MeetingInput, type MeetingType } from '../../types'
 
 export function MeetingFormModal({
@@ -67,7 +67,7 @@ export function MeetingFormModal({
         recordingWarning = meet.warning
       }
       await createMeeting(input, profile.id, profile.name)
-      if (!form.createMeet) toast.success('Reunião registrada')
+      if (!form.createMeet) toast.success(formMeetingHasEnded(form) ? 'Reunião registrada' : 'Reunião agendada')
       else if (recordingWarning) toast(recordingWarning, { duration: 12000, icon: '⚠️' })
       else toast.success(form.autoRecording ? 'Reunião criada no Google Meet com gravação automática' : 'Reunião criada no Google Meet')
       handleClose()
@@ -130,7 +130,7 @@ export function MeetingFormModal({
             Cancelar
           </Button>
           <Button onClick={handleSave} loading={saving}>
-            Salvar reunião
+            {formMeetingHasEnded(form) ? 'Registrar reunião' : 'Agendar reunião'}
           </Button>
         </div>
       </div>
