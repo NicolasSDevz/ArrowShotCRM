@@ -388,6 +388,43 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------- teamSurveys (Avaliação de desempenho e satisfação) ----------
+    // Rodadas: qualquer interno lê (pra responder); só o Admin cria/edita.
+    // Respostas são ANÔNIMAS: o doc só tem `answers` (sem uid, nome ou
+    // horário) e id aleatório. Ninguém além do Admin lê, e nem o Admin
+    // consegue saber de quem é. A marca participants/{uid} (sem conteúdo)
+    // impede responder duas vezes: a resposta só é aceita se a marca ainda
+    // não existia e é criada no mesmo batch.
+    function surveyOpen(surveyId) {
+      return get(/databases/$(database)/documents/teamSurveys/$(surveyId)).data.status == 'open';
+    }
+
+    match /teamSurveys/{surveyId} {
+      allow read: if isInternal();
+      allow create, update, delete: if isAdmin();
+
+      match /responses/{responseId} {
+        allow read, delete: if isAdmin();
+        allow create: if isInternal()
+          && surveyOpen(surveyId)
+          && request.resource.data.keys().hasOnly(['answers'])
+          && request.resource.data.answers is map
+          && !exists(/databases/$(database)/documents/teamSurveys/$(surveyId)/participants/$(request.auth.uid))
+          && existsAfter(/databases/$(database)/documents/teamSurveys/$(surveyId)/participants/$(request.auth.uid));
+        allow update: if false;
+      }
+
+      match /participants/{uid} {
+        allow read: if isOwnUser(uid) || isAdmin();
+        allow create: if isInternal()
+          && request.auth.uid == uid
+          && surveyOpen(surveyId)
+          && request.resource.data.keys().hasOnly(['answered']);
+        allow delete: if isAdmin();
+        allow update: if false;
+      }
+    }
+
     // ---------- products (Catálogo de Produtos e Serviços — tabela de
     // preços mostrada no Dashboard). Qualquer interno lê; só o Admin
     // (Bruno) cria/edita/apaga preço, descrição e bônus. ----------

@@ -34,6 +34,7 @@ import { UniversityModulePage } from './pages/UniversityModulePage'
 import { UniversityProgressPage } from './pages/UniversityProgressPage'
 import { UniversityAdminPage } from './pages/UniversityAdminPage'
 import { OptimizationCalendarPage } from './pages/OptimizationCalendarPage'
+import { TeamSurveyPage } from './pages/TeamSurveyPage'
 
 function App() {
   return (
@@ -73,6 +74,7 @@ function App() {
             <Route path="/relatorios" element={<ReportsPage />} />
             <Route path="/relatorios/:id" element={<MonthlyReportPage />} />
             <Route path="/notificacoes" element={<NotificationsPage />} />
+            <Route path="/avaliacao" element={<TeamSurveyPage />} />
             <Route
               path="/otimizacoes/calendario"
               element={
