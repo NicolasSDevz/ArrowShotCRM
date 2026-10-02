@@ -35,11 +35,14 @@ const TEXT: Record<SessionIssueKind, { title: string; what: string; causes: stri
   },
   'live-removed': {
     title: 'O seu login foi apagado com o CRM aberto',
-    what: 'Você estava usando o CRM e, sem clicar em Sair, os dados de login deste site foram apagados do navegador.',
-    causes: [`Uma extensão ou programa que apaga dados de sites enquanto você navega: ${CLEANERS}.`, 'Alguém limpou os dados de navegação do Chrome enquanto o CRM estava aberto.'],
+    what: 'Você estava usando o CRM e, sem clicar em Sair, o login deste navegador deixou de valer.',
+    causes: [
+      'O Google (que cuida do login do CRM) encerrou o login: senha trocada, conta alterada ou entrada em outro lugar que invalidou esta.',
+      `Uma extensão ou programa apagou só o login deste site enquanto você navegava: ${CLEANERS}.`,
+    ],
     fix: [
-      'Abra chrome://extensions e veja se há alguma extensão de limpeza ou privacidade. Desligue ou coloque este endereço como exceção.',
-      'Teste usar o CRM numa janela anônima (Ctrl+Shift+N), onde as extensões ficam desligadas. Se lá não cair, a culpa é de uma extensão.',
+      'Entre de novo. O CRM agora guarda o login de um jeito mais resistente a limpezas parciais do navegador.',
+      'Se cair de novo sem ninguém trocar a senha, teste numa janela anônima (Ctrl+Shift+N), onde as extensões ficam desligadas, e mande um print desta janela para o responsável pelo CRM.',
     ],
   },
   revoked: {

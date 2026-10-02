@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { browserLocalPersistence, getAuth, indexedDBLocalPersistence, initializeAuth, type Auth } from 'firebase/auth'
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 
@@ -20,7 +20,21 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
 
 export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
 
-export const auth = getAuth(app)
+// Login guardado no localStorage, não no IndexedDB (padrão do getAuth).
+// Com o IndexedDB, o Firebase relê o banco a cada ~800 ms e, se a leitura
+// volta vazia (extensão/limpador apagando o IndexedDB, banco recriado pelo
+// navegador), desloga a aba na hora — era o aviso "live-removed", com o
+// localStorage do CRM intacto. O IndexedDB fica como reserva e, na primeira
+// carga, o Firebase migra sozinho o login que já estava lá (ninguém cai).
+function initAuth(): Auth {
+  try {
+    return initializeAuth(app, { persistence: [browserLocalPersistence, indexedDBLocalPersistence] })
+  } catch {
+    return getAuth(app) // já inicializado (HMR em dev)
+  }
+}
+
+export const auth = initAuth()
 
 // Offline persistence with multi-tab support keeps board/list views usable on
 // flaky connections and avoids "missing index" surprises during dev reloads.
