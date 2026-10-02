@@ -7,7 +7,7 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth'
 import { auth } from '../firebase/config'
-import { ensureUserProfile, getUserProfile } from '../services/userService'
+import { ensureUserProfile, subscribeUserProfile } from '../services/userService'
 import { usePresenceHeartbeat } from '../hooks/usePresenceHeartbeat'
 import type { AppUser } from '../types'
 
@@ -20,6 +20,14 @@ interface AuthContextValue {
   resetPassword: (email: string) => Promise<void>
 }
 
+/** Igual ignorando a presença: touchPresence grava lastSeenAt/presenceState no
+ *  doc do perfil a cada 30s, e isso não pode virar um "perfil novo" que faz o
+ *  app inteiro renderizar de novo. */
+function sameProfile(a: AppUser, b: AppUser): boolean {
+  const strip = ({ lastSeenAt: _l, presenceState: _p, ...rest }: AppUser & { lastSeenAt?: unknown; presenceState?: unknown }) => rest
+  return JSON.stringify(strip(a)) === JSON.stringify(strip(b))
+}
+
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -28,25 +36,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
+    let stopProfile: (() => void) | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    const clearProfileWatch = () => {
+      stopProfile?.()
+      stopProfile = null
+      if (retryTimer) clearTimeout(retryTimer)
+      retryTimer = null
+    }
+
+    // Perfil em tempo real em vez de um getDoc só: se a conexão com o
+    // Firestore cair bem na hora do login (antivírus/extensão derrubando a
+    // conexão), antes o perfil ficava null e a tela travava em "Preparando
+    // seu acesso" — parecia que a pessoa tinha sido desconectada. Agora, se
+    // o listener falhar, ele tenta de novo sozinho, e um perfil que já
+    // carregou nunca é apagado por erro de rede.
+    const watchProfile = (user: FirebaseUser) => {
+      clearProfileWatch()
+      stopProfile = subscribeUserProfile(
+        user.uid,
+        async (p, fromCache) => {
+          if (p) {
+            setProfile((prev) => (prev && sameProfile(prev, p) ? prev : p))
+            setLoading(false)
+            return
+          }
+          if (fromCache) return // ainda sem resposta do servidor
+          try {
+            setProfile(
+              await ensureUserProfile(user.uid, user.email ?? '', user.displayName ?? user.email ?? 'Usuário', user.photoURL ?? undefined)
+            )
+          } catch (err) {
+            console.error('Failed to create user profile', err)
+          }
+          setLoading(false)
+        },
+        (err) => {
+          console.error('Falha ao carregar o perfil, tentando de novo', err)
+          setLoading(false)
+          clearProfileWatch()
+          retryTimer = setTimeout(() => watchProfile(user), 3000)
+        }
+      )
+    }
+
+    const unsub = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user)
       if (user) {
-        try {
-          let p = await getUserProfile(user.uid)
-          if (!p) {
-            p = await ensureUserProfile(user.uid, user.email ?? '', user.displayName ?? user.email ?? 'Usuário', user.photoURL ?? undefined)
-          }
-          setProfile(p)
-        } catch (err) {
-          console.error('Failed to load user profile', err)
-          setProfile(null)
-        }
+        watchProfile(user)
       } else {
+        clearProfileWatch()
         setProfile(null)
+        setLoading(false)
       }
-      setLoading(false)
     })
-    return unsub
+    return () => {
+      unsub()
+      clearProfileWatch()
+    }
   }, [])
 
   // Só a equipe interna aparece como "online" — usuários-cliente do portal não.

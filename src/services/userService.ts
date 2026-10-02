@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp, orderBy, type FirestoreError } from 'firebase/firestore'
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp, orderBy, type FirestoreError } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { AppUser, UserRole } from '../types'
 import { collectionService } from './firestore'
@@ -14,7 +14,7 @@ const base = collectionService<AppUser>(COLLECTION)
 export async function ensureUserProfile(uid: string, email: string, name: string, photoURL?: string) {
   const ref = doc(db, COLLECTION, uid)
   const snap = await getDoc(ref)
-  if (snap.exists()) return snap.data() as AppUser
+  if (snap.exists()) return { id: snap.id, ...snap.data() } as AppUser
 
   const profile = {
     name,
@@ -31,6 +31,21 @@ export async function ensureUserProfile(uid: string, email: string, name: string
 
 export function getUserProfile(uid: string) {
   return base.getById(uid)
+}
+
+/** Perfil do usuário logado em tempo real. `fromCache` diz se a resposta veio
+ *  do cache local (sem confirmação do servidor) — "não existe" vindo do cache
+ *  não é motivo pra criar o perfil. */
+export function subscribeUserProfile(
+  uid: string,
+  onData: (profile: AppUser | null, fromCache: boolean) => void,
+  onError: (err: FirestoreError) => void
+) {
+  return onSnapshot(
+    doc(db, COLLECTION, uid),
+    (snap) => onData(snap.exists() ? ({ id: snap.id, ...snap.data() } as AppUser) : null, snap.metadata.fromCache),
+    onError
+  )
 }
 
 export function subscribeUsers(onData: (items: AppUser[]) => void, onError?: (err: FirestoreError) => void) {

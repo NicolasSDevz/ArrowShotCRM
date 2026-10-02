@@ -27,6 +27,10 @@ export const auth = getAuth(app)
 // ignoreUndefinedProperties: forms across the app send `undefined` for empty
 // optional fields (e.g. a client with no Instagram) — Firestore rejects that
 // by default, so this tells the SDK to just drop those keys instead of throwing.
+// experimentalForceLongPolling: a conexão em streaming padrão (WebChannel)
+// era derrubada sem parar por antivírus/extensões no navegador de alguns
+// usuários ("AbortError: signal is aborted" em loop e queda de sessão);
+// long polling usa requisições HTTP comuns, que passam por esses filtros.
 // Falls back to memory cache where persistence can't init (private browsing,
 // storage disabled) so the app still boots.
 function initDb(): Firestore {
@@ -34,10 +38,11 @@ function initDb(): Firestore {
     return initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
       ignoreUndefinedProperties: true,
+      experimentalForceLongPolling: true,
     })
   } catch (err) {
     console.warn('Persistência offline indisponível — usando cache em memória.', err)
-    return initializeFirestore(app, { ignoreUndefinedProperties: true })
+    return initializeFirestore(app, { ignoreUndefinedProperties: true, experimentalForceLongPolling: true })
   }
 }
 
