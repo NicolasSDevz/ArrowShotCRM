@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { getClientOwnerIds, type Client } from '../types/client'
+import { clientChurnDate, countsAsChurn, getClientOwnerIds, type Client } from '../types/client'
 import type { AppUser } from '../types'
 
 /** Métricas da empresa exibidas no painel "Visão Geral". Espelha o cálculo do
@@ -37,9 +37,8 @@ export function computeCompanyMetrics(clients: Client[], users: AppUser[], now =
   const activeClients = active.length
   const clientsWithoutValue = activeClients - withValue.length
 
-  const churnedClients = clients.filter(
-    (c) => c.status === 'churned' && (c.updatedAt?.toDate?.() ?? new Date(0)) >= monthStart
-  ).length
+  // Só os encerrados que contam no Churn Rate (ver ChurnTypeField).
+  const churnedClients = clients.filter((c) => countsAsChurn(c) && (clientChurnDate(c) ?? new Date(0)) >= monthStart).length
   const base = activeClients + paused.length + churnedClients
   const churnRate = base > 0 ? (churnedClients / base) * 100 : 0
 

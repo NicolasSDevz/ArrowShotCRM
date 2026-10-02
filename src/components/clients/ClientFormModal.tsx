@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { Modal } from '../ui/Modal'
 import { Field, Input, Select, Textarea } from '../ui/Field'
+import { ChurnTypeField } from './ChurnTypeField'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
@@ -23,6 +25,8 @@ import {
   CLIENT_PACKAGE_LABEL,
   CLIENT_STATUS_LABEL,
   CLIENT_CATEGORY_LABEL,
+  CHURN_TYPE_COUNTS_DEFAULT,
+  EARLY_CHURN_DAYS,
   STYLE_CATALOG_DESCRIPTION,
   STYLE_CATALOG_LABEL,
   getClientOwnerIds,
@@ -31,6 +35,7 @@ import {
   type ClientPackage,
   type ClientServiceContract,
   type ClientStatus,
+  type ChurnType,
   type StyleCatalog,
 } from '../../types/client'
 import type { DiscountType, Product } from '../../types/product'
@@ -83,6 +88,8 @@ const EMPTY = {
   notes: '',
   status: 'prospect' as ClientStatus,
   churnReason: '',
+  churnType: '' as ChurnType | '',
+  churnCounts: true,
   categoria: '' as ClientCategory | '',
   socialMedia: false,
   paidTraffic: false,
@@ -241,6 +248,8 @@ export function ClientFormModal({
         notes: client.notes ?? '',
         status: client.status,
         churnReason: client.churnReason ?? '',
+        churnType: client.churnType ?? '',
+        churnCounts: client.churnCounts !== false,
         categoria: client.categoria ?? '',
         socialMedia: client.modules?.socialMedia ?? false,
         paidTraffic: client.modules?.paidTraffic ?? false,
@@ -303,6 +312,20 @@ export function ClientFormModal({
       return { ...f, contracts: { ...f.contracts, [product.id]: next } }
     })
 
+  /** Dias de contrato até hoje — sugere Early Churn quando é pouco. */
+  const contractDays = (() => {
+    const start = form.contractStartDate ? new Date(`${form.contractStartDate}T00:00:00`) : client?.createdAt?.toDate?.()
+    return start ? Math.floor((Date.now() - start.getTime()) / 86_400_000) : null
+  })()
+
+  const handleStatusChange = (status: ClientStatus) => {
+    setForm((f) => {
+      if (status !== 'churned' || f.churnType) return { ...f, status }
+      const early = contractDays != null && contractDays < EARLY_CHURN_DAYS
+      return early ? { ...f, status, churnType: 'early', churnCounts: CHURN_TYPE_COUNTS_DEFAULT.early } : { ...f, status }
+    })
+  }
+
   const whatsappIncomplete = form.whatsapp.trim() !== '' && !isPhoneComplete(form.whatsapp)
   const whatsappGroupLinkInvalid = form.whatsappGroupLink.trim() !== '' && !form.whatsappGroupLink.trim().startsWith(WHATSAPP_GROUP_PREFIX)
 
@@ -339,6 +362,10 @@ export function ClientFormModal({
 
   const handleSubmit = async () => {
     if (!canSubmit || !profile) return
+    if (client && form.status === 'churned' && !form.churnType) {
+      toast.error('Escolha o tipo de churn antes de salvar.')
+      return
+    }
     setSaving(true)
     try {
       const basePayload = {
@@ -367,6 +394,8 @@ export function ClientFormModal({
         contractStartDate: dateInputToTimestamp(form.contractStartDate),
         notes: form.notes || undefined,
         churnReason: form.status === 'churned' ? form.churnReason.trim() || undefined : undefined,
+        churnType: form.status === 'churned' ? form.churnType || undefined : undefined,
+        churnCounts: form.status === 'churned' ? form.churnCounts : undefined,
         contractedProductIds: form.contractedProductIds.length > 0 ? form.contractedProductIds : undefined,
         contractedServices: selectedContracts.map(({ product, draft }): ClientServiceContract => {
           const c = draft ? draftContract(draft) : {}
@@ -384,7 +413,13 @@ export function ClientFormModal({
       }
       let targetId: string
       if (client) {
-        await updateClient(client.id, { ...basePayload, status: form.status }, profile.id, profile.name)
+        const justChurned = form.status === 'churned' && client.status !== 'churned'
+        await updateClient(
+          client.id,
+          { ...basePayload, status: form.status, ...(justChurned ? { churnedAt: Timestamp.now() } : {}) },
+          profile.id,
+          profile.name
+        )
         targetId = client.id
 
         const stillActive = form.status !== 'churned'
@@ -570,7 +605,7 @@ export function ClientFormModal({
         </Field>
         {client && (
           <Field label="Status">
-            <Select value={form.status} onChange={(e) => set('status', e.target.value as ClientStatus)}>
+            <Select value={form.status} onChange={(e) => handleStatusChange(e.target.value as ClientStatus)}>
               {(Object.entries(CLIENT_STATUS_LABEL) as [ClientStatus, string][]).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
@@ -578,16 +613,24 @@ export function ClientFormModal({
           </Field>
         )}
         {client && form.status === 'churned' && (
-          <div className="sm:col-span-2">
+          <div className="flex flex-col gap-3 rounded-xl border border-red-100 bg-red-50/40 p-4 sm:col-span-2">
+            <ChurnTypeField
+              value={form.churnType}
+              counts={form.churnCounts}
+              suggestedEarly={contractDays != null && contractDays < EARLY_CHURN_DAYS}
+              contractDays={contractDays}
+              onChange={(type) => setForm((f) => ({ ...f, churnType: type, churnCounts: CHURN_TYPE_COUNTS_DEFAULT[type] }))}
+              onCountsChange={(v) => set('churnCounts', v)}
+            />
             <Field label="Motivo do cancelamento">
               <Textarea
                 rows={2}
                 value={form.churnReason}
                 onChange={(e) => set('churnReason', e.target.value)}
-                placeholder="Ex: preço, resultado abaixo do esperado, mudou de agência..."
+                placeholder="Ex: preço, resultado abaixo do esperado, mudou de agência, fechou a empresa..."
               />
             </Field>
-            <p className="mt-1 text-xs text-slate-400">Aparece no popup de Churn Rate do Dashboard.</p>
+            <p className="-mt-1 text-xs text-slate-400">Tipo e motivo aparecem no detalhe do Churn Rate do Dashboard.</p>
           </div>
         )}
         <Field label="Categoria">

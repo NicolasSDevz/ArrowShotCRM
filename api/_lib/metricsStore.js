@@ -45,13 +45,13 @@ export function computeMetrics(clients, users, prevMonth = null, now = new Date(
   const activeClients = active.length
   const clientsWithoutValue = activeClients - withValue.length
 
-  // Encerrados no mês corrente (proxy: status churned + updatedAt neste mês).
-  const churnedClients = clients.filter(
-    (c) => c.status === 'churned' && toDate(c.updatedAt) && toDate(c.updatedAt) >= monthStart
-  ).length
-
-  // Total "no início do mês" = quem estava em carteira: ativos + pausados +
-  // os que encerraram durante o mês.
+  // Encerrados no mês corrente que contam no Churn Rate (churnCounts !== false).
+  // Data: churnedAt (gravada ao encerrar) ou updatedAt nos encerrados antigos.
+  const churnedClients = clients.filter((c) => {
+    if (c.status !== 'churned' || c.churnCounts === false) return false
+    const when = toDate(c.churnedAt) || toDate(c.updatedAt)
+    return when && when >= monthStart
+  }).length
   const baseStartOfMonth = activeClients + paused.length + churnedClients
   const churnRate = baseStartOfMonth > 0 ? (churnedClients / baseStartOfMonth) * 100 : 0
 

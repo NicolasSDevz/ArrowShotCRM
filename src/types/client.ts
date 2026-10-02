@@ -172,6 +172,13 @@ export interface Client extends BaseDoc {
   /** Preenchido ao mudar o status para "Encerrado" — mostrado no popup de
    *  Churn Rate do Dashboard (ver OverviewDashboard). */
   churnReason?: string
+  /** Tipo do churn, escolhido ao encerrar (ver CHURN_TYPE_LABEL). */
+  churnType?: ChurnType
+  /** false = encerrado, mas não entra no Churn Rate (ex.: involuntário).
+   *  undefined conta, pra manter os encerrados antigos no cálculo. */
+  churnCounts?: boolean
+  /** Quando o cliente foi encerrado. Antigos não têm: cai no updatedAt. */
+  churnedAt?: Timestamp
   /** URL pública da logo no Firebase Storage (clients/{id}/logo/logo).
    *  `null` = removida explicitamente. */
   logoUrl?: string | null
@@ -210,6 +217,41 @@ export interface Client extends BaseDoc {
    *  feitas). Gravado pra não repetir: se alguém voltar o status pra Onboarding
    *  na mão, o CRM respeita. */
   onboardingAutoActivatedAt?: Timestamp
+}
+
+export type ChurnType = 'voluntary' | 'involuntary' | 'early'
+
+export const CHURN_TYPE_LABEL: Record<ChurnType, string> = {
+  voluntary: 'Churn Voluntário',
+  involuntary: 'Churn Involuntário',
+  early: 'Early Churn (Precoce)',
+}
+
+export const CHURN_TYPE_DESCRIPTION: Record<ChurnType, string> = {
+  voluntary: 'O cliente decidiu romper o contrato e deixar de usar os serviços da agência.',
+  involuntary: 'O contrato terminou por motivos alheios à vontade ou à insatisfação do cliente (ex.: fechou a empresa, problema de pagamento, mudança de dono).',
+  early: 'Cancelou logo no início da relação, poucos dias ou semanas depois de fechar.',
+}
+
+/** Se cada tipo entra no Churn Rate por padrão — dá pra mudar na hora de encerrar. */
+export const CHURN_TYPE_COUNTS_DEFAULT: Record<ChurnType, boolean> = {
+  voluntary: true,
+  involuntary: false,
+  early: true,
+}
+
+/** Contrato com menos que isso ao encerrar é sugerido como Early Churn. */
+export const EARLY_CHURN_DAYS = 90
+
+/** Data do churn: churnedAt, ou updatedAt nos encerrados antigos. */
+export function clientChurnDate(client: Pick<Client, 'status' | 'churnedAt' | 'updatedAt'>): Date | null {
+  if (client.status !== 'churned') return null
+  return client.churnedAt?.toDate?.() ?? client.updatedAt?.toDate?.() ?? null
+}
+
+/** Encerrado que entra no Churn Rate. */
+export function countsAsChurn(client: Pick<Client, 'status' | 'churnCounts'>): boolean {
+  return client.status === 'churned' && client.churnCounts !== false
 }
 
 export const CLIENT_STATUS_LABEL: Record<ClientStatus, string> = {

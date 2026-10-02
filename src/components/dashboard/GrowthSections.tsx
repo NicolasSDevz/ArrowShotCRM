@@ -7,6 +7,7 @@ import { usePrivacy } from '../../context/PrivacyContext'
 import { Card, CardTitle } from './DashboardCard'
 import {
   LEAD_LOST_REASON_LABEL,
+  clientChurnDate,
   LEAD_SOURCE_LABEL,
   locateLead,
   type Activity,
@@ -22,9 +23,10 @@ const DAY = 24 * 60 * 60 * 1000
 
 const toDate = (v: { toDate?: () => Date } | null | undefined): Date | null => v?.toDate?.() ?? null
 const clientStart = (c: Client) => toDate(c.contractStartDate) ?? toDate(c.createdAt)
-/** Não existe data de cancelamento própria — a última edição do cliente
- *  encerrado é a melhor aproximação (mesmo critério do modal de churn). */
-const churnDate = (c: Client) => (c.status === 'churned' ? toDate(c.updatedAt) : null)
+/** Data do cancelamento (churnedAt, ou a última edição nos antigos). Aqui
+ *  entram todos os encerrados, mesmo os que não contam no Churn Rate: a
+ *  receita foi perdida do mesmo jeito. */
+const churnDate = (c: Client) => clientChurnDate(c)
 
 /** Quando o lead foi ganho/perdido (null = ainda em aberto). */
 function leadOutcome(lead: Lead, pipelines: ResolvedPipeline[]): { kind: 'open' | 'won' | 'lost'; at: Date | null } {

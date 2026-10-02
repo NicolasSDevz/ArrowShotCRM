@@ -37,7 +37,7 @@ import { AlertsCard, ClientFlowCard, RevenueGeneratedCard, SalesSection } from '
 import { ClientsStatusChart } from './ClientsStatusChart'
 import { UpsellRevenueChart } from './UpsellRevenueChart'
 import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
-import { leadPipelineId, DEFAULT_PIPELINE_ID, type Activity } from '../../types'
+import { clientChurnDate, leadPipelineId, DEFAULT_PIPELINE_ID, type Activity } from '../../types'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { showError } from '../../utils/notifyError'
 
@@ -70,7 +70,7 @@ const TIPS = {
   },
   churn: {
     title: 'Churn Rate — Taxa de Cancelamento',
-    body: 'Percentual de clientes que encerraram o contrato este mês.\n✅ Saudável: abaixo de 5%\n⚠️ Atenção: entre 5% e 10%\n🔴 Crítico: acima de 10%',
+    body: 'Percentual de clientes que encerraram o contrato este mês. Encerramentos marcados para não contar (ex.: churn involuntário) ficam de fora da taxa.\n✅ Saudável: abaixo de 5%\n⚠️ Atenção: entre 5% e 10%\n🔴 Crítico: acima de 10%',
   },
   ltv: {
     title: 'LTV — Lifetime Value',
@@ -315,7 +315,9 @@ export function OverviewDashboard() {
           id: c.id,
           companyName: c.companyName,
           churnReason: c.churnReason,
-          when: c.updatedAt?.toDate?.() ?? new Date(0),
+          churnType: c.churnType,
+          counts: c.churnCounts !== false,
+          when: clientChurnDate(c) ?? new Date(0),
           monthlyValue: c.monthlyValue,
         }))
         .sort((a, b) => b.when.getTime() - a.when.getTime()),
@@ -674,6 +676,9 @@ export function OverviewDashboard() {
         onClose={() => setChurnModalOpen(false)}
         churned={allChurned}
         currentChurnRate={m.churnRate}
+        currentMrr={m.mrr}
+        upsells={upsellActivities}
+        downsells={downsellActivities}
       />
     </div>
   )
