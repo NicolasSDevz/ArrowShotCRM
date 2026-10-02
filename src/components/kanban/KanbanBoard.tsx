@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   DndContext,
   PointerSensor,
@@ -21,13 +21,18 @@ export function KanbanBoard<T extends KanbanItemBase, S extends string>({
   getStatus,
   renderCard,
   onMove,
+  pageSize,
 }: {
   columns: { id: S; label: string; accent?: string; accentColor?: string }[]
   items: T[]
   getStatus: (item: T) => S
   renderCard: (item: T) => ReactNode
   onMove: (item: T, newStatus: S, newOrder: number) => void
+  /** Mostra só os N primeiros cartões de cada coluna, com "Mostrar mais"
+   *  (coluna com centenas de leads travava a tela). Sem valor = todos. */
+  pageSize?: number
 }) {
+  const [limits, setLimits] = useState<Record<string, number>>({})
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const byColumn = (status: S) =>
@@ -62,13 +67,24 @@ export function KanbanBoard<T extends KanbanItemBase, S extends string>({
       <div className="flex h-full gap-3 overflow-x-auto pb-2">
         {columns.map((col) => {
           const colItems = byColumn(col.id)
+          const limit = pageSize ? (limits[col.id] ?? pageSize) : colItems.length
+          const shown = colItems.slice(0, limit)
           return (
             <KanbanColumn key={col.id} id={`col:${col.id}`} label={col.label} count={colItems.length} accent={col.accent} accentColor={col.accentColor}>
-              <SortableContext items={colItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              <SortableContext items={shown.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                 <div className="flex flex-col gap-2">
-                  {colItems.map((item) => (
+                  {shown.map((item) => (
                     <div key={item.id}>{renderCard(item)}</div>
                   ))}
+                  {colItems.length > shown.length && (
+                    <button
+                      type="button"
+                      onClick={() => setLimits((l) => ({ ...l, [col.id]: limit + (pageSize ?? 0) }))}
+                      className="rounded-lg border border-dashed border-slate-300 py-2 text-xs font-semibold text-slate-500 hover:border-brand-400 hover:text-brand-600"
+                    >
+                      Mostrar mais ({colItems.length - shown.length} restantes)
+                    </button>
+                  )}
                 </div>
               </SortableContext>
             </KanbanColumn>

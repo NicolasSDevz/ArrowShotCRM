@@ -29,7 +29,7 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-72 min-w-[280px] shrink-0 flex-col rounded-xl bg-slate-50 p-3 ${
+      className={`flex min-h-0 w-72 min-w-[280px] shrink-0 flex-col rounded-xl bg-slate-50 p-3 ${
         isOver ? 'ring-2 ring-brand-300' : ''
       }`}
     >
@@ -45,7 +45,7 @@ export function KanbanColumn({
           {count}
         </span>
       </div>
-      <div className="min-h-[40px] flex-1 overflow-y-auto px-0.5">{children}</div>
+      <div className="min-h-[40px] flex-1 overflow-y-auto px-0.5 pb-1">{children}</div>
     </div>
   )
 }

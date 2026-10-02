@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Upload, Kanban, List, Settings2, Gauge } from 'lucide-react'
+import { Plus, Upload, Kanban, List, Settings2, Gauge, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
@@ -67,6 +67,7 @@ export function LeadsPage() {
   const [busy, setBusy] = useState(false)
   // Filtro por faixa do BANT ('' = todos, 'none' = ainda não avaliados).
   const [bantOpen, setBantOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const [tempFilter, setTempFilter] = useState<LeadTemperature | 'none' | ''>('')
 
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
@@ -77,7 +78,13 @@ export function LeadsPage() {
 
   const allPipelineLeads = leads.filter((l) => leadPipelineId(l) === activePipeline.id)
   const tempOf = (l: Lead) => leadTemperature(l.bant) ?? 'none'
-  const pipelineLeads = tempFilter ? allPipelineLeads.filter((l) => tempOf(l) === tempFilter) : allPipelineLeads
+  const needle = search.trim().toLowerCase()
+  const digits = needle.replace(/\D/g, '')
+  const matchesSearch = (l: Lead) =>
+    !needle ||
+    [l.contactName, l.companyName, l.email, l.cityRegion].some((v) => v?.toLowerCase().includes(needle)) ||
+    (digits.length >= 4 && (l.whatsapp ?? '').replace(/\D/g, '').includes(digits))
+  const pipelineLeads = allPipelineLeads.filter((l) => (!tempFilter || tempOf(l) === tempFilter) && matchesSearch(l))
   const countByTemp = (t: LeadTemperature | 'none') => allPipelineLeads.filter((l) => tempOf(l) === t).length
   const countByPipeline = (id: string) => leads.filter((l) => leadPipelineId(l) === id).length
   const leadCountByStage: Record<string, number> = {}
@@ -132,7 +139,7 @@ export function LeadsPage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-[28px] font-extrabold text-slate-900">Leads</h1>
         <p className="text-[15px] text-[#64748B]">Pipeline de novos clientes e formulários de captura</p>
@@ -219,6 +226,16 @@ export function LeadsPage() {
           </div>
 
           <div role="group" aria-label="Filtrar por faixa do BANT" className="flex flex-wrap items-center gap-1.5">
+            <div className="relative mr-1">
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar nome, empresa, WhatsApp..."
+                aria-label="Buscar leads por nome, empresa ou WhatsApp"
+                className="h-8 w-64 rounded-full border border-slate-200 bg-white pl-8 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+              />
+            </div>
             {([
               ['', 'Todos', allPipelineLeads.length],
               ['hot', LEAD_TEMPERATURE_LABEL.hot, countByTemp('hot')],
@@ -243,7 +260,9 @@ export function LeadsPage() {
           </div>
 
           {view === 'kanban' ? (
-            <div className="flex-1 overflow-hidden">
+            // Altura da tela: cada coluna rola por dentro (antes a página
+            // descontava o cabeçalho e sobravam ~280px pro quadro).
+            <div className="h-[calc(100vh-150px)] min-h-[460px]">
               <KanbanBoard<Lead, string>
                 key={activePipeline.id}
                 columns={columns}
@@ -253,10 +272,11 @@ export function LeadsPage() {
                   <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} formTag={formTagOf(l)} existingClientName={existingClientOf(l)} />
                 )}
                 onMove={handleMove}
+                pageSize={30}
               />
             </div>
           ) : (
-            <LeadsListView leads={pipelineLeads} userMap={userMap} onOpenLead={setOpenLeadId} pipelines={pipelines} formTagOf={formTagOf} />
+            <LeadsListView key={`${activePipeline.id}-${tempFilter}-${search}`} leads={pipelineLeads} userMap={userMap} onOpenLead={setOpenLeadId} pipelines={pipelines} formTagOf={formTagOf} />
           )}
         </>
       )}
