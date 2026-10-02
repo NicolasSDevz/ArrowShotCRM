@@ -16,6 +16,9 @@ import { Button } from '../components/ui/Button'
 import { Spinner } from '../components/ui/FullPageSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { StatCard } from '../components/ui/StatCard'
+import { Tabs } from '../components/ui/Tabs'
+import { TeamSurveyTab } from '../components/team/TeamSurveyTab'
+import { useAuth } from '../context/AuthContext'
 import { TEAM_PERMISSION_LABEL, FUTURE_ROLES, type TeamMember, type TeamPermission } from '../types'
 
 const STATUS_BADGE: Record<TeamMember['status'], string> = {
@@ -39,7 +42,7 @@ function SectionTitle({ icon, iconBg, children }: { icon: ReactNode; iconBg: str
   )
 }
 
-export function TeamPage() {
+function TeamMembersContent() {
   const { data: members, loading } = useTeamMembers()
   const { data: users } = useUsers()
   const now = useNow()
@@ -68,11 +71,7 @@ export function TeamPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[28px] font-extrabold text-slate-900">Equipe</h1>
-          <p className="text-[15px] text-[#64748B]">Perfis, cargos, rotinas e reuniões da equipe Quiver.</p>
-        </div>
+      <div className="flex justify-end">
         <Button size="sm" icon={<Plus size={14} />} onClick={() => setCreating(true)}>
           Novo membro
         </Button>
@@ -212,6 +211,37 @@ export function TeamPage() {
         member={editingMember}
         nextOrder={members.length}
       />
+    </div>
+  )
+}
+
+/** Admin vê as abas Membros e Avaliação; o resto da equipe entra aqui só pra
+ *  responder a avaliação anônima (não vê perfis, rotinas nem saúde). */
+export function TeamPage() {
+  const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-[28px] font-extrabold text-slate-900">Equipe</h1>
+        <p className="text-[15px] text-[#64748B]">
+          {isAdmin ? 'Perfis, cargos, rotinas, reuniões e avaliação da equipe Quiver.' : 'Avaliação de desempenho e satisfação, anônima.'}
+        </p>
+      </div>
+      {isAdmin ? (
+        <div className="-mx-5">
+          <Tabs
+            label="Abas da Equipe"
+            tabs={[
+              { label: 'Membros', content: <TeamMembersContent /> },
+              { label: 'Avaliação', content: <TeamSurveyTab /> },
+            ]}
+          />
+        </div>
+      ) : (
+        <TeamSurveyTab />
+      )}
     </div>
   )
 }

@@ -3,25 +3,25 @@ import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { BarChart3, CheckCircle2, ClipboardList, EyeOff, Lock, LockOpen, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useAuth } from '../context/AuthContext'
-import { useCollectionSubscription } from '../hooks/useCollectionSubscription'
-import { useTeamMembers } from '../hooks/useTeamMembers'
+import { useAuth } from '../../context/AuthContext'
+import { useCollectionSubscription } from '../../hooks/useCollectionSubscription'
+import { useTeamMembers } from '../../hooks/useTeamMembers'
 import {
   deleteTeamSurvey,
   setSurveyStatus,
   subscribeAnswered,
   subscribeParticipantCount,
   subscribeTeamSurveys,
-} from '../services/teamSurveyService'
-import { askConfirm } from '../utils/confirmDialog'
-import { SurveyForm } from '../components/survey/SurveyForm'
-import { SurveyResults } from '../components/survey/SurveyResults'
-import { SurveyEditorModal } from '../components/survey/SurveyEditorModal'
-import { Badge } from '../components/ui/Badge'
-import { Button } from '../components/ui/Button'
-import { Spinner } from '../components/ui/FullPageSpinner'
-import { EmptyState } from '../components/ui/EmptyState'
-import type { TeamSurvey } from '../types'
+} from '../../services/teamSurveyService'
+import { askConfirm } from '../../utils/confirmDialog'
+import { SurveyForm } from '../survey/SurveyForm'
+import { SurveyResults } from '../survey/SurveyResults'
+import { SurveyEditorModal } from '../survey/SurveyEditorModal'
+import { Badge } from '../ui/Badge'
+import { Button } from '../ui/Button'
+import { Spinner } from '../ui/FullPageSpinner'
+import { EmptyState } from '../ui/EmptyState'
+import type { TeamSurvey } from '../../types'
 
 function AnonymityNotice() {
   return (
@@ -149,7 +149,9 @@ function AdminSurveyRow({ survey, teamSize, onEdit }: { survey: TeamSurvey; team
   )
 }
 
-export function TeamSurveyPage() {
+/** Aba "Avaliação" da Equipe: quem é da equipe responde aqui; o Admin também
+ *  cria as rodadas e vê o resultado. */
+export function TeamSurveyTab() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const { data: surveys, loading } = useCollectionSubscription<TeamSurvey>(subscribeTeamSurveys)
@@ -162,17 +164,13 @@ export function TeamSurveyPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-[28px] font-extrabold text-slate-900">Avaliação da equipe</h1>
-          <p className="text-[15px] text-[#64748B]">Desempenho e satisfação, respondido de forma anônima.</p>
-        </div>
-        {isAdmin && (
+      {isAdmin && (
+        <div className="flex justify-end">
           <Button size="sm" icon={<Plus size={14} />} onClick={() => setCreating(true)}>
             Nova avaliação
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       <AnonymityNotice />
 
