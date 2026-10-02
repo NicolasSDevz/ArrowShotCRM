@@ -19,12 +19,13 @@ import { LeadDrawer } from '../components/leads/LeadDrawer'
 import { LeadsListView } from '../components/leads/LeadsListView'
 import { LeadPipelineModal } from '../components/leads/LeadPipelineModal'
 import { LeadFormsPanel } from '../components/leads/LeadFormsPanel'
+import { LeadBantMetrics } from '../components/leads/LeadBantMetrics'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Field, Select, Textarea } from '../components/ui/Field'
 import { moveLeadStatus } from '../services/leadService'
 import { ConvertLeadModal } from '../components/leads/ConvertLeadModal'
-import { LEAD_LOST_REASON_LABEL, DEFAULT_PIPELINE_ID, leadPipelineId, stageOfLead, type Lead, type LeadLostReason } from '../types'
+import { LEAD_LOST_REASON_LABEL, LEAD_TEMPERATURE_LABEL, DEFAULT_PIPELINE_ID, leadPipelineId, leadTemperature, stageOfLead, type Lead, type LeadLostReason, type LeadTemperature } from '../types'
 
 export function LeadsPage() {
   const { profile } = useAuth()
@@ -64,6 +65,8 @@ export function LeadsPage() {
   const [lossNote, setLossNote] = useState('')
   const [convertPrompt, setConvertPrompt] = useState<Lead | null>(null)
   const [busy, setBusy] = useState(false)
+  // Filtro por faixa do BANT ('' = todos, 'none' = ainda não avaliados).
+  const [tempFilter, setTempFilter] = useState<LeadTemperature | 'none' | ''>('')
 
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
   const formTags: Record<string, LeadFormTag> = Object.fromEntries(leadForms.map((f) => [f.id, { name: f.name, color: leadFormColor(f) }]))
@@ -71,10 +74,13 @@ export function LeadsPage() {
   const existingClientOf = (l: Lead) => (l.convertedClientId ? undefined : findClientMatch(l, clients)?.client.companyName)
   const openLead = leads.find((l) => l.id === openLeadId) ?? null
 
-  const pipelineLeads = leads.filter((l) => leadPipelineId(l) === activePipeline.id)
+  const allPipelineLeads = leads.filter((l) => leadPipelineId(l) === activePipeline.id)
+  const tempOf = (l: Lead) => leadTemperature(l.bant) ?? 'none'
+  const pipelineLeads = tempFilter ? allPipelineLeads.filter((l) => tempOf(l) === tempFilter) : allPipelineLeads
+  const countByTemp = (t: LeadTemperature | 'none') => allPipelineLeads.filter((l) => tempOf(l) === t).length
   const countByPipeline = (id: string) => leads.filter((l) => leadPipelineId(l) === id).length
   const leadCountByStage: Record<string, number> = {}
-  for (const l of pipelineLeads) {
+  for (const l of allPipelineLeads) {
     const id = stageOfLead(activePipeline, l.status).id
     leadCountByStage[id] = (leadCountByStage[id] ?? 0) + 1
   }
@@ -208,6 +214,32 @@ export function LeadsPage() {
             </Button>
           </div>
 
+          <LeadBantMetrics leads={allPipelineLeads} pipeline={activePipeline} clients={clients} />
+
+          <div role="group" aria-label="Filtrar por faixa do BANT" className="flex flex-wrap items-center gap-1.5">
+            {([
+              ['', 'Todos', allPipelineLeads.length],
+              ['hot', LEAD_TEMPERATURE_LABEL.hot, countByTemp('hot')],
+              ['warm', LEAD_TEMPERATURE_LABEL.warm, countByTemp('warm')],
+              ['cold', LEAD_TEMPERATURE_LABEL.cold, countByTemp('cold')],
+              ['disqualified', LEAD_TEMPERATURE_LABEL.disqualified, countByTemp('disqualified')],
+              ['none', 'Sem avaliação', countByTemp('none')],
+            ] as [LeadTemperature | 'none' | '', string, number][]).map(([value, label, count]) => (
+              <button
+                key={value || 'all'}
+                type="button"
+                onClick={() => setTempFilter(value)}
+                aria-pressed={tempFilter === value}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                  tempFilter === value ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {label}
+                <span className={`rounded-full px-1.5 text-xs font-semibold ${tempFilter === value ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
+              </button>
+            ))}
+          </div>
+
           {view === 'kanban' ? (
             <div className="flex-1 overflow-hidden">
               <KanbanBoard<Lead, string>
@@ -234,7 +266,7 @@ export function LeadsPage() {
         onClose={() => setPipelineModal('closed')}
         pipeline={pipelineModal === 'edit' ? activePipeline : null}
         leadCountByStage={leadCountByStage}
-        totalLeads={pipelineLeads.length}
+        totalLeads={allPipelineLeads.length}
         nextOrder={pipelines.length}
         onSaved={choosePipeline}
       />

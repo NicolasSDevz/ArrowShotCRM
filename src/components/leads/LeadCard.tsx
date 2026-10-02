@@ -7,7 +7,7 @@ import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
 import { PrivateMoney } from '../ui/PrivateData'
 import { usePrivacy } from '../../context/PrivacyContext'
-import { LEAD_SOURCE_LABEL, formatFieldValue, type AppUser, type Lead, type PipelineField } from '../../types'
+import { LEAD_SOURCE_LABEL, LEAD_TEMPERATURE_BADGE, LEAD_TEMPERATURE_LABEL, bantTotal, formatFieldValue, leadTemperature, type AppUser, type Lead, type PipelineField } from '../../types'
 import type { LeadFormTag } from './leadFormColors'
 
 function leadServiceLabel(lead: Lead): string {
@@ -43,6 +43,7 @@ export function LeadCard({
   // "Novo" nas primeiras 24h depois de chegar pelo formulário.
   const isFresh = !!formTag && !!lead.createdAt && differenceInHours(new Date(), lead.createdAt.toDate()) < 24
   const { isPrivacyMode } = usePrivacy()
+  const temperature = leadTemperature(lead.bant)
   const cardFields = fields
     .filter((f) => f.showOnCard)
     .map((f) => ({ f, text: formatFieldValue(f, lead.customFields?.[f.id]) }))
@@ -94,6 +95,11 @@ export function LeadCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-1">
+        {temperature && (
+          <Badge className={`${LEAD_TEMPERATURE_BADGE[temperature]} font-semibold`} title={`BANT ${bantTotal(lead.bant)} de 12`}>
+            {LEAD_TEMPERATURE_LABEL[temperature]} · {bantTotal(lead.bant)}
+          </Badge>
+        )}
         <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>
         {lead.services.landingPage && <Badge className="badge-service-landing">Landing Page</Badge>}
         {!formTag && <Badge className="bg-slate-100 text-[11px] text-slate-500">{LEAD_SOURCE_LABEL[lead.source]}</Badge>}

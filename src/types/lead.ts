@@ -162,6 +162,107 @@ export interface Lead extends BaseDoc {
   contractedProductIds?: string[]
   /** Texto livre — ex: "6 meses", "1 ano", "Indeterminado". */
   contractedDuration?: string
+  /** Scorecard BANT preenchido pelo comercial (ver BANT_CRITERIA). */
+  bant?: LeadBant | null
+}
+
+// ---------------------------------------------------------------- BANT
+
+export type BantKey = 'budget' | 'authority' | 'need' | 'timing'
+export type BantScore = 0 | 1 | 2 | 3
+
+export interface LeadBant {
+  budget?: BantScore | null
+  authority?: BantScore | null
+  need?: BantScore | null
+  timing?: BantScore | null
+  note?: string
+  scoredAt?: Timestamp
+  scoredBy?: string
+}
+
+/** Scorecard: nota de 0 a 3 por letra (material BANT da Arrow Shot). */
+export const BANT_CRITERIA: { key: BantKey; letter: string; label: string; question: string; levels: [string, string, string, string] }[] = [
+  {
+    key: 'budget',
+    letter: 'B',
+    label: 'Budget',
+    question: 'Tem verba para investir?',
+    levels: ['Sem verba ou caixa irregular', 'Abaixo do mínimo', 'No mínimo exigido', 'Confortável + 3 meses de teste'],
+  },
+  {
+    key: 'authority',
+    letter: 'A',
+    label: 'Authority',
+    question: 'Fala com quem decide?',
+    levels: ['Sem acesso ao decisor', 'Só influenciador', 'Decisor entra na reunião', 'É o próprio decisor'],
+  },
+  {
+    key: 'need',
+    letter: 'N',
+    label: 'Need',
+    question: 'Tem uma dor real?',
+    levels: ['Sem dor', 'Interesse vago', 'Dor clara', 'Dor com custo medido'],
+  },
+  {
+    key: 'timing',
+    letter: 'T',
+    label: 'Timing',
+    question: 'Quando quer começar?',
+    levels: ['Sem prazo', 'Mais de 6 meses', 'Entre 1 e 3 meses', 'Quer começar já'],
+  },
+]
+
+export const BANT_LEVEL_LABEL = ['Não atende', 'Fraco', 'Bom', 'Excelente'] as const
+
+export type LeadTemperature = 'hot' | 'warm' | 'cold' | 'disqualified'
+
+export const LEAD_TEMPERATURE_LABEL: Record<LeadTemperature, string> = {
+  hot: 'Quente',
+  warm: 'Morno',
+  cold: 'Frio',
+  disqualified: 'Desqualificado',
+}
+
+export const LEAD_TEMPERATURE_RANGE: Record<LeadTemperature, string> = {
+  hot: '9 a 12',
+  warm: '6 a 8',
+  cold: '0 a 5',
+  disqualified: 'Budget ou Authority zerado',
+}
+
+export const LEAD_TEMPERATURE_ACTION: Record<LeadTemperature, string> = {
+  hot: 'Agendar reunião de proposta.',
+  warm: 'Nutrição e novo contato em prazo curto.',
+  cold: 'Encerrar com educação ou enviar conteúdo.',
+  disqualified: 'Regra de ouro: sem verba ou sem acesso ao decisor, não avança.',
+}
+
+/** Classes de badge por faixa (fundo + texto). */
+export const LEAD_TEMPERATURE_BADGE: Record<LeadTemperature, string> = {
+  hot: 'bg-red-50 text-red-700',
+  warm: 'bg-amber-50 text-amber-700',
+  cold: 'bg-blue-50 text-blue-700',
+  disqualified: 'bg-slate-100 text-slate-600',
+}
+
+/** Soma das 4 notas (0 a 12), ou null se alguma letra ainda não foi avaliada. */
+export function bantTotal(bant?: LeadBant | null): number | null {
+  if (!bant) return null
+  const scores = BANT_CRITERIA.map((c) => bant[c.key])
+  if (scores.some((v) => v == null)) return null
+  return (scores as number[]).reduce((s, v) => s + v, 0)
+}
+
+/** Faixa do lead pelo BANT: 9-12 quente, 6-8 morno, 0-5 frio. Budget ou
+ *  Authority zerados desqualificam (regra de ouro). null = não avaliado. */
+export function leadTemperature(bant?: LeadBant | null): LeadTemperature | null {
+  const total = bantTotal(bant)
+  if (total == null || !bant) return null
+  if (bant.budget === 0 || bant.authority === 0) return 'disqualified'
+  if (total >= 9) return 'hot'
+  if (total >= 6) return 'warm'
+  return 'cold'
 }
 
 export type LeadInput = Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'stageChangedAt'>

@@ -294,9 +294,10 @@ export function OverviewDashboard() {
   const live = useMemo(() => computeCompanyMetrics(clients, users), [clients, users])
   const mrrSeries = useMemo(() => computeMrrSeries(clients), [clients])
 
-  // Prefere o snapshot diário; cai no cálculo ao vivo antes do primeiro cron.
-  const m = snapshot ?? { ...live, prevMonth: null as { mrr: number; activeClients: number } | null, calculatedAt: '' }
-  const usingLive = !snapshot
+  // Os números vêm do cálculo ao vivo (os clientes já estão carregados), então
+  // um churn ou cliente novo aparece na hora. Do snapshot diário só sai o
+  // comparativo com ~30 dias atrás (variação % dos cards).
+  const m = { ...live, prevMonth: snapshot?.prevMonth ?? null, calculatedAt: snapshot?.calculatedAt ?? '' }
 
   const mrrDelta = m.prevMonth && m.prevMonth.mrr > 0 ? ((m.mrr - m.prevMonth.mrr) / m.prevMonth.mrr) * 100 : null
   const clientsDelta =
@@ -426,16 +427,14 @@ export function OverviewDashboard() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-xs text-slate-400">
-        Métricas atualizadas diariamente às 00:01. Clique no ícone{' '}
+        Métricas calculadas ao vivo. Clique no ícone{' '}
         <Info size={12} className="inline align-[-2px]" aria-label="informação" /> pra entender cada indicador.
       </p>
 
       {/* Barra superior */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-400">
-          {usingLive || !formatWhen(m.calculatedAt)
-            ? 'Cálculo ao vivo — ainda sem snapshot diário.'
-            : `Atualizado ${formatWhen(m.calculatedAt)}`}
+          Números ao vivo{formatWhen(m.calculatedAt) ? ` · comparativo do histórico atualizado ${formatWhen(m.calculatedAt)}` : ''}
         </p>
         <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />} onClick={handleRefresh} loading={refreshing}>
           Atualizar agora
