@@ -7,7 +7,7 @@ import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
 import { PrivateMoney } from '../ui/PrivateData'
 import { usePrivacy } from '../../context/PrivacyContext'
-import { LEAD_SOURCE_LABEL, LEAD_TEMPERATURE_BADGE, LEAD_TEMPERATURE_LABEL, bantTotal, formatFieldValue, leadTemperature, type AppUser, type Lead, type PipelineField } from '../../types'
+import { LEAD_SEGMENT_BADGE, LEAD_SEGMENT_LABEL, LEAD_SOURCE_LABEL, LEAD_TEMPERATURE_BADGE, LEAD_TEMPERATURE_LABEL, bantTotal, formatFieldValue, leadTemperature, type AppUser, type Lead, type PipelineField } from '../../types'
 import type { LeadFormTag } from './leadFormColors'
 
 function leadServiceLabel(lead: Lead): string {
@@ -95,6 +95,7 @@ export function LeadCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-1">
+        {lead.segment && <Badge className={`${LEAD_SEGMENT_BADGE[lead.segment]} font-semibold`}>{LEAD_SEGMENT_LABEL[lead.segment]}</Badge>}
         {temperature && (
           <Badge className={`${LEAD_TEMPERATURE_BADGE[temperature]} font-semibold`} title={`BANT ${bantTotal(lead.bant)} de 12`}>
             {LEAD_TEMPERATURE_LABEL[temperature]} · {bantTotal(lead.bant)}

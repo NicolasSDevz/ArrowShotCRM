@@ -7,7 +7,7 @@ import { createNotification, notifyAdminsOfAction } from './notificationService'
 import { updateClient } from './clientService'
 import { findUserIdByName } from '../utils/userLookup'
 import { trafficServices } from '../utils/clientServices'
-import { ONBOARDING_MEETING_LABEL, getClientOwnerIds, type Client, type OnboardingMeetingKey } from '../types/client'
+import { getClientOwnerIds, type Client, type OnboardingMeetingKey } from '../types/client'
 import type { AppUser } from '../types/user'
 import type { ChecklistItem, TaskPriority, TaskRecurrence, WorkflowStepKey } from '../types/task'
 
@@ -523,68 +523,6 @@ export async function notifyBriefingFilled(
     entityId: client.id,
     alreadyNotified: Array.from(recipientIds),
   })
-}
-
-/** Agenda (ou reagenda) uma das 3 reuniões do fluxo inicial de Tráfego Pago
- *  (Onboarding/Briefing/Estratégia) — ver ClientOnboardingMeetingsSection.
- *  Generaliza o que já existia só pra Briefing (scheduleBriefingMeeting):
- *  grava data/hora no próprio cliente, cria o evento no Calendário e
- *  notifica a equipe. */
-export async function scheduleOnboardingMeeting(
-  client: Pick<Client, 'id' | 'companyName' | 'onboardingMeetings'>,
-  meetingKey: OnboardingMeetingKey,
-  meetingDate: Date,
-  meetingTime: string,
-  userId: string,
-  userName: string,
-  users: AppUser[]
-) {
-  const label = ONBOARDING_MEETING_LABEL[meetingKey]
-
-  await updateClient(
-    client.id,
-    {
-      onboardingMeetings: {
-        ...client.onboardingMeetings,
-        [meetingKey]: {
-          date: Timestamp.fromDate(meetingDate),
-          time: meetingTime || undefined,
-          done: client.onboardingMeetings?.[meetingKey]?.done ?? false,
-        },
-      },
-    },
-    userId,
-    userName
-  )
-
-  await createCalendarEvent(
-    {
-      title: `${label} — ${client.companyName}`,
-      type: 'custom',
-      date: Timestamp.fromDate(meetingDate),
-      time: meetingTime || undefined,
-      clientId: client.id,
-    },
-    userId
-  )
-
-  const dateLabel = format(meetingDate, 'dd/MM/yyyy', { locale: ptBR })
-  const message = `📅 ${label} agendada — ${client.companyName}\nData: ${dateLabel} às ${meetingTime || '—'}\nAgendado por: ${userName}`
-
-  const recipientNames = ['Bruno', 'Ciane', 'Nicolas', 'Jamilson']
-  const recipientIds = new Set(recipientNames.map((name) => findUserIdByName(users, name)).filter((id): id is string => !!id))
-
-  await Promise.all(
-    Array.from(recipientIds).map((recipientId) =>
-      createNotification({
-        userId: recipientId,
-        type: 'briefing_scheduled',
-        message,
-        entityType: 'client',
-        entityId: client.id,
-      })
-    )
-  )
 }
 
 /** Marca (ou desmarca) uma reunião como realizada — não mexe em data nem

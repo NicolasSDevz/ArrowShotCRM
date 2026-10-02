@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { modulesFromProducts, resolveServices } from '../../utils/productModules'
-import type { Lead, LeadInput, LeadSource, Product } from '../../types'
+import type { Lead, LeadInput, LeadSegment, LeadSource, Product } from '../../types'
 
 export interface LeadFormState {
   contactName: string
@@ -16,6 +16,7 @@ export interface LeadFormState {
   socialMediaPackage: 'weekly' | 'monthly'
   landingPage: boolean
   source: LeadSource
+  segment: LeadSegment | ''
   estimatedValueStr: string
   nextAction: string
   nextActionDateStr: string
@@ -55,6 +56,7 @@ export function buildDefaultLeadForm(defaultAssignedTo?: string): LeadFormState 
     socialMediaPackage: 'monthly',
     landingPage: false,
     source: 'instagram_organic',
+    segment: '',
     estimatedValueStr: '',
     nextAction: '',
     nextActionDateStr: '',
@@ -80,6 +82,7 @@ export function leadToFormState(lead: Lead): LeadFormState {
     socialMediaPackage: lead.services.socialMediaPackage ?? 'monthly',
     landingPage: !!lead.services.landingPage,
     source: lead.source,
+    segment: lead.segment ?? '',
     estimatedValueStr: moneyToMasked(lead.estimatedValue),
     nextAction: lead.nextAction ?? '',
     nextActionDateStr: lead.nextActionDate ? toDateStr(lead.nextActionDate.toDate()) : '',
@@ -112,6 +115,7 @@ export function formStateToLeadFields(state: LeadFormState, catalog: Product[] =
       landingPage: svc.landingPage || undefined,
     },
     source: state.source,
+    segment: state.segment || null,
     estimatedValue: parseCurrencyToNumber(state.estimatedValueStr),
     nextAction: state.nextAction.trim() || undefined,
     nextActionDate: state.nextActionDateStr ? Timestamp.fromDate(new Date(`${state.nextActionDateStr}T00:00:00`)) : null,

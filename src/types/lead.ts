@@ -56,6 +56,19 @@ export const LEAD_SOURCE_LABEL: Record<LeadSource, string> = {
   other: 'Outro',
 }
 
+/** Segmento do lead (etiqueta + filtro na página Leads). */
+export type LeadSegment = 'cleaning_services' | 'cleaning_products'
+
+export const LEAD_SEGMENT_LABEL: Record<LeadSegment, string> = {
+  cleaning_services: 'Serviços de limpeza',
+  cleaning_products: 'Produtos de limpeza',
+}
+
+export const LEAD_SEGMENT_BADGE: Record<LeadSegment, string> = {
+  cleaning_services: 'bg-teal-50 text-teal-700',
+  cleaning_products: 'bg-violet-50 text-violet-700',
+}
+
 export interface LeadServiceInterest {
   paidTraffic?: boolean
   metaAds?: boolean
@@ -122,6 +135,8 @@ export interface Lead extends BaseDoc {
   cityRegion?: string
   services: LeadServiceInterest
   source: LeadSource
+  /** Serviços ou produtos de limpeza — sem valor = ainda não definido. */
+  segment?: LeadSegment | null
   estimatedValue?: number
   nextAction?: string
   nextActionDate?: Timestamp | null

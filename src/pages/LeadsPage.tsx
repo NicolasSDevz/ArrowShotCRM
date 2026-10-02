@@ -25,7 +25,7 @@ import { Modal } from '../components/ui/Modal'
 import { Field, Select, Textarea } from '../components/ui/Field'
 import { moveLeadStatus } from '../services/leadService'
 import { ConvertLeadModal } from '../components/leads/ConvertLeadModal'
-import { LEAD_LOST_REASON_LABEL, LEAD_TEMPERATURE_LABEL, DEFAULT_PIPELINE_ID, leadPipelineId, leadTemperature, stageOfLead, type Lead, type LeadLostReason, type LeadTemperature } from '../types'
+import { LEAD_LOST_REASON_LABEL, LEAD_SEGMENT_LABEL, LEAD_TEMPERATURE_LABEL, DEFAULT_PIPELINE_ID, leadPipelineId, leadTemperature, stageOfLead, type Lead, type LeadLostReason, type LeadSegment, type LeadTemperature } from '../types'
 
 export function LeadsPage() {
   const { profile } = useAuth()
@@ -69,6 +69,8 @@ export function LeadsPage() {
   const [bantOpen, setBantOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [tempFilter, setTempFilter] = useState<LeadTemperature | 'none' | ''>('')
+  // Filtro por segmento ('' = todos, 'none' = sem segmento definido).
+  const [segmentFilter, setSegmentFilter] = useState<LeadSegment | 'none' | ''>('')
 
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
   const formTags: Record<string, LeadFormTag> = Object.fromEntries(leadForms.map((f) => [f.id, { name: f.name, color: leadFormColor(f) }]))
@@ -84,7 +86,11 @@ export function LeadsPage() {
     !needle ||
     [l.contactName, l.companyName, l.email, l.cityRegion].some((v) => v?.toLowerCase().includes(needle)) ||
     (digits.length >= 4 && (l.whatsapp ?? '').replace(/\D/g, '').includes(digits))
-  const pipelineLeads = allPipelineLeads.filter((l) => (!tempFilter || tempOf(l) === tempFilter) && matchesSearch(l))
+  const segmentOf = (l: Lead) => l.segment ?? 'none'
+  const pipelineLeads = allPipelineLeads.filter(
+    (l) => (!tempFilter || tempOf(l) === tempFilter) && (!segmentFilter || segmentOf(l) === segmentFilter) && matchesSearch(l)
+  )
+  const countBySegment = (s: LeadSegment | 'none') => allPipelineLeads.filter((l) => segmentOf(l) === s).length
   const countByTemp = (t: LeadTemperature | 'none') => allPipelineLeads.filter((l) => tempOf(l) === t).length
   const countByPipeline = (id: string) => leads.filter((l) => leadPipelineId(l) === id).length
   const leadCountByStage: Record<string, number> = {}
@@ -259,6 +265,29 @@ export function LeadsPage() {
             ))}
           </div>
 
+          <div role="group" aria-label="Filtrar por segmento" className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Segmento</span>
+            {([
+              ['', 'Todos', allPipelineLeads.length],
+              ['cleaning_services', LEAD_SEGMENT_LABEL.cleaning_services, countBySegment('cleaning_services')],
+              ['cleaning_products', LEAD_SEGMENT_LABEL.cleaning_products, countBySegment('cleaning_products')],
+              ['none', 'Sem segmento', countBySegment('none')],
+            ] as [LeadSegment | 'none' | '', string, number][]).map(([value, label, count]) => (
+              <button
+                key={value || 'all'}
+                type="button"
+                onClick={() => setSegmentFilter(value)}
+                aria-pressed={segmentFilter === value}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                  segmentFilter === value ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {label}
+                <span className={`rounded-full px-1.5 text-xs font-semibold ${segmentFilter === value ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
+              </button>
+            ))}
+          </div>
+
           {view === 'kanban' ? (
             // Altura da tela: cada coluna rola por dentro (antes a página
             // descontava o cabeçalho e sobravam ~280px pro quadro).
@@ -276,7 +305,7 @@ export function LeadsPage() {
               />
             </div>
           ) : (
-            <LeadsListView key={`${activePipeline.id}-${tempFilter}-${search}`} leads={pipelineLeads} userMap={userMap} onOpenLead={setOpenLeadId} pipelines={pipelines} formTagOf={formTagOf} />
+            <LeadsListView key={`${activePipeline.id}-${tempFilter}-${segmentFilter}-${search}`} leads={pipelineLeads} userMap={userMap} onOpenLead={setOpenLeadId} pipelines={pipelines} formTagOf={formTagOf} />
           )}
         </>
       )}

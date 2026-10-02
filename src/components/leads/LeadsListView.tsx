@@ -5,7 +5,7 @@ import { Avatar } from '../ui/Avatar'
 import { Badge } from '../ui/Badge'
 import { PrivateMoney } from '../ui/PrivateData'
 import { usePrivacy } from '../../context/PrivacyContext'
-import { LEAD_SOURCE_LABEL, LEAD_TEMPERATURE_BADGE, LEAD_TEMPERATURE_LABEL, bantTotal, leadTemperature, locateLead, type AppUser, type Lead, type ResolvedPipeline } from '../../types'
+import { LEAD_SEGMENT_BADGE, LEAD_SEGMENT_LABEL, LEAD_SOURCE_LABEL, LEAD_TEMPERATURE_BADGE, LEAD_TEMPERATURE_LABEL, bantTotal, leadTemperature, locateLead, type AppUser, type Lead, type ResolvedPipeline } from '../../types'
 import type { LeadFormTag } from './leadFormColors'
 
 function leadServiceLabel(lead: Lead): string {
@@ -108,6 +108,7 @@ export function LeadsListView({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-1">
+                        {lead.segment && <Badge className={`${LEAD_SEGMENT_BADGE[lead.segment]} font-semibold`}>{LEAD_SEGMENT_LABEL[lead.segment]}</Badge>}
                         {leadServiceLabel(lead) !== '—' && <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>}
                         {formTagOf?.(lead) ? (
                           <span

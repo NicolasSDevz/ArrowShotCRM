@@ -41,7 +41,11 @@ export function MeetingForm({
   const showRecord = ended || recordOpen || formHasRecord(value)
 
   const internalUsers = users.filter((u) => u.role !== 'client')
-  const activeClients = clients.filter((c) => c.status === 'active')
+  // Ativos + em Onboarding (status 'prospect'): as reuniões de Onboarding,
+  // Briefing e Estratégia são justamente com quem ainda está em onboarding.
+  const activeClients = clients
+    .filter((c) => c.status === 'active' || c.status === 'prospect' || c.id === value.clientId)
+    .sort((a, b) => a.companyName.localeCompare(b.companyName, 'pt-BR'))
   const selectedClient = clients.find((c) => c.id === value.clientId)
 
   const handleTypeChange = (type: MeetingType) => {
@@ -156,7 +160,10 @@ export function MeetingForm({
           <Select value={value.clientId} onChange={(e) => set('clientId', e.target.value)}>
             <option value="">Selecione...</option>
             {activeClients.map((c) => (
-              <option key={c.id} value={c.id}>{c.companyName}</option>
+              <option key={c.id} value={c.id}>
+                {c.companyName}
+                {c.status === 'prospect' ? ' (em onboarding)' : ''}
+              </option>
             ))}
           </Select>
         </Field>

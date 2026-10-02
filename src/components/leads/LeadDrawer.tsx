@@ -16,7 +16,7 @@ import { CommentsPanel } from '../comments/CommentsPanel'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { useUsers } from '../../hooks/useUsers'
-import { updateLead, deleteLead, addLeadContact, moveLeadToPipeline } from '../../services/leadService'
+import { updateLead, deleteLead, addLeadContact, moveLeadToPipeline, moveLeadStatus } from '../../services/leadService'
 import { ConvertLeadModal } from './ConvertLeadModal'
 import { useClients } from '../../hooks/useClients'
 import { useLeads } from '../../hooks/useLeads'
@@ -34,6 +34,8 @@ import {
   type Lead,
   type LeadContactType,
   type LeadContactOutcome,
+  type LeadLostReason,
+  type ResolvedPipeline,
 } from '../../types'
 import { askConfirm } from '../../utils/confirmDialog'
 
@@ -43,6 +45,114 @@ const CONTACT_TYPE_ICON: Record<LeadContactType, typeof Phone> = {
   email: Mail,
   meeting: Video,
   other: MoreHorizontal,
+}
+
+/** "Mover para": troca a etapa e/ou o pipeline do lead sem sair do cartão.
+ *  Etapa de perda pede o motivo ali mesmo; etapa de ganho oferece converter
+ *  em cliente (onWon), igual a arrastar no quadro. */
+function LeadMoveControl({
+  lead,
+  pipelines,
+  current,
+  onWon,
+}: {
+  lead: Lead
+  pipelines: ResolvedPipeline[]
+  current: { pipelineId: string; stageId: string }
+  onWon: () => void
+}) {
+  const { profile } = useAuth()
+  const [pipelineId, setPipelineId] = useState(current.pipelineId)
+  const [stageId, setStageId] = useState(current.stageId)
+  const [lostReason, setLostReason] = useState<LeadLostReason>('price')
+  const [lostNote, setLostNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const target = pipelines.find((p) => p.id === pipelineId) ?? pipelines[0]
+  const stage = target.stages.find((s) => s.id === stageId) ?? target.stages[0]
+  const unchanged = target.id === current.pipelineId && stage.id === current.stageId
+  const isLost = stage.kind === 'lost'
+
+  const choosePipeline = (id: string) => {
+    setPipelineId(id)
+    const next = pipelines.find((p) => p.id === id)
+    // Mesmo pipeline: volta pra etapa atual; outro: começa na primeira.
+    setStageId(id === current.pipelineId ? current.stageId : (next?.stages[0].id ?? ''))
+  }
+
+  const handleMove = async () => {
+    if (!profile || unchanged) return
+    setSaving(true)
+    const extra = isLost ? { lostReason, lostReasonNote: lostNote } : undefined
+    try {
+      if (target.id === current.pipelineId) {
+        await moveLeadStatus(lead, stage.id, Date.now(), profile.id, profile.name, extra, target)
+      } else {
+        await moveLeadToPipeline(lead, target, profile.id, profile.name, stage.id, extra)
+      }
+      toast.success(`Lead movido para ${target.name}, etapa ${stage.label}`)
+      if (stage.kind === 'won' && !lead.convertedClientId) onWon()
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao mover o lead')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Mover para</legend>
+      <div className="flex flex-wrap items-center gap-2">
+        {pipelines.length > 1 && (
+          <select
+            value={target.id}
+            onChange={(e) => choosePipeline(e.target.value)}
+            aria-label="Pipeline de destino"
+            className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-brand-600 focus:outline-none"
+          >
+            {pipelines.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <select
+          value={stage.id}
+          onChange={(e) => setStageId(e.target.value)}
+          aria-label="Etapa de destino"
+          className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-brand-600 focus:outline-none"
+        >
+          {target.stages.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+              {target.id === current.pipelineId && s.id === current.stageId ? ' (atual)' : ''}
+            </option>
+          ))}
+        </select>
+        <Button size="sm" onClick={handleMove} loading={saving} disabled={unchanged}>
+          Mover
+        </Button>
+      </div>
+      {isLost && !unchanged && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Field label="Motivo da perda">
+            <Select value={lostReason} onChange={(e) => setLostReason(e.target.value as LeadLostReason)}>
+              {(Object.entries(LEAD_LOST_REASON_LABEL) as [LeadLostReason, string][]).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Observação (opcional)">
+            <Input value={lostNote} onChange={(e) => setLostNote(e.target.value)} />
+          </Field>
+        </div>
+      )}
+    </fieldset>
+  )
 }
 
 function InfoTab({ lead }: { lead: Lead }) {
@@ -220,19 +330,6 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
   const clientMatch = lead.convertedClientId ? null : findClientMatch(lead, clients)
   const duplicateLeads = findDuplicateLeads(lead, allLeads)
 
-  const handlePipelineChange = async (id: string) => {
-    const target = pipelines.find((p) => p.id === id)
-    if (!target || target.id === leadPipeline.id) return
-    if (!(await askConfirm({ title: `Mover "${lead.contactName}" para o pipeline "${target.name}"?`, message: `Ele volta pra primeira etapa (${target.stages[0].label}).`, confirmLabel: 'Mover' }))) return
-    try {
-      await moveLeadToPipeline(lead, target, profile.id, profile.name)
-      toast.success(`Lead movido para ${target.name}`)
-    } catch (err) {
-      console.error(err)
-      toast.error('Erro ao mover o lead de pipeline')
-    }
-  }
-
   const handleDelete = async () => {
     if (!(await askConfirm({ title: `Excluir o lead "${lead.contactName}"?`, message: 'O histórico de contato e as respostas do formulário somem junto.', confirmLabel: 'Excluir', danger: true }))) return
     await deleteLead(lead, profile.id, profile.name)
@@ -259,20 +356,6 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <Badge style={{ backgroundColor: `${leadStage.color}1A`, color: leadStage.color }}>{leadStage.label}</Badge>
-              {pipelines.length > 1 && (
-                <select
-                  value={leadPipeline.id}
-                  onChange={(e) => void handlePipelineChange(e.target.value)}
-                  title="Mover o lead pra outro pipeline"
-                  className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-xs text-slate-600 focus:border-brand-600 focus:outline-none"
-                >
-                  {pipelines.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              )}
             </div>
             {leadStage.kind === 'lost' && lead.lostReason && (
               <p className="text-xs text-slate-400">
@@ -301,6 +384,16 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
               <Trash2 size={15} />
             </button>
           </div>
+        </div>
+
+        <div className="border-b border-slate-100 px-5 py-3">
+          <LeadMoveControl
+            key={`${leadPipeline.id}-${leadStage.id}`}
+            lead={lead}
+            pipelines={pipelines}
+            current={{ pipelineId: leadPipeline.id, stageId: leadStage.id }}
+            onWon={handleConvert}
+          />
         </div>
 
         {(clientMatch || duplicateLeads.length > 0) && (

@@ -3,7 +3,7 @@ import { maskPhone, maskCurrencyInput } from '../../utils/masks'
 import { useRef } from 'react'
 import { useProducts } from '../../hooks/useProducts'
 import { modulesFromProducts, productModules, resolveServices, PRODUCT_MODULE_SHORT } from '../../utils/productModules'
-import { LEAD_SOURCE_LABEL, type AppUser, type LeadSource } from '../../types'
+import { LEAD_SEGMENT_LABEL, LEAD_SOURCE_LABEL, type AppUser, type LeadSegment, type LeadSource } from '../../types'
 import type { LeadFormState } from './leadFormState'
 import { LeadCustomFields } from './LeadCustomFields'
 import type { PipelineField } from '../../types'
@@ -55,6 +55,14 @@ export function LeadForm({
         </Field>
         <Field label="Cidade/Região">
           <Input value={value.cityRegion} onChange={(e) => set('cityRegion', e.target.value)} />
+        </Field>
+        <Field label="Segmento">
+          <Select value={value.segment} onChange={(e) => set('segment', e.target.value as LeadSegment | '')}>
+            <option value="">Não definido</option>
+            {(Object.entries(LEAD_SEGMENT_LABEL) as [LeadSegment, string][]).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </Select>
         </Field>
         <Field label="Origem do lead">
           <Select value={value.source} onChange={(e) => set('source', e.target.value as LeadSource)}>

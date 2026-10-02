@@ -198,21 +198,30 @@ export async function moveLeadStatus(
   }
 }
 
-/** Muda o lead de pipeline: cai na primeira etapa do destino (as etapas de
- *  cada pipeline são diferentes) e os campos extras do pipeline antigo ficam
+/** Muda o lead de pipeline. Cai na etapa `stageId` do destino (escolhida no
+ *  "Mover para" do lead) ou, sem ela, na primeira etapa — as etapas de cada
+ *  pipeline são diferentes. Os campos extras do pipeline antigo ficam
  *  guardados no lead, caso ele volte. */
-export async function moveLeadToPipeline(lead: Lead, target: ResolvedPipeline, userId: string, userName: string) {
-  const first = target.stages[0]
+export async function moveLeadToPipeline(
+  lead: Lead,
+  target: ResolvedPipeline,
+  userId: string,
+  userName: string,
+  stageId?: string,
+  extra?: MoveLeadExtra
+) {
+  const stage = target.stages.find((s) => s.id === stageId) ?? target.stages[0]
+  const lost = stage.kind === 'lost'
   await base.update(
     lead.id,
     {
       pipelineId: target.isDefault ? null : target.id,
-      status: first.id,
+      status: stage.id,
       order: Date.now(),
       stageChangedAt: Timestamp.now(),
-      lostReason: null,
-      lostReasonNote: null,
-      lostAt: null,
+      lostReason: lost ? (extra?.lostReason ?? null) : null,
+      lostReasonNote: lost ? extra?.lostReasonNote?.trim() || null : null,
+      lostAt: lost ? Timestamp.now() : null,
     },
     userId
   )
@@ -220,7 +229,7 @@ export async function moveLeadToPipeline(lead: Lead, target: ResolvedPipeline, u
     entityType: 'lead',
     entityId: lead.id,
     action: 'status_changed',
-    message: `moveu para o pipeline "${target.name}" (${first.label})`,
+    message: `moveu para o pipeline "${target.name}" (${stage.label})`,
     userId,
     userName,
   })
