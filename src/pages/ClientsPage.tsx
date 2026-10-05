@@ -60,6 +60,8 @@ function statusMatches(filter: string, status: ClientStatus): boolean {
 const SERVICE_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'Todos os serviços' },
   { value: 'paidTraffic', label: 'Tráfego Pago' },
+  { value: 'metaAds', label: 'Tráfego: Meta Ads' },
+  { value: 'googleAds', label: 'Tráfego: Google Ads' },
   { value: 'socialMedia', label: 'Social Mídia' },
   { value: 'landingPage', label: 'Landing Page' },
   { value: 'both', label: 'Ambos (Tráfego + Social Mídia)' },
@@ -68,6 +70,7 @@ const SERVICE_OPTIONS: { value: string; label: string }[] = [
 function serviceMatches(filter: string, modules: Client['modules']): boolean {
   if (!filter) return true
   if (filter === 'both') return !!modules?.paidTraffic && !!modules?.socialMedia
+  if (filter === 'metaAds' || filter === 'googleAds') return !!modules?.paidTraffic && !!modules?.[filter]
   return !!modules?.[filter as 'paidTraffic' | 'socialMedia' | 'landingPage']
 }
 

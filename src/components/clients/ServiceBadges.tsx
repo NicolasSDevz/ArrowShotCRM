@@ -9,6 +9,10 @@ export function ClientServiceBadges({ client }: { client: Client }) {
   const paidTraffic = !!client.modules?.paidTraffic
   const socialMedia = !!client.modules?.socialMedia
   const landingPage = !!client.modules?.landingPage
+  // Plataforma só aparece se foi marcada no cadastro (não usa o "assume
+  // ambos" do trafficServices, pra não mostrar plataforma que não existe).
+  const metaAds = paidTraffic && !!client.modules?.metaAds
+  const googleAds = paidTraffic && !!client.modules?.googleAds
 
   const trafficSocialBadge = paidTraffic && socialMedia ? (
     <Badge className="badge-service-both">Ambos</Badge>
@@ -25,6 +29,8 @@ export function ClientServiceBadges({ client }: { client: Client }) {
   return (
     <span className="flex flex-wrap items-center gap-1">
       {trafficSocialBadge}
+      {metaAds && <Badge className="badge-platform-meta">Meta Ads</Badge>}
+      {googleAds && <Badge className="badge-platform-google">Google Ads</Badge>}
       {landingPage && <Badge className="badge-service-landing">Landing Page</Badge>}
     </span>
   )

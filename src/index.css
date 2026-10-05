@@ -141,6 +141,15 @@ body {
   background-color: #D1FAE5;
   color: #059669;
 }
+/* Plataforma do tráfego pago (Meta / Google) na lista de clientes. */
+.badge-platform-meta {
+  background-color: #DBEAFE;
+  color: #1D4ED8;
+}
+.badge-platform-google {
+  background-color: #FEE2E2;
+  color: #B91C1C;
+}
 
 /* ==========================================================================
    TEMA ESCURO
@@ -344,6 +353,16 @@ body {
   border: 1px solid var(--dk-line-2);
   border-radius: 20px;
   font-size: 11px;
+}
+:root[data-theme="dark"] .badge-platform-meta {
+  background-color: rgb(96 165 250 / 0.08);
+  color: #93c5fd;
+  border: 1px solid rgb(96 165 250 / 0.28);
+}
+:root[data-theme="dark"] .badge-platform-google {
+  background-color: rgb(248 113 113 / 0.08);
+  color: #fca5a5;
+  border: 1px solid rgb(248 113 113 / 0.28);
 }
 :root[data-theme="dark"] .badge-service-landing {
   background-color: rgb(52 211 153 / 0.08);
