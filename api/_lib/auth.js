@@ -61,3 +61,44 @@ export function withInternalAuth(handler) {
     }
   }
 }
+
+/** Leitura de dados do Meta Ads (/api/meta/insights, campaigns, account):
+ *  aceita um usuário interno logado OU o token de um link público de
+ *  relatório (/relatorio/:token) ativo cuja conta Meta seja a mesma pedida
+ *  em `account_id`. No caso do link, força `client_id` para o cliente dono
+ *  do link — assim o token de um cliente nunca é usado pra ler outra conta. */
+export function withMetaReadAuth(handler) {
+  return async (req, res) => {
+    try {
+      const header = req.headers.authorization || req.headers.Authorization
+      const reportToken = typeof req.query.report_token === 'string' ? req.query.report_token.trim() : ''
+
+      if (header || !reportToken) {
+        const user = await requireInternalUser(req)
+        return await handler(req, res, user)
+      }
+
+      if (!/^[A-Za-z0-9_-]{16,64}$/.test(reportToken)) {
+        throw new AuthError(401, 'Link de relatório inválido')
+      }
+      const linkDoc = await getDoc(`reportLinks/${reportToken}`)
+      const link = linkDoc.exists ? linkDoc.data() : null
+      if (!link || link.active !== true) {
+        throw new AuthError(401, 'Link de relatório inválido ou desativado')
+      }
+      const linkAccount = String(link.metaAccountId || '').trim().replace(/^act_/i, '')
+      const askedAccount = String(req.query.account_id || '').trim().replace(/^act_/i, '')
+      if (!linkAccount || linkAccount !== askedAccount) {
+        throw new AuthError(403, 'Este link de relatório não dá acesso a essa conta')
+      }
+      req.query.client_id = link.clientId
+      return await handler(req, res, null)
+    } catch (err) {
+      if (err instanceof AuthError) {
+        return res.status(err.status).json({ error: err.message })
+      }
+      console.error('[auth] erro inesperado:', err)
+      return res.status(500).json({ error: `Erro interno: ${err?.message || 'desconhecido'}` })
+    }
+  }
+}

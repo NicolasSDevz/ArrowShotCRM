@@ -7,6 +7,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+export function setMetaReportToken(token: string | null): void
+export function testMetaConnection(accountId: string, clientId: string): Promise<Response>
 export function getMetaInsights(accountId: string, datePreset: string, clientId?: string): Promise<any>
 export function getMetaCampaigns(accountId: string, clientId?: string): Promise<any>
 export function getMetaAdSets(accountId: string, campaignId?: string, clientId?: string): Promise<any>

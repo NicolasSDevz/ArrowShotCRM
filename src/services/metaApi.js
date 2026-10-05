@@ -11,10 +11,37 @@
 
 import { auth } from '../firebase/config'
 
+// As rotas de leitura exigem login da equipe (Authorization: Bearer) ou, na
+// página pública /relatorio/:token, o token do link (ver withMetaReadAuth
+// em api/_lib/auth.js). A página pública chama setMetaReportToken().
+let reportToken = null
+
+export function setMetaReportToken(token) {
+  reportToken = token || null
+}
+
+/** Monta a URL e os headers de uma leitura do Meta com a credencial certa. */
+async function metaRead(path, params) {
+  const user = auth.currentUser
+  const headers = {}
+  if (user) {
+    headers.Authorization = `Bearer ${await user.getIdToken()}`
+  } else if (reportToken) {
+    params.set('report_token', reportToken)
+  }
+  return fetch(`${path}?${params.toString()}`, { headers })
+}
+
+/** Teste de conexão do Planejamento de Campanha — devolve a Response crua
+ *  pra tela mostrar a mensagem de erro do Meta. */
+export function testMetaConnection(accountId, clientId) {
+  return metaRead('/api/meta/insights', new URLSearchParams({ account_id: accountId, date_preset: 'last_7d', client_id: clientId }))
+}
+
 export async function getMetaInsights(accountId, datePreset, clientId) {
   const params = new URLSearchParams({ account_id: accountId, date_preset: datePreset })
   if (clientId) params.set('client_id', clientId)
-  const response = await fetch(`/api/meta/insights?${params.toString()}`)
+  const response = await metaRead('/api/meta/insights', params)
   if (!response.ok) throw new Error('Erro ao buscar dados do Meta')
   return response.json()
 }
@@ -22,7 +49,7 @@ export async function getMetaInsights(accountId, datePreset, clientId) {
 export async function getMetaCampaigns(accountId, clientId) {
   const params = new URLSearchParams({ account_id: accountId })
   if (clientId) params.set('client_id', clientId)
-  const response = await fetch(`/api/meta/campaigns?${params.toString()}`)
+  const response = await metaRead('/api/meta/campaigns', params)
   if (!response.ok) throw new Error('Erro ao buscar campanhas')
   return response.json()
 }
@@ -31,7 +58,7 @@ export async function getMetaAdSets(accountId, campaignId, clientId) {
   const params = new URLSearchParams({ account_id: accountId })
   if (campaignId) params.set('campaign_id', campaignId)
   if (clientId) params.set('client_id', clientId)
-  const response = await fetch(`/api/meta/adsets?${params.toString()}`)
+  const response = await metaRead('/api/meta/adsets', params)
   if (!response.ok) throw new Error('Erro ao buscar conjuntos de anúncios')
   return response.json()
 }
@@ -40,7 +67,7 @@ export async function getMetaAds(accountId, adSetId, clientId) {
   const params = new URLSearchParams({ account_id: accountId })
   if (adSetId) params.set('adset_id', adSetId)
   if (clientId) params.set('client_id', clientId)
-  const response = await fetch(`/api/meta/ads?${params.toString()}`)
+  const response = await metaRead('/api/meta/ads', params)
   if (!response.ok) throw new Error('Erro ao buscar anúncios')
   return response.json()
 }
@@ -60,7 +87,7 @@ export async function getMetaInsightsRange(accountId, { timeRange, fields, level
 
   const requestUrl = `/api/meta/insights?${params.toString()}`
   console.log('[metaApi] GET', requestUrl)
-  const response = await fetch(requestUrl)
+  const response = await metaRead('/api/meta/insights', params)
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
     console.error('[metaApi] insights ERRO', response.status, body)
@@ -76,7 +103,7 @@ export async function getMetaInsightsRange(accountId, { timeRange, fields, level
 export async function getMetaAccountInfo(accountId, clientId) {
   const params = new URLSearchParams({ account_id: accountId })
   if (clientId) params.set('client_id', clientId)
-  const response = await fetch(`/api/meta/account?${params.toString()}`)
+  const response = await metaRead('/api/meta/account', params)
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
     throw new Error(body.error || 'Erro ao buscar dados da conta do Meta')

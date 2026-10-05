@@ -12,7 +12,7 @@ import { notifyAdminsOfAction } from '../../services/notificationService'
 import { maskPhone, maskGoogleAdsId } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import { ensureActPrefix, normalizeMetaAccountId } from '../../utils/metaReportData'
-import { getMetaTokenStatus, saveMetaToken, deleteMetaToken, type MetaTokenStatus } from '../../services/metaApi'
+import { getMetaTokenStatus, saveMetaToken, deleteMetaToken, testMetaConnection, type MetaTokenStatus } from '../../services/metaApi'
 import { tokenValidity, fmtExpiry } from '../../utils/metaTokenValidity'
 import { trafficServices } from '../../utils/clientServices'
 import { metaTotals, googleTotals } from '../../utils/campaignPlanningStats'
@@ -224,8 +224,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
     setTesting(true)
     setTestResult(null)
     try {
-      const params = new URLSearchParams({ account_id: accountId, date_preset: 'last_7d', client_id: client.id })
-      const res = await fetch(`/api/meta/insights?${params.toString()}`)
+      const res = await testMetaConnection(accountId, client.id)
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         setTestResult({ ok: false, message: body?.error || `Erro ${res.status} ao consultar a API do Meta` })

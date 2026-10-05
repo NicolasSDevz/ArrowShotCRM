@@ -6,8 +6,9 @@
 // Query params: account_id (obrigatório), campaign_id (opcional), client_id (opcional)
 
 import { respondMetaGraphRequest } from '../_lib/metaGraph.js'
+import { withInternalAuth } from '../_lib/auth.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   try {
     const { account_id, campaign_id } = req.query
     if (!account_id) {
@@ -31,3 +32,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Erro interno ao buscar conjuntos de anúncios do Meta Ads' })
   }
 }
+
+export default withInternalAuth(handler)

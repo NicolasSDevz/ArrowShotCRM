@@ -4,6 +4,7 @@ import { differenceInCalendarDays, endOfMonth, format, isValid, parseISO, startO
 import { CalendarRange, FileDown, Loader2 } from 'lucide-react'
 import { getPublicReportLink } from '../services/reportLinkService'
 import { fetchMetaReportSnapshot, previousPeriod } from '../utils/metaReportData'
+import { setMetaReportToken } from '../services/metaApi'
 import { fetchGoogleReportSnapshot } from '../utils/googleReportData'
 import { FullPageSpinner } from '../components/ui/FullPageSpinner'
 import {
@@ -104,6 +105,8 @@ export function PublicReportPage() {
 
   useEffect(() => {
     let cancelled = false
+    // Sem login aqui: as rotas /api/meta/* aceitam o token do link no lugar.
+    setMetaReportToken(token ?? null)
     getPublicReportLink(token ?? '').then((l) => {
       if (!cancelled) setLink(l)
     })

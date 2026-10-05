@@ -15,10 +15,11 @@
 //   fields, level, breakdowns, limit, time_increment (opcionais)
 
 import { respondMetaGraphRequest } from '../_lib/metaGraph.js'
+import { withMetaReadAuth } from '../_lib/auth.js'
 
 const DEFAULT_FIELDS = 'campaign_name,impressions,clicks,spend,cpc,ctr,reach,actions,cost_per_action_type'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   try {
     const { account_id, date_preset, time_range, fields, level, breakdowns, limit, time_increment } = req.query
 
@@ -49,3 +50,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Erro interno ao buscar dados do Meta Ads' })
   }
 }
+
+export default withMetaReadAuth(handler)
