@@ -161,13 +161,27 @@ export function DailyRoutineEditor({
   userName,
   initialItems,
   onDone,
+  onDirtyChange,
 }: {
   userId: string
   userName: string
   initialItems: RoutineItem[]
   onDone?: () => void
+  /** Avisa quem hospeda o editor (modal do Dashboard) se há alteração não
+   *  salva — pra confirmar antes de fechar e não perder o que foi criado. */
+  onDirtyChange?: (dirty: boolean) => void
 }) {
-  const [items, setItems] = useState<RoutineItem[]>(initialItems)
+  const [items, setItemsState] = useState<RoutineItem[]>(initialItems)
+  // dirty = o rascunho divergiu do que está salvo. Enquanto não divergir, o
+  // editor acompanha `initialItems` — que chega depois da montagem (o
+  // snapshot do Firestore é assíncrono). Antes ele só copiava a lista na
+  // montagem: na ficha em Equipe (montada antes do snapshot) ficava vazio,
+  // e "Adicionar" + "Salvar" gravava só o item novo, apagando o resto.
+  const [dirty, setDirty] = useState(false)
+  const setItems: typeof setItemsState = (next) => {
+    setItemsState(next)
+    setDirty(true)
+  }
   const [editingId, setEditingId] = useState<string | null>(null)
   const [daysOpenId, setDaysOpenId] = useState<string | null>(null)
   const [newText, setNewText] = useState('')
@@ -178,11 +192,21 @@ export function DailyRoutineEditor({
   // Troca de usuário-alvo (ex.: admin abre a ficha de outro membro em
   // seguida) — reseta o rascunho pro estado salvo desse usuário.
   useEffect(() => {
-    setItems(initialItems)
+    setItemsState(initialItems)
+    setDirty(false)
     setEditingId(null)
     setDaysOpenId(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
+
+  useEffect(() => {
+    if (!dirty) setItemsState(initialItems)
+  }, [initialItems, dirty])
+
+  const hasPendingText = newText.trim() !== ''
+  useEffect(() => {
+    onDirtyChange?.(dirty || hasPendingText)
+  }, [dirty, hasPendingText, onDirtyChange])
 
   const personKey = resolveRoutinePersonKey(userName)
 
@@ -201,12 +225,21 @@ export function DailyRoutineEditor({
     setItems((prev) => prev.filter((i) => i.id !== id))
   }
 
-  const handleAdd = () => {
+  /** Item ainda digitado no campo "novo item" (sem clicar em Adicionar). */
+  const pendingItem = (): RoutineItem | undefined => {
     const text = newText.trim()
-    if (!text) return
-    setItems((prev) => [...prev, { id: makeId(), text, days: newDays.length ? newDays : undefined }])
+    return text ? { id: makeId(), text, days: newDays.length ? newDays : undefined } : undefined
+  }
+
+  const handleAdd = () => {
+    const item = pendingItem()
+    if (!item) return
+    setItems((prev) => [...prev, item])
     setNewText('')
     setNewDays([])
+    if (item.days && !item.days.includes(new Date().getDay())) {
+      toast(`Esse item não aparece na rotina de hoje — só em: ${daysSummary(item)}`, { icon: 'ℹ️' })
+    }
   }
 
   const handleRestoreDefault = () => {
@@ -218,16 +251,27 @@ export function DailyRoutineEditor({
   }
 
   const handleCancel = () => {
-    setItems(initialItems)
+    setItemsState(initialItems)
+    setDirty(false)
+    setNewText('')
+    setNewDays([])
     setEditingId(null)
     setDaysOpenId(null)
     onDone?.()
   }
 
   const handleSave = async () => {
+    // Texto digitado e não "Adicionado" entra junto — antes ele era
+    // descartado em silêncio ao salvar.
+    const pending = pendingItem()
+    const toSave = pending ? [...items, pending] : items
     setSaving(true)
     try {
-      await saveDailyRoutineItems(userId, items)
+      await saveDailyRoutineItems(userId, toSave)
+      setItemsState(toSave)
+      setDirty(false)
+      setNewText('')
+      setNewDays([])
       toast.success('✅ Rotina atualizada!')
       onDone?.()
     } catch (err) {

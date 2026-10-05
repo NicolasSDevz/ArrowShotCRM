@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { resolveRoutinePersonKey, materializeDefaultRoutine, type RoutineItem } from '../services/dailyRoutineTemplates'
-import { subscribeDailyRoutineItems, saveDailyRoutineItems } from '../services/dailyRoutineItemsService'
+import { subscribeDailyRoutineItems, createDailyRoutineIfMissing } from '../services/dailyRoutineItemsService'
 
 /** Itens de /dailyRoutines/{userId} de qualquer usuário — não só o logado
  *  (ver useDailyRoutine, que é o caso "próprio usuário" deste hook). Cria o
@@ -24,9 +24,10 @@ export function useRoutineItemsFor(userId: string | undefined, userName: string 
         setItems([])
         return
       }
+      // Não mostra o padrão antes de gravar: o snapshot do documento criado
+      // chega em seguida com os IDs que de fato ficaram salvos.
       const defaults = materializeDefaultRoutine(personKey)
-      setItems(defaults)
-      saveDailyRoutineItems(userId, defaults).catch(console.error)
+      createDailyRoutineIfMissing(userId, defaults).catch(console.error)
     })
   }, [userId, userName])
 
