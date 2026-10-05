@@ -3,7 +3,7 @@ import { format, subDays } from 'date-fns'
 import { Check, FileBarChart, BarChart3 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
-import { useOptimizationSchedule } from '../../hooks/useOptimizations'
+import { useOptimizationSchedule, useRecentOptimizations } from '../../hooks/useOptimizations'
 import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
 import { ensureWeeklyReportCheck, setWeeklyReportCheckItem, subscribeWeeklyReportCheck } from '../../services/weeklyReportCheckService'
 import { trafficServices, platformBadgeLabel, hasContractedPaidTraffic } from '../../utils/clientServices'
@@ -25,6 +25,10 @@ export function WeeklyReportWidget() {
   const { profile } = useAuth()
   const { data: clients } = useClients()
   const { rows: scheduleRows } = useOptimizationSchedule()
+  // Cliente em Onboarding só entra se a campanha já começou de fato — o
+  // sinal é ter otimização registrada nos últimos 30 dias.
+  const { data: recentOptimizations, loading: optimizationsLoading } = useRecentOptimizations(30)
+  const optimizedClientIds = useMemo(() => new Set(recentOptimizations.map((o) => o.clientId)), [recentOptimizations])
 
   const [doc, setDoc] = useState<WeeklyReportCheck | null>(null)
   const [localChecks, setLocalChecks] = useState<Record<string, boolean>>({})
@@ -59,15 +63,22 @@ export function WeeklyReportWidget() {
       // pode já ter campanha rodando (Tráfego Pago marcado) antes de alguém
       // lembrar de virar o status pra Ativo — sem isso ele fica invisível
       // aqui até esse detalhe manual acontecer (foi exatamente o caso da
-      // Limma Eventos e da Impactus).
-      .filter((c) => (c.status === 'active' || c.status === 'prospect') && hasContractedPaidTraffic(c) && belongsToMe(c))
+      // Limma Eventos e da Impactus). Mas só se já tiver otimização
+      // registrada: Onboarding sem nada começado (ex.: Net, Onore, RN) não
+      // tem o que relatar ainda.
+      .filter(
+        (c) =>
+          (c.status === 'active' || (c.status === 'prospect' && optimizedClientIds.has(c.id))) &&
+          hasContractedPaidTraffic(c) &&
+          belongsToMe(c)
+      )
       .sort((a, b) => a.companyName.localeCompare(b.companyName))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients, profile, scheduleRows])
+  }, [clients, profile, scheduleRows, optimizedClientIds])
   const eligibleIds = useMemo(() => eligibleClients.map((c) => c.id), [eligibleClients])
   const eligibleIdsKey = eligibleIds.join(',')
 
-  const active = canSee && isMonday && eligibleIds.length > 0
+  const active = canSee && isMonday && !optimizationsLoading && eligibleIds.length > 0
 
   useEffect(() => {
     setJustCompleted(false)
