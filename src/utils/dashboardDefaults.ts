@@ -1,5 +1,6 @@
 import type { AppUser } from '../types/user'
 import type { DashboardWidgetConfig } from '../types/dashboardLayout'
+import type { DashboardArea } from '../types/teamMember'
 import { resolveRoutinePersonKey, type RoutinePersonKey } from '../services/dailyRoutineTemplates'
 
 /** Widgets numa lista curta, na ordem pedida — vira DashboardWidgetConfig[]
@@ -41,6 +42,33 @@ const GESTORES_LAYOUT = layout([
   ['resumo_clientes', 'full'],
 ])
 
+const SDR_LAYOUT = layout([
+  ['rotina', 'full'],
+  ['tarefas_hoje', 'half'],
+  ['tarefas_atrasadas', 'half'],
+  ['proximas_7dias', 'full'],
+  ['nova_tarefa', 'half'],
+  ['aniversarios', 'half'],
+])
+
+const CLOSER_LAYOUT = layout([
+  ['rotina', 'full'],
+  ['tarefas_hoje', 'half'],
+  ['tarefas_atrasadas', 'half'],
+  ['proximas_7dias', 'full'],
+  ['registrar_upsell', 'half'],
+  ['nova_tarefa', 'half'],
+])
+
+/** Pessoa nova sem layout pelo nome cai no layout da área dela. */
+const AREA_LAYOUTS: Record<DashboardArea, DashboardWidgetConfig[]> = {
+  comercial: BRUNO_LAYOUT,
+  gestor_trafego: GESTORES_LAYOUT,
+  cs: JAMILSON_LAYOUT,
+  sdr: SDR_LAYOUT,
+  closer: CLOSER_LAYOUT,
+}
+
 /** `default` cobre qualquer perfil que não bata com nenhum dos 4 nomes
  *  (colaborador(a) novo(a), etc.) — usa o layout de Gestores como o mais
  *  genérico/completo dos três. */
@@ -60,16 +88,18 @@ const LATE_ADDED_WIDGETS: DashboardWidgetConfig['id'][] = ['consultorias_mes']
 
 export function withLateAddedWidgets(
   saved: DashboardWidgetConfig[],
-  profile: Pick<AppUser, 'name'> | null | undefined
+  profile: Pick<AppUser, 'name'> | null | undefined,
+  area?: DashboardArea
 ): DashboardWidgetConfig[] {
   const savedIds = new Set(saved.map((w) => w.id))
-  const missing = getDefaultLayout(profile).filter((w) => LATE_ADDED_WIDGETS.includes(w.id) && !savedIds.has(w.id))
+  const missing = getDefaultLayout(profile, area).filter((w) => LATE_ADDED_WIDGETS.includes(w.id) && !savedIds.has(w.id))
   if (missing.length === 0) return saved
   const maxOrder = saved.reduce((max, w) => Math.max(max, w.order), 0)
   return [...saved, ...missing.map((w, i) => ({ ...w, order: maxOrder + i + 1 }))]
 }
 
-export function getDefaultLayout(profile: Pick<AppUser, 'name'> | null | undefined): DashboardWidgetConfig[] {
+export function getDefaultLayout(profile: Pick<AppUser, 'name'> | null | undefined, area?: DashboardArea): DashboardWidgetConfig[] {
   const key = profile ? resolveRoutinePersonKey(profile.name) : undefined
-  return DEFAULT_LAYOUTS[key ?? 'default']
+  if (key) return DEFAULT_LAYOUTS[key]
+  return area ? AREA_LAYOUTS[area] : DEFAULT_LAYOUTS.default
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
+import { deleteField } from 'firebase/firestore'
 import { Modal } from '../ui/Modal'
 import { Field, Input, Select } from '../ui/Field'
 import { contactError } from '../../utils/validation'
@@ -11,6 +12,8 @@ import { notifyAdminsOfAction } from '../../services/notificationService'
 import {
   TEAM_PERMISSION_LABEL,
   ROLE_ROUTINES,
+  DASHBOARD_AREA_LABEL,
+  type DashboardArea,
   type TeamMember,
   type TeamPermission,
   type TeamMemberStatus,
@@ -26,6 +29,7 @@ const EMPTY = {
   status: 'active' as TeamMemberStatus,
   userId: '',
   routineKey: '' as RoutineKey | '',
+  area: '' as DashboardArea | '',
 }
 
 export function TeamMemberFormModal({
@@ -55,6 +59,7 @@ export function TeamMemberFormModal({
         status: member.status,
         userId: member.userId ?? '',
         routineKey: member.routineKey ?? '',
+        area: member.area ?? '',
       })
     } else {
       setForm(EMPTY)
@@ -82,6 +87,8 @@ export function TeamMemberFormModal({
         status: form.status,
         userId: form.userId || undefined,
         routineKey: form.routineKey || undefined,
+        // Voltar pra "Automático" precisa apagar o campo — undefined é ignorado no update.
+        area: form.area || (member ? (deleteField() as unknown as undefined) : undefined),
         order: member?.order ?? nextOrder,
       }
       if (member) {
@@ -148,6 +155,17 @@ export function TeamMemberFormModal({
               {(Object.entries(ROLE_ROUTINES) as [RoutineKey, (typeof ROLE_ROUTINES)[RoutineKey]][]).map(([v, r]) => (
                 <option key={v} value={v}>
                   {r.title}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Área (o que vê no Dashboard)">
+            <Select value={form.area} onChange={(e) => set('area', e.target.value as DashboardArea | '')}>
+              <option value="">Automático (pelo nome ou pela rotina)</option>
+              {(Object.entries(DASHBOARD_AREA_LABEL) as [DashboardArea, string][]).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
                 </option>
               ))}
             </Select>

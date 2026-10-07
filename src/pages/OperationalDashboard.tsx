@@ -35,6 +35,8 @@ import type { Task } from '../types/task'
 import type { Client } from '../types/client'
 import type { DashboardWidgetConfig, DashboardWidgetId } from '../types/dashboardLayout'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
+import { useDashboardArea } from '../hooks/useDashboardArea'
+import { isWidgetAllowed } from '../utils/dashboardAreas'
 
 const DASHBOARD_KEY = 'operacional'
 
@@ -230,7 +232,11 @@ export function OperationalDashboard() {
   }, [clients, tasks, assigneeMap, latestClientSuccess, recentOptimizations])
 
   // ---------------- personalização do layout ----------------
-  const { widgets: savedWidgets } = useUserDashboardLayout(profile, DASHBOARD_KEY)
+  // Área da pessoa (gestor, CS, SDR, closer...) — widget de outra área some
+  // mesmo se estiver num layout salvo antes, e não aparece no "adicionar".
+  const area = useDashboardArea()
+  const { widgets: layoutWidgets } = useUserDashboardLayout(profile, DASHBOARD_KEY, area)
+  const savedWidgets = useMemo(() => layoutWidgets.filter((w) => isWidgetAllowed(area, w.id)), [layoutWidgets, area])
   const [editMode, setEditMode] = useState(false)
   const [draft, setDraft] = useState<DashboardWidgetConfig[]>([])
   const [savingLayout, setSavingLayout] = useState(false)
@@ -257,7 +263,7 @@ export function OperationalDashboard() {
     }
   }
 
-  const handleRestoreDefault = () => setDraft(getDefaultLayout(profile))
+  const handleRestoreDefault = () => setDraft(getDefaultLayout(profile, area).filter((w) => isWidgetAllowed(area, w.id)))
 
   const handleRemoveWidget = (id: DashboardWidgetId) =>
     setDraft((d) => d.map((w) => (w.id === id ? { ...w, visible: false } : w)))
@@ -297,8 +303,8 @@ export function OperationalDashboard() {
   const visibleSorted = useMemo(() => activeWidgets.filter((w) => w.visible).sort((a, b) => a.order - b.order), [activeWidgets])
   const hiddenWidgetIds = useMemo(() => {
     const visibleIds = new Set(draft.filter((w) => w.visible).map((w) => w.id))
-    return ALL_WIDGET_IDS.filter((id) => !visibleIds.has(id))
-  }, [draft])
+    return ALL_WIDGET_IDS.filter((id) => !visibleIds.has(id) && isWidgetAllowed(area, id))
+  }, [draft, area])
 
   const hasBucketGatedVisible = visibleSorted.some((w) => BUCKET_GATED_IDS.has(w.id))
   const collapsed = allZero && !expanded && !editMode && hasBucketGatedVisible

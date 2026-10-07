@@ -16,7 +16,21 @@ export const TEAM_PERMISSION_LABEL: Record<TeamPermission, string> = {
 
 export type TeamMemberStatus = 'active' | 'inactive'
 
-export type RoutineKey = 'closer' | 'cs' | 'gestor_trafego'
+export type RoutineKey = 'closer' | 'sdr' | 'cs' | 'gestor_trafego'
+
+/** Área da pessoa na equipe — decide o que ela vê no Dashboard e no
+ *  Operacional (ver utils/dashboardAreas.ts). Comercial vê tudo. É só
+ *  visual: não muda as regras do Firestore (quem acessa o quê de verdade
+ *  continua sendo o `UserRole`). */
+export type DashboardArea = 'comercial' | 'gestor_trafego' | 'cs' | 'sdr' | 'closer'
+
+export const DASHBOARD_AREA_LABEL: Record<DashboardArea, string> = {
+  comercial: 'Comercial / Vendas (vê tudo)',
+  gestor_trafego: 'Gestor de Tráfego',
+  cs: 'Sucesso do Cliente (CS)',
+  sdr: 'SDR',
+  closer: 'Closer',
+}
 
 export interface TeamMember extends BaseDoc {
   name: string
@@ -31,6 +45,8 @@ export interface TeamMember extends BaseDoc {
    *  manually in the Firebase Console). */
   userId?: string
   routineKey?: RoutineKey
+  /** Sem valor = deduz pelo nome/rotina (ver resolveDashboardArea). */
+  area?: DashboardArea
   order: number
 }
 
@@ -48,6 +64,16 @@ export const ROLE_ROUTINES: Record<RoutineKey, RoleRoutine> = {
       'Organizar CRM (Leads na plataforma)',
       'Responder mensagens e confirmar reuniões (tarde)',
       'Marcar reuniões de vendas',
+    ],
+  },
+  sdr: {
+    title: 'Rotina do SDR',
+    items: [
+      'Reunião de equipe (sexta, 9h15 às 10h)',
+      'Fazer o primeiro contato com os leads novos do dia',
+      'Qualificar os leads e atualizar a etapa no CRM',
+      'Seguir os leads sem resposta (follow-up)',
+      'Agendar reuniões qualificadas para o Closer',
     ],
   },
   cs: {
@@ -87,4 +113,4 @@ export const TEAM_MEETINGS: TeamMeeting[] = [
 
 /** Cargos planejados sem pessoa vinculada ainda — lista estática só para dar
  *  visibilidade do organograma futuro, não uma collection. */
-export const FUTURE_ROLES = ['Head de Performance', 'Analista de Performance', 'BPO / Administrativo']
+export const FUTURE_ROLES = ['SDR', 'Closer', 'Head de Performance', 'Analista de Performance', 'BPO / Administrativo']

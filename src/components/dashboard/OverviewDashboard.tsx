@@ -40,6 +40,18 @@ import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
 import { clientChurnDate, leadPipelineId, DEFAULT_PIPELINE_ID, type Activity } from '../../types'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { showError } from '../../utils/notifyError'
+import { useDashboardArea } from '../../hooks/useDashboardArea'
+import { canSeeOverviewSection, type OverviewSectionId } from '../../utils/dashboardAreas'
+
+/** Classe de colunas pra uma linha com `n` cards (até `max`), pra quando a
+ *  área da pessoa esconde parte deles não sobrar buraco. */
+function rowCols(n: number, max: 2 | 3 | 4): string {
+  const cols = Math.min(n, max)
+  if (cols <= 1) return 'grid-cols-1'
+  if (cols === 2) return 'grid-cols-1 sm:grid-cols-2'
+  if (cols === 3) return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+  return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+}
 
 const BRL = (v: number) =>
   (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
@@ -270,6 +282,13 @@ export function OverviewDashboard() {
   const downsellActivities = useMemo(() => contractChanges.filter((a) => a.action === 'downsell'), [contractChanges])
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
+  const area = useDashboardArea()
+  const show = (section: OverviewSectionId) => canSeeOverviewSection(area, section)
+  const metricCount = (['mrr', 'clientes_ativos', 'churn', 'ltv'] as const).filter(show).length
+  const flowCount = (['receita_gerada', 'entradas_saidas'] as const).filter(show).length
+  const walletCount = (['carteira', 'upsell_receita'] as const).filter(show).length
+  const gestorPipelineCount = (['receita_gestor', 'pipeline'] as const).filter(show).length
+  const bottomCount = (['upsell_card', 'clientes_risco', 'novos_clientes'] as const).filter(show).length
   const [refreshing, setRefreshing] = useState(false)
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
@@ -442,233 +461,269 @@ export function OverviewDashboard() {
       </div>
 
       {/* Alertas: o que precisa de atenção agora (inclui clientes sem valor cadastrado). */}
-      <AlertsCard
-        leads={leads}
-        pipelines={leadPipelines}
-        atRiskCount={atRisk.length}
-        clientsWithoutValue={clientsWithoutValueList}
-      />
+      {(show('alertas_leads') || show('alertas_clientes')) && (
+        <AlertsCard
+          leads={show('alertas_leads') ? leads : []}
+          pipelines={leadPipelines}
+          atRiskCount={show('alertas_clientes') ? atRisk.length : 0}
+          clientsWithoutValue={show('mrr') ? clientsWithoutValueList : []}
+        />
+      )}
 
-      {/* LINHA 1 — Cards de métricas */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          icon={<DollarSign size={17} className="text-white" />}
-          iconBg="bg-emerald-500"
-          label="MRR"
-          value={isPrivacyMode ? 'R$ ••.•••' : BRL(m.mrr)}
-          subtitle="Receita recorrente mensal"
-          delta={mrrDelta}
-          tip={TIPS.mrr}
-        />
-        <MetricCard
-          icon={<Users size={17} className="text-white" />}
-          iconBg="bg-blue-500"
-          label="Clientes Ativos"
-          value={String(m.activeClients)}
-          subtitle="Clientes em carteira"
-          delta={clientsDelta}
-          tip={TIPS.activeClients}
-        />
-        <MetricCard
-          icon={<ActivityIcon size={17} className="text-white" />}
-          iconBg="bg-slate-500"
-          label="Churn Rate"
-          value={`${m.churnRate.toFixed(1)}%`}
-          valueColor={churnColor}
-          subtitle="Taxa de cancelamento do mês"
-          onInfoClick={() => setChurnModalOpen(true)}
-        />
-        <MetricCard
-          icon={<Gem size={17} className="text-white" />}
-          iconBg="bg-violet-500"
-          label="LTV Médio"
-          value={isPrivacyMode ? 'R$ •.•••' : BRL(m.ltv)}
-          subtitle="Valor médio por cliente"
-          tip={TIPS.ltv}
-        />
-      </div>
+      {/* LINHA 1 — Cards de métricas (só os da área de quem está vendo) */}
+      {metricCount > 0 && (
+        <div className={`grid gap-4 ${rowCols(metricCount, 4)}`}>
+          {show('mrr') && (
+            <MetricCard
+              icon={<DollarSign size={17} className="text-white" />}
+              iconBg="bg-emerald-500"
+              label="MRR"
+              value={isPrivacyMode ? 'R$ ••.•••' : BRL(m.mrr)}
+              subtitle="Receita recorrente mensal"
+              delta={mrrDelta}
+              tip={TIPS.mrr}
+            />
+          )}
+          {show('clientes_ativos') && (
+            <MetricCard
+              icon={<Users size={17} className="text-white" />}
+              iconBg="bg-blue-500"
+              label="Clientes Ativos"
+              value={String(m.activeClients)}
+              subtitle="Clientes em carteira"
+              delta={clientsDelta}
+              tip={TIPS.activeClients}
+            />
+          )}
+          {show('churn') && (
+            <MetricCard
+              icon={<ActivityIcon size={17} className="text-white" />}
+              iconBg="bg-slate-500"
+              label="Churn Rate"
+              value={`${m.churnRate.toFixed(1)}%`}
+              valueColor={churnColor}
+              subtitle="Taxa de cancelamento do mês"
+              onInfoClick={() => setChurnModalOpen(true)}
+            />
+          )}
+          {show('ltv') && (
+            <MetricCard
+              icon={<Gem size={17} className="text-white" />}
+              iconBg="bg-violet-500"
+              label="LTV Médio"
+              value={isPrivacyMode ? 'R$ •.•••' : BRL(m.ltv)}
+              subtitle="Valor médio por cliente"
+              tip={TIPS.ltv}
+            />
+          )}
+        </div>
+      )}
 
       {/* LINHA 2 — Evolução do MRR */}
-      <Card>
-        <CardTitle>Evolução do MRR — últimos 6 meses</CardTitle>
-        <MrrChart series={mrrSeries} />
-      </Card>
+      {show('evolucao_mrr') && (
+        <Card>
+          <CardTitle>Evolução do MRR — últimos 6 meses</CardTitle>
+          <MrrChart series={mrrSeries} />
+        </Card>
+      )}
 
       {/* LINHA 2.2 — Receita gerada no mês + Entradas e saídas de clientes */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RevenueGeneratedCard clients={clients} upsells={upsellActivities} downsells={downsellActivities} />
-        <ClientFlowCard clients={clients} />
-      </div>
+      {flowCount > 0 && (
+        <div className={`grid grid-cols-1 gap-4 ${flowCount === 2 ? 'lg:grid-cols-2' : ''}`}>
+          {show('receita_gerada') && <RevenueGeneratedCard clients={clients} upsells={upsellActivities} downsells={downsellActivities} />}
+          {show('entradas_saidas') && <ClientFlowCard clients={clients} />}
+        </div>
+      )}
 
       {/* LINHA 2.5 — Carteira de clientes + Receita de Upsell */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardTitle>Carteira de Clientes</CardTitle>
-          <ClientsStatusChart clients={clients} />
-        </Card>
-        <Card>
-          <CardTitle>Upsell — Receita por mês</CardTitle>
-          <UpsellRevenueChart activities={upsellActivities} />
-        </Card>
-      </div>
+      {walletCount > 0 && (
+        <div className={`grid grid-cols-1 gap-4 ${walletCount === 2 ? 'lg:grid-cols-2' : ''}`}>
+          {show('carteira') && (
+            <Card>
+              <CardTitle>Carteira de Clientes</CardTitle>
+              <ClientsStatusChart clients={clients} />
+            </Card>
+          )}
+          {show('upsell_receita') && (
+            <Card>
+              <CardTitle>Upsell — Receita por mês</CardTitle>
+              <UpsellRevenueChart activities={upsellActivities} />
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* LINHA 3 — Receita por gestor + Pipeline */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardTitle tip={TIPS.gestor}>Receita por Gestor</CardTitle>
-          {m.revenueByGestor.ciane === 0 && m.revenueByGestor.nicolas === 0 ? (
-            <EmptyState title="Sem receita atribuída a gestores" />
-          ) : (
-            <div className="flex flex-col gap-4">
-              <GestorBar
-                name="Ciane"
-                value={m.revenueByGestor.ciane}
-                clients={m.clientsByGestor.ciane}
-                total={m.revenueByGestor.ciane + m.revenueByGestor.nicolas}
-                color="#2563EB"
-              />
-              <GestorBar
-                name="Nicolas"
-                value={m.revenueByGestor.nicolas}
-                clients={m.clientsByGestor.nicolas}
-                total={m.revenueByGestor.ciane + m.revenueByGestor.nicolas}
-                color="#8B5CF6"
-              />
-            </div>
+      {gestorPipelineCount > 0 && (
+        <div className={`grid grid-cols-1 gap-4 ${gestorPipelineCount === 2 ? 'lg:grid-cols-2' : ''}`}>
+          {show('receita_gestor') && (
+            <Card>
+              <CardTitle tip={TIPS.gestor}>Receita por Gestor</CardTitle>
+              {m.revenueByGestor.ciane === 0 && m.revenueByGestor.nicolas === 0 ? (
+                <EmptyState title="Sem receita atribuída a gestores" />
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <GestorBar
+                    name="Ciane"
+                    value={m.revenueByGestor.ciane}
+                    clients={m.clientsByGestor.ciane}
+                    total={m.revenueByGestor.ciane + m.revenueByGestor.nicolas}
+                    color="#2563EB"
+                  />
+                  <GestorBar
+                    name="Nicolas"
+                    value={m.revenueByGestor.nicolas}
+                    clients={m.clientsByGestor.nicolas}
+                    total={m.revenueByGestor.ciane + m.revenueByGestor.nicolas}
+                    color="#8B5CF6"
+                  />
+                </div>
+              )}
+            </Card>
           )}
-        </Card>
 
-        <Card>
-          <CardTitle tip={TIPS.pipeline}>Pipeline de Leads</CardTitle>
-          <div className="flex flex-col gap-2">
-            {pipeline.byStage.map((s) => (
-              <div key={s.status} className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">{s.label}</span>
-                <span className="font-bold text-slate-900">{s.count}</span>
+          {show('pipeline') && (
+            <Card>
+              <CardTitle tip={TIPS.pipeline}>Pipeline de Leads</CardTitle>
+              <div className="flex flex-col gap-2">
+                {pipeline.byStage.map((s) => (
+                  <div key={s.status} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600">{s.label}</span>
+                    <span className="font-bold text-slate-900">{s.count}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="mt-3 border-t border-slate-100 pt-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm font-medium text-slate-500">MRR potencial</span>
-              <span className="text-lg font-extrabold text-emerald-600">{isPrivacyMode ? 'R$ ••.•••' : BRL(pipeline.potentialMrr)}</span>
-            </div>
-          </div>
-        </Card>
-      </div>
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm font-medium text-slate-500">MRR potencial</span>
+                  <span className="text-lg font-extrabold text-emerald-600">{isPrivacyMode ? 'R$ ••.•••' : BRL(pipeline.potentialMrr)}</span>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* LINHA 3.5 — Vendas e marketing: origem dos leads + comercial */}
-      <SalesSection leads={leads} pipelines={leadPipelines} />
+      {show('vendas') && <SalesSection leads={leads} pipelines={leadPipelines} />}
 
       {/* LINHA 4 — Upsell / Risco / Novos */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <CardTitle tip={TIPS.upsell}>
-            <span className="flex items-center gap-2">
-              <ArrowUpRight size={16} className="text-emerald-600" /> Upsell
-            </span>
-          </CardTitle>
-          <p className="text-sm text-slate-500">
-            {upsellThisMonth.length === 0
-              ? 'Nenhuma expansão de contrato este mês'
-              : `${upsellThisMonth.length} ${upsellThisMonth.length === 1 ? 'cliente expandiu' : 'clientes expandiram'} o contrato`}
-          </p>
-          {upsellThisMonth.length > 0 && (
-            <ul className="mt-2 flex flex-col gap-1.5">
-              {upsellThisMonth.map((a) => (
-                <ContractChangeItem
-                  key={a.id}
-                  name={isPrivacyMode ? '••••••' : clientMap[a.entityId]?.companyName ?? 'Cliente'}
-                  text={a.message.replace(/^expandiu o contrato:\s*/i, '')}
-                  onRemove={isAdmin ? () => removeContractChange(a) : undefined}
-                />
-              ))}
-            </ul>
-          )}
-          <div className="mt-4 border-t border-slate-100 pt-3">
-            <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-              <ArrowDownRight size={16} className="text-red-500" /> Downsell
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              {downsellThisMonth.length === 0
-                ? 'Nenhum cliente reduziu o contrato este mês'
-                : `${downsellThisMonth.length} ${downsellThisMonth.length === 1 ? 'cliente reduziu' : 'clientes reduziram'} o contrato`}
-            </p>
-            {downsellThisMonth.length > 0 && (
-              <ul className="mt-2 flex flex-col gap-1.5">
-                {downsellThisMonth.map((a) => (
-                  <ContractChangeItem
-                    key={a.id}
-                    name={isPrivacyMode ? '••••••' : clientMap[a.entityId]?.companyName ?? 'Cliente'}
-                    text={a.message.replace(/^reduziu o contrato:\s*/i, '')}
-                    onRemove={isAdmin ? () => removeContractChange(a) : undefined}
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
-
-        <Card>
-          <CardTitle tip={TIPS.risk}>
-            <span className="flex items-center gap-2">
-              Clientes em Risco
-              {atRisk.length > 0 && (
-                <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">{atRisk.length}</span>
+      {bottomCount > 0 && (
+        <div className={`grid grid-cols-1 gap-4 ${bottomCount === 3 ? 'lg:grid-cols-3' : bottomCount === 2 ? 'lg:grid-cols-2' : ''}`}>
+          {show('upsell_card') && (
+            <Card>
+              <CardTitle tip={TIPS.upsell}>
+                <span className="flex items-center gap-2">
+                  <ArrowUpRight size={16} className="text-emerald-600" /> Upsell
+                </span>
+              </CardTitle>
+              <p className="text-sm text-slate-500">
+                {upsellThisMonth.length === 0
+                  ? 'Nenhuma expansão de contrato este mês'
+                  : `${upsellThisMonth.length} ${upsellThisMonth.length === 1 ? 'cliente expandiu' : 'clientes expandiram'} o contrato`}
+              </p>
+              {upsellThisMonth.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {upsellThisMonth.map((a) => (
+                    <ContractChangeItem
+                      key={a.id}
+                      name={isPrivacyMode ? '••••••' : clientMap[a.entityId]?.companyName ?? 'Cliente'}
+                      text={a.message.replace(/^expandiu o contrato:\s*/i, '')}
+                      onRemove={isAdmin ? () => removeContractChange(a) : undefined}
+                    />
+                  ))}
+                </ul>
               )}
-            </span>
-          </CardTitle>
-          {atRisk.length === 0 ? (
-            <EmptyState title="Nenhum cliente em risco" />
-          ) : (
-            <ul className="flex flex-col gap-1.5">
-              {atRisk.map(({ client, reasons }) => (
-                <li key={client.id}>
-                  <button
-                    onClick={() => navigate(`/clientes/${client.id}`)}
-                    className="w-full rounded-md px-1 py-0.5 text-left hover:bg-slate-50"
-                  >
-                    <span className="block truncate text-sm font-medium text-slate-800">{isPrivacyMode ? '••••••' : client.companyName}</span>
-                    <span className="text-xs text-red-600">{reasons.join(' • ')}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+              <div className="mt-4 border-t border-slate-100 pt-3">
+                <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <ArrowDownRight size={16} className="text-red-500" /> Downsell
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {downsellThisMonth.length === 0
+                    ? 'Nenhum cliente reduziu o contrato este mês'
+                    : `${downsellThisMonth.length} ${downsellThisMonth.length === 1 ? 'cliente reduziu' : 'clientes reduziram'} o contrato`}
+                </p>
+                {downsellThisMonth.length > 0 && (
+                  <ul className="mt-2 flex flex-col gap-1.5">
+                    {downsellThisMonth.map((a) => (
+                      <ContractChangeItem
+                        key={a.id}
+                        name={isPrivacyMode ? '••••••' : clientMap[a.entityId]?.companyName ?? 'Cliente'}
+                        text={a.message.replace(/^reduziu o contrato:\s*/i, '')}
+                        onRemove={isAdmin ? () => removeContractChange(a) : undefined}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </Card>
           )}
-        </Card>
 
-        <Card>
-          <CardTitle>
-            <span className="flex items-center gap-2">
-              <UserPlus size={16} className="text-blue-600" /> Novos Clientes este mês
-            </span>
-          </CardTitle>
-          <p className="text-[26px] font-extrabold leading-tight text-slate-900">{newClientsInfo.list.length}</p>
-          <p className="text-xs text-slate-400">
-            {newClientsInfo.diff === 0
-              ? 'mesmo número do mês anterior'
-              : `${newClientsInfo.diff > 0 ? '+' : ''}${newClientsInfo.diff} vs. mês anterior`}
-          </p>
-          {newClientsInfo.list.length > 0 && (
-            <ul className="mt-2 flex flex-col gap-1.5">
-              {newClientsInfo.list.map((c) => {
-                const d = c.contractStartDate?.toDate?.() ?? c.createdAt?.toDate?.() ?? null
-                return (
-                  <li key={c.id} className="flex items-center justify-between text-xs">
-                    <button
-                      onClick={() => navigate(`/clientes/${c.id}`)}
-                      className="truncate font-medium text-slate-700 hover:text-brand-600"
-                    >
-                      {isPrivacyMode ? '••••••' : c.companyName}
-                    </button>
-                    {d && <span className="shrink-0 text-slate-400">{format(d, 'dd/MM', { locale: ptBR })}</span>}
-                  </li>
-                )
-              })}
-            </ul>
+          {show('clientes_risco') && (
+            <Card>
+              <CardTitle tip={TIPS.risk}>
+                <span className="flex items-center gap-2">
+                  Clientes em Risco
+                  {atRisk.length > 0 && (
+                    <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">{atRisk.length}</span>
+                  )}
+                </span>
+              </CardTitle>
+              {atRisk.length === 0 ? (
+                <EmptyState title="Nenhum cliente em risco" />
+              ) : (
+                <ul className="flex flex-col gap-1.5">
+                  {atRisk.map(({ client, reasons }) => (
+                    <li key={client.id}>
+                      <button
+                        onClick={() => navigate(`/clientes/${client.id}`)}
+                        className="w-full rounded-md px-1 py-0.5 text-left hover:bg-slate-50"
+                      >
+                        <span className="block truncate text-sm font-medium text-slate-800">{isPrivacyMode ? '••••••' : client.companyName}</span>
+                        <span className="text-xs text-red-600">{reasons.join(' • ')}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
           )}
-        </Card>
-      </div>
+
+          {show('novos_clientes') && (
+            <Card>
+              <CardTitle>
+                <span className="flex items-center gap-2">
+                  <UserPlus size={16} className="text-blue-600" /> Novos Clientes este mês
+                </span>
+              </CardTitle>
+              <p className="text-[26px] font-extrabold leading-tight text-slate-900">{newClientsInfo.list.length}</p>
+              <p className="text-xs text-slate-400">
+                {newClientsInfo.diff === 0
+                  ? 'mesmo número do mês anterior'
+                  : `${newClientsInfo.diff > 0 ? '+' : ''}${newClientsInfo.diff} vs. mês anterior`}
+              </p>
+              {newClientsInfo.list.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {newClientsInfo.list.map((c) => {
+                    const d = c.contractStartDate?.toDate?.() ?? c.createdAt?.toDate?.() ?? null
+                    return (
+                      <li key={c.id} className="flex items-center justify-between text-xs">
+                        <button
+                          onClick={() => navigate(`/clientes/${c.id}`)}
+                          className="truncate font-medium text-slate-700 hover:text-brand-600"
+                        >
+                          {isPrivacyMode ? '••••••' : c.companyName}
+                        </button>
+                        {d && <span className="shrink-0 text-slate-400">{format(d, 'dd/MM', { locale: ptBR })}</span>}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </Card>
+          )}
+        </div>
+      )}
 
       <ChurnDetailModal
         open={churnModalOpen}
