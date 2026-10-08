@@ -30,7 +30,8 @@ export type OverviewSectionId =
   | 'produtos'
 
 const OVERVIEW_BY_AREA: Record<Exclude<DashboardArea, 'comercial'>, OverviewSectionId[]> = {
-  gestor_trafego: ['alertas_clientes', 'clientes_ativos', 'carteira', 'clientes_risco', 'novos_clientes'],
+  // Clientes em risco (e o alerta deles) é só do CS (Jamilson), não dos gestores.
+  gestor_trafego: ['clientes_ativos', 'carteira', 'novos_clientes'],
   cs: [
     'alertas_clientes',
     'clientes_ativos',
@@ -54,6 +55,7 @@ const WIDGETS_BY_AREA: Record<Exclude<DashboardArea, 'comercial'>, DashboardWidg
     ...COMMON_WIDGETS,
     'relatorios_semanais',
     'otimizacoes',
+    'otimizacoes_equipe',
     'conteudos_produzir',
     'em_producao',
     'aguardando_aprovacao',

@@ -35,6 +35,7 @@ const GESTORES_LAYOUT = layout([
   ['rotina', 'full'],
   ['relatorios_semanais', 'full'],
   ['otimizacoes', 'full'],
+  ['otimizacoes_equipe', 'full'],
   ['conteudos_produzir', 'full'],
   ['tarefas_atrasadas', 'half'],
   ['tarefas_hoje', 'half'],
@@ -84,7 +85,7 @@ const DEFAULT_LAYOUTS: Record<RoutinePersonKey | 'default', DashboardWidgetConfi
  *  entram no fim do layout salvo de quem tem esse widget no padrão do cargo
  *  (ver useUserDashboardLayout). Widget que a pessoa removeu continua no
  *  array salvo com `visible: false`, então nunca reaparece sozinho. */
-const LATE_ADDED_WIDGETS: DashboardWidgetConfig['id'][] = ['consultorias_mes']
+const LATE_ADDED_WIDGETS: DashboardWidgetConfig['id'][] = ['consultorias_mes', 'otimizacoes_equipe']
 
 export function withLateAddedWidgets(
   saved: DashboardWidgetConfig[],

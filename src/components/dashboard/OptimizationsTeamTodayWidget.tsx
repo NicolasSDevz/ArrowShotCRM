@@ -4,6 +4,7 @@ import { ptBR } from 'date-fns/locale'
 import { Target } from 'lucide-react'
 import { useMissedOptimizations } from '../../hooks/useMissedOptimizations'
 import { useAuth } from '../../context/AuthContext'
+import { useDashboardArea } from '../../hooks/useDashboardArea'
 import { useUsers } from '../../hooks/useUsers'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { useClients } from '../../hooks/useClients'
@@ -105,7 +106,8 @@ function GestorOptimizationsCard({ name }: { name: string }) {
   )
 }
 
-/** Widget "Otimizações de hoje — equipe", visível SÓ para Bruno (Admin) —
+/** Widget "Otimizações de hoje — equipe", visível para Bruno (Admin) e para
+ *  os gestores de tráfego (cada um acompanha os clientes do outro) —
  *  mostra, em modo somente-leitura (checkboxes não clicáveis), quais
  *  clientes de Ciane e Nicolas devem ser otimizados hoje e quais já foram
  *  registrados. Mesma fonte de dados do widget "Otimizações de hoje" de
@@ -113,7 +115,8 @@ function GestorOptimizationsCard({ name }: { name: string }) {
  *  ambas já legíveis por qualquer usuário interno, sem regra nova. */
 export function OptimizationsTeamTodayWidget() {
   const { profile } = useAuth()
-  const canSee = profile?.role === 'admin' || profile?.email === OWNER_EMAIL
+  const area = useDashboardArea()
+  const canSee = profile?.role === 'admin' || profile?.email === OWNER_EMAIL || area === 'gestor_trafego'
   if (!canSee) return null
 
   return (
