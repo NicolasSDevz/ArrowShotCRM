@@ -28,10 +28,22 @@ export type OverviewSectionId =
   | 'clientes_risco'
   | 'novos_clientes'
   | 'produtos'
+  | 'trafego_carteira'
+  | 'trafego_desempenho'
+  | 'trafego_otimizacoes'
+  | 'trafego_saldos'
 
 const OVERVIEW_BY_AREA: Record<Exclude<DashboardArea, 'comercial'>, OverviewSectionId[]> = {
   // Clientes em risco (e o alerta deles) é só do CS (Jamilson), não dos gestores.
-  gestor_trafego: ['clientes_ativos', 'carteira', 'novos_clientes'],
+  gestor_trafego: [
+    'trafego_carteira',
+    'trafego_desempenho',
+    'trafego_otimizacoes',
+    'trafego_saldos',
+    'clientes_ativos',
+    'carteira',
+    'novos_clientes',
+  ],
   cs: [
     'alertas_clientes',
     'clientes_ativos',

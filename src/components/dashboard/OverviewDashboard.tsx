@@ -36,6 +36,7 @@ import { Card, CardTitle } from './DashboardCard'
 import { AlertsCard, ClientFlowCard, RevenueGeneratedCard, SalesSection } from './GrowthSections'
 import { ClientsStatusChart } from './ClientsStatusChart'
 import { UpsellRevenueChart } from './UpsellRevenueChart'
+import { TrafficSections } from './TrafficSections'
 import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
 import { clientChurnDate, leadPipelineId, DEFAULT_PIPELINE_ID, type Activity } from '../../types'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
@@ -518,6 +519,16 @@ export function OverviewDashboard() {
           )}
         </div>
       )}
+
+      {/* Tráfego pago — carteira, desempenho, otimizações e saldos. Gestor vê
+          só os clientes dele; Comercial/admin veem a equipe. */}
+      <TrafficSections
+        clients={clients}
+        tasks={tasks}
+        optimizations={recentOptimizations}
+        ownOnly={area === 'gestor_trafego'}
+        show={show}
+      />
 
       {/* LINHA 2 — Evolução do MRR */}
       {show('evolucao_mrr') && (
