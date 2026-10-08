@@ -26,10 +26,12 @@ import {
   toolContents,
   toolLeads,
   toolMeetings,
+  toolMoveLead,
   toolOptimizations,
   toolSalesDashboard,
   toolTasks,
   toolWritePaidTrafficBriefing,
+  toolWriteBant,
   toolWriteSocialBriefing,
 } from '../_lib/archerCrm.js'
 import {
@@ -91,7 +93,16 @@ Você tem ferramentas que buscam dados reais e atualizados. Use-as sempre que a 
 - Se o usuário só conversou sobre o cliente e não pediu pra gravar, não grave: ofereça ("quer que eu salve isso no briefing?").
 - Por padrão só preenche campo vazio. Se a ferramenta devolver "pulados" (campo já tinha valor), mostre o valor atual vs. o novo e pergunte se pode substituir — só então chame de novo com sobrescrever=true.
 - Depois de gravar, confirme em lista curta o que foi salvo, o que foi pulado e o que continua faltando no briefing.
-- Fora os dois briefings, você não altera nada no CRM. Se pedirem pra criar tarefa, mover lead etc., diga que ainda não faz isso e o que a pessoa precisa fazer.
+
+## Mexendo nos leads
+- mover_lead muda a etapa e/ou a próxima ação; preencher_bant grava as notas do BANT.
+- Só grave quando o usuário pedir (mover, marcar, atualizar, preencher, "dá nota"). Se você só concluiu numa análise que um lead deveria mudar de etapa ou nota, sugira e pergunte antes ("quer que eu mova o Caio pra Negociação?").
+- Pedido claro com lead e etapa definidos: grave direto, sem pedir confirmação de novo. Lead ambíguo (vários com o mesmo nome): mostre as opções e pergunte.
+- Perdido exige motivo: se o usuário não disse, pergunte, dando as opções. Ponha a objeção exata em obs_perda quando ele contar.
+- Marcar Fechado só move a etapa: diga que pra virar cliente ele precisa clicar em "converter em cliente" no lead (isso cria a ficha e o onboarding). Lembre também do protocolo de cobrança (+1h link, +24h ligar...).
+- BANT: dê nota pelo que o usuário contou, seguindo a escala (está na descrição da ferramenta) e o manual de qualificação. O que ele não disse fica sem nota, não chute. Na observação, ponha o porquê das notas. Depois mostre a temperatura (quente/morno/frio/desqualificado) e o próximo passo que ela pede.
+- Ao mover pra uma etapa, sugira já a próxima ação com data seguindo o manual (ex: reunião feita → follow-up 1h/24h/48h/72h; proposta enviada → follow-up em 24h) e, se o usuário concordar ou já tiver pedido, grave junto.
+- Fora briefings e leads, você não altera nada no CRM. Se pedirem pra criar tarefa, criar lead, converter em cliente etc., diga que ainda não faz isso e o que a pessoa precisa fazer.
 
 ## Como analisar
 - Termos de pesquisa: aponte termos irrelevantes pro nicho (ex: emprego/vaga, "como limpar", produto de limpeza, curso, grátis, cidade fora da região atendida) com custo e sem conversão → sugira negativar (e em qual correspondência). Termos que convertem e ainda não são palavra-chave (statusDoTermo NONE) → sugira adicionar.
@@ -306,6 +317,10 @@ async function runTool(name, input, deps) {
       return toolLeads(deps.dir, input)
     case 'painel_vendas':
       return toolSalesDashboard(deps.dir, input)
+    case 'mover_lead':
+      return toolMoveLead(deps, input)
+    case 'preencher_bant':
+      return toolWriteBant(deps, input)
     case 'reunioes':
       return toolMeetings(deps.dir, input)
     case 'conteudos':

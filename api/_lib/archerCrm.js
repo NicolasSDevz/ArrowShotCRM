@@ -158,6 +158,8 @@ export function createCrmDirectory() {
     clients,
     users,
     userName,
+    /** Depois de gravar: a próxima leitura na mesma mensagem vem do banco. */
+    invalidate: (key) => cache.delete(key),
     findUser,
     tasks: () => once('tasks', () => listDocs('tasks')),
     leads: () => once('leads', () => listDocs('leads')),
@@ -384,6 +386,7 @@ export async function toolLeads(dir, input) {
           .map(([id, v]) => [p?.fields?.find((f) => f.id === id)?.label || id, v])
         const contatos = [...(l.contactHistory || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)))
         return compact({
+          lead_id: l.id,
           contato: l.contactName,
           empresa: l.companyName,
           cidade: l.cityRegion,
@@ -963,6 +966,213 @@ export const toolWritePaidTrafficBriefing = (deps, input) =>
 export const toolWriteSocialBriefing = (deps, input) =>
   writeBriefing({ ...deps, input, root: 'briefing', fields: SOCIAL_FIELDS, label: 'Briefing de Social Media' })
 
+// ---------------------------------------------------------------- escrita nos leads
+
+/** Etapas do pipeline do lead (o padrão é virtual: sem doc `default`, as 7 fixas). */
+function stagesOf(lead, pipelines) {
+  const p = pipelines.find((x) => x.id === (lead.pipelineId || 'default'))
+  if (p?.stages?.length) return p.stages
+  return LEAD_STATUS_ORDER.map((id) => ({ id, label: LEAD_STATUS_LABEL[id], kind: id === 'closed' ? 'won' : id === 'lost' ? 'lost' : 'open' }))
+}
+
+/** Acha o lead por id ou pelo nome do contato/empresa (exato > começa com > contém). */
+async function findLead(dir, input) {
+  const leads = await dir.leads()
+  if (input.lead_id) {
+    const l = leads.find((x) => x.id === input.lead_id)
+    if (!l) throw new Error(`Lead ${input.lead_id} não encontrado.`)
+    return l
+  }
+  const q = normalize(input.lead)
+  if (!q) throw new Error('Informe o lead (nome do contato ou da empresa).')
+  const names = (l) => [normalize(l.contactName), normalize(l.companyName)].filter(Boolean)
+  const exact = leads.filter((l) => names(l).some((n) => n === q))
+  const starts = leads.filter((l) => names(l).some((n) => n.startsWith(q)))
+  const contains = leads.filter((l) => normalize(`${l.contactName} ${l.companyName}`).includes(q))
+  const hits = exact.length ? exact : starts.length ? starts : contains
+  if (hits.length === 1) return hits[0]
+  if (hits.length === 0) throw new Error(`Nenhum lead encontrado com "${input.lead}". Use a ferramenta leads com busca.`)
+  throw new Error(
+    `Mais de um lead bate com "${input.lead}": ${hits
+      .slice(0, 8)
+      .map((l) => `${[l.contactName, l.companyName].filter(Boolean).join(' · ')} (lead_id ${l.id})`)
+      .join('; ')}. Pergunte ao usuário qual é e chame de novo com lead_id.`
+  )
+}
+
+const leadName = (l) => l.companyName?.trim() || l.contactName
+
+async function logLeadActivity(user, leadId, action, message) {
+  try {
+    await setDoc(`activities/${randomUUID()}`, {
+      entityType: 'lead',
+      entityId: leadId,
+      clientId: null,
+      action,
+      message: `${message} (via Archer)`,
+      userId: user.uid,
+      userName: user.name,
+      createdAt: new Date(),
+    })
+  } catch (err) {
+    console.warn('[archer] falha ao registrar atividade do lead', err.message)
+  }
+}
+
+/** Mesmo aviso que o frontend manda aos admins (notifyAdminsOfAction), sem o autor. */
+async function notifyAdmins(dir, user, type, message, leadId) {
+  try {
+    const admins = (await dir.users()).filter((u) => u.id !== user.uid && u.active !== false && (u.role === 'admin' || u.email === 'gestorarrowshotmkt@gmail.com'))
+    await Promise.all(
+      admins.map((u) =>
+        setDoc(`notifications/${randomUUID()}`, {
+          userId: u.id,
+          type,
+          message,
+          actorName: user.name,
+          entityType: 'lead',
+          entityId: leadId,
+          read: false,
+          createdAt: new Date(),
+        })
+      )
+    )
+  } catch (err) {
+    console.warn('[archer] falha ao notificar admins', err.message)
+  }
+}
+
+const parseDate = (s) => {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return undefined
+  return new Date(`${s}T12:00:00-03:00`) // meio-dia de Brasília: não vira o dia em nenhum fuso
+}
+
+export async function toolMoveLead(deps, input) {
+  const { dir, user } = deps
+  const [found, pipelines] = await Promise.all([findLead(dir, input), dir.pipelines()])
+  // Relê o doc na hora de gravar.
+  const snap = await getDoc(`leads/${found.id}`)
+  if (!snap.exists) throw new Error('Lead não encontrado.')
+  const lead = { id: found.id, ...snap.data() }
+  const stages = stagesOf(lead, pipelines)
+  const from = stages.find((s) => s.id === lead.status)
+
+  const data = {}
+  const paths = []
+  let to = from
+  if (input.etapa) {
+    const q = normalize(input.etapa)
+    const hits = stages.filter((s) => normalize(s.label).replace(/[^\p{L}\p{N} ]/gu, '').trim() === q || s.id === input.etapa)
+    const loose = hits.length ? hits : stages.filter((s) => normalize(s.label).includes(q))
+    if (loose.length !== 1) throw new Error(`Etapa "${input.etapa}" ${loose.length ? 'ambígua' : 'não existe'}. Etapas desse funil: ${stages.map((s) => s.label).join(', ')}.`)
+    to = loose[0]
+  }
+  const changed = to && to.id !== lead.status
+  if (changed) {
+    if (to.kind === 'lost' && !LEAD_LOST_REASON_LABEL[input.motivo_perda]) {
+      throw new Error(`Pra marcar como Perdido precisa do motivo (motivo_perda): ${Object.entries(LEAD_LOST_REASON_LABEL).map(([k, v]) => `${k} = ${v}`).join(', ')}. Pergunte ao usuário se ele não disse.`)
+    }
+    Object.assign(data, {
+      status: to.id,
+      order: Date.now(),
+      stageChangedAt: new Date(),
+      lostReason: to.kind === 'lost' ? input.motivo_perda : null,
+      lostReasonNote: to.kind === 'lost' ? String(input.obs_perda || '').trim() || null : null,
+      lostAt: to.kind === 'lost' ? new Date() : null,
+    })
+    paths.push('status', 'order', 'stageChangedAt', 'lostReason', 'lostReasonNote', 'lostAt')
+  }
+  if (input.proxima_acao !== undefined) {
+    data.nextAction = String(input.proxima_acao).trim()
+    paths.push('nextAction')
+  }
+  if (input.data_proxima_acao !== undefined) {
+    const d = parseDate(input.data_proxima_acao)
+    if (!d) throw new Error('data_proxima_acao precisa ser yyyy-MM-dd.')
+    data.nextActionDate = d
+    paths.push('nextActionDate')
+  }
+  if (paths.length === 0) return { gravado: false, lead: leadName(lead), motivo: `Nada pra mudar: o lead já está em ${from?.label || lead.status}.` }
+
+  await updateDocPaths(`leads/${lead.id}`, { ...data, updatedAt: new Date(), updatedBy: user.uid }, [...paths, 'updatedAt', 'updatedBy'])
+  dir.invalidate('leads')
+
+  const name = leadName(lead)
+  if (changed) {
+    await logLeadActivity(user, lead.id, 'status_changed', `moveu de "${from?.label || lead.status}" para "${to.label}"`)
+    const lostLabel = LEAD_LOST_REASON_LABEL[input.motivo_perda]
+    await notifyAdmins(
+      dir,
+      user,
+      'lead_stage_changed',
+      to.kind === 'lost'
+        ? `${user.name} marcou o lead ${name} como Perdido (motivo: ${lostLabel}) via Archer`
+        : `${user.name} moveu o lead ${name} de "${from?.label || lead.status}" para "${to.label}" via Archer`,
+      lead.id
+    )
+    if (to.kind === 'won') {
+      try {
+        await setDoc(`celebrationEvents/${randomUUID()}`, { clientName: name, closedBy: user.name, createdAt: new Date() })
+      } catch (err) {
+        console.warn('[archer] falha ao emitir comemoração', err.message)
+      }
+    }
+  } else {
+    await logLeadActivity(user, lead.id, 'updated', 'atualizou a próxima ação do lead')
+  }
+
+  return compact({
+    gravado: true,
+    lead: name,
+    de: changed ? from?.label || lead.status : undefined,
+    para: changed ? to.label : undefined,
+    motivoPerda: changed && to.kind === 'lost' ? LEAD_LOST_REASON_LABEL[input.motivo_perda] : undefined,
+    proximaAcao: data.nextAction,
+    dataProximaAcao: data.nextActionDate ? input.data_proxima_acao : undefined,
+    aviso:
+      changed && to.kind === 'won' && !lead.convertedClientId
+        ? 'Lead marcado como ganho, mas o cliente ainda NÃO foi criado: abra o lead na página Leads e clique em converter em cliente (cria a ficha e as tarefas de onboarding).'
+        : undefined,
+  })
+}
+
+export async function toolWriteBant(deps, input) {
+  const { dir, user } = deps
+  const found = await findLead(dir, input)
+  const snap = await getDoc(`leads/${found.id}`)
+  if (!snap.exists) throw new Error('Lead não encontrado.')
+  const lead = { id: found.id, ...snap.data() }
+  const current = lead.bant || {}
+  const next = { ...current }
+  const gravados = []
+  const pulados = []
+  for (const k of BANT_KEYS) {
+    const v = input[k]
+    if (v === undefined || v === null) continue
+    if (![0, 1, 2, 3].includes(v)) throw new Error(`${k} precisa ser 0, 1, 2 ou 3.`)
+    if (current[k] != null && current[k] !== v && !input.sobrescrever) {
+      pulados.push({ campo: k, valorAtual: current[k], valorSugerido: v })
+      continue
+    }
+    if (current[k] !== v) gravados.push(`${k}: ${v}`)
+    next[k] = v
+  }
+  const nota = String(input.obs || '').trim()
+  if (nota) {
+    if (current.note && current.note !== nota && !input.sobrescrever) next.note = `${current.note}\n${nota}`
+    else next.note = nota
+    gravados.push('observação')
+  }
+  if (gravados.length === 0) return { gravado: false, lead: leadName(lead), motivo: 'Nada novo pra gravar.', pulados, bantAtual: bantOf(current) }
+
+  next.scoredAt = new Date()
+  next.scoredBy = user.uid
+  await updateDocPaths(`leads/${lead.id}`, { bant: next, updatedAt: new Date(), updatedBy: user.uid }, ['bant', 'updatedAt', 'updatedBy'])
+  dir.invalidate('leads')
+  await logLeadActivity(user, lead.id, 'updated', `preencheu o BANT (${gravados.join(', ')})`)
+  return compact({ gravado: true, lead: leadName(lead), gravados, pulados, bant: bantOf(next) })
+}
+
 // ---------------------------------------------------------------- definições pro modelo
 
 const clienteProp = { type: 'string', description: 'Nome do cliente (pode ser parcial).' }
@@ -1093,6 +1303,43 @@ export const CRM_TOOLS = [
     },
   },
   {
+    name: 'mover_lead',
+    description:
+      'GRAVA no lead: move de etapa e/ou marca a próxima ação (texto + data). Avisa os admins e registra no histórico, igual mover pela tela. Etapa pelo nome (ex: "Reunião Agendada", "Proposta Enviada", "Fechado", "Perdido"). Perdido exige motivo_perda. Lead pelo nome do contato/empresa ou lead_id (que vem na ferramenta leads); se o nome bater com vários, a ferramenta devolve a lista: pergunte qual é.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lead: { type: 'string', description: 'Nome do contato ou da empresa.' },
+        lead_id: { type: 'string' },
+        etapa: { type: 'string', description: 'Etapa de destino, dentro do funil do próprio lead.' },
+        motivo_perda: { type: 'string', enum: Object.keys(LEAD_LOST_REASON_LABEL), description: Object.entries(LEAD_LOST_REASON_LABEL).map(([k, v]) => `${k} = ${v}`).join('; ') },
+        obs_perda: { type: 'string', description: 'Detalhe do motivo (ex: objeção exata).' },
+        proxima_acao: { type: 'string', description: 'Ex: "Follow-up 48h citando a dor de agenda vazia".' },
+        data_proxima_acao: { type: 'string', description: 'yyyy-MM-dd' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'preencher_bant',
+    description:
+      'GRAVA o BANT do lead: nota 0 a 3 em budget, authority, need, timing (+ observação). Só as letras enviadas mudam; letra que já tem nota diferente volta em "pulados" (sobrescrever=true só se o usuário pediu). Escala — budget: 0 sem verba/caixa irregular, 1 abaixo do mínimo, 2 no mínimo, 3 confortável + 3 meses de teste; authority: 0 sem acesso ao decisor, 1 só influenciador, 2 decisor entra na reunião, 3 é o próprio decisor; need: 0 sem dor, 1 interesse vago, 2 dor clara, 3 dor com custo medido; timing: 0 sem prazo, 1 mais de 6 meses, 2 entre 1 e 3 meses, 3 quer começar já.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lead: { type: 'string', description: 'Nome do contato ou da empresa.' },
+        lead_id: { type: 'string' },
+        budget: { type: 'integer', enum: [0, 1, 2, 3] },
+        authority: { type: 'integer', enum: [0, 1, 2, 3] },
+        need: { type: 'integer', enum: [0, 1, 2, 3] },
+        timing: { type: 'integer', enum: [0, 1, 2, 3] },
+        obs: { type: 'string', description: 'Por que dessas notas (o que o lead disse).' },
+        sobrescrever: { type: 'boolean' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'preencher_briefing_social',
     description:
       'GRAVA campos no Briefing de Social Media do cliente. Por padrão só preenche campos vazios; os já preenchidos voltam em "pulados" (sobrescrever=true só se o usuário pediu).',
@@ -1114,6 +1361,8 @@ export const CRM_TOOL_LABEL = {
   tarefas: 'tarefas',
   leads: 'leads',
   painel_vendas: 'painel de vendas',
+  mover_lead: 'atualizou o lead',
+  preencher_bant: 'gravou o BANT',
   reunioes: 'reuniões',
   conteudos: 'conteúdos',
   otimizacoes: 'otimizações',
