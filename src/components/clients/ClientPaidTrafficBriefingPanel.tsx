@@ -12,6 +12,7 @@ import { updateClient } from '../../services/clientService'
 import { markBriefingChecklistDone } from '../../services/taskService'
 import { notifyBriefingFilled } from '../../services/clientWorkflowTemplates'
 import { syncClientBirthdays } from '../../services/birthdayService'
+import { prefillPlanningFromBriefing } from '../../utils/briefingToPlanning'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import { maskPhone, maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import {
@@ -128,14 +129,26 @@ export function ClientPaidTrafficBriefingPanel({ client }: { client: Client }) {
     setSaving(true)
     try {
       const payload: PaidTrafficBriefing = { ...form, preenchidoPor: profile.name, filledAt: Timestamp.now() }
-      await updateClient(client.id, { paidTrafficBriefing: payload }, profile.id, profile.name)
+      // Região/localização e site, Instagram e WhatsApp já entram no
+      // Planejamento de Campanha, só nos campos que o gestor deixou vazios.
+      const prefill = prefillPlanningFromBriefing(client, payload)
+      await updateClient(
+        client.id,
+        prefill ? { paidTrafficBriefing: payload, campaignPlanning: prefill.planning } : { paidTrafficBriefing: payload },
+        profile.id,
+        profile.name
+      )
       await markBriefingChecklistDone(client.id, profile.id, profile.name)
       await notifyBriefingFilled(client, profile.id, profile.name, users)
       // Aniversários dos responsáveis -> eventos recorrentes no calendário.
       await syncClientBirthdays(client, payload, profile.id).catch((err) =>
         console.error('[briefing] falha ao sincronizar aniversários', err)
       )
-      toast.success('Briefing salvo')
+      toast.success(
+        prefill
+          ? `Briefing salvo. Planejamento de campanha preenchido com: ${prefill.filled.join(', ')}.`
+          : 'Briefing salvo'
+      )
     } catch (err) {
       console.error(err)
       toast.error('Erro ao salvar briefing')
