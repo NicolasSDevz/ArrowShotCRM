@@ -50,9 +50,54 @@ const TASK_DONE = new Set(['done', 'active'])
 const LEAD_STATUS_LABEL = {
   new: 'Novo Lead',
   contacted: 'Contato Feito',
+  meeting_scheduled: 'Reunião Agendada',
+  proposal_sent: 'Proposta Enviada',
   negotiation: 'Negociação',
   closed: 'Fechado',
   lost: 'Perdido',
+}
+/** Ordem das etapas do pipeline padrão (src/types/lead.ts). */
+const LEAD_STATUS_ORDER = ['new', 'contacted', 'meeting_scheduled', 'proposal_sent', 'negotiation', 'closed', 'lost']
+
+const LEAD_SOURCE_LABEL = {
+  instagram_organic: 'Instagram (orgânico)',
+  instagram_ad: 'Instagram (anúncio)',
+  google_ad: 'Google (anúncio)',
+  referral: 'Indicação',
+  whatsapp: 'WhatsApp direto',
+  website: 'Site',
+  form: 'Formulário de captura',
+  other: 'Outro',
+}
+
+const LEAD_LOST_REASON_LABEL = {
+  price: 'Preço / valor',
+  no_response: 'Parou de responder',
+  chose_competitor: 'Escolheu concorrente',
+  no_budget: 'Sem orçamento no momento',
+  not_a_fit: 'Não era perfil de cliente',
+  bad_timing: 'Momento não é adequado',
+  other: 'Outro motivo',
+}
+
+const LEAD_CONTACT_TYPE_LABEL = { call: 'Ligação', whatsapp: 'WhatsApp', email: 'E-mail', meeting: 'Reunião', other: 'Outro' }
+const LEAD_CONTACT_OUTCOME_LABEL = { positive: 'Positivo', neutral: 'Neutro', negative: 'Negativo' }
+
+/** BANT do lead (mesma regra de leadTemperature em src/types/lead.ts):
+ *  9-12 quente, 6-8 morno, 0-5 frio; Budget ou Authority zerado desqualifica. */
+const BANT_KEYS = ['budget', 'authority', 'need', 'timing']
+function bantOf(bant) {
+  if (!bant) return undefined
+  const notas = Object.fromEntries(BANT_KEYS.map((k) => [k, bant[k] ?? null]))
+  const avaliadas = BANT_KEYS.filter((k) => bant[k] != null)
+  if (avaliadas.length === 0) return undefined
+  let temperatura
+  if (avaliadas.length === 4) {
+    const total = BANT_KEYS.reduce((s, k) => s + bant[k], 0)
+    temperatura = bant.budget === 0 || bant.authority === 0 ? 'Desqualificado' : total >= 9 ? 'Quente' : total >= 6 ? 'Morno' : 'Frio'
+    return { notas, total, temperatura, obs: cut(bant.note, 200) }
+  }
+  return { notas, incompleto: true, obs: cut(bant.note, 200) }
 }
 
 const CONTENT_STATUS_LABEL = {
@@ -280,17 +325,31 @@ export async function toolTasks(dir, input) {
 
 // ---------------------------------------------------------------- leads
 
+/** Funil, etapa e tipo (open/won/lost) do lead. O pipeline padrão é virtual:
+ *  só tem doc `default` se alguém editou — sem doc, valem as 7 etapas fixas. */
+function makeStageInfo(pipelines) {
+  return (lead) => {
+    const p = pipelines.find((x) => x.id === (lead.pipelineId || 'default'))
+    const s = p?.stages?.find((x) => x.id === lead.status)
+    if (s) return { funil: p.name, etapa: s.label, kind: s.kind, ordem: p.stages.indexOf(s) }
+    const kind = lead.status === 'closed' ? 'won' : lead.status === 'lost' ? 'lost' : 'open'
+    const ordem = LEAD_STATUS_ORDER.indexOf(lead.status)
+    return { funil: p?.name || 'Vendas', etapa: LEAD_STATUS_LABEL[lead.status] || lead.status, kind, ordem: ordem < 0 ? 99 : ordem }
+  }
+}
+
+/** Data do último contato registrado (ou da criação, se nunca houve). */
+const lastTouchMs = (l) => Math.max(ms(l.createdAt) || 0, ...(l.contactHistory || []).map((h) => ms(h.date) || 0))
+
 export async function toolLeads(dir, input) {
   const [leads, pipelines] = await Promise.all([dir.leads(), dir.pipelines()])
-  const stageInfo = (lead) => {
-    const p = pipelines.find((x) => x.id === lead.pipelineId)
-    const s = p?.stages?.find((x) => x.id === lead.status)
-    if (s) return { funil: p.name, etapa: s.label, kind: s.kind }
-    const kind = lead.status === 'closed' ? 'won' : lead.status === 'lost' ? 'lost' : 'open'
-    return { funil: p?.name || 'Comercial', etapa: LEAD_STATUS_LABEL[lead.status] || lead.status, kind }
-  }
+  const stageInfo = makeStageInfo(pipelines)
 
   let rows = leads.map((l) => ({ l, ...stageInfo(l) }))
+  if (input.responsavel) {
+    const u = await dir.findUser(input.responsavel)
+    rows = rows.filter(({ l }) => l.assignedTo === u.id)
+  }
   const q = normalize(input.busca)
   if (q) rows = rows.filter(({ l }) => normalize(`${l.contactName} ${l.companyName} ${l.cityRegion}`).includes(q))
   if (input.etapa) rows = rows.filter((r) => normalize(r.etapa).includes(normalize(input.etapa)))
@@ -310,37 +369,209 @@ export async function toolLeads(dir, input) {
   }
 
   rows.sort((a, b) => String(b.l.createdAt).localeCompare(String(a.l.createdAt)))
+  // Busca por um lead específico (poucos resultados) traz a ficha completa.
+  const detalhado = !!input.detalhado || (!!q && rows.length <= 3)
   const limit = clampLimit(input.limite, 30, 100)
   const now = Date.now()
   return {
     resumoDoFunil: resumo,
     total: rows.length,
     leads: await Promise.all(
-      rows.slice(0, limit).map(async ({ l, funil, etapa }) =>
-        compact({
+      rows.slice(0, limit).map(async ({ l, funil, etapa }) => {
+        const p = pipelines.find((x) => x.id === (l.pipelineId || 'default'))
+        const camposExtras = Object.entries(l.customFields || {})
+          .filter(([, v]) => v !== null && v !== '' && v !== undefined)
+          .map(([id, v]) => [p?.fields?.find((f) => f.id === id)?.label || id, v])
+        const contatos = [...(l.contactHistory || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)))
+        return compact({
           contato: l.contactName,
           empresa: l.companyName,
           cidade: l.cityRegion,
+          whatsapp: detalhado ? l.whatsapp : undefined,
           funil,
           etapa,
-          origem: l.source,
+          origem: LEAD_SOURCE_LABEL[l.source] || l.source,
+          interesse: Object.entries(l.services || {})
+            .filter(([k, v]) => v === true && k !== 'socialMediaPackage')
+            .map(([k]) => k),
           valorEstimado: l.estimatedValue,
           responsavel: await dir.userName(l.assignedTo),
           criadoEm: day(l.createdAt),
           naEtapaDesde: day(l.stageChangedAt),
+          diasNaEtapa: l.stageChangedAt ? Math.floor((now - ms(l.stageChangedAt)) / DAY_MS) : undefined,
+          diasSemContato: Math.floor((now - lastTouchMs(l)) / DAY_MS),
+          bant: bantOf(l.bant),
           proximaAcao: l.nextAction,
           dataProximaAcao: day(l.nextActionDate),
           proximaAcaoAtrasada: ms(l.nextActionDate) < now - DAY_MS ? true : undefined,
-          motivoPerda: l.lostReason ? `${l.lostReason}${l.lostReasonNote ? ` — ${l.lostReasonNote}` : ''}` : undefined,
-          anotacoes: cut(l.notes, 300),
-          ultimosContatos: (l.contactHistory || [])
-            .sort((a, b) => String(b.date).localeCompare(String(a.date)))
-            .slice(0, 3)
-            .map((h) => ({ data: day(h.date), tipo: h.type, resultado: h.outcome, resumo: cut(h.summary, 200) })),
+          motivoPerda: l.lostReason ? `${LEAD_LOST_REASON_LABEL[l.lostReason] || l.lostReason}${l.lostReasonNote ? ` — ${l.lostReasonNote}` : ''}` : undefined,
+          camposExtras: camposExtras.length ? Object.fromEntries(camposExtras) : undefined,
+          respostasFormulario: (l.formAnswers || [])
+            .filter((a) => a?.value)
+            .map((a) => `${a.label}: ${cut(a.value, detalhado ? 400 : 120)}`),
+          anotacoes: cut(l.notes, detalhado ? 1500 : 300),
+          ultimosContatos: contatos.slice(0, detalhado ? 10 : 3).map((h) => ({
+            data: day(h.date),
+            tipo: LEAD_CONTACT_TYPE_LABEL[h.type] || h.type,
+            resultado: LEAD_CONTACT_OUTCOME_LABEL[h.outcome] || h.outcome,
+            resumo: cut(h.summary, detalhado ? 500 : 200),
+          })),
         })
-      )
+      })
     ),
   }
+}
+
+// ---------------------------------------------------------------- painel de vendas
+
+/** Período do painel: mes (yyyy-MM) ou últimos N dias. */
+function salesPeriod(input) {
+  if (input.mes && /^\d{4}-\d{2}$/.test(input.mes)) {
+    const [y, m] = input.mes.split('-').map(Number)
+    // Meia-noite de São Paulo (UTC-3) no 1º dia do mês e do mês seguinte.
+    const from = Date.UTC(y, m - 1, 1, 3)
+    const to = Date.UTC(y, m, 1, 3)
+    return { from, to: Math.min(to, Date.now()), label: input.mes, diasNoPeriodo: Math.round((to - from) / DAY_MS) }
+  }
+  const dias = clampLimit(input.dias, 30, 365)
+  return { from: Date.now() - dias * DAY_MS, to: Date.now(), label: `últimos ${dias} dias`, diasNoPeriodo: dias }
+}
+
+const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null)
+
+/** Contou como reunião de diagnóstico: contato tipo "Reunião" no histórico do lead. */
+const meetingsOf = (l, from, to) => (l.contactHistory || []).filter((h) => h.type === 'meeting' && ms(h.date) >= from && ms(h.date) < to)
+
+export async function toolSalesDashboard(dir, input) {
+  const [leads, pipelines] = await Promise.all([dir.leads(), dir.pipelines()])
+  const stageInfo = makeStageInfo(pipelines)
+  const now = Date.now()
+  const { from, to, label, diasNoPeriodo } = salesPeriod(input)
+  const inPeriod = (iso) => ms(iso) >= from && ms(iso) < to
+
+  let all = leads.map((l) => ({ l, ...stageInfo(l) }))
+  if (input.responsavel) {
+    const u = await dir.findUser(input.responsavel)
+    all = all.filter(({ l }) => l.assignedTo === u.id)
+  }
+
+  const criados = all.filter(({ l }) => inPeriod(l.createdAt))
+  // Ganho/perda no período: a mudança de etapa (ou a data de perda) caiu dentro dele.
+  const ganhos = all.filter((r) => r.kind === 'won' && inPeriod(r.l.convertedAt || r.l.stageChangedAt))
+  const perdidos = all.filter((r) => r.kind === 'lost' && inPeriod(r.l.lostAt || r.l.stageChangedAt))
+  const reunioes = all.flatMap(({ l }) => meetingsOf(l, from, to).map(() => l))
+  const abertos = all.filter((r) => r.kind === 'open')
+
+  // Funil atual (todos os leads em aberto, na ordem das etapas) + quantos já passaram de cada etapa.
+  const funilAtual = {}
+  for (const r of [...abertos].sort((a, b) => a.ordem - b.ordem)) {
+    const k = `${r.funil} › ${r.etapa}`
+    funilAtual[k] ??= { leads: 0, valorEstimado: 0, paradosHaMaisDe7Dias: 0 }
+    funilAtual[k].leads++
+    funilAtual[k].valorEstimado += Number(r.l.estimatedValue) || 0
+    if (now - ms(r.l.stageChangedAt) > 7 * DAY_MS) funilAtual[k].paradosHaMaisDe7Dias++
+  }
+
+  // Coorte: dos leads criados no período, até onde chegaram (pipeline padrão).
+  const chegou = (r, status) => r.kind === 'won' || (r.kind === 'open' && LEAD_STATUS_ORDER.indexOf(r.l.status) >= LEAD_STATUS_ORDER.indexOf(status))
+  const coorte = {
+    criados: criados.length,
+    tiveramContato: criados.filter((r) => chegou(r, 'contacted') || (r.l.contactHistory || []).length > 0).length,
+    chegaramEmReuniao: criados.filter((r) => chegou(r, 'meeting_scheduled') || meetingsOf(r.l, 0, Infinity).length > 0).length,
+    chegaramEmProposta: criados.filter((r) => chegou(r, 'proposal_sent')).length,
+    ganhos: criados.filter((r) => r.kind === 'won').length,
+    perdidos: criados.filter((r) => r.kind === 'lost').length,
+  }
+
+  const porOrigem = {}
+  const origem = (r) => {
+    const k = LEAD_SOURCE_LABEL[r.l.source] || r.l.source || '—'
+    return (porOrigem[k] ??= { criados: 0, ganhos: 0, perdidos: 0, valorGanho: 0 })
+  }
+  for (const r of criados) origem(r).criados++
+  for (const r of perdidos) origem(r).perdidos++
+  for (const r of ganhos) {
+    origem(r).ganhos++
+    origem(r).valorGanho += Number(r.l.estimatedValue) || 0
+  }
+
+  const porResponsavel = {}
+  const bump = async (r, field, value = 1) => {
+    const n = (await dir.userName(r.l.assignedTo)) || 'Sem responsável'
+    porResponsavel[n] ??= { leadsNovos: 0, emAberto: 0, reunioes: 0, ganhos: 0, perdidos: 0, proximaAcaoAtrasada: 0 }
+    porResponsavel[n][field] += value
+  }
+  for (const r of criados) await bump(r, 'leadsNovos')
+  for (const r of abertos) {
+    await bump(r, 'emAberto')
+    if (ms(r.l.nextActionDate) < now - DAY_MS) await bump(r, 'proximaAcaoAtrasada')
+  }
+  for (const l of reunioes) await bump({ l }, 'reunioes')
+  for (const r of ganhos) await bump(r, 'ganhos')
+  for (const r of perdidos) await bump(r, 'perdidos')
+
+  const motivosPerda = {}
+  for (const r of perdidos) {
+    const k = LEAD_LOST_REASON_LABEL[r.l.lostReason] || 'Sem motivo registrado'
+    motivosPerda[k] = (motivosPerda[k] || 0) + 1
+  }
+
+  const temperaturas = {}
+  for (const r of abertos) {
+    const t = bantOf(r.l.bant)?.temperatura || 'Sem BANT'
+    temperaturas[t] = (temperaturas[t] || 0) + 1
+  }
+
+  const ciclos = ganhos.map((r) => (ms(r.l.convertedAt || r.l.stageChangedAt) - ms(r.l.createdAt)) / DAY_MS).filter((d) => d >= 0)
+  const leadsDoDia = async (r, motivo) =>
+    compact({
+      lead: [r.l.contactName, r.l.companyName].filter(Boolean).join(' · '),
+      etapa: r.etapa,
+      responsavel: await dir.userName(r.l.assignedTo),
+      motivo,
+      valorEstimado: r.l.estimatedValue,
+    })
+
+  // Quem precisa de ação: lead novo sem nenhum contato, próxima ação vencida,
+  // em aberto sem próxima ação, parado há muito tempo na mesma etapa.
+  const atencao = []
+  for (const r of abertos) {
+    const semContato = (r.l.contactHistory || []).length === 0
+    const diasEtapa = Math.floor((now - ms(r.l.stageChangedAt)) / DAY_MS)
+    if (semContato && now - ms(r.l.createdAt) > DAY_MS / 2) atencao.push([0, r, `lead novo sem nenhum contato há ${Math.floor((now - ms(r.l.createdAt)) / DAY_MS)} dia(s)`])
+    else if (ms(r.l.nextActionDate) < now - DAY_MS) atencao.push([1, r, `próxima ação vencida em ${day(r.l.nextActionDate)}: ${cut(r.l.nextAction, 80) || 'sem descrição'}`])
+    else if (!r.l.nextActionDate) atencao.push([2, r, 'sem próxima ação marcada'])
+    else if (diasEtapa > 7) atencao.push([3, r, `parado há ${diasEtapa} dias em ${r.etapa}`])
+  }
+  atencao.sort((a, b) => a[0] - b[0] || (Number(b[1].l.estimatedValue) || 0) - (Number(a[1].l.estimatedValue) || 0))
+
+  const valorGanho = ganhos.reduce((s, r) => s + (Number(r.l.estimatedValue) || 0), 0)
+  return compact({
+    periodo: label,
+    responsavel: input.responsavel,
+    placar: {
+      leadsNovos: criados.length,
+      reunioesRegistradas: reunioes.length,
+      ganhos: ganhos.length,
+      valorGanhoEstimado: valorGanho,
+      perdidos: perdidos.length,
+      taxaDeGanhoSobreDecididos: pct(ganhos.length, ganhos.length + perdidos.length),
+      conversaoReuniaoParaGanho: pct(ganhos.length, reunioes.length),
+      cicloMedioDeVendaDias: ciclos.length ? Math.round(ciclos.reduce((s, d) => s + d, 0) / ciclos.length) : null,
+      diasNoPeriodo,
+    },
+    coorteDosLeadsDoPeriodo: coorte,
+    funilAtual,
+    temperaturaBantDosAbertos: temperaturas,
+    porOrigem,
+    porResponsavel,
+    motivosDePerda: motivosPerda,
+    ganhosNoPeriodo: await Promise.all(ganhos.map((r) => leadsDoDia(r, `ganho em ${day(r.l.convertedAt || r.l.stageChangedAt)}`))),
+    leadsPrecisandoDeAcao: await Promise.all(atencao.slice(0, clampLimit(input.limite, 15, 50)).map(([, r, motivo]) => leadsDoDia(r, motivo))),
+    totalPrecisandoDeAcao: atencao.length,
+    observacao:
+      'Reuniões = contatos do tipo "Reunião" registrados no histórico do lead (reunião não registrada lá não conta). Valores = valor estimado do lead, não o contrato assinado.',
+  })
 }
 
 // ---------------------------------------------------------------- reuniões
@@ -506,11 +737,8 @@ export async function toolAgencyOverview(dir) {
     overdueByPerson[n] = (overdueByPerson[n] || 0) + 1
   }
 
-  const openLeads = leads.filter((l) => {
-    const p = pipelines.find((x) => x.id === l.pipelineId)
-    const s = p?.stages?.find((x) => x.id === l.status)
-    return s ? s.kind === 'open' : !['closed', 'lost'].includes(l.status)
-  })
+  const stageInfo = makeStageInfo(pipelines)
+  const openLeads = leads.filter((l) => stageInfo(l).kind === 'open')
 
   const recentOpts = opts.filter((o) => ms(o.date) >= now - 7 * DAY_MS)
   const optimized = new Set(recentOpts.map((o) => o.clientId))
@@ -762,14 +990,32 @@ export const CRM_TOOLS = [
   },
   {
     name: 'leads',
-    description: 'Leads comerciais (funil de vendas): resumo por etapa com valor estimado + lista de leads com próxima ação, origem, histórico de contatos e motivo de perda.',
+    description:
+      'Leads comerciais: resumo por etapa + lista de leads com etapa, dias na etapa, dias sem contato, BANT (notas e temperatura), próxima ação, origem, respostas do formulário (faturamento, desafio, serviços...), campos extras do pipeline, histórico de contatos e motivo de perda. Buscando um lead específico (busca com até 3 resultados, ou detalhado=true) vem a ficha completa com WhatsApp, anotações e os últimos 10 contatos — use pra analisar um lead e sugerir a próxima mensagem.',
     input_schema: {
       type: 'object',
       properties: {
         situacao: { type: 'string', enum: ['abertos', 'ganhos', 'perdidos', 'todos'], description: 'Padrão: abertos.' },
         etapa: { type: 'string', description: 'Nome da etapa (ex: Negociação).' },
         busca: { type: 'string', description: 'Nome do contato, empresa ou cidade.' },
+        responsavel: { type: 'string', description: 'Nome de alguém da equipe (SDR/closer).' },
+        detalhado: { type: 'boolean', description: 'Ficha completa de cada lead (mais pesado; use com busca ou limite baixo).' },
         limite: { type: 'integer', description: 'Padrão 30, máximo 100.' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'painel_vendas',
+    description:
+      'Painel comercial de um período: placar (leads novos, reuniões registradas, ganhos, valor, perdidos, taxa de ganho, conversão reunião→ganho, ciclo médio), coorte dos leads do período (até onde chegaram), funil atual com leads parados, temperatura BANT dos abertos, resultado por origem e por responsável, motivos de perda e a lista de leads que precisam de ação agora (sem contato, próxima ação vencida, sem próxima ação, parados). Use em perguntas de vendas: "como estão as vendas?", "bateu a meta?", "onde o funil vaza?", "quem do comercial está devendo?", "qual origem fecha mais?".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        mes: { type: 'string', description: 'yyyy-MM. Mês fechado ou o atual (até hoje).' },
+        dias: { type: 'integer', description: 'Últimos N dias (padrão 30). Ignorado se mes vier.' },
+        responsavel: { type: 'string', description: 'Só os leads de uma pessoa.' },
+        limite: { type: 'integer', description: 'Máximo de leads em leadsPrecisandoDeAcao (padrão 15, máximo 50).' },
       },
       additionalProperties: false,
     },
@@ -867,6 +1113,7 @@ export const CRM_TOOL_LABEL = {
   resumo_agencia: 'visão geral da agência',
   tarefas: 'tarefas',
   leads: 'leads',
+  painel_vendas: 'painel de vendas',
   reunioes: 'reuniões',
   conteudos: 'conteúdos',
   otimizacoes: 'otimizações',

@@ -166,6 +166,24 @@ export function useAiPageContext(): { context: AiPageContext; resolveContext: ()
       }
     }
 
+    // ---------- Leads (comercial) ----------
+    // Os leads em si o Archer busca no servidor (ferramentas leads e
+    // painel_vendas) — aqui só as sugestões de pergunta.
+    if (location.pathname.startsWith('/leads')) {
+      return {
+        type: 'leads',
+        label: 'Leads',
+        data: { agencia: agencyOverview },
+        suggestedQuestions: [
+          '🎯 Como estão as vendas do mês vs a meta?',
+          '🕳️ Onde o funil está vazando?',
+          '🔥 Quais leads eu preciso atacar hoje?',
+          '❌ Por que estamos perdendo vendas?',
+          '📣 Qual origem de lead fecha mais?',
+        ],
+      }
+    }
+
     // ---------- Dashboard / Operacional ----------
     if (location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/operacional')) {
       const visibleTasks = filterVisibleTasks(tasks, canSeeAllTasks, viewerId)

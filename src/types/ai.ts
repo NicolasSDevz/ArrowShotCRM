@@ -10,7 +10,7 @@ export interface AiChatMessage {
   sources?: string[]
 }
 
-export type AiPageContextType = 'client' | 'meta_ads' | 'google_ads' | 'dashboard' | 'generic'
+export type AiPageContextType = 'client' | 'meta_ads' | 'google_ads' | 'dashboard' | 'leads' | 'generic'
 
 /** Contexto automático da página atual, montado por useAiPageContext e
  *  mandado junto de cada mensagem pro /api/ai/chat — o backend serializa
