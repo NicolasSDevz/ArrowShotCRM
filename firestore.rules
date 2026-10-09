@@ -4,8 +4,21 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ---------- helpers ----------
+    // Alunos da área de membros (Loja) entram com custom token (claim
+    // member: true, ver api/loja.js). Eles NÃO contam como "logado" para o
+    // resto do CRM — só enxergam o que é deles nas regras store* abaixo.
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.member != true;
+    }
+
+    function isMember() {
+      return request.auth != null && request.auth.token.member == true;
+    }
+
+    // Acesso ativo do aluno logado ao produto (storeEnrollments/{uid}_{productId}).
+    function memberEnrolled(productId) {
+      let path = /databases/$(database)/documents/storeEnrollments/$(request.auth.uid + '_' + productId);
+      return isMember() && exists(path) && get(path).data.active == true;
     }
 
     function userProfile() {
@@ -539,6 +552,80 @@ service cloud.firestore {
       allow create: if isInternal() && createdBySelf() && updatedBySelf();
       allow update: if isInternal() && updatedBySelf();
       allow delete: if isInternal();
+    }
+
+    // ---------- Loja (checkout próprio + área de membros) ----------
+    // Pedidos, alunos, acessos e links são gravados SÓ pelo backend
+    // (/api/loja, service account). A equipe (admin/gerente) cuida de
+    // produtos, aulas e cupons; o aluno lê o que comprou e grava o próprio
+    // progresso e comentários.
+    match /storeProducts/{productId} {
+      allow read: if isAdminOrManager() || memberEnrolled(productId);
+      allow create: if isAdminOrManager() && createdBySelf() && updatedBySelf();
+      allow update: if isAdminOrManager() && updatedBySelf();
+      allow delete: if isAdminOrManager();
+
+      match /{sub}/{itemId} {
+        allow read: if (sub == 'modules' || sub == 'lessons') && (isAdminOrManager() || memberEnrolled(productId));
+        allow write: if (sub == 'modules' || sub == 'lessons') && isAdminOrManager();
+      }
+    }
+
+    match /storeCoupons/{couponId} {
+      allow read: if isAdminOrManager();
+      allow create: if isAdminOrManager() && createdBySelf() && updatedBySelf();
+      allow update: if isAdminOrManager() && updatedBySelf();
+      allow delete: if isAdminOrManager();
+    }
+
+    match /storeOrders/{orderId} {
+      allow read: if isAdminOrManager();
+      allow write: if false;
+    }
+
+    match /storeMembers/{uid} {
+      allow read: if isAdminOrManager() || (isMember() && request.auth.uid == uid);
+      allow write: if false;
+    }
+
+    match /storeEnrollments/{enrollmentId} {
+      allow read: if isAdminOrManager() || (isMember() && resource.data.uid == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /storeMemberSecrets/{uid} {
+      allow read, write: if false;
+    }
+
+    match /storeAccessCodes/{codeHash} {
+      allow read, write: if false;
+    }
+
+    // Progresso: um doc por aluno+produto, id = {uid}_{productId}.
+    match /storeProgress/{progressId} {
+      allow read: if isAdminOrManager() || (isMember() && progressId.matches(request.auth.uid + '_.*'));
+      allow create, update: if isMember()
+        && progressId == request.auth.uid + '_' + request.resource.data.productId
+        && request.resource.data.uid == request.auth.uid
+        && memberEnrolled(request.resource.data.productId)
+        && request.resource.data.keys().hasOnly(['uid', 'productId', 'completed', 'lastLessonId', 'ratings', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /storeComments/{commentId} {
+      allow read: if isAdminOrManager()
+        || (memberEnrolled(resource.data.productId) && (resource.data.status == 'approved' || resource.data.uid == request.auth.uid));
+      allow create: if (isMember()
+          && request.resource.data.uid == request.auth.uid
+          && memberEnrolled(request.resource.data.productId)
+          && request.resource.data.isProducer == false
+          && request.resource.data.status in ['approved', 'pending']
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.createdAt == request.time)
+        || (isAdminOrManager() && request.resource.data.uid == request.auth.uid);
+      allow update: if isAdminOrManager();
+      allow delete: if isAdminOrManager() || (isMember() && resource.data.uid == request.auth.uid);
     }
 
     // ---------- future modules ----------

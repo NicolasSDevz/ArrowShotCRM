@@ -35,6 +35,15 @@ import { UniversityModulePage } from './pages/UniversityModulePage'
 import { UniversityProgressPage } from './pages/UniversityProgressPage'
 import { UniversityAdminPage } from './pages/UniversityAdminPage'
 import { OptimizationCalendarPage } from './pages/OptimizationCalendarPage'
+import { StorePage } from './pages/store/StorePage'
+import { StoreProductPage } from './pages/store/StoreProductPage'
+import { CheckoutPage } from './pages/store/CheckoutPage'
+import { CheckoutThanksPage } from './pages/store/CheckoutThanksPage'
+import { MembersLayout } from './components/store/members/MembersLayout'
+import { MembersEnterPage, MembersLoginPage, MembersProfilePage } from './pages/store/members/MembersAuthPages'
+import { MembersHomePage } from './pages/store/members/MembersHomePage'
+import { MembersCoursePage } from './pages/store/members/MembersCoursePage'
+import { MembersLessonPage } from './pages/store/members/MembersLessonPage'
 
 function App() {
   return (
@@ -54,6 +63,17 @@ function App() {
           <Route path="/acessos/:token" element={<PublicAccessPage />} />
           <Route path="/privacidade" element={<PrivacyPolicyPage />} />
           <Route path="/termos" element={<TermsOfServicePage />} />
+          {/* Loja: checkout e área de membros são públicos (o aluno tem login próprio) */}
+          <Route path="/pay/:slug" element={<CheckoutPage />} />
+          <Route path="/pay/:slug/obrigado" element={<CheckoutThanksPage />} />
+          <Route path="/membros" element={<MembersLayout />}>
+            <Route index element={<MembersHomePage />} />
+            <Route path="login" element={<MembersLoginPage />} />
+            <Route path="entrar" element={<MembersEnterPage />} />
+            <Route path="perfil" element={<MembersProfilePage />} />
+            <Route path="curso/:productId" element={<MembersCoursePage />} />
+            <Route path="curso/:productId/aula/:lessonId" element={<MembersLessonPage />} />
+          </Route>
           <Route
             element={
               <ProtectedRoute allowedRoles={['admin', 'manager', 'employee']} showDeniedScreen>
@@ -96,6 +116,22 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin', 'manager']}>
                   <MetaTokensPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/loja"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/loja/produtos/:id"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                  <StoreProductPage />
                 </ProtectedRoute>
               }
             />

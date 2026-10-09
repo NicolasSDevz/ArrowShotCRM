@@ -148,7 +148,7 @@ export async function listMetaTokenStatuses() {
  *  dias) e salva na ficha do cliente. O APP_SECRET fica só no backend. */
 export async function exchangeMetaToken(clientId, shortToken) {
   const headers = await authHeaders()
-  const response = await fetch('/api/meta/exchange-token', {
+  const response = await fetch('/api/meta/token?scope=exchange', {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ clientId, short_token: shortToken }),

@@ -282,3 +282,37 @@ export async function verifyIdToken(idToken) {
 
   return { uid: payload.sub, email: payload.email || null }
 }
+
+/* ------------------------------------------------------------------ */
+/* Custom token (login dos alunos da área de membros)                  */
+/* ------------------------------------------------------------------ */
+
+/** Cria um Firebase custom token assinado pela service account. O navegador
+ *  troca por uma sessão com signInWithCustomToken — é assim que o aluno entra
+ *  na área de membros sem existir um provedor de login ligado no Console.
+ *  `claims` vira request.auth.token.<claim> nas Security Rules. */
+export function createCustomToken(uid, claims = {}) {
+  const sa = loadServiceAccount()
+  const now = Math.floor(Date.now() / 1000)
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
+  const payload = base64url(
+    JSON.stringify({
+      iss: sa.client_email,
+      sub: sa.client_email,
+      aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+      iat: now,
+      exp: now + 3600,
+      uid,
+      claims,
+    })
+  )
+  const signature = base64url(createSign('RSA-SHA256').update(`${header}.${payload}`).sign(sa.private_key))
+  return `${header}.${payload}.${signature}`
+}
+
+/** Verifica o ID token e devolve também as claims customizadas. */
+export async function verifyIdTokenWithClaims(idToken) {
+  const base = await verifyIdToken(idToken)
+  const payload = decodeSegment(String(idToken).split('.')[1])
+  return { ...base, claims: payload }
+}

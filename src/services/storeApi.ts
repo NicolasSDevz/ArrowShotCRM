@@ -1,0 +1,123 @@
+import { auth } from '../firebase/config'
+import { membersAuth } from '../firebase/membersApp'
+
+/** Cliente de /api/loja (ver api/loja.js). */
+
+export interface PublicCheckout {
+  id: string
+  slug: string
+  name: string
+  description: string
+  imageUrl: string | null
+  price: number
+  comparePrice: number | null
+  supportEmail: string | null
+  maxInstallments: number
+  paymentMethods: { pix: boolean; card: boolean }
+  checkout: {
+    primaryColor: string
+    backgroundColor: string
+    font: string
+    headerImageUrl: string | null
+    headline: string
+    subheadline: string
+    countdown: { minutes: number; text: string; color: string } | null
+    sideImages: string[]
+    benefits: string[]
+    testimonials: { name: string; text: string; photoUrl?: string }[]
+    guaranteeDays: number
+    askPhone: boolean
+    askCpf: boolean
+    confirmEmail: boolean
+    buttonText: string
+    fbPixelId: string | null
+    thankYouUrl: string | null
+    footerText: string
+  }
+  bumps: { productId: string; name: string; imageUrl: string | null; headline: string; description: string; cta: string; price: number; fullPrice: number }[]
+  gateway: { mercadoPago: boolean; publicKey: string | null; testMode: boolean }
+}
+
+export interface PixData {
+  qrCode: string | null
+  qrBase64: string | null
+  ticketUrl: string | null
+  expiresAt: string | null
+}
+
+export interface OrderResult {
+  orderId: string
+  key: string
+  status: 'pending' | 'approved' | 'refused' | 'refunded'
+  statusDetail: string | null
+  amount: number
+  pix: PixData | null
+  accessUrl: string | null
+}
+
+export interface OrderStatus {
+  orderId: string
+  status: OrderResult['status']
+  statusDetail: string | null
+  amount: number
+  method: string
+  items: { name: string; price: number }[]
+  buyerName: string
+  buyerEmail: string
+  pix: PixData | null
+  accessUrl: string | null
+  emailSent: boolean
+  productId: string
+}
+
+async function call<T>(action: string, opts: { method?: 'GET' | 'POST'; params?: Record<string, string>; body?: unknown; token?: string | null } = {}): Promise<T> {
+  const qs = new URLSearchParams({ action, ...(opts.params || {}) })
+  const headers: Record<string, string> = {}
+  if (opts.body !== undefined) headers['Content-Type'] = 'application/json'
+  if (opts.token) headers.Authorization = `Bearer ${opts.token}`
+  const res = await fetch(`/api/loja?${qs.toString()}`, {
+    method: opts.method || (opts.body !== undefined ? 'POST' : 'GET'),
+    headers,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Não foi possível concluir. Tente de novo.')
+  return data as T
+}
+
+async function staffToken() {
+  const user = auth.currentUser
+  if (!user) throw new Error('Faça login de novo no CRM')
+  return user.getIdToken()
+}
+
+/* checkout público */
+export const fetchCheckout = (slug: string) => call<PublicCheckout>('checkout', { params: { slug } })
+export const checkCoupon = (slug: string, code: string) => call<{ code: string; percent: number }>('coupon', { body: { slug, code } })
+export const createOrder = (body: unknown) => call<OrderResult>('order', { body })
+export const fetchOrderStatus = (id: string, key: string) => call<OrderStatus>('order', { params: { id, key } })
+
+/* alunos */
+export const memberEnter = (code: string) => call<{ token: string; hasPassword: boolean }>('member-enter', { body: { code } })
+export const memberLogin = (email: string, password: string) => call<{ token: string; hasPassword: boolean }>('member-login', { body: { email, password } })
+export async function memberSetPassword(password: string) {
+  const token = await membersAuth.currentUser?.getIdToken()
+  return call<{ ok: true }>('member-password', { body: { password }, token })
+}
+
+/* equipe */
+export async function storeAdminStatus() {
+  return call<{ mercadoPago: boolean; email: boolean }>('admin-status', { token: await staffToken() })
+}
+export async function storeGrantAccess(email: string, name: string, productId: string) {
+  return call<{ uid: string; accessUrl: string }>('admin-grant', { body: { email, name, productId }, token: await staffToken() })
+}
+export async function storeAccessLink(uid: string) {
+  return call<{ accessUrl: string }>('admin-link', { body: { uid }, token: await staffToken() })
+}
+export async function storeRevokeAccess(uid: string, productId: string) {
+  return call<{ ok: true }>('admin-revoke', { body: { uid, productId }, token: await staffToken() })
+}
+export async function storeRefundOrder(orderId: string) {
+  return call<{ ok: true }>('admin-refund', { body: { orderId }, token: await staffToken() })
+}

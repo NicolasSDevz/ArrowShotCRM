@@ -1,0 +1,175 @@
+import { useMemo, useState } from 'react'
+import toast from 'react-hot-toast'
+import { Copy, Download, RotateCcw } from 'lucide-react'
+import { Badge } from '../../ui/Badge'
+import { Button } from '../../ui/Button'
+import { Input, Select } from '../../ui/Field'
+import { EmptyState } from '../../ui/EmptyState'
+import { storeRefundOrder } from '../../../services/storeApi'
+import { askConfirm } from '../../../utils/confirmDialog'
+import { formatCents, STORE_METHOD_LABEL, STORE_ORDER_STATUS_LABEL, type StoreOrder, type StoreOrderStatus, type StoreProduct } from '../../../types/store'
+
+const STATUS_CLS: Record<StoreOrderStatus, string> = {
+  approved: 'bg-emerald-50 text-emerald-700',
+  pending: 'bg-amber-50 text-amber-700',
+  refused: 'bg-red-50 text-red-600',
+  refunded: 'bg-slate-100 text-slate-600',
+}
+
+export function OrderStatusBadge({ status }: { status: StoreOrderStatus }) {
+  return <Badge className={STATUS_CLS[status]}>{STORE_ORDER_STATUS_LABEL[status]}</Badge>
+}
+
+export async function copyText(text: string, okMsg = 'Copiado') {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.success(okMsg)
+  } catch {
+    window.prompt('Copie o texto:', text)
+  }
+}
+
+function toCsv(orders: StoreOrder[]) {
+  const head = ['Data', 'Pedido', 'Status', 'Forma', 'Valor', 'Produtos', 'Cupom', 'Nome', 'E-mail', 'Telefone', 'CPF', 'utm_source', 'utm_campaign', 'utm_content']
+  const rows = orders.map((o) => [
+    new Date(o.createdAt).toLocaleString('pt-BR'),
+    o.id,
+    STORE_ORDER_STATUS_LABEL[o.status],
+    STORE_METHOD_LABEL[o.method],
+    (o.amount / 100).toFixed(2).replace('.', ','),
+    o.items.map((i) => i.name).join(' + '),
+    o.couponCode || '',
+    o.buyer.name,
+    o.buyer.email,
+    o.buyer.phone || '',
+    o.buyer.cpf || '',
+    o.utm?.utm_source || '',
+    o.utm?.utm_campaign || '',
+    o.utm?.utm_content || '',
+  ])
+  return [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n')
+}
+
+/** Lista de pedidos com filtro, exportação CSV, link de acesso e reembolso. */
+export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; products: StoreProduct[] }) {
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<'' | StoreOrderStatus>('')
+  const [productId, setProductId] = useState('')
+  const [refunding, setRefunding] = useState<string | null>(null)
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return orders.filter(
+      (o) =>
+        (!status || o.status === status) &&
+        (!productId || o.productIds?.includes(productId)) &&
+        (!q || o.buyer.name.toLowerCase().includes(q) || o.buyer.email.includes(q) || o.id.toLowerCase().includes(q))
+    )
+  }, [orders, search, status, productId])
+
+  const exportCsv = () => {
+    const blob = new Blob([`﻿${toCsv(filtered)}`], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `vendas-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  const refund = async (o: StoreOrder) => {
+    const ok = await askConfirm({
+      title: 'Reembolsar pedido',
+      message: `${o.buyer.name}, ${formatCents(o.amount)}. ${o.mpPaymentId ? 'O dinheiro volta pelo Mercado Pago e o' : 'O'} acesso aos produtos é removido.`,
+      confirmLabel: 'Reembolsar',
+      danger: true,
+    })
+    if (!ok) return
+    setRefunding(o.id)
+    try {
+      await storeRefundOrder(o.id)
+      toast.success('Pedido reembolsado e acesso removido')
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setRefunding(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-[220px] flex-1">
+          <Input aria-label="Buscar por nome, e-mail ou pedido" placeholder="Buscar por nome, e-mail ou pedido" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as '' | StoreOrderStatus)} className="!w-48">
+          <option value="">Todos os status</option>
+          {Object.entries(STORE_ORDER_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </Select>
+        <Select aria-label="Produto" value={productId} onChange={(e) => setProductId(e.target.value)} className="!w-56">
+          <option value="">Todos os produtos</option>
+          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </Select>
+        <Button variant="secondary" icon={<Download size={15} />} onClick={exportCsv} disabled={!filtered.length}>Exportar CSV</Button>
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState title="Nenhum pedido" description="Quando alguém comprar pelo link do checkout, o pedido aparece aqui na hora." />
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+          <table className="w-full text-sm">
+            <caption className="sr-only">Pedidos da loja</caption>
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <tr>
+                <th scope="col" className="px-4 py-3">Cliente</th>
+                <th scope="col" className="px-4 py-3">Produtos</th>
+                <th scope="col" className="px-4 py-3">Valor</th>
+                <th scope="col" className="px-4 py-3">Status</th>
+                <th scope="col" className="px-4 py-3">Data</th>
+                <th scope="col" className="px-4 py-3"><span className="sr-only">Ações</span></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((o) => (
+                <tr key={o.id} className="align-top">
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-slate-800">{o.buyer.name}</p>
+                    <p className="text-xs text-slate-500">{o.buyer.email}</p>
+                    {o.buyer.phone && <p className="text-xs text-slate-400">{o.buyer.phone}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {o.items.map((i) => (
+                      <p key={i.productId}>{i.name}{i.bump ? ' (order bump)' : ''}</p>
+                    ))}
+                    {o.couponCode && <p className="text-xs text-slate-400">Cupom {o.couponCode} ({o.couponPercent}%)</p>}
+                    {o.utm?.utm_source && <p className="text-xs text-slate-400">Origem: {o.utm.utm_source}{o.utm.utm_campaign ? `, ${o.utm.utm_campaign}` : ''}</p>}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                    {formatCents(o.amount)}
+                    <p className="text-xs text-slate-400">{STORE_METHOD_LABEL[o.method]}{o.installments && o.installments > 1 ? ` em ${o.installments}x` : ''}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <OrderStatusBadge status={o.status} />
+                    {o.test && <Badge className="ml-1 bg-amber-50 text-amber-700">teste</Badge>}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(o.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    {o.accessUrl && o.status === 'approved' && (
+                      <Button size="sm" variant="ghost" icon={<Copy size={14} />} onClick={() => copyText(o.accessUrl!, 'Link de acesso copiado')} aria-label={`Copiar link de acesso de ${o.buyer.name}`}>
+                        Acesso
+                      </Button>
+                    )}
+                    {o.status === 'approved' && (
+                      <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} loading={refunding === o.id} onClick={() => refund(o)} aria-label={`Reembolsar pedido de ${o.buyer.name}`}>
+                        Reembolsar
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}

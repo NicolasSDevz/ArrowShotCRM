@@ -15,9 +15,12 @@
 // ?scope=credentials → acessos (login/senha) dos clientes — ver
 // api/_lib/credentialsHandler.js. Mora aqui porque o plano Hobby da Vercel
 // está no limite de funções.
+//
+// ?scope=exchange → troca token curto por longo (api/_lib/exchangeTokenHandler.js).
 
 import { withInternalAuth } from '../_lib/auth.js'
 import { credentialsHandler } from '../_lib/credentialsHandler.js'
+import { exchangeTokenHandler } from '../_lib/exchangeTokenHandler.js'
 import {
   setClientToken,
   deleteClientToken,
@@ -105,5 +108,6 @@ const metaTokenHandler = withInternalAuth(handler)
 
 export default function route(req, res) {
   if (req.query.scope === 'credentials') return credentialsHandler(req, res)
+  if (req.query.scope === 'exchange') return exchangeTokenHandler(req, res)
   return metaTokenHandler(req, res)
 }

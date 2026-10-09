@@ -12,6 +12,7 @@ import {
   GraduationCap,
   KeyRound,
   CalendarRange,
+  ShoppingBag,
   ChevronDown,
   X,
   PanelLeftClose,
@@ -128,6 +129,22 @@ export function Sidebar({
               <span className={labelCls}>{label}</span>
             </NavLink>
           ))}
+
+          {canManageTokens && (
+            <NavLink
+              to="/loja"
+              title={c ? 'Loja' : undefined}
+              onClick={onCloseMobile}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] font-medium transition-all duration-150 ease-in-out ${linkLayout} ${
+                  isActive || pathname.startsWith('/loja') ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
+                }`
+              }
+            >
+              <ShoppingBag size={18} className="shrink-0" />
+              <span className={labelCls}>Loja</span>
+            </NavLink>
+          )}
 
           {canSeeUniversity && (
             <NavLink

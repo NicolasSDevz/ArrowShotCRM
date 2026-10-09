@@ -3,8 +3,9 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // Alunos da área de membros (claim member) não contam como equipe.
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.member != true;
     }
 
     // NOTE: Storage rules can't read Firestore (firestore.get(...)) on the
@@ -47,6 +48,16 @@ service firebase.storage {
       allow write: if isSignedIn()
         && request.resource.contentType.matches('image/.*')
         && request.resource.size < 5 * 1024 * 1024; // 5MB cap
+      allow delete: if isSignedIn();
+    }
+
+    // /store/{productId}/{fileName} — imagens da Loja (checkout, capas,
+    // banners). Leitura pública: o checkout não tem login.
+    match /store/{productId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn()
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size < 8 * 1024 * 1024;
       allow delete: if isSignedIn();
     }
 

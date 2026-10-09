@@ -1,4 +1,5 @@
-// Vercel Function — POST /api/meta/exchange-token
+// POST /api/meta/token?scope=exchange (antes /api/meta/exchange-token — mora
+// dentro do /api/meta/token porque o plano Hobby da Vercel limita a 12 funções)
 //
 // Troca um token CURTO (gerado no Explorador da API do Graph, ~1-2h de vida)
 // por um token de LONGA duração (~60 dias) e salva já criptografado na ficha
@@ -10,8 +11,8 @@
 // POST { clientId, short_token } → { ok, expires_in, expires_at }
 //   (o token longo em si NUNCA é devolvido ao navegador)
 
-import { withInternalAuth } from '../_lib/auth.js'
-import { setClientToken } from '../_lib/metaTokenStore.js'
+import { withInternalAuth } from './auth.js'
+import { setClientToken } from './metaTokenStore.js'
 
 const GRAPH_VERSION = 'v19.0'
 
@@ -68,4 +69,4 @@ async function handler(req, res, user) {
   return res.status(200).json({ ok: true, expires_in: expiresIn, expires_at: expiresAt })
 }
 
-export default withInternalAuth(handler)
+export const exchangeTokenHandler = withInternalAuth(handler)
