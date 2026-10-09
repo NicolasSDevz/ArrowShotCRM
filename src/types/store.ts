@@ -21,6 +21,76 @@ export interface StoreTestimonial {
   photoUrl?: string
 }
 
+/** Onde o contador aparece: faixa fixa no topo, acima do formulário,
+ *  no topo da coluna lateral ou logo acima do botão de comprar. */
+export type StoreCountdownPosition = 'top' | 'form' | 'side' | 'button'
+export type StoreDeviceScope = 'all' | 'desktop' | 'mobile'
+export type StoreButtonAnimation = 'none' | 'pulse' | 'shine' | 'shake' | 'bounce'
+
+export interface StoreCountdownConfig {
+  enabled: boolean
+  minutes: number
+  text: string
+  color: string
+  textColor?: string
+  position?: StoreCountdownPosition
+  /** Em qual tela o contador aparece. */
+  devices?: StoreDeviceScope
+}
+
+/** Selos de confiança prontos (o texto da garantia usa os dias do produto). */
+export type StoreSealKey = 'secure' | 'guarantee' | 'satisfaction' | 'instant' | 'privacy' | 'pix' | 'support' | 'lifetime'
+
+export const STORE_SEALS: { key: StoreSealKey; label: string; text: (days: number) => string }[] = [
+  { key: 'secure', label: 'Compra segura', text: () => 'Compra 100% segura' },
+  { key: 'guarantee', label: 'Garantia em dias', text: (d) => `${d || 7} dias de garantia` },
+  { key: 'satisfaction', label: 'Satisfação garantida', text: () => '100% garantido ou seu dinheiro de volta' },
+  { key: 'instant', label: 'Acesso imediato', text: () => 'Acesso imediato' },
+  { key: 'privacy', label: 'Dados protegidos', text: () => 'Seus dados protegidos' },
+  { key: 'pix', label: 'Aprovação no Pix', text: () => 'Aprovação na hora no Pix' },
+  { key: 'support', label: 'Suporte', text: () => 'Suporte direto com a equipe' },
+  { key: 'lifetime', label: 'Acesso vitalício', text: () => 'Acesso vitalício' },
+]
+
+export interface StoreCheckoutDesign {
+  /** Selos de confiança marcados, na ordem em que aparecem. */
+  seals?: StoreSealKey[]
+  /** Selos escritos à mão (além dos prontos). */
+  customSeals?: string[]
+  /** Onde os selos aparecem: embaixo do botão de comprar, na coluna lateral ou nos dois. */
+  sealsPosition?: 'button' | 'side' | 'both'
+  /** Selos em linha (etiquetas pequenas) ou em grade (com ícone grande). */
+  sealsStyle?: 'row' | 'grid'
+  /** Cartão de garantia: título e texto próprios (vazio = padrão). */
+  guaranteeTitle?: string
+  guaranteeText?: string
+  cardColor?: string
+  textColor?: string
+  buttonTextColor?: string
+  buttonAnimation?: StoreButtonAnimation
+  /** Cantos dos cartões e botões. */
+  radius?: 'square' | 'soft' | 'round'
+  titleAlign?: 'left' | 'center'
+  desktop?: {
+    /** Largura da página no computador. */
+    width?: 'narrow' | 'normal' | 'wide'
+    /** Coluna lateral (benefícios, garantia, depoimentos): à direita, à esquerda ou embaixo do formulário. */
+    side?: 'right' | 'left' | 'below'
+    hideHeader?: boolean
+  }
+  mobile?: {
+    /** Banner próprio pro celular (vazio = usa o do computador). */
+    headerImageUrl?: string | null
+    hideHeader?: boolean
+    /** Coluna lateral antes do formulário no celular. */
+    sideFirst?: boolean
+    hideSideImages?: boolean
+    hideTestimonials?: boolean
+    /** Botão "Comprar" fixo no rodapé da tela enquanto rola. */
+    stickyButton?: boolean
+  }
+}
+
 export interface StoreCheckoutConfig {
   primaryColor: string
   backgroundColor: string
@@ -28,7 +98,9 @@ export interface StoreCheckoutConfig {
   headerImageUrl?: string | null
   headline?: string
   subheadline?: string
-  countdown: { enabled: boolean; minutes: number; text: string; color: string }
+  countdown: StoreCountdownConfig
+  /** Visual extra e ajustes por dispositivo (tudo opcional; vazio = padrão). */
+  design?: StoreCheckoutDesign
   sideImages: string[]
   benefits: string[]
   testimonials: StoreTestimonial[]

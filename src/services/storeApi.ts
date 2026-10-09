@@ -22,7 +22,8 @@ export interface PublicCheckout {
     headerImageUrl: string | null
     headline: string
     subheadline: string
-    countdown: { minutes: number; text: string; color: string } | null
+    countdown: { minutes: number; text: string; color: string; textColor: string; position: import('../types/store').StoreCountdownPosition; devices: import('../types/store').StoreDeviceScope } | null
+    design: import('../types/store').StoreCheckoutDesign
     sideImages: string[]
     benefits: string[]
     testimonials: { name: string; text: string; photoUrl?: string }[]

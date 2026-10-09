@@ -145,3 +145,17 @@ export function readUtms(): Record<string, string> {
   }
   return out
 }
+
+/** true quando a tela é de celular/tablet em pé (abaixo de 1024 px). */
+export function useIsNarrow() {
+  const query = '(max-width: 1023px)'
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const on = () => setNarrow(mq.matches)
+    on()
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return narrow
+}

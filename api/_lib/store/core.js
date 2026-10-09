@@ -147,7 +147,17 @@ export function publicCheckout(product, bumps, gateway, settings = {}) {
       headerImageUrl: c.headerImageUrl || null,
       headline: c.headline || product.name,
       subheadline: c.subheadline || '',
-      countdown: c.countdown?.enabled ? { minutes: Number(c.countdown.minutes) || 15, text: c.countdown.text || 'Oferta por tempo limitado', color: c.countdown.color || '#e55858' } : null,
+      countdown: c.countdown?.enabled
+        ? {
+            minutes: Number(c.countdown.minutes) || 15,
+            text: c.countdown.text || 'Oferta por tempo limitado',
+            color: c.countdown.color || '#e55858',
+            textColor: c.countdown.textColor || '#ffffff',
+            position: ['top', 'form', 'side', 'button'].includes(c.countdown.position) ? c.countdown.position : 'top',
+            devices: ['all', 'desktop', 'mobile'].includes(c.countdown.devices) ? c.countdown.devices : 'all',
+          }
+        : null,
+      design: c.design && typeof c.design === 'object' ? c.design : {},
       sideImages: Array.isArray(c.sideImages) ? c.sideImages.filter(Boolean).slice(0, 6) : [],
       benefits: Array.isArray(c.benefits) ? c.benefits.filter(Boolean).slice(0, 8) : [],
       testimonials: Array.isArray(c.testimonials) ? c.testimonials.filter((t) => t?.text).slice(0, 6) : [],
