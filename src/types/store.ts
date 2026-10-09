@@ -197,6 +197,9 @@ export interface StoreModule {
 export interface StoreAttachment {
   name: string
   url: string
+  /** PDF protegido: o link fica cifrado em `sealed` (url vazio) e o download carimba nome/CPF do aluno. */
+  protected?: boolean
+  sealed?: { ciphertext: string; iv: string; authTag: string } | null
 }
 
 export interface StoreLesson {

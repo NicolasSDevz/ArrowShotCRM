@@ -124,6 +124,29 @@ export async function memberOrders() {
   const token = await membersAuth.currentUser?.getIdToken()
   return call<{ orders: MemberOrder[] }>('member-orders', { token })
 }
+/** Baixa um PDF protegido (vem carimbado com os dados do aluno). */
+export async function memberDownloadFile(productId: string, lessonId: string, index: number, fallbackName: string) {
+  const token = await membersAuth.currentUser?.getIdToken()
+  const qs = new URLSearchParams({ action: 'member-file', productId, lessonId, i: String(index) })
+  const res = await fetch(`/api/loja?${qs}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || 'Não foi possível baixar o arquivo')
+  }
+  const blob = await res.blob()
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || `${fallbackName}.pdf`
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(href), 10_000)
+}
+export async function storeSealFile(url: string) {
+  return call<{ sealed: { ciphertext: string; iv: string; authTag: string } }>('admin-file-seal', { body: { url }, token: await staffToken() })
+}
 export async function memberRefundRequest(orderId: string, reason: string) {
   const token = await membersAuth.currentUser?.getIdToken()
   return call<{ ok: true }>('member-refund-request', { body: { orderId, reason }, token })

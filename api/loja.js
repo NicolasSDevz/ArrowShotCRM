@@ -70,6 +70,8 @@ import {
   pixAccountFor,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
+import { fetchPdf, stampPdf } from './_lib/store/protectedPdf.js'
+import { encryptToken, decryptToken } from './_lib/tokenCrypto.js'
 import { capiStatus, cleanPixelId, removeCapiToken, saveCapiToken, sendCapiTest, trackingFromRequest } from './_lib/store/metaCapi.js'
 import { invoiceStatus, saveInvoiceToken, emitInvoice, syncInvoice, cancelInvoice, getInvoiceSettings } from './_lib/store/invoice.js'
 
@@ -411,6 +413,42 @@ async function memberOrders(uid) {
   return out.sort((a, b) => String(b.approvedAt).localeCompare(String(a.approvedAt)))
 }
 
+/** PDF protegido: confere a matrícula, baixa o original e carimba nome/CPF/e-mail do aluno. */
+async function actionMemberFile(req) {
+  const uid = await requireMember(req)
+  const productId = String(req.query.productId || '')
+  const lessonId = String(req.query.lessonId || '')
+  const index = Number(req.query.i)
+  if (!/^[\w-]{5,40}$/.test(productId) || !/^[\w-]{5,40}$/.test(lessonId) || !Number.isInteger(index) || index < 0) throw new HttpError(400, 'Arquivo inválido')
+  const enr = await getDoc(`storeEnrollments/${uid}_${productId}`)
+  if (!enr.exists || enr.data().active === false) throw new HttpError(403, 'Você não tem acesso a este curso')
+  const lessonSnap = await getDoc(`storeProducts/${productId}/lessons/${lessonId}`)
+  if (!lessonSnap.exists) throw new HttpError(404, 'Aula não encontrada')
+  const lesson = lessonSnap.data()
+  const releaseDays = Number(lesson.releaseDays) || 0
+  if (releaseDays && Date.now() < new Date(enr.data().createdAt).getTime() + releaseDays * 86400_000) throw new HttpError(403, 'Essa aula ainda não foi liberada')
+  const att = (lesson.attachments || [])[index]
+  if (!att?.protected || !att.sealed) throw new HttpError(404, 'Arquivo não encontrado')
+
+  const member = (await getDoc(`storeMembers/${uid}`)).data() || {}
+  // CPF: da compra mais recente aprovada deste produto.
+  const orders = (await queryDocs('storeOrders', [['memberUid', uid]]))
+    .filter((o) => o.status === 'approved' && (o.productIds || [o.productId]).includes(productId))
+    .sort((a, b) => String(b.approvedAt || '').localeCompare(String(a.approvedAt || '')))
+  const order = orders[0]
+  const original = await fetchPdf(decryptToken(att.sealed)).catch((err) => {
+    throw new HttpError(502, err.message)
+  })
+  const stamped = await stampPdf(original, {
+    name: order?.buyer?.name || member.name || '',
+    cpf: order?.buyer?.cpf || member.cpf || '',
+    email: member.email || order?.buyer?.email || '',
+    orderId: order?.id || null,
+  })
+  const safeName = String(att.name || 'arquivo').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-').slice(0, 60) || 'arquivo'
+  return { __file: stamped, filename: safeName.toLowerCase().endsWith('.pdf') ? safeName : `${safeName}.pdf` }
+}
+
 async function actionMemberOrders(req) {
   const uid = await requireMember(req)
   return { orders: await memberOrders(uid) }
@@ -537,6 +575,13 @@ async function actionInvoiceWebhook(req) {
   return { ok: true }
 }
 
+/** Cifra o link de um PDF protegido (o aluno nunca recebe o link original). */
+async function actionAdminFileSeal(req) {
+  const url = String(req.body?.url || '').trim()
+  if (!/^https:\/\/\S+$/.test(url)) throw new HttpError(400, 'Link inválido (precisa começar com https://)')
+  return { sealed: encryptToken(url) }
+}
+
 async function actionAdminCapiStatus() {
   return capiStatus()
 }
@@ -595,6 +640,7 @@ const PUBLIC = {
   'POST member-password': actionMemberPassword,
   'GET member-orders': actionMemberOrders,
   'POST member-refund-request': actionMemberRefundRequest,
+  'GET member-file': actionMemberFile,
   'POST invoice-webhook': actionInvoiceWebhook,
 }
 
@@ -609,6 +655,7 @@ const ADMIN = {
   'POST admin-cancel': actionAdminCancel,
   'POST admin-invoice-token': actionAdminInvoiceToken,
   'GET admin-capi-status': actionAdminCapiStatus,
+  'POST admin-file-seal': actionAdminFileSeal,
   'POST admin-capi-token': actionAdminCapiToken,
   'POST admin-capi-test': actionAdminCapiTest,
   'POST admin-invoice-emit': actionAdminInvoiceEmit,
@@ -618,7 +665,16 @@ const ADMIN = {
 export default async function handler(req, res) {
   const route = `${req.method} ${req.query.action || ''}`
   try {
-    if (PUBLIC[route]) return res.status(200).json(await PUBLIC[route](req))
+    if (PUBLIC[route]) {
+      const out = await PUBLIC[route](req)
+      if (out?.__file) {
+        res.setHeader('Content-Type', 'application/pdf')
+        res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`)
+        res.setHeader('Cache-Control', 'private, no-store')
+        return res.status(200).send(out.__file)
+      }
+      return res.status(200).json(out)
+    }
     if (ADMIN[route]) {
       const user = await requireInternalUser(req)
       return res.status(200).json(await ADMIN[route](req, user))

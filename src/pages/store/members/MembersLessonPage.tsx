@@ -1,3 +1,4 @@
+import { memberDownloadFile } from '../../../services/storeApi'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
@@ -139,9 +140,13 @@ export function MembersLessonPage() {
             <ul className="space-y-2">
               {lesson.attachments.map((a, i) => (
                 <li key={i}>
-                  <a href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-[var(--m-border)] px-3 py-2 text-sm hover:bg-[var(--m-soft)]">
-                    <Download size={16} aria-hidden="true" /> {a.name || 'Baixar arquivo'}
-                  </a>
+                  {a.protected ? (
+                    <ProtectedDownload productId={product.id} lessonId={lesson.id} index={i} name={a.name || 'Baixar arquivo'} />
+                  ) : (
+                    <a href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-[var(--m-border)] px-3 py-2 text-sm hover:bg-[var(--m-soft)]">
+                      <Download size={16} aria-hidden="true" /> {a.name || 'Baixar arquivo'}
+                    </a>
+                  )}
                 </li>
               ))}
             </ul>
@@ -220,5 +225,30 @@ export function MembersLessonPage() {
         </ul>
       </aside>
     </main>
+  )
+}
+
+/** PDF protegido: baixa pela API, já com nome/CPF do aluno nas páginas. */
+function ProtectedDownload({ productId, lessonId, index, name }: { productId: string; lessonId: string; index: number; name: string }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const download = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await memberDownloadFile(productId, lessonId, index, name)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div>
+      <button type="button" onClick={download} disabled={busy} className="flex w-full items-center gap-2 rounded-lg border border-[var(--m-border)] px-3 py-2 text-left text-sm hover:bg-[var(--m-soft)] disabled:opacity-60">
+        <Download size={16} aria-hidden="true" /> {busy ? 'Preparando o seu arquivo...' : name}
+      </button>
+      {error && <p role="alert" className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
   )
 }

@@ -1,6 +1,7 @@
+import { storeSealFile } from '../../../services/storeApi'
 import { useEffect, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2, Video } from 'lucide-react'
+import { ArrowDown, ArrowUp, Pencil, Plus, ShieldCheck, Trash2, Video } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext'
 import { useStoreLessons, useStoreModules } from '../../../hooks/useStore'
 import {
@@ -186,7 +187,7 @@ function LessonModal({ productId, moduleId, lesson, nextOrder, onClose }: { prod
         description,
         durationMin: durationMin ? Number(durationMin) : null,
         releaseDays: Number(releaseDays) || 0,
-        attachments: attachments.filter((a) => a.url.trim()),
+        attachments: await sealAttachments(attachments),
         moduleId,
       }
       if (lesson) await updateStoreLesson(productId, lesson.id, data)
@@ -213,10 +214,27 @@ function LessonModal({ productId, moduleId, lesson, nextOrder, onClose }: { prod
           <legend className="mb-1 text-xs font-medium text-slate-500">Anexos (PDF, planilha, link do Drive)</legend>
           <ul className="space-y-1.5">
             {attachments.map((a, i) => (
-              <li key={i} className="flex gap-1.5">
-                <Input aria-label={`Nome do anexo ${i + 1}`} placeholder="Nome" value={a.name} onChange={(e) => setAttachments(attachments.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} className="!w-40" />
-                <Input aria-label={`Link do anexo ${i + 1}`} placeholder="https://" value={a.url} onChange={(e) => setAttachments(attachments.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} />
-                <button type="button" onClick={() => setAttachments(attachments.filter((_, j) => j !== i))} className="rounded-lg px-2 text-slate-400 hover:bg-slate-100 hover:text-red-600" aria-label={`Remover anexo ${i + 1}`}><Trash2 size={15} /></button>
+              <li key={i} className="space-y-1 rounded-lg border border-slate-100 p-1.5">
+                <div className="flex gap-1.5">
+                  <Input aria-label={`Nome do anexo ${i + 1}`} placeholder="Nome" value={a.name} onChange={(e) => setAttachments(attachments.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} className="!w-40" />
+                  <Input
+                    aria-label={`Link do anexo ${i + 1}`}
+                    placeholder={a.sealed ? 'Link guardado com proteção. Cole outro para trocar' : 'https://'}
+                    value={a.url}
+                    onChange={(e) => setAttachments(attachments.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
+                  />
+                  <button type="button" onClick={() => setAttachments(attachments.filter((_, j) => j !== i))} className="rounded-lg px-2 text-slate-400 hover:bg-slate-100 hover:text-red-600" aria-label={`Remover anexo ${i + 1}`}><Trash2 size={15} /></button>
+                </div>
+                <label className="flex items-center gap-2 px-1 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5"
+                    checked={!!a.protected}
+                    onChange={(e) => setAttachments(attachments.map((x, j) => (j === i ? { ...x, protected: e.target.checked } : x)))}
+                  />
+                  <ShieldCheck size={13} className="text-emerald-600" aria-hidden="true" />
+                  PDF protegido: sai com nome, CPF e e-mail do aluno em todas as páginas, e o link original fica escondido
+                </label>
               </li>
             ))}
           </ul>
@@ -229,4 +247,20 @@ function LessonModal({ productId, moduleId, lesson, nextOrder, onClose }: { prod
       </form>
     </Modal>
   )
+}
+
+/** Anexos protegidos: o link vai cifrado pro servidor e some da aula (o aluno não vê).
+ *  Desmarcar a proteção exige colar o link de novo. */
+async function sealAttachments(list: StoreAttachment[]): Promise<StoreAttachment[]> {
+  const out: StoreAttachment[] = []
+  for (const a of list) {
+    const url = a.url.trim()
+    if (a.protected) {
+      if (url) out.push({ name: a.name, url: '', protected: true, sealed: (await storeSealFile(url)).sealed })
+      else if (a.sealed) out.push({ name: a.name, url: '', protected: true, sealed: a.sealed })
+    } else if (url) {
+      out.push({ name: a.name, url })
+    }
+  }
+  return out
 }
