@@ -68,6 +68,8 @@ export interface StoreProduct extends BaseDoc {
   comparePrice?: number | null
   maxInstallments: number
   paymentMethods: { pix: boolean; card: boolean }
+  /** Desconto (%) sobre o total quando paga no Pix. 0 = sem desconto. */
+  pixDiscountPercent?: number
   supportEmail?: string | null
   statementDescriptor?: string | null
   /** Sem Mercado Pago configurado, deixa comprar sem cobrar (para testar o fluxo). */
@@ -125,6 +127,9 @@ export interface StoreOrder {
   amount: number
   couponCode?: string | null
   couponPercent?: number
+  pixDiscountPercent?: number
+  pixDiscountAmount?: number
+  refundRequest?: { reason: string; requestedAt: string }
   buyer: { name: string; email: string; phone?: string | null; cpf?: string | null }
   method: 'pix' | 'pix_manual' | 'card' | 'test' | 'free'
   confirmedBy?: string
@@ -254,6 +259,67 @@ export const PIX_KEY_TYPE_LABEL: Record<PixKeyType, string> = {
   evp: 'Chave aleatória',
 }
 
+/** storeSettings/membersTheme — visual da área de membros e da tela de login. */
+export interface StoreMembersTheme {
+  brandName: string
+  logoUrl?: string | null
+  mode: 'dark' | 'light'
+  primaryColor: string
+  backgroundColor?: string | null
+  cardColor?: string | null
+  font: string
+  loginLayout: 'center' | 'split'
+  loginBgUrl?: string | null
+  loginTitle: string
+  loginText?: string
+  loginButtonText: string
+  loginHelpText?: string
+  supportWhatsapp?: string
+}
+
+export function defaultMembersTheme(): StoreMembersTheme {
+  return {
+    brandName: 'Área de Membros',
+    logoUrl: null,
+    mode: 'dark',
+    primaryColor: '#2563eb',
+    backgroundColor: null,
+    cardColor: null,
+    font: 'Inter',
+    loginLayout: 'center',
+    loginBgUrl: null,
+    loginTitle: 'Acessar área de membros',
+    loginText: '',
+    loginButtonText: 'Entrar',
+    loginHelpText: 'Primeiro acesso? Use o botão Acessar a área de membros que aparece depois da compra. Lá dentro você cria a sua senha.',
+    supportWhatsapp: '',
+  }
+}
+
+/** Variáveis CSS usadas por todas as telas da área de membros. */
+export function membersThemeVars(t: StoreMembersTheme): Record<string, string> {
+  const dark = t.mode !== 'light'
+  const base = dark
+    ? { bg: '#0a0a0a', card: '#171717', card2: '#262626', text: '#f5f5f5', text2: '#d4d4d4', muted: '#a3a3a3', faint: '#737373', border: 'rgba(255,255,255,.1)', border2: 'rgba(255,255,255,.05)', soft: 'rgba(255,255,255,.05)', soft2: 'rgba(255,255,255,.1)' }
+    : { bg: '#f8fafc', card: '#ffffff', card2: '#e2e8f0', text: '#0f172a', text2: '#334155', muted: '#64748b', faint: '#94a3b8', border: 'rgba(15,23,42,.12)', border2: 'rgba(15,23,42,.06)', soft: 'rgba(15,23,42,.04)', soft2: 'rgba(15,23,42,.08)' }
+  return {
+    '--m-bg': t.backgroundColor || base.bg,
+    '--m-card': t.cardColor || base.card,
+    '--m-card2': base.card2,
+    '--m-text': base.text,
+    '--m-text2': base.text2,
+    '--m-muted': base.muted,
+    '--m-faint': base.faint,
+    '--m-border': base.border,
+    '--m-border2': base.border2,
+    '--m-soft': base.soft,
+    '--m-soft2': base.soft2,
+    '--m-primary': t.primaryColor || '#2563eb',
+    colorScheme: dark ? 'dark' : 'light',
+    fontFamily: `'${t.font || 'Inter'}', Inter, system-ui, sans-serif`,
+  }
+}
+
 export const STORE_FONTS = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Rubik'] as const
 
 export const STORE_ORDER_STATUS_LABEL: Record<StoreOrderStatus, string> = {
@@ -308,6 +374,16 @@ export function defaultMembersConfig(): StoreMembersConfig {
     certificateEnabled: true,
     certificateHours: undefined,
     producerName: 'Arrow Shot',
+  }
+}
+
+/** Imagens efetivas do produto: campo vazio usa a foto do produto. */
+export function productImages(p: Pick<StoreProduct, 'imageUrl' | 'members'>) {
+  const photo = p.imageUrl || null
+  return {
+    photo,
+    banner: p.members?.bannerUrl || photo,
+    cover: p.members?.coverUrl || photo,
   }
 }
 

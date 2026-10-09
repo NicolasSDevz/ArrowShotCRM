@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Copy, ExternalLink, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Copy, CopyPlus, ExternalLink, Save, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useStoreProducts } from '../../hooks/useStore'
 import { deleteStoreProduct, updateStoreProduct } from '../../services/storeService'
@@ -15,7 +15,8 @@ import { ImageField } from '../../components/store/admin/ImageField'
 import { CheckoutDesigner } from '../../components/store/admin/CheckoutDesigner'
 import { ContentEditor } from '../../components/store/admin/ContentEditor'
 import { copyText } from '../../components/store/admin/StoreOrdersTable'
-import { defaultCheckoutConfig, defaultMembersConfig, type StoreProduct } from '../../types/store'
+import { DuplicateProductModal } from '../../components/store/admin/DuplicateProductModal'
+import { defaultCheckoutConfig, defaultMembersConfig, formatCents, type StoreProduct } from '../../types/store'
 
 const card = 'space-y-3 rounded-2xl border border-slate-200 bg-white p-5'
 
@@ -50,6 +51,7 @@ export function StoreProductPage() {
   const server = products.find((p) => p.id === id)
   const [draft, setDraft] = useState<StoreProduct | null>(null)
   const [saving, setSaving] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
 
   // O rascunho nasce do servidor uma vez; depois só muda pela tela (salvar grava tudo).
   useEffect(() => {
@@ -116,7 +118,7 @@ export function StoreProductPage() {
         <h2 className="text-[15px] font-semibold text-slate-800">Produto</h2>
         <Field label="Nome" required><Input value={draft.name} onChange={(e) => set({ name: e.target.value })} /></Field>
         <Field label="Descrição (aparece no checkout e na área de membros)"><Textarea rows={4} value={draft.description} onChange={(e) => set({ description: e.target.value })} /></Field>
-        <ImageField label="Imagem do produto" value={draft.imageUrl} onChange={(v) => set({ imageUrl: v })} productId={draft.id} assetKey="product" hint="Quadrada, 600 x 600 px" aspect="aspect-square" />
+        <ImageField label="Imagem do produto" value={draft.imageUrl} onChange={(v) => set({ imageUrl: v })} productId={draft.id} assetKey="product" hint="Quadrada, 600 x 600 px. Vale também para a capa e o banner da área de membros e as capas dos módulos, se você não colocar outras." aspect="aspect-square" />
         <Field label="E-mail de suporte (aparece para o comprador)"><Input type="email" value={draft.supportEmail ?? ''} onChange={(e) => set({ supportEmail: e.target.value || null })} /></Field>
         <Field label="Status">
           <Select value={draft.status} onChange={(e) => set({ status: e.target.value as StoreProduct['status'] })}>
@@ -138,6 +140,22 @@ export function StoreProductPage() {
           </Select>
         </Field>
         <Toggle label="Aceitar Pix" checked={draft.paymentMethods.pix} onChange={(v) => set({ paymentMethods: { ...draft.paymentMethods, pix: v } })} />
+        {draft.paymentMethods.pix && (
+          <Field label="Desconto para quem paga no Pix (%)">
+            <Input
+              type="number"
+              min={0}
+              max={90}
+              value={draft.pixDiscountPercent ?? 0}
+              onChange={(e) => set({ pixDiscountPercent: Math.min(90, Math.max(0, Number(e.target.value) || 0)) })}
+            />
+          </Field>
+        )}
+        {(draft.pixDiscountPercent ?? 0) > 0 && (
+          <p className="text-xs text-emerald-700">
+            No Pix sai por {formatCents(Math.round(draft.price * (1 - (draft.pixDiscountPercent ?? 0) / 100)))} (o desconto vale sobre o total, com order bumps).
+          </p>
+        )}
         <Toggle label="Aceitar cartão de crédito" checked={draft.paymentMethods.card} onChange={(v) => set({ paymentMethods: { ...draft.paymentMethods, card: v } })} />
         <Field label="Nome na fatura do cartão (até 13 letras)"><Input maxLength={13} value={draft.statementDescriptor ?? ''} onChange={(e) => set({ statementDescriptor: e.target.value || null })} placeholder="ARROWSHOT" /></Field>
         <Toggle
@@ -154,8 +172,8 @@ export function StoreProductPage() {
     <div className="grid gap-5 lg:grid-cols-2">
       <section className={card}>
         <h2 className="text-[15px] font-semibold text-slate-800">Visual</h2>
-        <ImageField label="Banner (topo da vitrine e do curso)" value={draft.members.bannerUrl} onChange={(v) => setMembers({ bannerUrl: v })} productId={draft.id} assetKey="members-banner" hint="1920 x 700 px" aspect="aspect-[16/6]" />
-        <ImageField label="Capa do curso (vertical)" value={draft.members.coverUrl} onChange={(v) => setMembers({ coverUrl: v })} productId={draft.id} assetKey="members-cover" hint="600 x 900 px" aspect="aspect-[2/3]" />
+        <ImageField label="Banner (topo da vitrine e do curso)" value={draft.members.bannerUrl} onChange={(v) => setMembers({ bannerUrl: v })} productId={draft.id} assetKey="members-banner" fallback={draft.imageUrl} hint="1920 x 700 px" aspect="aspect-[16/6]" />
+        <ImageField label="Capa do curso (vertical)" value={draft.members.coverUrl} onChange={(v) => setMembers({ coverUrl: v })} productId={draft.id} assetKey="members-cover" fallback={draft.imageUrl} hint="600 x 900 px" aspect="aspect-[2/3]" />
         <ImageField label="Logo (cabeçalho)" value={draft.members.logoUrl} onChange={(v) => setMembers({ logoUrl: v })} productId={draft.id} assetKey="members-logo" aspect="aspect-[3/1]" />
         <Field label="Cor principal">
           <div className="flex gap-2">
@@ -213,6 +231,13 @@ export function StoreProductPage() {
           <h1 className="truncate text-xl font-bold text-slate-900">{server.name}</h1>
           <p className="text-xs text-slate-500">{server.status === 'active' ? 'No ar' : server.status === 'draft' ? 'Rascunho' : 'Arquivado'}</p>
         </div>
+        <Button
+          variant="secondary"
+          icon={<CopyPlus size={15} />}
+          onClick={() => (dirty ? toast.error('Salve as alterações antes de duplicar') : setDuplicating(true))}
+        >
+          Duplicar
+        </Button>
         <Button icon={<Save size={15} />} loading={saving} disabled={!dirty} onClick={save}>{dirty ? 'Salvar alterações' : 'Salvo'}</Button>
       </header>
 
@@ -226,6 +251,8 @@ export function StoreProductPage() {
           { label: 'Links', content: links },
         ]}
       />
+
+      {duplicating && <DuplicateProductModal product={server} onClose={() => setDuplicating(false)} />}
 
       {dirty && (
         <div className="fixed inset-x-0 bottom-4 z-30 flex justify-center px-4" role="status">

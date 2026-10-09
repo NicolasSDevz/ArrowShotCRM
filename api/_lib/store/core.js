@@ -87,6 +87,11 @@ export async function getProductBySlug(slug) {
   return rows[0] || null
 }
 
+/** Desconto do Pix do produto, entre 0 e 90%. */
+export function pixDiscount(product) {
+  return Math.min(90, Math.max(0, Number(product.pixDiscountPercent) || 0))
+}
+
 /** Order bumps válidos do produto (só produtos ativos), com o preço da oferta. */
 export async function resolveBumps(product) {
   const bumps = Array.isArray(product.checkout?.bumps) ? product.checkout.bumps : []
@@ -123,6 +128,7 @@ export function publicCheckout(product, bumps, gateway, settings = {}) {
     comparePrice: product.comparePrice || null,
     supportEmail: product.supportEmail || null,
     maxInstallments: product.maxInstallments || 12,
+    pixDiscountPercent: pixDiscount(product),
     paymentMethods: {
       pix: product.paymentMethods?.pix !== false && (gateway.mercadoPago || settings.manualReady === true),
       card: product.paymentMethods?.card !== false && gateway.mercadoPago,

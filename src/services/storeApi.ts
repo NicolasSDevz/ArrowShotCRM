@@ -14,6 +14,7 @@ export interface PublicCheckout {
   supportEmail: string | null
   maxInstallments: number
   paymentMethods: { pix: boolean; card: boolean }
+  pixDiscountPercent: number
   checkout: {
     primaryColor: string
     backgroundColor: string
@@ -95,6 +96,9 @@ async function staffToken() {
   return user.getIdToken()
 }
 
+/* área de membros: visual (público) */
+export const fetchMembersTheme = () => call<Partial<import('../types/store').StoreMembersTheme>>('members-theme')
+
 /* checkout público */
 export const fetchCheckout = (slug: string) => call<PublicCheckout>('checkout', { params: { slug } })
 export const checkCoupon = (slug: string, code: string) => call<{ code: string; percent: number }>('coupon', { body: { slug, code } })
@@ -104,6 +108,25 @@ export const fetchOrderStatus = (id: string, key: string) => call<OrderStatus>('
 /* alunos */
 export const memberEnter = (code: string) => call<{ token: string; hasPassword: boolean }>('member-enter', { body: { code } })
 export const memberLogin = (email: string, password: string) => call<{ token: string; hasPassword: boolean }>('member-login', { body: { email, password } })
+export interface MemberOrder {
+  orderId: string
+  items: string[]
+  amount: number
+  status: 'pending' | 'approved' | 'refused' | 'refunded'
+  approvedAt: string | null
+  guaranteeUntil: string | null
+  canRequestRefund: boolean
+  refundRequestedAt: string | null
+  supportEmail: string | null
+}
+export async function memberOrders() {
+  const token = await membersAuth.currentUser?.getIdToken()
+  return call<{ orders: MemberOrder[] }>('member-orders', { token })
+}
+export async function memberRefundRequest(orderId: string, reason: string) {
+  const token = await membersAuth.currentUser?.getIdToken()
+  return call<{ ok: true }>('member-refund-request', { body: { orderId, reason }, token })
+}
 export async function memberSetPassword(password: string) {
   const token = await membersAuth.currentUser?.getIdToken()
   return call<{ ok: true }>('member-password', { body: { password }, token })
@@ -136,6 +159,9 @@ export async function storeConfirmOrder(orderId: string) {
 }
 export async function storeCancelOrder(orderId: string) {
   return call<{ ok: true }>('admin-cancel', { body: { orderId }, token: await staffToken() })
+}
+export async function storeDeleteMember(uid: string) {
+  return call<{ ok: true }>('admin-delete-member', { body: { uid }, token: await staffToken() })
 }
 export async function storeRefundOrder(orderId: string) {
   return call<{ ok: true }>('admin-refund', { body: { orderId }, token: await staffToken() })

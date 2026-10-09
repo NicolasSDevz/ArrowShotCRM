@@ -1,12 +1,12 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
-import { Link2, UserPlus, XCircle } from 'lucide-react'
+import { Link2, Trash2, UserPlus, XCircle } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { Field, Input, Select } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
 import { EmptyState } from '../../ui/EmptyState'
 import { Badge } from '../../ui/Badge'
-import { storeAccessLink, storeGrantAccess, storeRevokeAccess } from '../../../services/storeApi'
+import { storeAccessLink, storeDeleteMember, storeGrantAccess, storeRevokeAccess } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { copyText } from './StoreOrdersTable'
 import type { StoreEnrollment, StoreMember, StoreProduct, StoreProgress } from '../../../types/store'
@@ -58,6 +58,25 @@ export function StoreMembersTable({
     }
   }
 
+  const removeMember = async (m: StoreMember) => {
+    const ok = await askConfirm({
+      title: `Remover o aluno ${m.name}?`,
+      message: 'Apaga o aluno, os acessos, o progresso e os links de acesso. As vendas dele continuam registradas na aba Vendas. Não dá para desfazer.',
+      confirmLabel: 'Remover aluno',
+      danger: true,
+    })
+    if (!ok) return
+    setBusy(m.id)
+    try {
+      await storeDeleteMember(m.id)
+      toast.success(`${m.name} removido`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const revoke = async (m: StoreMember, pid: string) => {
     if (!(await askConfirm({ title: 'Remover acesso', message: `${m.name} perde o acesso a ${productName(pid)}.`, confirmLabel: 'Remover', danger: true }))) return
     try {
@@ -99,6 +118,9 @@ export function StoreMembersTable({
                 </div>
                 <Button size="sm" variant="secondary" icon={<Link2 size={14} />} loading={busy === m.id} onClick={() => newLink(m)} aria-label={`Gerar e copiar link de acesso de ${m.name}`}>
                   Copiar link de acesso
+                </Button>
+                <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} disabled={busy === m.id} onClick={() => removeMember(m)} aria-label={`Remover o aluno ${m.name}`}>
+                  Remover aluno
                 </Button>
               </div>
               {access.length > 0 ? (

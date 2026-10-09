@@ -12,6 +12,7 @@ export function ImageField({
   assetKey,
   hint,
   aspect = 'aspect-video',
+  fallback,
 }: {
   label: string
   value?: string | null
@@ -20,6 +21,8 @@ export function ImageField({
   assetKey: string
   hint?: string
   aspect?: string
+  /** Imagem usada quando o campo está vazio (a foto do produto). */
+  fallback?: string | null
 }) {
   const id = useId()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -42,7 +45,11 @@ export function ImageField({
     <div>
       <span className="mb-1 block text-xs font-medium text-slate-500">{label}</span>
       <div className="flex items-start gap-3">
-        <div className={`${aspect} w-32 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 bg-cover bg-center`} style={value ? { backgroundImage: `url(${value})` } : undefined} aria-hidden="true" />
+        <div
+          className={`${aspect} w-32 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 bg-cover bg-center ${!value && fallback ? 'opacity-60' : ''}`}
+          style={value || fallback ? { backgroundImage: `url(${value || fallback})` } : undefined}
+          aria-hidden="true"
+        />
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap gap-1.5">
             <button type="button" onClick={() => fileRef.current?.click()} disabled={busy} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
@@ -62,6 +69,7 @@ export function ImageField({
             onChange={(e) => onChange(e.target.value.trim() || null)}
             className="h-8 w-full rounded-lg border border-slate-200 px-2.5 text-xs outline-none focus:border-brand-600"
           />
+          {!value && fallback && <p className="text-[11px] text-brand-600">Usando a foto do produto. Envie outra só se quiser trocar aqui.</p>}
           {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
         </div>
       </div>

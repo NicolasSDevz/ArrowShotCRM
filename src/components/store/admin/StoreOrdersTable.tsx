@@ -162,7 +162,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
   const refund = async (o: StoreOrder) => {
     const ok = await askConfirm({
       title: 'Reembolsar pedido',
-      message: `${o.buyer.name}, ${formatCents(o.amount)}. ${o.mpPaymentId ? 'O dinheiro volta pelo Mercado Pago e o' : 'O'} acesso aos produtos é removido.`,
+      message: `${o.buyer.name}, ${formatCents(o.amount)}. ${o.mpPaymentId ? 'O dinheiro volta pelo Mercado Pago e o acesso aos produtos é removido.' : 'O acesso aos produtos é removido. Como foi Pix direto na conta, devolva o dinheiro pelo app do banco.'}`,
       confirmLabel: 'Reembolsar',
       danger: true,
     })
@@ -225,6 +225,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                       <p key={i.productId}>{i.name}{i.bump ? ' (order bump)' : ''}</p>
                     ))}
                     {o.couponCode && <p className="text-xs text-slate-400">Cupom {o.couponCode} ({o.couponPercent}%)</p>}
+                    {o.pixDiscountAmount ? <p className="text-xs text-slate-400">Desconto Pix {o.pixDiscountPercent}% (-{formatCents(o.pixDiscountAmount)})</p> : null}
                     {o.utm?.utm_source && <p className="text-xs text-slate-400">Origem: {o.utm.utm_source}{o.utm.utm_campaign ? `, ${o.utm.utm_campaign}` : ''}</p>}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">
@@ -233,6 +234,14 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                   </td>
                   <td className="px-4 py-3">
                     <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} />
+                    {o.refundRequest && o.status === 'approved' && (
+                      <div className="mt-1">
+                        <Badge className="bg-red-50 text-red-600">Reembolso pedido</Badge>
+                        <p className="mt-0.5 max-w-[200px] text-xs text-slate-500">
+                          {new Date(o.refundRequest.requestedAt).toLocaleDateString('pt-BR')}{o.refundRequest.reason ? `: ${o.refundRequest.reason}` : ''}
+                        </p>
+                      </div>
+                    )}
                     {o.confirmedBy && o.status === 'approved' && <p className="mt-1 text-xs text-slate-400">Confirmado por {o.confirmedBy}</p>}
                     {o.test && <Badge className="ml-1 bg-amber-50 text-amber-700">teste</Badge>}
                   </td>

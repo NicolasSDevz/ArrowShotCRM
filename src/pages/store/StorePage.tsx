@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { AlertTriangle, CheckCircle2, ExternalLink, Package, Plus } from 'lucide-react'
+import { CopyPlus, ExternalLink, Package, Plus } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useStoreComments, useStoreCoupons, useStoreEnrollments, useStoreMembers, useStoreOrders, useStoreProducts, useStoreProgress } from '../../hooks/useStore'
 import { createStoreProduct } from '../../services/storeService'
@@ -20,6 +20,7 @@ import { StoreCouponsPanel } from '../../components/store/admin/StoreCouponsPane
 import { StoreCommentsPanel } from '../../components/store/admin/StoreCommentsPanel'
 import { StorePaymentSettingsPanel } from '../../components/store/admin/StorePaymentSettingsPanel'
 import { StoreInvoicePanel } from '../../components/store/admin/StoreInvoicePanel'
+import { DuplicateProductModal } from '../../components/store/admin/DuplicateProductModal'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { formatCents, type StoreProduct } from '../../types/store'
 
@@ -50,7 +51,8 @@ export function StorePage() {
   const lessonCounts = Object.fromEntries(products.map((p) => [p.id, p.lessonCount ?? 0]))
   const pendingComments = comments.filter((c) => c.status === 'pending').length
   const pixToConfirm = orders.filter((o) => o.status === 'pending' && o.method === 'pix_manual').length
-  const canSell = !!status && (status.mercadoPago || status.pixManual)
+  const refundRequests = orders.filter((o) => o.status === 'approved' && o.refundRequest).length
+  const salesBadges = [pixToConfirm && `${pixToConfirm} Pix para confirmar`, refundRequests && `${refundRequests} reembolso pedido`].filter(Boolean).join(', ')
 
   return (
     <div className="space-y-5">
@@ -67,33 +69,13 @@ export function StorePage() {
         </div>
       </header>
 
-      {status && (
-        <div role="status" className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 text-sm ${canSell ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-          {canSell ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <AlertTriangle size={18} className="mt-0.5 shrink-0" />}
-          <div className="flex-1 space-y-1">
-            <p>
-              {status.pixManual ? 'Pix direto na conta ligado (sem taxa, confirmação na aba Vendas). ' : ''}
-              {status.mercadoPago
-                ? status.pixManual ? 'Cartão pelo Mercado Pago.' : 'Mercado Pago conectado: Pix e cartão funcionando.'
-                : status.pixManual
-                  ? 'Cartão desligado: para aceitar cartão, configure o Mercado Pago (MP_ACCESS_TOKEN e MP_PUBLIC_KEY na Vercel).'
-                  : 'Nenhuma forma de recebimento configurada. Ligue o Pix direto na aba Recebimento ou configure o Mercado Pago. Até lá, só dá para testar com o Modo teste do produto.'}
-            </p>
-            <p className="opacity-80">
-              {status.email
-                ? 'E-mail de acesso automático ligado.'
-                : 'E-mail automático desligado: o link de acesso aparece na página de obrigado e na aba Alunos (para mandar no WhatsApp). Para ligar, configure RESEND_API_KEY e STORE_EMAIL_FROM.'}
-            </p>
-          </div>
-        </div>
-      )}
 
       <Tabs
         label="Seções da loja"
         tabs={[
           { label: 'Visão geral', content: <StoreOverview orders={orders} products={products} /> },
           { label: `Produtos (${products.length})`, content: <ProductsGrid products={products} onCreate={() => setCreating(true)} /> },
-          { label: pixToConfirm ? `Vendas (${pixToConfirm} Pix para confirmar)` : 'Vendas', content: <StoreOrdersTable orders={orders} products={products} /> },
+          { label: salesBadges ? `Vendas (${salesBadges})` : 'Vendas', content: <StoreOrdersTable orders={orders} products={products} /> },
           { label: `Alunos (${members.length})`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} /> },
           { label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} /> },
           { label: pendingComments ? `Comentários (${pendingComments} novos)` : 'Comentários', content: <StoreCommentsPanel comments={comments} products={products} /> },
@@ -108,6 +90,7 @@ export function StorePage() {
 }
 
 function ProductsGrid({ products, onCreate }: { products: StoreProduct[]; onCreate: () => void }) {
+  const [duplicate, setDuplicate] = useState<StoreProduct | null>(null)
   if (!products.length) {
     return (
       <EmptyState
@@ -134,8 +117,17 @@ function ProductsGrid({ products, onCreate }: { products: StoreProduct[]; onCrea
               <p className="text-sm text-slate-500">{formatCents(p.price)}</p>
             </div>
           </Link>
+          <button
+            type="button"
+            onClick={() => setDuplicate(p)}
+            className="mt-1.5 flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-brand-600"
+            aria-label={`Duplicar o produto ${p.name}`}
+          >
+            <CopyPlus size={13} aria-hidden="true" /> Duplicar
+          </button>
         </li>
       ))}
+      <DuplicateProductModal product={duplicate} onClose={() => setDuplicate(null)} />
     </ul>
   )
 }

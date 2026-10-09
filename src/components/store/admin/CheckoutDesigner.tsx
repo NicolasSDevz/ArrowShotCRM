@@ -52,6 +52,7 @@ function previewData(product: StoreProduct, all: StoreProduct[]): PublicCheckout
     supportEmail: product.supportEmail ?? null,
     maxInstallments: product.maxInstallments,
     paymentMethods: product.paymentMethods,
+    pixDiscountPercent: product.pixDiscountPercent ?? 0,
     checkout: {
       primaryColor: c.primaryColor,
       backgroundColor: c.backgroundColor,

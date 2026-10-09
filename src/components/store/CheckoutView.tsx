@@ -44,7 +44,10 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
 
   const mainPrice = coupon ? Math.round(data.price * (1 - coupon.percent / 100)) : data.price
   const bumpTotal = data.bumps.filter((b) => bumps.includes(b.productId)).reduce((s, b) => s + b.price, 0)
-  const total = mainPrice + bumpTotal
+  const subtotal = mainPrice + bumpTotal
+  const pixPct = data.pixDiscountPercent || 0
+  const pixOff = method === 'pix' && pixPct ? Math.round(subtotal * (pixPct / 100)) : 0
+  const total = subtotal - pixOff
 
   useEffect(() => {
     if (!preview && c.fbPixelId) trackMetaPixel('InitiateCheckout', { value: data.price / 100, currency: 'BRL', content_name: data.name })
@@ -192,6 +195,11 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                   )}
                   {formatCents(data.price)}
                   {data.maxInstallments > 1 && data.paymentMethods.card && <span className="ml-1 text-sm font-normal text-slate-500">à vista ou em até {data.maxInstallments}x no cartão</span>}
+                  {pixPct > 0 && data.paymentMethods.pix && (
+                    <span className="mt-1 block text-sm font-semibold text-emerald-600">
+                      {formatCents(Math.round(data.price * (1 - pixPct / 100)))} no Pix ({pixPct}% de desconto)
+                    </span>
+                  )}
                 </p>
               </div>
             </section>
@@ -248,6 +256,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                     >
                       {m === 'pix' ? <QrCode size={18} /> : m === 'card' ? <CreditCard size={18} /> : <Check size={18} />}
                       {m === 'pix' ? 'Pix' : m === 'card' ? 'Cartão de crédito' : 'Modo teste'}
+                      {m === 'pix' && pixPct > 0 && <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">-{pixPct}%</span>}
                     </button>
                   ))}
                 </div>
@@ -325,6 +334,9 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                 {data.bumps.filter((b) => bumps.includes(b.productId)).map((b) => (
                   <div key={b.productId} className="flex justify-between"><span>{b.name}</span><span>{formatCents(b.price)}</span></div>
                 ))}
+                {pixOff > 0 && (
+                  <div className="flex justify-between text-emerald-600"><span>Desconto no Pix ({pixPct}%)</span><span>-{formatCents(pixOff)}</span></div>
+                )}
                 <div className="flex justify-between pt-1 text-base font-bold text-slate-900"><span>Total</span><span>{formatCents(total)}</span></div>
               </div>
 

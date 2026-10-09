@@ -13,11 +13,14 @@
 //   POST member-enter    { code }              → { token } (link de acesso)
 //   POST member-login    { email, password }   → { token }
 //   POST member-password { password }          (Bearer do aluno)
+//   GET  member-orders                          compras do aluno e prazo de garantia
+//   POST member-refund-request { orderId, reason }  pede reembolso (avisa a equipe)
 // Equipe (Bearer de usuário interno):
 //   GET  admin-status                          → gateway e e-mail configurados?
 //   POST admin-grant   { email, name, productId } → { accessUrl }
 //   POST admin-link    { uid }                 → { accessUrl }
 //   POST admin-revoke  { uid, productId }
+//   POST admin-delete-member { uid }     apaga o aluno (pedidos ficam)
 //   POST admin-refund  { orderId }
 //   POST admin-confirm { orderId }   confirma Pix direto (Nubank) e libera o acesso
 //   POST admin-cancel  { orderId }   cancela pedido que não foi pago
@@ -28,7 +31,7 @@
 //   POST invoice-webhook { ref }
 
 import { requireInternalUser, AuthError } from './_lib/auth.js'
-import { getDoc, setDoc, updateDoc, createCustomToken, verifyIdTokenWithClaims } from './_lib/firebaseAdmin.js'
+import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, createCustomToken, verifyIdTokenWithClaims } from './_lib/firebaseAdmin.js'
 import {
   mpConfigured,
   mpPublicKey,
@@ -60,6 +63,7 @@ import {
   fulfillOrder,
   getPaymentSettings,
   notifyStaff,
+  pixDiscount,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
 import { invoiceStatus, saveInvoiceToken, emitInvoice, syncInvoice, cancelInvoice, getInvoiceSettings } from './_lib/store/invoice.js'
@@ -88,6 +92,14 @@ async function actionCheckout(req) {
   // Com nota fiscal ligada, o CPF/CNPJ do comprador vira obrigatório.
   if (invoice.enabled === true) data.checkout.askCpf = true
   return data
+}
+
+/** Visual da área de membros (a tela de login é pública, por isso vem pela API). */
+async function actionMembersTheme() {
+  const snap = await getDoc('storeSettings/membersTheme')
+  const t = snap.exists ? snap.data() : {}
+  const pick = ['brandName', 'logoUrl', 'mode', 'primaryColor', 'backgroundColor', 'cardColor', 'font', 'loginLayout', 'loginBgUrl', 'loginTitle', 'loginText', 'loginButtonText', 'loginHelpText', 'supportWhatsapp']
+  return Object.fromEntries(pick.filter((k) => t[k] !== undefined).map((k) => [k, t[k]]))
 }
 
 async function actionCoupon(req) {
@@ -140,7 +152,11 @@ async function actionOrder(req) {
       if (wantedBumps.has(b.productId)) items.push({ productId: b.productId, name: b.name, price: b.price, fullPrice: b.fullPrice, bump: true })
     }
   }
-  const amount = items.reduce((s, i) => s + i.price, 0)
+  const subtotal = items.reduce((s, i) => s + i.price, 0)
+  // Desconto no Pix (vale para o Pix direto e o do Mercado Pago), sobre o total.
+  const pixPct = method === 'pix' ? pixDiscount(product) : 0
+  const pixDiscountAmount = pixPct ? Math.round(subtotal * (pixPct / 100)) : 0
+  const amount = subtotal - pixDiscountAmount
 
   const orderId = `ord_${Date.now().toString(36)}${randomToken(6).replace(/[-_]/g, '')}`
   const key = randomToken(18)
@@ -153,6 +169,8 @@ async function actionOrder(req) {
     couponCode: coupon?.code || null,
     couponId: coupon?.id || null,
     couponPercent: coupon?.percent || 0,
+    pixDiscountPercent: pixPct,
+    pixDiscountAmount,
     buyer,
     method,
     status: 'pending',
@@ -360,6 +378,51 @@ async function actionMemberPassword(req) {
   return { ok: true }
 }
 
+/** Compras do aluno logado (para a tela Meu perfil e o pedido de reembolso). */
+async function memberOrders(uid) {
+  const rows = await queryDocs('storeOrders', [['memberUid', uid]])
+  const out = []
+  for (const o of rows) {
+    if (o.test) continue
+    const product = await getProduct(o.productId)
+    const days = Number(product?.checkout?.guaranteeDays) || 0
+    const base = o.approvedAt ? new Date(o.approvedAt) : null
+    const deadline = base && days ? new Date(base.getTime() + days * 86400_000) : null
+    out.push({
+      orderId: o.id,
+      items: (o.items || []).map((i) => i.name),
+      amount: o.amount,
+      status: o.status,
+      approvedAt: o.approvedAt || null,
+      guaranteeUntil: deadline ? deadline.toISOString() : null,
+      canRequestRefund: o.status === 'approved' && !o.refundRequest && !!deadline && deadline.getTime() > Date.now(),
+      refundRequestedAt: o.refundRequest?.requestedAt || null,
+      supportEmail: product?.supportEmail || o.supportEmail || null,
+    })
+  }
+  return out.sort((a, b) => String(b.approvedAt).localeCompare(String(a.approvedAt)))
+}
+
+async function actionMemberOrders(req) {
+  const uid = await requireMember(req)
+  return { orders: await memberOrders(uid) }
+}
+
+async function actionMemberRefundRequest(req) {
+  const uid = await requireMember(req)
+  const orderId = String(req.body?.orderId || '')
+  const reason = String(req.body?.reason || '').trim().slice(0, 1000)
+  const mine = (await memberOrders(uid)).find((o) => o.orderId === orderId)
+  if (!mine) throw new HttpError(404, 'Compra não encontrada')
+  if (!mine.canRequestRefund) throw new HttpError(400, mine.refundRequestedAt ? 'O reembolso desta compra já foi pedido' : 'O prazo de garantia desta compra já acabou')
+  await updateDoc(`storeOrders/${orderId}`, { refundRequest: { reason, requestedAt: nowIso() }, updatedAt: nowIso() })
+  const snap = await getDoc(`storeOrders/${orderId}`)
+  const o = snap.data()
+  const total = (o.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  await notifyStaff('store_refund_request', `Pedido de reembolso: ${o.buyer?.name} pediu reembolso de ${o.items.map((i) => i.name).join(' + ')} (${total}).${reason ? ` Motivo: ${reason}` : ''}`)
+  return { ok: true }
+}
+
 /* ------------------------------- equipe ------------------------------- */
 
 async function actionAdminStatus() {
@@ -399,6 +462,25 @@ async function actionAdminRevoke(req) {
   return { ok: true }
 }
 
+/** Apaga o aluno (acessos, progresso, senha e links). Pedidos ficam como histórico. */
+async function actionAdminDeleteMember(req) {
+  const uid = String(req.body?.uid || '')
+  if (!/^m_[a-f0-9]{26}$/.test(uid)) throw new HttpError(400, 'Aluno inválido')
+  const [enrollments, progress, codes] = await Promise.all([
+    queryDocs('storeEnrollments', [['uid', uid]]),
+    queryDocs('storeProgress', [['uid', uid]]),
+    queryDocs('storeAccessCodes', [['uid', uid]]),
+  ])
+  await Promise.all([
+    ...enrollments.map((e) => deleteDoc(`storeEnrollments/${e.id}`)),
+    ...progress.map((p) => deleteDoc(`storeProgress/${p.id}`)),
+    ...codes.map((c) => deleteDoc(`storeAccessCodes/${c.id}`)),
+    deleteDoc(`storeMemberSecrets/${uid}`),
+  ])
+  await deleteDoc(`storeMembers/${uid}`)
+  return { ok: true, removed: { enrollments: enrollments.length, progress: progress.length, links: codes.length } }
+}
+
 async function actionAdminRefund(req, user) {
   const orderId = String(req.body?.orderId || '')
   const snap = await getDoc(`storeOrders/${orderId}`)
@@ -407,6 +489,7 @@ async function actionAdminRefund(req, user) {
   if (order.status !== 'approved') throw new HttpError(400, 'Só dá pra reembolsar pedido aprovado')
   if (order.mpPaymentId && mpConfigured()) await refundPayment(order.mpPaymentId)
   await updateDoc(`storeOrders/${orderId}`, { status: 'refunded', refundedAt: nowIso(), refundedBy: user.name, updatedAt: nowIso() })
+  // Pix direto: o dinheiro é devolvido pela equipe no app do banco (o sistema só registra e remove o acesso).
   await cancelInvoice(orderId).catch((err) => console.warn('[loja] cancelar nota falhou:', err?.message))
   for (const pid of order.productIds || []) {
     if (order.memberUid) await revokeAccess(order.memberUid, pid).catch(() => {})
@@ -470,6 +553,7 @@ async function actionAdminInvoiceSync(req) {
 
 const PUBLIC = {
   'GET checkout': actionCheckout,
+  'GET members-theme': actionMembersTheme,
   'POST coupon': actionCoupon,
   'POST order': actionOrder,
   'GET order': actionOrderStatus,
@@ -478,6 +562,8 @@ const PUBLIC = {
   'POST member-enter': actionMemberEnter,
   'POST member-login': actionMemberLogin,
   'POST member-password': actionMemberPassword,
+  'GET member-orders': actionMemberOrders,
+  'POST member-refund-request': actionMemberRefundRequest,
   'POST invoice-webhook': actionInvoiceWebhook,
 }
 
@@ -488,6 +574,7 @@ const ADMIN = {
   'POST admin-revoke': actionAdminRevoke,
   'POST admin-refund': actionAdminRefund,
   'POST admin-confirm': actionAdminConfirm,
+  'POST admin-delete-member': actionAdminDeleteMember,
   'POST admin-cancel': actionAdminCancel,
   'POST admin-invoice-token': actionAdminInvoiceToken,
   'POST admin-invoice-emit': actionAdminInvoiceEmit,

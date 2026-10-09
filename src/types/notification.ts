@@ -40,6 +40,7 @@ export type NotificationType =
   | 'birthday_today' // 🎂 Aniversário de um responsável do cliente hoje
   | 'store_pix_pending' // Loja: Pix direto gerado, conferir no banco e confirmar
   | 'store_sale' // Loja: venda aprovada
+  | 'store_refund_request' // Loja: aluno pediu reembolso
 
 export interface AppNotification {
   id: string
@@ -91,6 +92,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   birthday_today: 'Aniversário hoje',
   store_pix_pending: 'Pix para conferir',
   store_sale: 'Venda na Loja',
+  store_refund_request: 'Pedido de reembolso',
 }
 
 /** Notifications older than this are pruned client-side (no backend

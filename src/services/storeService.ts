@@ -34,6 +34,7 @@ import {
   type StoreProgress,
   type StorePaymentSettings,
   type StoreInvoiceSettings,
+  type StoreMembersTheme,
 } from '../types/store'
 
 /** Telas da equipe (aba Loja do CRM). O que é dinheiro/acesso (pedidos,
@@ -85,6 +86,55 @@ export async function createStoreProduct(name: string, price: number, userId: st
     },
     userId
   )
+}
+
+/** Copia um produto com toda a configuração (checkout, área de membros, bumps,
+ *  desconto no Pix). A cópia nasce como rascunho e com link próprio.
+ *  `withContent` copia também módulos e aulas (com as capas e anexos). */
+export async function duplicateStoreProduct(source: StoreProduct, name: string, withContent: boolean, userId: string) {
+  const { id: _id, createdAt: _c, createdBy: _cb, updatedAt: _u, updatedBy: _ub, slug: _s, status: _st, lessonCount: _l, ...config } = source
+  const newId = await products.create(
+    {
+      ...config,
+      name,
+      slug: slugify(name),
+      status: 'draft',
+      lessonCount: 0,
+      checkout: { ...source.checkout, headline: source.checkout?.headline === source.name ? name : source.checkout?.headline, bumps: (source.checkout?.bumps ?? []).filter((b) => b.productId !== source.id) },
+    },
+    userId
+  )
+  if (withContent) {
+    const [mods, lessons] = await Promise.all([
+      getDocs(query(collection(db, 'storeProducts', source.id, 'modules'), orderBy('order', 'asc'))),
+      getDocs(query(collection(db, 'storeProducts', source.id, 'lessons'), orderBy('order', 'asc'))),
+    ])
+    // Módulos ganham id novo; as aulas são religadas ao módulo copiado.
+    const moduleMap = new Map<string, string>()
+    let batch = writeBatch(db)
+    let ops = 0
+    const flush = async () => {
+      if (ops) await batch.commit()
+      batch = writeBatch(db)
+      ops = 0
+    }
+    for (const m of mods.docs) {
+      const ref = doc(collection(db, 'storeProducts', newId, 'modules'))
+      moduleMap.set(m.id, ref.id)
+      batch.set(ref, { ...m.data(), createdAt: serverTimestamp() })
+      if (++ops >= 400) await flush()
+    }
+    for (const l of lessons.docs) {
+      const data = l.data()
+      const moduleId = moduleMap.get(data.moduleId)
+      if (!moduleId) continue
+      batch.set(doc(collection(db, 'storeProducts', newId, 'lessons')), { ...data, moduleId, createdAt: serverTimestamp() })
+      if (++ops >= 400) await flush()
+    }
+    await flush()
+    await products.update(newId, { lessonCount: lessons.docs.filter((l) => moduleMap.has(l.data().moduleId)).length }, userId)
+  }
+  return newId
 }
 
 export function updateStoreProduct(id: string, data: Partial<StoreProduct>, userId: string) {
@@ -228,6 +278,14 @@ export function subscribeStoreInvoiceSettings(onData: (s: StoreInvoiceSettings |
 
 export function saveStoreInvoiceSettings(data: StoreInvoiceSettings, userId: string) {
   return setDoc(doc(db, 'storeSettings', 'invoice'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId })
+}
+
+export function subscribeStoreMembersTheme(onData: (s: StoreMembersTheme | null) => void, onError?: OnError) {
+  return onSnapshot(doc(db, 'storeSettings', 'membersTheme'), (s) => onData(s.exists() ? (s.data() as StoreMembersTheme) : null), onError)
+}
+
+export function saveStoreMembersTheme(data: StoreMembersTheme, userId: string) {
+  return setDoc(doc(db, 'storeSettings', 'membersTheme'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId })
 }
 
 /* -------------------------------- imagens -------------------------------- */

@@ -1,31 +1,34 @@
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { Lock, Play, CheckCircle2 } from 'lucide-react'
 import { useCourse } from '../../../components/store/members/useCourse'
-import { releaseDate, useMembers } from '../../../components/store/members/MembersContext'
+import { releaseDate, useAccent, useMembers } from '../../../components/store/members/MembersContext'
 import { Spinner } from '../../../components/ui/FullPageSpinner'
+import { productImages } from '../../../types/store'
 
 /** /membros/curso/:productId — banner do curso, progresso e módulos em cartões. */
 export function MembersCoursePage() {
   const { productId } = useParams()
   const { loading: membersLoading } = useMembers()
   const { product, enrollment, modules, lessons, completed, percent, progress, loading } = useCourse(productId)
+  const accent = useAccent(product)
 
   if (membersLoading) return null
   if (!product) return <Navigate to="/membros" replace />
-  const color = product.members?.primaryColor || '#2563eb'
+  const color = accent
+  const imgs = productImages(product)
   const firstLesson = lessons.find((l) => !releaseDate(enrollment, Math.max(l.releaseDays || 0, modules.find((m) => m.id === l.moduleId)?.releaseDays || 0)))
   const resumeId = progress?.lastLessonId && lessons.some((l) => l.id === progress.lastLessonId) ? progress.lastLessonId : firstLesson?.id
 
   return (
     <main className="pb-16">
       <section
-        className="relative flex min-h-[300px] items-end bg-neutral-900 bg-cover bg-center"
-        style={product.members?.bannerUrl ? { backgroundImage: `url(${product.members.bannerUrl})` } : undefined}
+        className="relative flex min-h-[300px] items-end bg-[var(--m-card)] bg-cover bg-center"
+        style={imgs.banner ? { backgroundImage: `url(${imgs.banner})` } : undefined}
       >
-        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-transparent" aria-hidden="true" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--m-bg)] via-[color-mix(in_srgb,var(--m-bg)_60%,transparent)] to-transparent" aria-hidden="true" />
         <div className="relative mx-auto w-full max-w-7xl px-4 pb-8">
           <h1 className="text-3xl font-extrabold sm:text-4xl">{product.name}</h1>
-          {product.description && <p className="mt-2 max-w-2xl text-neutral-300">{product.description}</p>}
+          {product.description && <p className="mt-2 max-w-2xl text-[var(--m-text2)]">{product.description}</p>}
           <div className="mt-4 flex flex-wrap items-center gap-4">
             {resumeId && (
               <Link to={`/membros/curso/${product.id}/aula/${resumeId}`} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 font-semibold text-white" style={{ background: color }}>
@@ -33,8 +36,8 @@ export function MembersCoursePage() {
               </Link>
             )}
             <div className="min-w-[200px]">
-              <p className="text-sm text-neutral-300">Seu progresso: {percent}%</p>
-              <div className="mt-1 h-2 rounded-full bg-white/10" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso do curso">
+              <p className="text-sm text-[var(--m-text2)]">Seu progresso: {percent}%</p>
+              <div className="mt-1 h-2 rounded-full bg-[var(--m-soft2)]" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso do curso">
                 <div className="h-2 rounded-full" style={{ width: `${percent}%`, background: color }} />
               </div>
             </div>
@@ -46,7 +49,7 @@ export function MembersCoursePage() {
         {loading ? (
           <Spinner className="h-6 w-6" />
         ) : modules.length === 0 ? (
-          <p className="text-neutral-400">Esse curso ainda não tem conteúdo.</p>
+          <p className="text-[var(--m-muted)]">Esse curso ainda não tem conteúdo.</p>
         ) : (
           <>
             <h2 className="mb-4 text-xl font-bold">Módulos</h2>
@@ -59,12 +62,12 @@ export function MembersCoursePage() {
                 const card = (
                   <>
                     <div
-                      className="relative aspect-[2/3] overflow-hidden rounded-xl bg-neutral-800 bg-cover bg-center ring-white/40 transition group-hover:scale-[1.03] group-hover:ring-2"
-                      style={m.coverUrl ? { backgroundImage: `url(${m.coverUrl})` } : undefined}
+                      className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[var(--m-card2)] bg-cover bg-center ring-[var(--m-border)] transition group-hover:scale-[1.03] group-hover:ring-2"
+                      style={m.coverUrl || imgs.cover ? { backgroundImage: `url(${m.coverUrl || imgs.cover})` } : undefined}
                     >
                       {!m.coverUrl && (
-                        <span className="flex h-full flex-col items-center justify-center p-3 text-center">
-                          <span className="text-xs uppercase tracking-wider text-neutral-400">Módulo {idx + 1}</span>
+                        <span className={`flex h-full flex-col items-center justify-center p-3 text-center ${imgs.cover ? 'bg-black/55' : ''}`}>
+                          <span className="text-xs uppercase tracking-wider text-[var(--m-muted)]">Módulo {idx + 1}</span>
                           <span className="mt-1 font-semibold">{m.title}</span>
                         </span>
                       )}
@@ -78,7 +81,7 @@ export function MembersCoursePage() {
                       )}
                     </div>
                     <p className="mt-2 truncate text-sm font-medium">{m.title}</p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-[var(--m-faint)]">
                       {locked ? `Bloqueado até ${locked.toLocaleDateString('pt-BR')}` : `${done} de ${modLessons.length} aulas concluídas`}
                     </p>
                   </>

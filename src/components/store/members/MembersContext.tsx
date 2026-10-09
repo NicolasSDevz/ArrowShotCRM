@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { onAuthStateChanged, signInWithCustomToken, signOut, type User } from 'firebase/auth'
 import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore'
 import { membersAuth, membersDb } from '../../../firebase/membersApp'
-import type { StoreEnrollment, StoreMember, StoreProduct } from '../../../types/store'
+import { defaultMembersTheme, type StoreEnrollment, type StoreMember, type StoreMembersTheme, type StoreProduct } from '../../../types/store'
+import { fetchMembersTheme } from '../../../services/storeApi'
 
 interface MembersValue {
   user: User | null
@@ -12,6 +13,7 @@ interface MembersValue {
   loading: boolean
   signInWithToken: (token: string) => Promise<void>
   logout: () => Promise<void>
+  theme: StoreMembersTheme
 }
 
 const Ctx = createContext<MembersValue | undefined>(undefined)
@@ -24,6 +26,30 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const [enrollments, setEnrollments] = useState<StoreEnrollment[]>([])
   const [products, setProducts] = useState<StoreProduct[]>([])
   const [dataReady, setDataReady] = useState(false)
+  // Tema: guardado no navegador para a tela já abrir com a cara certa, e atualizado pela API.
+  const [theme, setTheme] = useState<StoreMembersTheme>(() => {
+    try {
+      const cached = localStorage.getItem('members-theme')
+      if (cached) return { ...defaultMembersTheme(), ...JSON.parse(cached) }
+    } catch {
+      /* segue com o padrão */
+    }
+    return defaultMembersTheme()
+  })
+
+  useEffect(() => {
+    fetchMembersTheme()
+      .then((t) => {
+        const full = { ...defaultMembersTheme(), ...t }
+        setTheme(full)
+        try {
+          localStorage.setItem('members-theme', JSON.stringify(full))
+        } catch {
+          /* sem cache */
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(
     () =>
@@ -80,6 +106,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       await signInWithCustomToken(membersAuth, token)
     },
     logout: () => signOut(membersAuth),
+    theme,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
@@ -88,6 +115,13 @@ export function useMembers() {
   const v = useContext(Ctx)
   if (!v) throw new Error('useMembers fora do MembersProvider')
   return v
+}
+
+/** Cor de destaque de um curso: a do produto, se foi trocada; senão a do tema. */
+export function useAccent(product?: StoreProduct | null) {
+  const { theme } = useMembers()
+  const own = product?.members?.primaryColor
+  return own && own.toLowerCase() !== '#2563eb' ? own : theme.primaryColor || '#2563eb'
 }
 
 /** Data em que um conteúdo com "libera N dias após a compra" abre para este aluno. */
