@@ -104,10 +104,10 @@ function ProductsGrid({ products, onCreate }: { products: StoreProduct[]; onCrea
     )
   }
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <ul className="grid gap-x-4 gap-y-6 sm:grid-cols-2 xl:grid-cols-3">
       {products.map((p) => (
-        <li key={p.id}>
-          <Link to={`/loja/produtos/${p.id}`} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:shadow-md">
+        <li key={p.id} className="flex flex-col">
+          <Link to={`/loja/produtos/${p.id}`} className="group flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:shadow-md">
             <div className="aspect-[16/9] bg-slate-100 bg-cover bg-center" style={p.imageUrl ? { backgroundImage: `url(${p.imageUrl})` } : undefined}>
               {!p.imageUrl && <span className="flex h-full items-center justify-center text-slate-300"><Package size={40} /></span>}
             </div>
@@ -122,7 +122,7 @@ function ProductsGrid({ products, onCreate }: { products: StoreProduct[]; onCrea
           <button
             type="button"
             onClick={() => setDuplicate(p)}
-            className="mt-1.5 flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-brand-600"
+            className="mt-2 flex items-center gap-1 self-start text-xs font-medium text-slate-500 hover:text-brand-600"
             aria-label={`Duplicar o produto ${p.name}`}
           >
             <CopyPlus size={13} aria-hidden="true" /> Duplicar
