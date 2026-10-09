@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Ban, CheckCircle2, Copy, Download, RotateCcw } from 'lucide-react'
+import { Ban, CheckCircle2, Copy, Download, FileText, RotateCcw } from 'lucide-react'
 import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
 import { Input, Select } from '../../ui/Field'
 import { EmptyState } from '../../ui/EmptyState'
-import { storeCancelOrder, storeConfirmOrder, storeRefundOrder } from '../../../services/storeApi'
+import { storeCancelOrder, storeConfirmOrder, storeEmitInvoice, storeRefundOrder, storeSyncInvoices } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { formatCents, STORE_METHOD_LABEL, STORE_ORDER_STATUS_LABEL, type StoreOrder, type StoreOrderStatus, type StoreProduct } from '../../../types/store'
 
@@ -27,6 +27,38 @@ export async function copyText(text: string, okMsg = 'Copiado') {
   } catch {
     window.prompt('Copie o texto:', text)
   }
+}
+
+function InvoiceCell({ order: o, busy, onEmit }: { order: StoreOrder; busy: boolean; onEmit: () => void }) {
+  const inv = o.invoice
+  const test = inv?.environment === 'homologacao' ? ' (teste)' : ''
+  if (o.status !== 'approved' && !inv) return <span className="text-xs text-slate-300">-</span>
+  if (o.test || !(o.amount > 0)) return <span className="text-xs text-slate-400">Não se aplica</span>
+  if (inv?.status === 'autorizado') {
+    return (
+      <div className="space-y-0.5">
+        <Badge className="bg-emerald-50 text-emerald-700">Emitida{test}</Badge>
+        {inv.pdfUrl && (
+          <a href={inv.pdfUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-brand-600 hover:underline">
+            <FileText size={12} aria-hidden="true" /> Nota {inv.numero ?? ''} em PDF
+          </a>
+        )}
+        {inv.emailSent && <p className="text-xs text-slate-400">Enviada por e-mail</p>}
+      </div>
+    )
+  }
+  if (inv?.status === 'processando') return <Badge className="bg-amber-50 text-amber-700">Processando na prefeitura{test}</Badge>
+  if (inv?.status === 'cancelado') return <Badge className="bg-slate-100 text-slate-600">Cancelada</Badge>
+  return (
+    <div className="max-w-[220px] space-y-1">
+      {inv?.status === 'erro' && <p className="text-xs text-red-600">Erro na nota: {inv.error}</p>}
+      {o.status === 'approved' && (
+        <Button size="sm" variant="secondary" loading={busy} onClick={onEmit} aria-label={`${inv ? 'Tentar emitir de novo' : 'Emitir'} a nota de ${o.buyer.name}`}>
+          {inv ? 'Tentar de novo' : 'Emitir nota'}
+        </Button>
+      )}
+    </div>
+  )
 }
 
 function toCsv(orders: StoreOrder[]) {
@@ -56,6 +88,29 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
   const [status, setStatus] = useState<'' | StoreOrderStatus>('')
   const [productId, setProductId] = useState('')
   const [refunding, setRefunding] = useState<string | null>(null)
+  const [emitting, setEmitting] = useState<string | null>(null)
+
+  // Notas em processamento: confere na Focus ao abrir a tela (o webhook e o cron também fazem isso).
+  const syncedOnce = useRef(false)
+  useEffect(() => {
+    if (syncedOnce.current) return
+    const processing = orders.filter((o) => o.invoice?.status === 'processando').map((o) => o.id)
+    if (!processing.length) return
+    syncedOnce.current = true
+    storeSyncInvoices(processing).catch(() => {})
+  }, [orders])
+
+  const emitInvoice = async (o: StoreOrder) => {
+    setEmitting(o.id)
+    try {
+      await storeEmitInvoice(o.id)
+      toast.success('Nota enviada para emissão')
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setEmitting(null)
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -152,6 +207,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                 <th scope="col" className="px-4 py-3">Produtos</th>
                 <th scope="col" className="px-4 py-3">Valor</th>
                 <th scope="col" className="px-4 py-3">Status</th>
+                <th scope="col" className="px-4 py-3">Nota fiscal</th>
                 <th scope="col" className="px-4 py-3">Data</th>
                 <th scope="col" className="px-4 py-3"><span className="sr-only">Ações</span></th>
               </tr>
@@ -179,6 +235,9 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                     <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} />
                     {o.confirmedBy && o.status === 'approved' && <p className="mt-1 text-xs text-slate-400">Confirmado por {o.confirmedBy}</p>}
                     {o.test && <Badge className="ml-1 bg-amber-50 text-amber-700">teste</Badge>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <InvoiceCell order={o} busy={emitting === o.id} onEmit={() => emitInvoice(o)} />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(o.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">

@@ -15,6 +15,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { randomUUID } from 'node:crypto'
 import { getDoc, setDoc, updateDoc, queryDocs, listDocs } from '../firebaseAdmin.js'
+import { emitInvoice } from './invoice.js'
 
 export const nowIso = () => new Date().toISOString()
 
@@ -305,6 +306,8 @@ export async function fulfillOrder(origin, orderId) {
   if (!order.test) {
     const total = (order.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     await notifyStaff('store_sale', `Venda aprovada: ${order.buyer.name} comprou ${order.items.map((i) => i.name).join(' + ')} por ${total}.`)
+    // Nota fiscal automática (se ligada em Loja > Nota fiscal). Erro não trava a venda.
+    await emitInvoice(orderId).catch((err) => console.warn('[loja] nota fiscal falhou:', err?.message))
   }
   return { ...order, ...patch }
 }

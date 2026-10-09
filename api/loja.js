@@ -21,6 +21,11 @@
 //   POST admin-refund  { orderId }
 //   POST admin-confirm { orderId }   confirma Pix direto (Nubank) e libera o acesso
 //   POST admin-cancel  { orderId }   cancela pedido que não foi pago
+//   POST admin-invoice-token { token }     token da Focus NFe (gravado cifrado)
+//   POST admin-invoice-emit  { orderId }   emite/reemite a nota do pedido
+//   POST admin-invoice-sync  { orderIds }  atualiza notas em processamento
+// Focus NFe (gatilho configurado no painel deles):
+//   POST invoice-webhook { ref }
 
 import { requireInternalUser, AuthError } from './_lib/auth.js'
 import { getDoc, setDoc, updateDoc, createCustomToken, verifyIdTokenWithClaims } from './_lib/firebaseAdmin.js'
@@ -57,6 +62,7 @@ import {
   notifyStaff,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
+import { invoiceStatus, saveInvoiceToken, emitInvoice, syncInvoice, cancelInvoice, getInvoiceSettings } from './_lib/store/invoice.js'
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -77,8 +83,11 @@ async function loadActiveProduct(slug) {
 
 async function actionCheckout(req) {
   const product = await loadActiveProduct(String(req.query.slug || ''))
-  const [bumps, settings] = await Promise.all([resolveBumps(product), getPaymentSettings()])
-  return publicCheckout(product, bumps, gateway(), settings)
+  const [bumps, settings, invoice] = await Promise.all([resolveBumps(product), getPaymentSettings(), getInvoiceSettings()])
+  const data = publicCheckout(product, bumps, gateway(), settings)
+  // Com nota fiscal ligada, o CPF/CNPJ do comprador vira obrigatório.
+  if (invoice.enabled === true) data.checkout.askCpf = true
+  return data
 }
 
 async function actionCoupon(req) {
@@ -113,7 +122,10 @@ async function actionOrder(req) {
   const body = req.body || {}
   const product = await loadActiveProduct(String(body.slug || ''))
   const buyer = cleanBuyer(body.buyer)
-  if (product.checkout?.askCpf === true && !buyer.cpf) throw new HttpError(400, 'Informe seu CPF')
+  const invoiceOn = (await getInvoiceSettings()).enabled === true
+  if ((product.checkout?.askCpf === true || invoiceOn) && ![11, 14].includes(String(buyer.cpf || '').length)) {
+    throw new HttpError(400, 'Informe seu CPF ou CNPJ')
+  }
   const method = body.method
   const gw = gateway()
   const settings = await getPaymentSettings()
@@ -354,6 +366,7 @@ async function actionAdminStatus() {
   return {
     mercadoPago: mpConfigured(),
     pixManual: (await getPaymentSettings()).manualReady,
+    invoice: await invoiceStatus(),
     email: Boolean(process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM),
   }
 }
@@ -394,6 +407,7 @@ async function actionAdminRefund(req, user) {
   if (order.status !== 'approved') throw new HttpError(400, 'Só dá pra reembolsar pedido aprovado')
   if (order.mpPaymentId && mpConfigured()) await refundPayment(order.mpPaymentId)
   await updateDoc(`storeOrders/${orderId}`, { status: 'refunded', refundedAt: nowIso(), refundedBy: user.name, updatedAt: nowIso() })
+  await cancelInvoice(orderId).catch((err) => console.warn('[loja] cancelar nota falhou:', err?.message))
   for (const pid of order.productIds || []) {
     if (order.memberUid) await revokeAccess(order.memberUid, pid).catch(() => {})
   }
@@ -421,6 +435,37 @@ async function actionAdminCancel(req, user) {
   return { ok: true }
 }
 
+/* ----------------------------- nota fiscal ----------------------------- */
+
+const orderIdFromRef = (ref) => String(ref || '').replace(/-\d+$/, '')
+
+/** Webhook (gatilho) da Focus NFe. Não confia no corpo: reconsulta a nota. */
+async function actionInvoiceWebhook(req) {
+  const orderId = orderIdFromRef(req.body?.ref || req.query.ref)
+  if (/^ord_[A-Za-z0-9]{6,40}$/.test(orderId)) await syncInvoice(orderId)
+  return { ok: true }
+}
+
+async function actionAdminInvoiceToken(req, user) {
+  const token = String(req.body?.token || '').trim()
+  if (token.length < 10) throw new HttpError(400, 'Token inválido')
+  await saveInvoiceToken(token, user.name)
+  return { ok: true }
+}
+
+async function actionAdminInvoiceEmit(req) {
+  const orderId = String(req.body?.orderId || '')
+  if (!/^ord_[A-Za-z0-9]{6,40}$/.test(orderId)) throw new HttpError(400, 'Pedido inválido')
+  return { invoice: await emitInvoice(orderId, { force: true }) }
+}
+
+async function actionAdminInvoiceSync(req) {
+  const ids = (Array.isArray(req.body?.orderIds) ? req.body.orderIds : []).map(String).filter((id) => /^ord_[A-Za-z0-9]{6,40}$/.test(id)).slice(0, 20)
+  const results = {}
+  for (const id of ids) results[id] = await syncInvoice(id).catch(() => null)
+  return { results }
+}
+
 /* ------------------------------- roteador ------------------------------ */
 
 const PUBLIC = {
@@ -433,6 +478,7 @@ const PUBLIC = {
   'POST member-enter': actionMemberEnter,
   'POST member-login': actionMemberLogin,
   'POST member-password': actionMemberPassword,
+  'POST invoice-webhook': actionInvoiceWebhook,
 }
 
 const ADMIN = {
@@ -443,6 +489,9 @@ const ADMIN = {
   'POST admin-refund': actionAdminRefund,
   'POST admin-confirm': actionAdminConfirm,
   'POST admin-cancel': actionAdminCancel,
+  'POST admin-invoice-token': actionAdminInvoiceToken,
+  'POST admin-invoice-emit': actionAdminInvoiceEmit,
+  'POST admin-invoice-sync': actionAdminInvoiceSync,
 }
 
 export default async function handler(req, res) {

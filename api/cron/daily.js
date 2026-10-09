@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto'
 import { getDoc, setDoc, queryDocs, listDocs, updateDoc } from '../_lib/firebaseAdmin.js'
 import { listAllTokenStatuses, markExpiryNotified } from '../_lib/metaTokenStore.js'
 import { computeAndStoreMetrics } from '../_lib/metricsStore.js'
+import { syncInvoice } from '../_lib/store/invoice.js'
 
 const WARN_WITHIN_DAYS = 7
 const RENOTIFY_AFTER_MS = 20 * 3600 * 1000
@@ -184,6 +185,17 @@ async function runBirthdayNotifications() {
   return { checked: events.length, notified }
 }
 
+/** Loja: notas fiscais que ficaram em processamento (rede de segurança do webhook da Focus). */
+async function runInvoiceSync() {
+  const pending = await queryDocs('storeOrders', [['invoice.status', 'processando']])
+  let updated = 0
+  for (const o of pending.slice(0, 50)) {
+    const inv = await syncInvoice(o.id).catch(() => null)
+    if (inv && inv.status !== 'processando') updated++
+  }
+  return { pending: pending.length, updated }
+}
+
 export default async function handler(req, res) {
   const secret = process.env.CRON_SECRET
   if (secret && req.headers.authorization !== `Bearer ${secret}`) {
@@ -197,6 +209,7 @@ export default async function handler(req, res) {
     ['tokenExpiry', runTokenExpiryCheck],
     ['metrics', runMetricsUpdate],
     ['birthdays', runBirthdayNotifications],
+    ['invoices', runInvoiceSync],
   ]) {
     try {
       results[key] = await run()

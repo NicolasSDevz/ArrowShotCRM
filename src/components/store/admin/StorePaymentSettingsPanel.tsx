@@ -18,7 +18,15 @@ export function StorePaymentSettingsPanel({ mercadoPago }: { mercadoPago: boolea
   useEffect(
     () =>
       subscribeStorePaymentSettings((s) => {
-        if (!loaded) setForm({ ...EMPTY, ...(s ?? {}) })
+        setLoaded((was) => {
+          if (!was) setForm({ ...EMPTY, ...(s ?? {}) })
+          return true
+        })
+      },
+      (err) => {
+        // Não trava o botão em silêncio: avisa e deixa salvar mesmo assim.
+        console.error(err)
+        toast.error('Não foi possível carregar a configuração salva. Recarregue a página.')
         setLoaded(true)
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

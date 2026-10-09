@@ -138,6 +138,7 @@ export interface StoreOrder {
   accessUrl?: string
   emailSent?: boolean
   utm?: Record<string, string>
+  invoice?: StoreInvoice
   createdAt: string
   approvedAt?: string
   refundedAt?: string
@@ -196,6 +197,39 @@ export interface StoreComment {
   isProducer: boolean
   parentId?: string | null
   createdAt: Timestamp
+}
+
+/** Nota fiscal do pedido (Focus NFe). */
+export interface StoreInvoice {
+  status: 'processando' | 'autorizado' | 'erro' | 'cancelado'
+  ref?: string
+  attempt?: number
+  numero?: string | null
+  pdfUrl?: string | null
+  xmlUrl?: string | null
+  error?: string | null
+  cancelError?: string
+  emailSent?: boolean
+  environment?: 'homologacao' | 'producao'
+}
+
+/** storeSettings/invoice — dados fiscais para a NFS-e (o token fica no servidor). */
+export interface StoreInvoiceSettings {
+  enabled: boolean
+  environment: 'homologacao' | 'producao'
+  cnpj: string
+  inscricaoMunicipal: string
+  /** Código IBGE do município da empresa (7 dígitos). */
+  codigoMunicipio: string
+  /** Item da lista de serviço da LC 116 (ex.: 0802 = treinamento). */
+  itemListaServico: string
+  codigoTributarioMunicipio?: string
+  codigoCnae?: string
+  aliquota: number
+  simplesNacional: boolean
+  naturezaOperacao?: number
+  /** Texto da nota. Aceita {produtos}, {pedido} e {cliente}. */
+  discriminacao: string
 }
 
 /** storeSettings/payments — Pix direto na conta (ex.: Nubank), sem taxa. */

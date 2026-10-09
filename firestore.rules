@@ -8,11 +8,11 @@ service cloud.firestore {
     // member: true, ver api/loja.js). Eles NÃO contam como "logado" para o
     // resto do CRM — só enxergam o que é deles nas regras store* abaixo.
     function isSignedIn() {
-      return request.auth != null && request.auth.token.member != true;
+      return request.auth != null && request.auth.token.get('member', false) != true;
     }
 
     function isMember() {
-      return request.auth != null && request.auth.token.member == true;
+      return request.auth != null && request.auth.token.get('member', false) == true;
     }
 
     // Acesso ativo do aluno logado ao produto (storeEnrollments/{uid}_{productId}).
@@ -572,6 +572,10 @@ service cloud.firestore {
     }
 
     // Recebimento (Pix direto na conta): só admin/gerente; o backend lê via service account.
+    match /storeSecrets/{secretId} {
+      allow read, write: if false;
+    }
+
     match /storeSettings/{settingId} {
       allow read, write: if isAdminOrManager();
     }

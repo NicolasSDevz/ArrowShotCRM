@@ -33,6 +33,7 @@ import {
   type StoreProduct,
   type StoreProgress,
   type StorePaymentSettings,
+  type StoreInvoiceSettings,
 } from '../types/store'
 
 /** Telas da equipe (aba Loja do CRM). O que é dinheiro/acesso (pedidos,
@@ -219,6 +220,14 @@ export function subscribeStorePaymentSettings(onData: (s: StorePaymentSettings |
 
 export function saveStorePaymentSettings(data: StorePaymentSettings, userId: string) {
   return setDoc(doc(db, 'storeSettings', 'payments'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId })
+}
+
+export function subscribeStoreInvoiceSettings(onData: (s: StoreInvoiceSettings | null) => void, onError?: OnError) {
+  return onSnapshot(doc(db, 'storeSettings', 'invoice'), (s) => onData(s.exists() ? (s.data() as StoreInvoiceSettings) : null), onError)
+}
+
+export function saveStoreInvoiceSettings(data: StoreInvoiceSettings, userId: string) {
+  return setDoc(doc(db, 'storeSettings', 'invoice'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId })
 }
 
 /* -------------------------------- imagens -------------------------------- */

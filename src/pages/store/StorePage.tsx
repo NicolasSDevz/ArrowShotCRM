@@ -19,6 +19,7 @@ import { StoreMembersTable } from '../../components/store/admin/StoreMembersTabl
 import { StoreCouponsPanel } from '../../components/store/admin/StoreCouponsPanel'
 import { StoreCommentsPanel } from '../../components/store/admin/StoreCommentsPanel'
 import { StorePaymentSettingsPanel } from '../../components/store/admin/StorePaymentSettingsPanel'
+import { StoreInvoicePanel } from '../../components/store/admin/StoreInvoicePanel'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { formatCents, type StoreProduct } from '../../types/store'
 
@@ -37,7 +38,7 @@ export function StorePage() {
   const { data: progress } = useStoreProgress()
   const { data: coupons } = useStoreCoupons()
   const { data: comments } = useStoreComments()
-  const [status, setStatus] = useState<{ mercadoPago: boolean; pixManual: boolean; email: boolean } | null>(null)
+  const [status, setStatus] = useState<Awaited<ReturnType<typeof storeAdminStatus>> | null>(null)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -97,6 +98,7 @@ export function StorePage() {
           { label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} /> },
           { label: pendingComments ? `Comentários (${pendingComments} novos)` : 'Comentários', content: <StoreCommentsPanel comments={comments} products={products} /> },
           { label: 'Recebimento', content: <StorePaymentSettingsPanel mercadoPago={status?.mercadoPago ?? false} /> },
+          { label: 'Nota fiscal', content: <StoreInvoicePanel hasToken={status?.invoice?.hasToken ?? false} onTokenSaved={() => storeAdminStatus().then(setStatus).catch(() => {})} /> },
         ]}
       />
 

@@ -111,7 +111,7 @@ export async function memberSetPassword(password: string) {
 
 /* equipe */
 export async function storeAdminStatus() {
-  return call<{ mercadoPago: boolean; pixManual: boolean; email: boolean }>('admin-status', { token: await staffToken() })
+  return call<{ mercadoPago: boolean; pixManual: boolean; email: boolean; invoice: { enabled: boolean; hasToken: boolean; environment: string } }>('admin-status', { token: await staffToken() })
 }
 export async function storeGrantAccess(email: string, name: string, productId: string) {
   return call<{ uid: string; accessUrl: string }>('admin-grant', { body: { email, name, productId }, token: await staffToken() })
@@ -121,6 +121,15 @@ export async function storeAccessLink(uid: string) {
 }
 export async function storeRevokeAccess(uid: string, productId: string) {
   return call<{ ok: true }>('admin-revoke', { body: { uid, productId }, token: await staffToken() })
+}
+export async function storeSaveInvoiceToken(token: string) {
+  return call<{ ok: true }>('admin-invoice-token', { body: { token }, token: await staffToken() })
+}
+export async function storeEmitInvoice(orderId: string) {
+  return call<{ invoice: unknown }>('admin-invoice-emit', { body: { orderId }, token: await staffToken() })
+}
+export async function storeSyncInvoices(orderIds: string[]) {
+  return call<{ results: Record<string, unknown> }>('admin-invoice-sync', { body: { orderIds }, token: await staffToken() })
 }
 export async function storeConfirmOrder(orderId: string) {
   return call<{ ok: true; accessUrl: string | null }>('admin-confirm', { body: { orderId }, token: await staffToken() })

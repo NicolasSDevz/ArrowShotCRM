@@ -5,7 +5,7 @@ service firebase.storage {
 
     // Alunos da área de membros (claim member) não contam como equipe.
     function isSignedIn() {
-      return request.auth != null && request.auth.token.member != true;
+      return request.auth != null && request.auth.token.get('member', false) != true;
     }
 
     // NOTE: Storage rules can't read Firestore (firestore.get(...)) on the
