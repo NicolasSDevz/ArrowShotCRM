@@ -4,12 +4,13 @@ import { memberEnter, memberLogin, memberSetPassword } from '../../../services/s
 import { useMembers } from '../../../components/store/members/MembersContext'
 import { Spinner } from '../../../components/ui/FullPageSpinner'
 import { MyPurchases } from '../../../components/store/members/MyPurchases'
+import { MembersLoginView } from '../../../components/store/members/MembersLoginView'
 
 const inputCls = 'h-11 w-full rounded-lg border border-[var(--m-border)] bg-[var(--m-soft)] px-3 text-[var(--m-text)] outline-none placeholder:text-[var(--m-faint)] focus:border-[var(--m-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--m-primary)_30%,transparent)]'
 
 function AuthCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--m-bg)] px-4" style={{ colorScheme: 'dark' }}>
+    <main className="flex min-h-screen items-center justify-center bg-[var(--m-bg)] px-4">
       <div className="w-full max-w-sm rounded-2xl border border-[var(--m-border)] bg-[var(--m-card)] p-7 text-[var(--m-text)]">
         <h1 className="mb-5 text-xl font-bold">{title}</h1>
         {children}
@@ -20,50 +21,20 @@ function AuthCard({ title, children }: { title: string; children: React.ReactNod
 
 /** /membros/login — e-mail e senha (a senha é criada pelo aluno no primeiro acesso). */
 export function MembersLoginPage() {
-  const { user, loading, signInWithToken } = useMembers()
+  const { user, loading, signInWithToken, theme } = useMembers()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
 
   if (!loading && user) return <Navigate to="/membros" replace />
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setBusy(true)
-    setError('')
-    try {
-      const { token } = await memberLogin(email, password)
-      await signInWithToken(token)
-      navigate('/membros', { replace: true })
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
-    <AuthCard title="Acessar área de membros">
-      <form onSubmit={onSubmit} className="space-y-3">
-        <label className="block text-sm text-[var(--m-muted)]">
-          E-mail usado na compra
-          <input className={`${inputCls} mt-1`} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label className="block text-sm text-[var(--m-muted)]">
-          Senha
-          <input className={`${inputCls} mt-1`} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-        <button disabled={busy} className="h-11 w-full rounded-lg bg-[var(--m-primary)] font-semibold text-white hover:brightness-110 disabled:opacity-60">
-          {busy ? 'Entrando...' : 'Entrar'}
-        </button>
-      </form>
-      <p className="mt-5 text-sm text-[var(--m-muted)]">
-        Primeiro acesso? Use o botão <strong>Acessar a área de membros</strong> que aparece depois da compra (e no e-mail). Lá dentro você cria a sua senha.
-      </p>
-    </AuthCard>
+    <MembersLoginView
+      theme={theme}
+      onLogin={async (email, password) => {
+        const { token } = await memberLogin(email, password)
+        await signInWithToken(token)
+        navigate('/membros', { replace: true })
+      }}
+    />
   )
 }
 

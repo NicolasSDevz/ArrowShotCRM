@@ -21,6 +21,7 @@ import { StoreCommentsPanel } from '../../components/store/admin/StoreCommentsPa
 import { StorePaymentSettingsPanel } from '../../components/store/admin/StorePaymentSettingsPanel'
 import { StoreInvoicePanel } from '../../components/store/admin/StoreInvoicePanel'
 import { DuplicateProductModal } from '../../components/store/admin/DuplicateProductModal'
+import { StoreMembersThemePanel } from '../../components/store/admin/StoreMembersThemePanel'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { formatCents, type StoreProduct } from '../../types/store'
 
@@ -79,6 +80,7 @@ export function StorePage() {
           { label: `Alunos (${members.length})`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} /> },
           { label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} /> },
           { label: pendingComments ? `Comentários (${pendingComments} novos)` : 'Comentários', content: <StoreCommentsPanel comments={comments} products={products} /> },
+          { label: 'Área de membros', content: <StoreMembersThemePanel /> },
           { label: 'Recebimento', content: <StorePaymentSettingsPanel mercadoPago={status?.mercadoPago ?? false} /> },
           { label: 'Nota fiscal', content: <StoreInvoicePanel hasToken={status?.invoice?.hasToken ?? false} onTokenSaved={() => storeAdminStatus().then(setStatus).catch(() => {})} /> },
         ]}
