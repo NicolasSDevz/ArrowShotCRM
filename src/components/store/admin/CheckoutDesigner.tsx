@@ -5,6 +5,7 @@ import { ImageField } from './ImageField'
 import { TextListEditor } from './ListEditor'
 import { MetaCapiField } from './MetaCapiField'
 import { CheckoutView } from '../CheckoutView'
+import { PreviewFrame } from '../../ui/PreviewFrame'
 import { contrastRatio } from '../checkoutUtils'
 import { EditorSection, Toggle } from '../../leads/LeadFormBuilderParts'
 import { ButtonAnimationPicker, Segmented } from '../../leads/LeadFormBlocksEditor'
@@ -182,7 +183,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
                 className={`flex flex-col overflow-hidden rounded-lg border-2 text-left ${active ? 'border-brand-600' : 'border-slate-200 hover:border-slate-300'}`}
               >
                 <span className="flex h-11 w-full items-center justify-center gap-1.5" style={{ background: p.bg }}>
-                  <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: p.card, color: p.text }}>Aa</span>
+                  <span className="rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: p.card === '#ffffff' ? '#fefefe' : p.card, color: p.text }}>Aa</span>
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold" style={{ background: p.primary, color: p.btnText }}>Comprar</span>
                 </span>
                 <span className="block w-full truncate bg-white px-1.5 py-1 text-center text-[11px] font-medium text-slate-600">{p.name}</span>
@@ -451,8 +452,10 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
             ))}
           </div>
         </div>
-        <div className={`mx-auto max-h-[80vh] overflow-y-auto rounded-2xl border border-slate-200 shadow-sm ${device === 'mobile' ? 'max-w-[400px]' : ''}`} aria-label="Pré-visualização do checkout" role="region">
-          <CheckoutView data={previewData(product, allProducts)} preview device={device} />
+        <div className={`mx-auto overflow-hidden rounded-2xl border border-slate-200 shadow-sm ${device === 'mobile' ? 'max-w-[400px]' : ''}`}>
+          <PreviewFrame title="Pré-visualização do checkout">
+            <CheckoutView data={previewData(product, allProducts)} preview device={device} />
+          </PreviewFrame>
         </div>
       </div>
     </div>

@@ -7,6 +7,7 @@ import { Field, Input, Select, Textarea } from '../../ui/Field'
 import { ImageField } from './ImageField'
 import { EditorSection } from '../../leads/LeadFormBuilderParts'
 import { MembersLoginView } from '../members/MembersLoginView'
+import { PreviewFrame } from '../../ui/PreviewFrame'
 import { useGoogleFont } from '../checkoutUtils'
 import { saveStoreMembersTheme, subscribeStoreMembersTheme } from '../../../services/storeService'
 import { STORE_FONTS, defaultMembersTheme, membersThemeVars, type StoreMembersTheme } from '../../../types/store'
@@ -283,7 +284,8 @@ export function StoreMembersThemePanel() {
 
       <div className="xl:sticky xl:top-4 xl:self-start">
         <p className="mb-2 text-sm font-medium text-slate-600">Pré-visualização: {tab === 'login' ? 'tela de login' : 'área de membros'}</p>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm" role="region" aria-label="Pré-visualização">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+          <PreviewFrame title="Pré-visualização" height="600px">
           {tab === 'login' ? (
             <MembersLoginView theme={form} preview />
           ) : (
@@ -315,6 +317,7 @@ export function StoreMembersThemePanel() {
               </div>
             </div>
           )}
+          </PreviewFrame>
         </div>
       </div>
     </div>
