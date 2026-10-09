@@ -70,6 +70,8 @@ export interface StoreProduct extends BaseDoc {
   paymentMethods: { pix: boolean; card: boolean }
   /** Desconto (%) sobre o total quando paga no Pix. 0 = sem desconto. */
   pixDiscountPercent?: number
+  /** Conta Pix (direto na conta) deste produto. Vazio = conta principal. */
+  pixAccountId?: string | null
   supportEmail?: string | null
   statementDescriptor?: string | null
   /** Sem Mercado Pago configurado, deixa comprar sem cobrar (para testar o fluxo). */
@@ -129,6 +131,7 @@ export interface StoreOrder {
   couponPercent?: number
   pixDiscountPercent?: number
   pixDiscountAmount?: number
+  pixAccountLabel?: string
   refundRequest?: { reason: string; requestedAt: string }
   buyer: { name: string; email: string; phone?: string | null; cpf?: string | null }
   method: 'pix' | 'pix_manual' | 'card' | 'test' | 'free'
@@ -249,6 +252,18 @@ export interface StorePaymentSettings {
   pixCity: string
   /** WhatsApp para o comprador mandar o comprovante (só números, com DDD). */
   whatsapp?: string
+  /** Contas Pix extras; cada produto escolhe em qual conta cai (vazio = principal). */
+  pixAccounts?: StorePixAccount[]
+}
+
+export interface StorePixAccount {
+  id: string
+  /** Apelido para reconhecer no CRM (ex.: "Inter", "Conta do Bruno"). */
+  label: string
+  pixKey: string
+  pixKeyType: PixKeyType
+  pixName: string
+  pixCity: string
 }
 
 export const PIX_KEY_TYPE_LABEL: Record<PixKeyType, string> = {

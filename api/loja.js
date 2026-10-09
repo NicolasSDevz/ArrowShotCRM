@@ -64,6 +64,7 @@ import {
   getPaymentSettings,
   notifyStaff,
   pixDiscount,
+  pixAccountFor,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
 import { invoiceStatus, saveInvoiceToken, emitInvoice, syncInvoice, cancelInvoice, getInvoiceSettings } from './_lib/store/invoice.js'
@@ -193,11 +194,12 @@ async function actionOrder(req) {
   } else if (method === 'pix' && settings.manualReady) {
     if (product.paymentMethods?.pix === false) throw new HttpError(400, 'Pix indisponível para este produto')
     // Pix direto na conta: sem gateway; a equipe confirma no CRM.
+    const account = pixAccountFor(settings, product)
     const qrCode = buildPixCode({
-      key: settings.pixKey,
-      keyType: settings.pixKeyType,
-      name: settings.pixName,
-      city: settings.pixCity,
+      key: account.pixKey,
+      keyType: account.pixKeyType,
+      name: account.pixName,
+      city: account.pixCity,
       amountCents: amount,
       txid: orderId.replace('ord_', ''),
     })
@@ -205,6 +207,7 @@ async function actionOrder(req) {
     pix = { qrCode, qrBase64: null, ticketUrl: null, expiresAt: null, manual: true, whatsapp }
     order.method = 'pix_manual'
     order.pix = pix
+    order.pixAccountLabel = account.label
   } else if (method === 'test') {
     if (gw.mercadoPago || settings.manualReady || product.testMode !== true) throw new HttpError(400, 'Modo teste desligado para este produto')
     order.status = 'approved'
@@ -250,7 +253,7 @@ async function actionOrder(req) {
   if (order.status === 'approved') accessUrl = (await fulfillOrder(origin, orderId))?.accessUrl || null
   if (order.method === 'pix_manual') {
     const total = (amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    await notifyStaff('store_pix_pending', `Pix para conferir: ${buyer.name} gerou um Pix de ${total} (${description}). Confira no banco e confirme na Loja, aba Vendas.`)
+    await notifyStaff('store_pix_pending', `Pix para conferir: ${buyer.name} gerou um Pix de ${total} (${description}) na ${order.pixAccountLabel || 'conta principal'}. Confira no banco e confirme na Loja, aba Vendas.`)
   }
 
   return {

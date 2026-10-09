@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { subscribeStorePaymentSettings } from '../../services/storeService'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Copy, CopyPlus, ExternalLink, Save, Trash2 } from 'lucide-react'
@@ -52,6 +53,9 @@ export function StoreProductPage() {
   const [draft, setDraft] = useState<StoreProduct | null>(null)
   const [saving, setSaving] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
+  const [pixAccounts, setPixAccounts] = useState<{ id: string; label: string }[]>([])
+
+  useEffect(() => subscribeStorePaymentSettings((s) => setPixAccounts((s?.pixAccounts ?? []).map((a) => ({ id: a.id, label: a.label })))), [])
 
   // O rascunho nasce do servidor uma vez; depois só muda pela tela (salvar grava tudo).
   useEffect(() => {
@@ -140,6 +144,14 @@ export function StoreProductPage() {
           </Select>
         </Field>
         <Toggle label="Aceitar Pix" checked={draft.paymentMethods.pix} onChange={(v) => set({ paymentMethods: { ...draft.paymentMethods, pix: v } })} />
+        {draft.paymentMethods.pix && pixAccounts.length > 0 && (
+          <Field label="Conta Pix que recebe este produto">
+            <Select value={draft.pixAccountId ?? ''} onChange={(e) => set({ pixAccountId: e.target.value || null })}>
+              <option value="">Conta principal</option>
+              {pixAccounts.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+            </Select>
+          </Field>
+        )}
         {draft.paymentMethods.pix && (
           <Field label="Desconto para quem paga no Pix (%)">
             <Input

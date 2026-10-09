@@ -4,9 +4,12 @@ import { useAuth } from '../../../context/AuthContext'
 import { Button } from '../../ui/Button'
 import { Field, Input, Select } from '../../ui/Field'
 import { saveStorePaymentSettings, subscribeStorePaymentSettings } from '../../../services/storeService'
-import { PIX_KEY_TYPE_LABEL, type PixKeyType, type StorePaymentSettings } from '../../../types/store'
+import { Plus, Trash2 } from 'lucide-react'
+import { PIX_KEY_TYPE_LABEL, type PixKeyType, type StorePaymentSettings, type StorePixAccount } from '../../../types/store'
 
-const EMPTY: StorePaymentSettings = { pixManual: false, pixKey: '', pixKeyType: 'cnpj', pixName: '', pixCity: '', whatsapp: '' }
+const EMPTY: StorePaymentSettings = { pixManual: false, pixKey: '', pixKeyType: 'cnpj', pixName: '', pixCity: '', whatsapp: '', pixAccounts: [] }
+
+const newAccount = (): StorePixAccount => ({ id: `pix_${Date.now().toString(36)}`, label: '', pixKey: '', pixKeyType: 'cnpj', pixName: '', pixCity: '' })
 
 /** Pix direto na conta da empresa (ex.: Nubank): sem taxa, confirmação manual. */
 export function StorePaymentSettingsPanel({ mercadoPago }: { mercadoPago: boolean }) {
@@ -41,6 +44,8 @@ export function StorePaymentSettingsPanel({ mercadoPago }: { mercadoPago: boolea
     if (form.pixManual && (!form.pixKey.trim() || !form.pixName.trim() || !form.pixCity.trim())) {
       return toast.error('Preencha a chave, o nome do titular e a cidade')
     }
+    const incomplete = (form.pixAccounts ?? []).find((a) => !a.label.trim() || !a.pixKey.trim() || !a.pixName.trim() || !a.pixCity.trim())
+    if (incomplete) return toast.error('Preencha apelido, chave, titular e cidade de cada conta extra (ou remova a que não for usar)')
     setBusy(true)
     try {
       await saveStorePaymentSettings({ ...form, pixKey: form.pixKey.trim(), whatsapp: (form.whatsapp ?? '').replace(/\D/g, '') }, profile.id)
@@ -78,6 +83,45 @@ export function StorePaymentSettingsPanel({ mercadoPago }: { mercadoPago: boolea
           <Field label="Nome do titular da conta" required><Input value={form.pixName} onChange={(e) => set({ pixName: e.target.value })} placeholder="Como aparece no banco" /></Field>
           <Field label="Cidade do titular" required><Input value={form.pixCity} onChange={(e) => set({ pixCity: e.target.value })} placeholder="Vitória" /></Field>
         </div>
+        <fieldset className="space-y-3 rounded-xl border border-dashed border-slate-300 p-4">
+          <legend className="px-1 text-sm font-semibold text-slate-700">Outras contas Pix (opcional)</legend>
+          <p className="text-xs text-slate-500">
+            Cadastre outra chave se algum produto deve cair em outra conta. Depois, no produto (aba Geral), escolha a conta. Produto sem escolha cai na conta principal acima.
+          </p>
+          {(form.pixAccounts ?? []).map((a, i) => {
+            const setAcc = (patch: Partial<StorePixAccount>) => set({ pixAccounts: (form.pixAccounts ?? []).map((x, j) => (j === i ? { ...x, ...patch } : x)) })
+            return (
+              <div key={a.id} className="space-y-2 rounded-lg bg-slate-50 p-3">
+                <div className="flex gap-2">
+                  <Field label="Apelido da conta"><Input value={a.label} onChange={(e) => setAcc({ label: e.target.value })} placeholder="Ex.: Inter, Conta do Bruno" /></Field>
+                  <button
+                    type="button"
+                    onClick={() => set({ pixAccounts: (form.pixAccounts ?? []).filter((_, j) => j !== i) })}
+                    className="mt-5 self-start rounded-lg px-2 py-2 text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                    aria-label={`Remover a conta ${a.label || i + 2}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[150px_1fr]">
+                  <Field label="Tipo da chave">
+                    <Select value={a.pixKeyType} onChange={(e) => setAcc({ pixKeyType: e.target.value as PixKeyType })}>
+                      {Object.entries(PIX_KEY_TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Chave Pix"><Input value={a.pixKey} onChange={(e) => setAcc({ pixKey: e.target.value })} /></Field>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Field label="Nome do titular"><Input value={a.pixName} onChange={(e) => setAcc({ pixName: e.target.value })} /></Field>
+                  <Field label="Cidade do titular"><Input value={a.pixCity} onChange={(e) => setAcc({ pixCity: e.target.value })} /></Field>
+                </div>
+              </div>
+            )
+          })}
+          <button type="button" onClick={() => set({ pixAccounts: [...(form.pixAccounts ?? []), newAccount()] })} className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">
+            <Plus size={15} /> Adicionar outra conta Pix
+          </button>
+        </fieldset>
         <Field label="WhatsApp para receber comprovantes (opcional)">
           <Input value={form.whatsapp ?? ''} onChange={(e) => set({ whatsapp: e.target.value })} placeholder="(27) 99999-9999" inputMode="tel" />
         </Field>

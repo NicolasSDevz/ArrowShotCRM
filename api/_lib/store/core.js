@@ -58,6 +58,13 @@ export async function getPaymentSettings() {
   return { ...s, manualReady }
 }
 
+/** Conta Pix que recebe este produto: a extra escolhida no produto, ou a principal. */
+export function pixAccountFor(settings, product) {
+  const extra = (settings.pixAccounts || []).find((a) => a.id && a.id === product.pixAccountId && a.pixKey && a.pixName)
+  if (extra) return { ...extra, label: extra.label || 'Conta extra' }
+  return { id: '', label: 'Conta principal', pixKey: settings.pixKey, pixKeyType: settings.pixKeyType, pixName: settings.pixName, pixCity: settings.pixCity }
+}
+
 /** Aviso no sino do CRM para admins e gerentes ativos. */
 export async function notifyStaff(type, message, actorName = 'Loja') {
   try {

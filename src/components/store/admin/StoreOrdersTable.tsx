@@ -231,6 +231,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">
                     {formatCents(o.amount)}
                     <p className="text-xs text-slate-400">{STORE_METHOD_LABEL[o.method]}{o.installments && o.installments > 1 ? ` em ${o.installments}x` : ''}</p>
+                    {o.pixAccountLabel && <p className="text-xs text-slate-400">Conta: {o.pixAccountLabel}</p>}
                   </td>
                   <td className="px-4 py-3">
                     <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} />
