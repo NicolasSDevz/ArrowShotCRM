@@ -12,6 +12,8 @@ import { parseMetaPixelId } from '../../../utils/metaPixel'
 import {
   STORE_FONTS,
   STORE_SEALS,
+  checkoutSeals,
+  sealCopy,
   formatCents,
   type StoreCheckoutConfig,
   type StoreCheckoutDesign,
@@ -66,7 +68,7 @@ function previewData(product: StoreProduct, all: StoreProduct[]): PublicCheckout
       headline: c.headline || product.name,
       subheadline: c.subheadline || '',
       countdown: c.countdown.enabled
-        ? { minutes: c.countdown.minutes, text: c.countdown.text, color: c.countdown.color, textColor: c.countdown.textColor || '#ffffff', position: c.countdown.position ?? 'top', devices: c.countdown.devices ?? 'all' }
+        ? { minutes: c.countdown.minutes, text: c.countdown.text, color: c.countdown.color, textColor: c.countdown.textColor || '#ffffff', position: c.countdown.position ?? 'top', mobilePosition: c.countdown.mobilePosition ?? null, devices: c.countdown.devices ?? 'all' }
         : null,
       design: c.design ?? {},
       sideImages: c.sideImages.filter(Boolean),
@@ -111,7 +113,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
     setTab(t)
     if (t !== 'general') setDevice(t)
   }
-  const seals = d.seals ?? []
+  const seals = checkoutSeals(d, c.guaranteeDays)
   const toggleSeal = (k: StoreSealKey, on: boolean) => setDesign({ seals: on ? [...seals, k] : seals.filter((x) => x !== k) })
 
   const countdownSection = (
@@ -126,10 +128,23 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
             options={[
               { value: 'top', content: 'Topo fixo', title: 'Faixa presa no topo da página, mesmo rolando' },
               { value: 'form', content: 'No formulário', title: 'Caixa acima do nome do produto' },
-              { value: 'side', content: 'Lateral', title: 'No topo da coluna lateral (no celular, depois do formulário)' },
+              { value: 'side', content: 'Lateral', title: 'No topo da coluna lateral' },
               { value: 'button', content: 'No botão', title: 'Logo acima do botão de comprar' },
             ]}
           />
+          {(c.countdown.devices ?? 'all') !== 'desktop' && (
+            <div>
+              <Field label="Posição no celular">
+                <Select value={c.countdown.mobilePosition ?? ''} onChange={(ev) => setCountdown({ mobilePosition: (ev.target.value || undefined) as StoreCountdownConfig['mobilePosition'] })}>
+                  <option value="">{(c.countdown.position ?? 'top') === 'side' ? 'Automático (no formulário)' : 'Igual ao computador'}</option>
+                  <option value="top">Topo fixo</option>
+                  <option value="form">No formulário</option>
+                  <option value="button">No botão</option>
+                </Select>
+              </Field>
+              <p className="mt-1 text-[11px] text-slate-400">No celular a lateral fica embaixo de tudo, por isso o contador nunca vai pra lá.</p>
+            </div>
+          )}
           <Segmented
             label="Aparece no"
             value={c.countdown.devices ?? 'all'}
@@ -219,43 +234,39 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
 
       {countdownSection}
 
-      <EditorSection title="Garantia e selos de confiança" hint="Selos como Compra segura e 7 dias de garantia passam confiança perto do botão.">
-        <Field label="Garantia (dias, 0 = não mostrar o cartão)"><Input type="number" min={0} value={c.guaranteeDays} onChange={(e) => onChange({ guaranteeDays: Number(e.target.value) || 0 })} /></Field>
-        {c.guaranteeDays > 0 && (
-          <div className="grid gap-2">
-            <Input aria-label="Título do cartão de garantia" placeholder={`Garantia de ${c.guaranteeDays} dias`} value={d.guaranteeTitle ?? ''} onChange={(e) => setDesign({ guaranteeTitle: e.target.value })} />
-            <Input aria-label="Texto do cartão de garantia" placeholder="Se não gostar, devolvemos 100% do seu dinheiro." value={d.guaranteeText ?? ''} onChange={(e) => setDesign({ guaranteeText: e.target.value })} />
-          </div>
-        )}
-        <fieldset>
-          <legend className="mb-1.5 text-[11px] font-medium text-slate-400">Selos</legend>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-            {STORE_SEALS.map((s) => (
-              <label key={s.key} className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" className="h-4 w-4" checked={seals.includes(s.key)} onChange={(e) => toggleSeal(s.key, e.target.checked)} />
-                <span>{s.text(c.guaranteeDays)}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+      <EditorSection title="Garantia e selos de confiança" hint="Cada selo marcado vira um cartão do mesmo tamanho na lateral, um embaixo do outro. Clique no selo marcado para mudar o texto.">
+        <Field label="Dias de garantia"><Input type="number" min={0} value={c.guaranteeDays} onChange={(ev) => onChange({ guaranteeDays: Number(ev.target.value) || 0 })} /></Field>
+        <ul className="space-y-2">
+          {STORE_SEALS.map((sl) => {
+            const on = seals.includes(sl.key)
+            const copy = sealCopy(sl.key, d, c.guaranteeDays)
+            const own = d.sealTexts?.[sl.key] ?? {}
+            const setText = (patch: { title?: string; text?: string }) => setDesign({ sealTexts: { ...d.sealTexts, [sl.key]: { ...own, ...patch } } })
+            return (
+              <li key={sl.key} className={`rounded-xl border p-2.5 ${on ? 'border-brand-300 bg-brand-50/40' : 'border-slate-200'}`}>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <input type="checkbox" className="h-4 w-4" checked={on} onChange={(ev) => toggleSeal(sl.key, ev.target.checked)} />
+                  {copy.title}
+                </label>
+                {on && (
+                  <div className="mt-2 grid gap-1.5 pl-6">
+                    <Input aria-label={`Título do selo ${sl.label}`} placeholder={sl.title(c.guaranteeDays)} value={own.title ?? ''} onChange={(ev) => setText({ title: ev.target.value })} />
+                    <Input aria-label={`Texto do selo ${sl.label}`} placeholder={sl.text} value={own.text ?? ''} onChange={(ev) => setText({ text: ev.target.value })} />
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
         <TextListEditor label="Selos com texto seu" items={d.customSeals ?? []} onChange={(v) => setDesign({ customSeals: v })} placeholder="Ex.: Mais de 500 alunos" />
         <Segmented
           label="Onde os selos aparecem"
-          value={d.sealsPosition ?? 'button'}
+          value={d.sealsPosition ?? 'side'}
           onChange={(v) => setDesign({ sealsPosition: v })}
           options={[
-            { value: 'button', content: 'No botão', title: 'Embaixo do botão de comprar' },
-            { value: 'side', content: 'Lateral', title: 'Na coluna lateral' },
-            { value: 'both', content: 'Os dois', title: 'Embaixo do botão e na lateral' },
-          ]}
-        />
-        <Segmented
-          label="Estilo"
-          value={d.sealsStyle ?? 'row'}
-          onChange={(v) => setDesign({ sealsStyle: v })}
-          options={[
-            { value: 'row', content: 'Em linha', title: 'Etiquetas pequenas lado a lado' },
-            { value: 'grid', content: 'Em grade', title: 'Quadradinhos com ícone grande' },
+            { value: 'side', content: 'Cartões na lateral', title: 'Um cartão por selo na coluna lateral' },
+            { value: 'button', content: 'No botão', title: 'Etiquetas pequenas embaixo do botão de comprar' },
+            { value: 'both', content: 'Os dois', title: 'Cartões na lateral e etiquetas no botão' },
           ]}
         />
       </EditorSection>

@@ -651,3 +651,24 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ob-anim { animation: none !important; }
 }
+
+/* Texto das aulas (markdown) na área de membros: segue o tema claro/escuro da área. */
+.members-prose {
+  --tw-prose-body: var(--m-text2);
+  --tw-prose-headings: var(--m-text);
+  --tw-prose-lead: var(--m-text2);
+  --tw-prose-links: var(--m-primary);
+  --tw-prose-bold: var(--m-text);
+  --tw-prose-counters: var(--m-muted);
+  --tw-prose-bullets: var(--m-muted);
+  --tw-prose-hr: var(--m-border);
+  --tw-prose-quotes: var(--m-text2);
+  --tw-prose-quote-borders: var(--m-border);
+  --tw-prose-captions: var(--m-muted);
+  --tw-prose-code: var(--m-text);
+  --tw-prose-pre-code: var(--m-text);
+  --tw-prose-pre-bg: var(--m-soft2);
+  --tw-prose-th-borders: var(--m-border);
+  --tw-prose-td-borders: var(--m-border2);
+  color: var(--m-text2);
+}

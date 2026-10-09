@@ -38,6 +38,8 @@ export interface StoreCountdownConfig {
   color: string
   textColor?: string
   position?: StoreCountdownPosition
+  /** Posição no celular (lá a coluna lateral fica embaixo de tudo). Vazio = igual ao computador; "Lateral" vira "No formulário". */
+  mobilePosition?: Exclude<StoreCountdownPosition, 'side'>
   /** Em qual tela o contador aparece. */
   devices?: StoreDeviceScope
 }
@@ -45,23 +47,43 @@ export interface StoreCountdownConfig {
 /** Selos de confiança prontos (o texto da garantia usa os dias do produto). */
 export type StoreSealKey = 'secure' | 'guarantee' | 'satisfaction' | 'instant' | 'privacy' | 'pix' | 'support' | 'lifetime'
 
-export const STORE_SEALS: { key: StoreSealKey; label: string; text: (days: number) => string }[] = [
-  { key: 'secure', label: 'Compra segura', text: () => 'Compra 100% segura' },
-  { key: 'guarantee', label: 'Garantia em dias', text: (d) => `${d || 7} dias de garantia` },
-  { key: 'satisfaction', label: 'Satisfação garantida', text: () => '100% garantido ou seu dinheiro de volta' },
-  { key: 'instant', label: 'Acesso imediato', text: () => 'Acesso imediato' },
-  { key: 'privacy', label: 'Dados protegidos', text: () => 'Seus dados protegidos' },
-  { key: 'pix', label: 'Aprovação no Pix', text: () => 'Aprovação na hora no Pix' },
-  { key: 'support', label: 'Suporte', text: () => 'Suporte direto com a equipe' },
-  { key: 'lifetime', label: 'Acesso vitalício', text: () => 'Acesso vitalício' },
+export const STORE_SEALS: { key: StoreSealKey; label: string; title: (days: number) => string; text: string }[] = [
+  { key: 'guarantee', label: 'Garantia em dias', title: (d) => `Garantia de ${d || 7} dias`, text: 'Se não gostar, devolvemos 100% do seu dinheiro.' },
+  { key: 'secure', label: 'Compra segura', title: () => 'Compra 100% segura', text: 'Pagamento protegido e processado com criptografia.' },
+  { key: 'satisfaction', label: 'Satisfação garantida', title: () => '100% garantido', text: 'Satisfação garantida ou o seu dinheiro de volta.' },
+  { key: 'instant', label: 'Acesso imediato', title: () => 'Acesso imediato', text: 'O acesso chega no seu e-mail assim que o pagamento é aprovado.' },
+  { key: 'privacy', label: 'Dados protegidos', title: () => 'Seus dados protegidos', text: 'Suas informações ficam em sigilo e não são compartilhadas.' },
+  { key: 'pix', label: 'Pagamento no Pix', title: () => 'Pague no Pix', text: 'Rápido, sem cartão e sem burocracia.' },
+  { key: 'support', label: 'Suporte', title: () => 'Suporte direto', text: 'Fale com a nossa equipe sempre que tiver dúvida.' },
+  { key: 'lifetime', label: 'Acesso vitalício', title: () => 'Acesso vitalício', text: 'Assista quando quiser, quantas vezes quiser.' },
 ]
+
+/** Selos marcados. Produto antigo (sem a lista) mostra só a garantia, como antes. */
+export function checkoutSeals(design: StoreCheckoutDesign | undefined, guaranteeDays: number): StoreSealKey[] {
+  if (design?.seals) return design.seals
+  return guaranteeDays > 0 ? ['guarantee'] : []
+}
+
+/** Título e texto de um selo, com o que foi escrito no produto por cima do padrão. */
+export function sealCopy(key: StoreSealKey, design: StoreCheckoutDesign | undefined, guaranteeDays: number) {
+  const base = STORE_SEALS.find((x) => x.key === key)
+  const own = design?.sealTexts?.[key]
+  const legacyTitle = key === 'guarantee' ? design?.guaranteeTitle : undefined
+  const legacyText = key === 'guarantee' ? design?.guaranteeText : undefined
+  return {
+    title: own?.title || legacyTitle || base?.title(guaranteeDays) || '',
+    text: own?.text || legacyText || base?.text || '',
+  }
+}
 
 export interface StoreCheckoutDesign {
   /** Selos de confiança marcados, na ordem em que aparecem. */
   seals?: StoreSealKey[]
+  /** Título e texto próprios de cada selo (vazio = padrão). */
+  sealTexts?: Partial<Record<StoreSealKey, { title?: string; text?: string }>>
   /** Selos escritos à mão (além dos prontos). */
   customSeals?: string[]
-  /** Onde os selos aparecem: embaixo do botão de comprar, na coluna lateral ou nos dois. */
+  /** Onde os selos aparecem: cartões na coluna lateral, etiquetas embaixo do botão ou os dois. Padrão: lateral. */
   sealsPosition?: 'button' | 'side' | 'both'
   /** Selos em linha (etiquetas pequenas) ou em grade (com ícone grande). */
   sealsStyle?: 'row' | 'grid'

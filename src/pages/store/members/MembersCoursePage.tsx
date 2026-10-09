@@ -66,13 +66,13 @@ export function MembersCoursePage() {
                       style={m.coverUrl || imgs.cover ? { backgroundImage: `url(${m.coverUrl || imgs.cover})` } : undefined}
                     >
                       {!m.coverUrl && (
-                        <span className={`flex h-full flex-col items-center justify-center p-3 text-center ${imgs.cover ? 'bg-black/55' : ''}`}>
-                          <span className="text-xs uppercase tracking-wider text-[var(--m-muted)]">Módulo {idx + 1}</span>
+                        <span className={`flex h-full flex-col items-center justify-center p-3 text-center ${imgs.cover ? 'bg-black/55 text-white' : ''}`}>
+                          <span className={`text-xs uppercase tracking-wider ${imgs.cover ? 'text-white/75' : 'text-[var(--m-muted)]'}`}>Módulo {idx + 1}</span>
                           <span className="mt-1 font-semibold">{m.title}</span>
                         </span>
                       )}
                       {locked && (
-                        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 p-2 text-center text-xs">
+                        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 p-2 text-center text-xs text-white">
                           <Lock size={20} aria-hidden="true" /> Libera em {locked.toLocaleDateString('pt-BR')}
                         </span>
                       )}

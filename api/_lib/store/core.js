@@ -156,6 +156,7 @@ export function publicCheckout(product, bumps, gateway, settings = {}) {
             color: c.countdown.color || '#e55858',
             textColor: c.countdown.textColor || '#ffffff',
             position: ['top', 'form', 'side', 'button'].includes(c.countdown.position) ? c.countdown.position : 'top',
+            mobilePosition: ['top', 'form', 'button'].includes(c.countdown.mobilePosition) ? c.countdown.mobilePosition : null,
             devices: ['all', 'desktop', 'mobile'].includes(c.countdown.devices) ? c.countdown.devices : 'all',
           }
         : null,

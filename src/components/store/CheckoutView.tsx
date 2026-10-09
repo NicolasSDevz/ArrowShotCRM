@@ -4,7 +4,7 @@ import { ArrowRight, BadgeCheck, Check, CreditCard, Headphones, Infinity as Infi
 import { checkCoupon, createOrder, type PublicCheckout } from '../../services/storeApi'
 import { maskDocument, maskPhone } from '../../utils/masks'
 import { trackMetaPixel } from '../../utils/metaPixel'
-import { STORE_SEALS, formatCents, type StoreSealKey } from '../../types/store'
+import { checkoutSeals, formatCents, sealCopy, type StoreSealKey } from '../../types/store'
 
 const SEAL_ICONS: Record<StoreSealKey, LucideIcon> = {
   secure: Lock,
@@ -193,35 +193,38 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const width = mobile ? 'max-w-md' : dk.width === 'narrow' ? 'max-w-3xl' : dk.width === 'wide' ? 'max-w-6xl' : 'max-w-5xl'
   const cdDevices = c.countdown?.devices ?? 'all'
   const cd = c.countdown && secondsLeft !== null && (cdDevices === 'all' || (cdDevices === 'mobile') === mobile) ? c.countdown : null
-  const cdPos = cd?.position ?? 'top'
+  // No celular a lateral fica embaixo de tudo, então o contador usa a posição própria do celular.
+  const cdPos = !cd ? 'top' : mobile ? (cd.mobilePosition ?? (cd.position === 'side' ? 'form' : cd.position)) : cd.position
   const sticky = !!(mobile && mb.stickyButton && method !== 'card' && methods.length > 0)
   const submitLabel = busy ? 'Processando...' : method === 'pix' ? `${c.buttonText} com Pix` : c.buttonText
 
   const seals = [
-    ...(d.seals ?? []).map((k) => ({ icon: SEAL_ICONS[k] ?? BadgeCheck, text: STORE_SEALS.find((x) => x.key === k)?.text(c.guaranteeDays) ?? '' })),
-    ...(d.customSeals ?? []).filter(Boolean).map((t) => ({ icon: BadgeCheck, text: t })),
-  ].filter((x) => x.text)
-  const sealsAt = d.sealsPosition ?? 'button'
-  const sealsBox = seals.length > 0 && (
-    d.sealsStyle === 'grid' ? (
-      <ul className="grid grid-cols-2 gap-2" aria-label="Garantias da compra">
-        {seals.map((x, i) => (
-          <li key={i} className="flex flex-col items-center gap-1.5 border border-black/10 p-3 text-center text-xs font-semibold" style={{ borderRadius: radius }}>
-            <x.icon size={22} style={{ color }} aria-hidden="true" />
-            {x.text}
-          </li>
-        ))}
-      </ul>
-    ) : (
-      <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5" aria-label="Garantias da compra">
-        {seals.map((x, i) => (
-          <li key={i} className="flex items-center gap-1.5 text-xs font-semibold opacity-80">
-            <x.icon size={14} style={{ color }} aria-hidden="true" />
-            {x.text}
-          </li>
-        ))}
-      </ul>
-    )
+    ...checkoutSeals(d, c.guaranteeDays).map((k) => ({ icon: SEAL_ICONS[k] ?? BadgeCheck, ...sealCopy(k, d, c.guaranteeDays) })),
+    ...(d.customSeals ?? []).filter(Boolean).map((t) => ({ icon: BadgeCheck, title: t, text: '' })),
+  ].filter((x) => x.title)
+  const sealsAt = d.sealsPosition ?? 'side'
+  // Lateral: um cartão por selo, todos do mesmo tamanho, um embaixo do outro.
+  const sealCards = sealsAt !== 'button' && seals.map((x, i) => (
+    <section key={`seal-${i}`} className="flex min-h-[92px] items-center gap-4 p-5 shadow-sm" style={cardStyle}>
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in srgb, ${color} 14%, transparent)` }} aria-hidden="true">
+        <x.icon size={24} style={{ color }} />
+      </span>
+      <div className="min-w-0">
+        <h2 className="font-semibold leading-snug">{x.title}</h2>
+        {x.text && <p className="mt-0.5 text-sm leading-snug opacity-70">{x.text}</p>}
+      </div>
+    </section>
+  ))
+  // Embaixo do botão: etiquetas pequenas.
+  const sealsRow = sealsAt !== 'side' && seals.length > 0 && (
+    <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5" aria-label="Garantias da compra">
+      {seals.map((x, i) => (
+        <li key={i} className="flex items-center gap-1.5 text-xs font-semibold opacity-80">
+          <x.icon size={14} style={{ color }} aria-hidden="true" />
+          {x.title}
+        </li>
+      ))}
+    </ul>
   )
 
   const countdownBox = cd && secondsLeft !== null && (
@@ -234,7 +237,6 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const sideColumn = (
     <aside className="space-y-4">
       {cdPos === 'side' && countdownBox}
-      {sealsAt !== 'button' && sealsBox && <div className="p-4 shadow-sm" style={cardStyle}>{sealsBox}</div>}
       {!(mobile && mb.hideSideImages) && c.sideImages.map((src, i) => <img key={i} src={src} alt="" className="w-full" style={{ borderRadius: radius }} />)}
       {c.benefits.length > 0 && (
         <section className="p-5 shadow-sm" style={cardStyle}>
@@ -246,15 +248,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
           </ul>
         </section>
       )}
-      {c.guaranteeDays > 0 && (
-        <section className="flex items-center gap-3 p-5 shadow-sm" style={cardStyle}>
-          <ShieldCheck size={40} className="shrink-0" style={{ color }} aria-hidden="true" />
-          <div>
-            <h2 className="font-semibold">{d.guaranteeTitle || `Garantia de ${c.guaranteeDays} dias`}</h2>
-            <p className="text-sm opacity-70">{d.guaranteeText || 'Se não gostar, devolvemos 100% do seu dinheiro.'}</p>
-          </div>
-        </section>
-      )}
+      {sealCards}
       {!(mobile && mb.hideTestimonials) && c.testimonials.map((t, i) => (
         <figure key={i} className="p-5 shadow-sm" style={cardStyle}>
           <div className="mb-2 flex gap-0.5 text-amber-400" aria-label="5 estrelas">{[0, 1, 2, 3, 4].map((s) => <Star key={s} size={14} fill="currentColor" />)}</div>
@@ -446,7 +440,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                   <Lock size={18} /> {submitLabel}
                 </button>
               )}
-              {sealsAt !== 'side' && sealsBox}
+              {sealsRow}
               <p className="flex items-center justify-center gap-1.5 text-xs opacity-60"><Lock size={12} /> Pagamento seguro processado pelo Mercado Pago</p>
             </section>
           </form>

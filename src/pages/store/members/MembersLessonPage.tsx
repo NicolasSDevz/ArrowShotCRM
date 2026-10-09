@@ -128,7 +128,7 @@ export function MembersLessonPage() {
         </div>
 
         {lesson.description && !locked && (
-          <div className="prose prose-invert mt-6 max-w-none text-[var(--m-text2)]">
+          <div className="members-prose prose mt-6 max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{lesson.description}</ReactMarkdown>
           </div>
         )}
