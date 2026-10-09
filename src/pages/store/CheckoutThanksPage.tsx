@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { CheckCircle2, Copy, Clock, XCircle } from 'lucide-react'
+import { CheckCircle2, Copy, Clock, MessageCircle, XCircle } from 'lucide-react'
+import QRCode from 'qrcode'
 import { fetchCheckout, fetchOrderStatus, type OrderStatus, type PublicCheckout } from '../../services/storeApi'
 import { loadMetaPixel, trackMetaPixel } from '../../utils/metaPixel'
 import { formatCents } from '../../types/store'
@@ -20,6 +21,14 @@ export function CheckoutThanksPage() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const tracked = useRef(false)
+  const [qrImage, setQrImage] = useState<string | null>(null)
+
+  // Pix direto na conta vem só com o copia e cola: o QR é desenhado aqui.
+  const pixText = order?.pix && !order.pix.qrBase64 ? order.pix.qrCode : null
+  useEffect(() => {
+    if (!pixText) return
+    QRCode.toDataURL(pixText, { width: 448, margin: 1 }).then(setQrImage).catch(() => setQrImage(null))
+  }, [pixText])
 
   useEffect(() => {
     fetchCheckout(slug)
@@ -33,12 +42,14 @@ export function CheckoutThanksPage() {
   useEffect(() => {
     let stop = false
     let timer: ReturnType<typeof setTimeout>
+    const started = Date.now()
     const poll = async () => {
       try {
         const o = await fetchOrderStatus(orderId, key)
         if (stop) return
         setOrder(o)
-        if (o.status === 'pending') timer = setTimeout(poll, 5000)
+        // 5 s nos primeiros 10 min; depois a cada 30 s (Pix confirmado à mão pode demorar).
+        if (o.status === 'pending') timer = setTimeout(poll, Date.now() - started < 600_000 ? 5000 : 30_000)
       } catch (err) {
         if (!stop) setError((err as Error).message)
       }
@@ -97,6 +108,7 @@ export function CheckoutThanksPage() {
             <h1 className="text-xl font-bold text-slate-900">Falta pouco! Pague o Pix</h1>
             <p className="mt-1 text-sm text-slate-500">Valor: <strong>{formatCents(order.amount)}</strong>. Abra o app do banco e escaneie o QR Code ou use o copia e cola.</p>
             {order.pix.qrBase64 && <img src={`data:image/png;base64,${order.pix.qrBase64}`} alt="QR Code do Pix" className="mx-auto my-4 h-56 w-56" />}
+            {!order.pix.qrBase64 && qrImage && <img src={qrImage} alt="QR Code do Pix" className="mx-auto my-4 h-56 w-56" />}
             {order.pix.qrCode && (
               <>
                 <label className="block text-left text-xs text-slate-500">
@@ -108,7 +120,26 @@ export function CheckoutThanksPage() {
                 </button>
               </>
             )}
-            <p className="mt-4 flex items-center justify-center gap-2 text-sm text-slate-500"><Spinner className="h-3.5 w-3.5" /> Aguardando o pagamento. Esta página atualiza sozinha.</p>
+            {order.manualPix ? (
+              <>
+                <p className="mt-4 text-sm text-slate-600">
+                  Depois de pagar, a nossa equipe confirma o recebimento e o botão de acesso aparece aqui mesmo. Deixe esta página aberta ou salve o link dela nos favoritos.
+                </p>
+                {order.pix.whatsapp && (
+                  <a
+                    href={`https://wa.me/${order.pix.whatsapp.startsWith('55') ? order.pix.whatsapp : `55${order.pix.whatsapp}`}?text=${encodeURIComponent(`Olá! Fiz o Pix do pedido ${order.orderId} (${formatCents(order.amount)}) no nome de ${order.buyerName}. Segue o comprovante.`)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border-2 border-emerald-500 font-semibold text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <MessageCircle size={18} aria-hidden="true" /> Enviar comprovante no WhatsApp (libera mais rápido)
+                  </a>
+                )}
+                <div className="mt-3 flex items-center justify-center gap-2 text-xs text-slate-400"><Spinner className="h-3 w-3" /> Esta página atualiza sozinha.</div>
+              </>
+            ) : (
+              <div className="mt-4 flex items-center justify-center gap-2 text-sm text-slate-500"><Spinner className="h-3.5 w-3.5" /> Aguardando o pagamento. Esta página atualiza sozinha.</div>
+            )}
           </section>
         )}
 

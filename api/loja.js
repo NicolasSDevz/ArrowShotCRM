@@ -19,6 +19,8 @@
 //   POST admin-link    { uid }                 → { accessUrl }
 //   POST admin-revoke  { uid, productId }
 //   POST admin-refund  { orderId }
+//   POST admin-confirm { orderId }   confirma Pix direto (Nubank) e libera o acesso
+//   POST admin-cancel  { orderId }   cancela pedido que não foi pago
 
 import { requireInternalUser, AuthError } from './_lib/auth.js'
 import { getDoc, setDoc, updateDoc, createCustomToken, verifyIdTokenWithClaims } from './_lib/firebaseAdmin.js'
@@ -51,7 +53,10 @@ import {
   hashPassword,
   checkPassword,
   fulfillOrder,
+  getPaymentSettings,
+  notifyStaff,
 } from './_lib/store/core.js'
+import { buildPixCode } from './_lib/store/pixCode.js'
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -72,8 +77,8 @@ async function loadActiveProduct(slug) {
 
 async function actionCheckout(req) {
   const product = await loadActiveProduct(String(req.query.slug || ''))
-  const bumps = await resolveBumps(product)
-  return publicCheckout(product, bumps, gateway())
+  const [bumps, settings] = await Promise.all([resolveBumps(product), getPaymentSettings()])
+  return publicCheckout(product, bumps, gateway(), settings)
 }
 
 async function actionCoupon(req) {
@@ -111,6 +116,7 @@ async function actionOrder(req) {
   if (product.checkout?.askCpf === true && !buyer.cpf) throw new HttpError(400, 'Informe seu CPF')
   const method = body.method
   const gw = gateway()
+  const settings = await getPaymentSettings()
 
   // Itens: produto principal (com cupom) + order bumps escolhidos.
   const coupon = body.coupon ? await findCoupon(body.coupon, product.id) : null
@@ -154,8 +160,23 @@ async function actionOrder(req) {
     order.method = 'free'
     order.status = 'approved'
     order.approvedAt = nowIso()
+  } else if (method === 'pix' && settings.manualReady) {
+    if (product.paymentMethods?.pix === false) throw new HttpError(400, 'Pix indisponível para este produto')
+    // Pix direto na conta: sem gateway; a equipe confirma no CRM.
+    const qrCode = buildPixCode({
+      key: settings.pixKey,
+      keyType: settings.pixKeyType,
+      name: settings.pixName,
+      city: settings.pixCity,
+      amountCents: amount,
+      txid: orderId.replace('ord_', ''),
+    })
+    const whatsapp = String(settings.whatsapp || '').replace(/\D/g, '') || null
+    pix = { qrCode, qrBase64: null, ticketUrl: null, expiresAt: null, manual: true, whatsapp }
+    order.method = 'pix_manual'
+    order.pix = pix
   } else if (method === 'test') {
-    if (gw.mercadoPago || product.testMode !== true) throw new HttpError(400, 'Modo teste desligado para este produto')
+    if (gw.mercadoPago || settings.manualReady || product.testMode !== true) throw new HttpError(400, 'Modo teste desligado para este produto')
     order.status = 'approved'
     order.approvedAt = nowIso()
     order.test = true
@@ -197,6 +218,10 @@ async function actionOrder(req) {
   await setDoc(`storeOrders/${orderId}`, order)
   let accessUrl = null
   if (order.status === 'approved') accessUrl = (await fulfillOrder(origin, orderId))?.accessUrl || null
+  if (order.method === 'pix_manual') {
+    const total = (amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    await notifyStaff('store_pix_pending', `Pix para conferir: ${buyer.name} gerou um Pix de ${total} (${description}). Confira no banco e confirme na Loja, aba Vendas.`)
+  }
 
   return {
     orderId,
@@ -248,6 +273,7 @@ async function actionOrderStatus(req) {
     buyerName: order.buyer?.name || '',
     buyerEmail: order.buyer?.email || '',
     pix: order.status === 'pending' ? order.pix || null : null,
+    manualPix: order.method === 'pix_manual',
     accessUrl: order.status === 'approved' ? order.accessUrl || null : null,
     emailSent: order.emailSent === true,
     productId: order.productId,
@@ -327,6 +353,7 @@ async function actionMemberPassword(req) {
 async function actionAdminStatus() {
   return {
     mercadoPago: mpConfigured(),
+    pixManual: (await getPaymentSettings()).manualReady,
     email: Boolean(process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM),
   }
 }
@@ -373,6 +400,27 @@ async function actionAdminRefund(req, user) {
   return { ok: true }
 }
 
+async function actionAdminConfirm(req, user) {
+  const orderId = String(req.body?.orderId || '')
+  const snap = await getDoc(`storeOrders/${orderId}`)
+  if (!snap.exists) throw new HttpError(404, 'Pedido não encontrado')
+  const order = snap.data()
+  if (order.status !== 'pending') throw new HttpError(400, 'Esse pedido não está aguardando pagamento')
+  if (order.method !== 'pix_manual') throw new HttpError(400, 'Só pedidos de Pix direto são confirmados à mão')
+  await updateDoc(`storeOrders/${orderId}`, { status: 'approved', approvedAt: nowIso(), confirmedBy: user.name, updatedAt: nowIso() })
+  const done = await fulfillOrder(publicOrigin(req), orderId)
+  return { ok: true, accessUrl: done?.accessUrl || null }
+}
+
+async function actionAdminCancel(req, user) {
+  const orderId = String(req.body?.orderId || '')
+  const snap = await getDoc(`storeOrders/${orderId}`)
+  if (!snap.exists) throw new HttpError(404, 'Pedido não encontrado')
+  if (snap.data().status !== 'pending') throw new HttpError(400, 'Esse pedido não está aguardando pagamento')
+  await updateDoc(`storeOrders/${orderId}`, { status: 'refused', cancelledBy: user.name, updatedAt: nowIso() })
+  return { ok: true }
+}
+
 /* ------------------------------- roteador ------------------------------ */
 
 const PUBLIC = {
@@ -393,6 +441,8 @@ const ADMIN = {
   'POST admin-link': actionAdminLink,
   'POST admin-revoke': actionAdminRevoke,
   'POST admin-refund': actionAdminRefund,
+  'POST admin-confirm': actionAdminConfirm,
+  'POST admin-cancel': actionAdminCancel,
 }
 
 export default async function handler(req, res) {

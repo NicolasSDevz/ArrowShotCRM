@@ -9,6 +9,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   writeBatch,
   type DocumentData,
@@ -31,6 +32,7 @@ import {
   type StoreOrder,
   type StoreProduct,
   type StoreProgress,
+  type StorePaymentSettings,
 } from '../types/store'
 
 /** Telas da equipe (aba Loja do CRM). O que é dinheiro/acesso (pedidos,
@@ -207,6 +209,16 @@ export function replyAsProducer(parent: StoreComment, text: string, authorName: 
     parentId: parent.parentId || parent.id,
     createdAt: serverTimestamp(),
   })
+}
+
+/* ------------------------------ recebimento ------------------------------ */
+
+export function subscribeStorePaymentSettings(onData: (s: StorePaymentSettings | null) => void, onError?: OnError) {
+  return onSnapshot(doc(db, 'storeSettings', 'payments'), (s) => onData(s.exists() ? (s.data() as StorePaymentSettings) : null), onError)
+}
+
+export function saveStorePaymentSettings(data: StorePaymentSettings, userId: string) {
+  return setDoc(doc(db, 'storeSettings', 'payments'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId })
 }
 
 /* -------------------------------- imagens -------------------------------- */

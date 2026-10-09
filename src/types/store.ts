@@ -126,7 +126,8 @@ export interface StoreOrder {
   couponCode?: string | null
   couponPercent?: number
   buyer: { name: string; email: string; phone?: string | null; cpf?: string | null }
-  method: 'pix' | 'card' | 'test' | 'free'
+  method: 'pix' | 'pix_manual' | 'card' | 'test' | 'free'
+  confirmedBy?: string
   installments?: number
   status: StoreOrderStatus
   mpPaymentId?: string
@@ -197,6 +198,28 @@ export interface StoreComment {
   createdAt: Timestamp
 }
 
+/** storeSettings/payments — Pix direto na conta (ex.: Nubank), sem taxa. */
+export type PixKeyType = 'cpf' | 'cnpj' | 'email' | 'phone' | 'evp'
+
+export interface StorePaymentSettings {
+  pixManual: boolean
+  pixKey: string
+  pixKeyType: PixKeyType
+  /** Nome do titular da conta (aparece no app do banco de quem paga). */
+  pixName: string
+  pixCity: string
+  /** WhatsApp para o comprador mandar o comprovante (só números, com DDD). */
+  whatsapp?: string
+}
+
+export const PIX_KEY_TYPE_LABEL: Record<PixKeyType, string> = {
+  cnpj: 'CNPJ',
+  cpf: 'CPF',
+  email: 'E-mail',
+  phone: 'Celular',
+  evp: 'Chave aleatória',
+}
+
 export const STORE_FONTS = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Rubik'] as const
 
 export const STORE_ORDER_STATUS_LABEL: Record<StoreOrderStatus, string> = {
@@ -207,7 +230,8 @@ export const STORE_ORDER_STATUS_LABEL: Record<StoreOrderStatus, string> = {
 }
 
 export const STORE_METHOD_LABEL: Record<StoreOrder['method'], string> = {
-  pix: 'Pix',
+  pix: 'Pix (Mercado Pago)',
+  pix_manual: 'Pix direto na conta',
   card: 'Cartão',
   test: 'Teste',
   free: 'Gratuito',

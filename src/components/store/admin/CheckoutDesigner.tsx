@@ -79,7 +79,7 @@ function previewData(product: StoreProduct, all: StoreProduct[]): PublicCheckout
         return { productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, headline: b.headline || `Leve também: ${p.name}`, description: b.description || p.description, cta: b.cta || 'Sim, eu quero!', price: b.price || p.price, fullPrice: p.price }
       })
       .filter((b): b is NonNullable<typeof b> => !!b),
-    gateway: { mercadoPago: true, publicKey: null, testMode: false },
+    gateway: { mercadoPago: true, publicKey: null, pixManual: false, testMode: false },
   }
 }
 

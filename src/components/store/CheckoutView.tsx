@@ -255,7 +255,9 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
 
               {method === 'pix' && (
                 <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-                  Ao finalizar, aparece o QR Code e o código copia e cola. A liberação é imediata depois do pagamento.
+                  {data.gateway.pixManual
+                    ? 'Ao finalizar, aparece o QR Code e o código copia e cola. O acesso é liberado assim que o pagamento for confirmado.'
+                    : 'Ao finalizar, aparece o QR Code e o código copia e cola. A liberação é imediata depois do pagamento.'}
                 </p>
               )}
               {method === 'test' && (

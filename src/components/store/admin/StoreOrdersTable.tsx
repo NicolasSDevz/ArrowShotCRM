@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Copy, Download, RotateCcw } from 'lucide-react'
+import { Ban, CheckCircle2, Copy, Download, RotateCcw } from 'lucide-react'
 import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
 import { Input, Select } from '../../ui/Field'
 import { EmptyState } from '../../ui/EmptyState'
-import { storeRefundOrder } from '../../../services/storeApi'
+import { storeCancelOrder, storeConfirmOrder, storeRefundOrder } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { formatCents, STORE_METHOD_LABEL, STORE_ORDER_STATUS_LABEL, type StoreOrder, type StoreOrderStatus, type StoreProduct } from '../../../types/store'
 
@@ -16,8 +16,8 @@ const STATUS_CLS: Record<StoreOrderStatus, string> = {
   refunded: 'bg-slate-100 text-slate-600',
 }
 
-export function OrderStatusBadge({ status }: { status: StoreOrderStatus }) {
-  return <Badge className={STATUS_CLS[status]}>{STORE_ORDER_STATUS_LABEL[status]}</Badge>
+export function OrderStatusBadge({ status, manual }: { status: StoreOrderStatus; manual?: boolean }) {
+  return <Badge className={STATUS_CLS[status]}>{status === 'pending' && manual ? 'Aguardando confirmação' : STORE_ORDER_STATUS_LABEL[status]}</Badge>
 }
 
 export async function copyText(text: string, okMsg = 'Copiado') {
@@ -74,6 +74,34 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
     a.download = `vendas-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
+  }
+
+  const confirmPayment = async (o: StoreOrder) => {
+    const ok = await askConfirm({
+      title: 'Confirmar pagamento',
+      message: `${o.buyer.name}, ${formatCents(o.amount)} (pedido ${o.id.replace('ord_', '')}). Confira no app do banco se esse Pix caiu. Ao confirmar, o acesso é liberado na hora.`,
+      confirmLabel: 'Confirmar e liberar acesso',
+    })
+    if (!ok) return
+    setRefunding(o.id)
+    try {
+      await storeConfirmOrder(o.id)
+      toast.success(`Pagamento de ${o.buyer.name} confirmado e acesso liberado`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setRefunding(null)
+    }
+  }
+
+  const cancelOrder = async (o: StoreOrder) => {
+    if (!(await askConfirm({ title: 'Cancelar pedido', message: `${o.buyer.name}, ${formatCents(o.amount)}. Use quando o Pix não foi pago.`, confirmLabel: 'Cancelar pedido', danger: true }))) return
+    try {
+      await storeCancelOrder(o.id)
+      toast.success('Pedido cancelado')
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
   }
 
   const refund = async (o: StoreOrder) => {
@@ -148,11 +176,22 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                     <p className="text-xs text-slate-400">{STORE_METHOD_LABEL[o.method]}{o.installments && o.installments > 1 ? ` em ${o.installments}x` : ''}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <OrderStatusBadge status={o.status} />
+                    <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} />
+                    {o.confirmedBy && o.status === 'approved' && <p className="mt-1 text-xs text-slate-400">Confirmado por {o.confirmedBy}</p>}
                     {o.test && <Badge className="ml-1 bg-amber-50 text-amber-700">teste</Badge>}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(o.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
+                    {o.status === 'pending' && o.method === 'pix_manual' && (
+                      <>
+                        <Button size="sm" icon={<CheckCircle2 size={14} />} loading={refunding === o.id} onClick={() => confirmPayment(o)} aria-label={`Confirmar pagamento de ${o.buyer.name}, ${formatCents(o.amount)}`}>
+                          Confirmar pagamento
+                        </Button>
+                        <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => cancelOrder(o)} aria-label={`Cancelar pedido de ${o.buyer.name}`}>
+                          Cancelar
+                        </Button>
+                      </>
+                    )}
                     {o.accessUrl && o.status === 'approved' && (
                       <Button size="sm" variant="ghost" icon={<Copy size={14} />} onClick={() => copyText(o.accessUrl!, 'Link de acesso copiado')} aria-label={`Copiar link de acesso de ${o.buyer.name}`}>
                         Acesso

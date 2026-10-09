@@ -27,7 +27,7 @@ export function StoreOverview({ orders, products }: { orders: StoreOrder[]; prod
   const approved = real.filter((o) => o.status === 'approved')
   const revenue = approved.reduce((s, o) => s + o.amount, 0)
   const pending = real.filter((o) => o.status === 'pending')
-  const pixAll = real.filter((o) => o.method === 'pix')
+  const pixAll = real.filter((o) => o.method === 'pix' || o.method === 'pix_manual')
   const pixPaid = pixAll.filter((o) => o.status === 'approved' || o.status === 'refunded')
   const bumpRevenue = approved.reduce((s, o) => s + o.items.filter((i) => i.bump).reduce((a, i) => a + i.price, 0), 0)
 
@@ -95,7 +95,7 @@ export function StoreOverview({ orders, products }: { orders: StoreOrder[]; prod
                   </div>
                   {o.test && <Badge className="bg-amber-50 text-amber-700">teste</Badge>}
                   <span className="text-slate-600">{formatCents(o.amount)}</span>
-                  <OrderStatusBadge status={o.status} />
+                  <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} />
                 </li>
               ))}
             </ul>

@@ -38,6 +38,8 @@ export type NotificationType =
   | 'member_health_updated'
   | 'meta_token_expiring'
   | 'birthday_today' // 🎂 Aniversário de um responsável do cliente hoje
+  | 'store_pix_pending' // Loja: Pix direto gerado, conferir no banco e confirmar
+  | 'store_sale' // Loja: venda aprovada
 
 export interface AppNotification {
   id: string
@@ -87,6 +89,8 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   member_health_updated: 'Informações de saúde atualizadas',
   meta_token_expiring: 'Token Meta Ads expirando',
   birthday_today: 'Aniversário hoje',
+  store_pix_pending: 'Pix para conferir',
+  store_sale: 'Venda na Loja',
 }
 
 /** Notifications older than this are pruned client-side (no backend

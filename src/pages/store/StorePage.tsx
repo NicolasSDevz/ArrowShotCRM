@@ -18,6 +18,7 @@ import { StoreOrdersTable } from '../../components/store/admin/StoreOrdersTable'
 import { StoreMembersTable } from '../../components/store/admin/StoreMembersTable'
 import { StoreCouponsPanel } from '../../components/store/admin/StoreCouponsPanel'
 import { StoreCommentsPanel } from '../../components/store/admin/StoreCommentsPanel'
+import { StorePaymentSettingsPanel } from '../../components/store/admin/StorePaymentSettingsPanel'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { formatCents, type StoreProduct } from '../../types/store'
 
@@ -36,7 +37,7 @@ export function StorePage() {
   const { data: progress } = useStoreProgress()
   const { data: coupons } = useStoreCoupons()
   const { data: comments } = useStoreComments()
-  const [status, setStatus] = useState<{ mercadoPago: boolean; email: boolean } | null>(null)
+  const [status, setStatus] = useState<{ mercadoPago: boolean; pixManual: boolean; email: boolean } | null>(null)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -47,6 +48,8 @@ export function StorePage() {
 
   const lessonCounts = Object.fromEntries(products.map((p) => [p.id, p.lessonCount ?? 0]))
   const pendingComments = comments.filter((c) => c.status === 'pending').length
+  const pixToConfirm = orders.filter((o) => o.status === 'pending' && o.method === 'pix_manual').length
+  const canSell = !!status && (status.mercadoPago || status.pixManual)
 
   return (
     <div className="space-y-5">
@@ -64,13 +67,16 @@ export function StorePage() {
       </header>
 
       {status && (
-        <div role="status" className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 text-sm ${status.mercadoPago ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-          {status.mercadoPago ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <AlertTriangle size={18} className="mt-0.5 shrink-0" />}
+        <div role="status" className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 text-sm ${canSell ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+          {canSell ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <AlertTriangle size={18} className="mt-0.5 shrink-0" />}
           <div className="flex-1 space-y-1">
             <p>
+              {status.pixManual ? 'Pix direto na conta ligado (sem taxa, confirmação na aba Vendas). ' : ''}
               {status.mercadoPago
-                ? 'Mercado Pago conectado: Pix e cartão funcionando.'
-                : 'Mercado Pago ainda não configurado. Até lá, só dá para testar o fluxo (ligue o Modo teste no produto). Para cobrar de verdade, coloque MP_ACCESS_TOKEN e MP_PUBLIC_KEY nas variáveis da Vercel.'}
+                ? status.pixManual ? 'Cartão pelo Mercado Pago.' : 'Mercado Pago conectado: Pix e cartão funcionando.'
+                : status.pixManual
+                  ? 'Cartão desligado: para aceitar cartão, configure o Mercado Pago (MP_ACCESS_TOKEN e MP_PUBLIC_KEY na Vercel).'
+                  : 'Nenhuma forma de recebimento configurada. Ligue o Pix direto na aba Recebimento ou configure o Mercado Pago. Até lá, só dá para testar com o Modo teste do produto.'}
             </p>
             <p className="opacity-80">
               {status.email
@@ -86,10 +92,11 @@ export function StorePage() {
         tabs={[
           { label: 'Visão geral', content: <StoreOverview orders={orders} products={products} /> },
           { label: `Produtos (${products.length})`, content: <ProductsGrid products={products} onCreate={() => setCreating(true)} /> },
-          { label: 'Vendas', content: <StoreOrdersTable orders={orders} products={products} /> },
+          { label: pixToConfirm ? `Vendas (${pixToConfirm} Pix para confirmar)` : 'Vendas', content: <StoreOrdersTable orders={orders} products={products} /> },
           { label: `Alunos (${members.length})`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} /> },
           { label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} /> },
           { label: pendingComments ? `Comentários (${pendingComments} novos)` : 'Comentários', content: <StoreCommentsPanel comments={comments} products={products} /> },
+          { label: 'Recebimento', content: <StorePaymentSettingsPanel mercadoPago={status?.mercadoPago ?? false} /> },
         ]}
       />
 

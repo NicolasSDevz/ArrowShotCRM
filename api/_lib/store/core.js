@@ -13,7 +13,8 @@
 // do CRM: não tem doc em users/ e as regras tratam "member" à parte.
 
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
-import { getDoc, setDoc, updateDoc, queryDocs } from '../firebaseAdmin.js'
+import { randomUUID } from 'node:crypto'
+import { getDoc, setDoc, updateDoc, queryDocs, listDocs } from '../firebaseAdmin.js'
 
 export const nowIso = () => new Date().toISOString()
 
@@ -43,6 +44,32 @@ export function publicOrigin(req) {
   const host = req.headers['x-forwarded-host'] || req.headers.host
   const proto = req.headers['x-forwarded-proto'] || 'https'
   return `${proto}://${host}`
+}
+
+/* --------------------------- recebimento --------------------------- */
+
+/** storeSettings/payments — Pix direto na conta (ex.: Nubank), sem taxa.
+ *  { pixManual: bool, pixKey, pixKeyType, pixName, pixCity, whatsapp } */
+export async function getPaymentSettings() {
+  const snap = await getDoc('storeSettings/payments')
+  const s = snap.exists ? snap.data() : {}
+  const manualReady = s.pixManual === true && !!s.pixKey && !!s.pixName
+  return { ...s, manualReady }
+}
+
+/** Aviso no sino do CRM para admins e gerentes ativos. */
+export async function notifyStaff(type, message, actorName = 'Loja') {
+  try {
+    const users = await listDocs('users')
+    const staff = users.filter((u) => u.active !== false && (u.role === 'admin' || u.role === 'manager'))
+    await Promise.all(
+      staff.map((u) =>
+        setDoc(`notifications/${randomUUID()}`, { userId: u.id, type, message, actorName, read: false, createdAt: new Date() })
+      )
+    )
+  } catch (err) {
+    console.warn('[loja] falha ao notificar a equipe:', err?.message)
+  }
 }
 
 /* ------------------------------ produtos ------------------------------ */
@@ -83,7 +110,7 @@ export async function resolveBumps(product) {
 }
 
 /** Dados que o checkout público pode ver (nada de cupons nem config interna). */
-export function publicCheckout(product, bumps, gateway) {
+export function publicCheckout(product, bumps, gateway, settings = {}) {
   const c = product.checkout || {}
   return {
     id: product.id,
@@ -96,7 +123,7 @@ export function publicCheckout(product, bumps, gateway) {
     supportEmail: product.supportEmail || null,
     maxInstallments: product.maxInstallments || 12,
     paymentMethods: {
-      pix: product.paymentMethods?.pix !== false,
+      pix: product.paymentMethods?.pix !== false && (gateway.mercadoPago || settings.manualReady === true),
       card: product.paymentMethods?.card !== false && gateway.mercadoPago,
     },
     checkout: {
@@ -120,7 +147,13 @@ export function publicCheckout(product, bumps, gateway) {
       footerText: c.footerText || '',
     },
     bumps,
-    gateway: { mercadoPago: gateway.mercadoPago, publicKey: gateway.publicKey, testMode: !gateway.mercadoPago && product.testMode === true },
+    gateway: {
+      mercadoPago: gateway.mercadoPago,
+      publicKey: gateway.publicKey,
+      // Pix direto na conta tem prioridade sobre o Pix do Mercado Pago (sem taxa).
+      pixManual: settings.manualReady === true,
+      testMode: !gateway.mercadoPago && !settings.manualReady && product.testMode === true,
+    },
   }
 }
 
@@ -269,5 +302,9 @@ export async function fulfillOrder(origin, orderId) {
   })
   const patch = { fulfilledAt: nowIso(), memberUid: uid, accessUrl, emailSent }
   await updateDoc(`storeOrders/${orderId}`, patch)
+  if (!order.test) {
+    const total = (order.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    await notifyStaff('store_sale', `Venda aprovada: ${order.buyer.name} comprou ${order.items.map((i) => i.name).join(' + ')} por ${total}.`)
+  }
   return { ...order, ...patch }
 }

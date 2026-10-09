@@ -27,6 +27,8 @@ import {
   KeyRound,
   Cake,
   Globe,
+  QrCode,
+  ShoppingBag,
 } from 'lucide-react'
 import type { AppNotification, NotificationType } from '../../types'
 
@@ -68,6 +70,8 @@ export const NOTIFICATION_ICON: Record<NotificationType, IconType> = {
   member_health_updated: HeartPulse,
   meta_token_expiring: KeyRound,
   birthday_today: Cake,
+  store_pix_pending: QrCode,
+  store_sale: ShoppingBag,
 }
 
 /** Icon chip background/text, per the spec's colors (azul, verde, vermelho,
@@ -106,6 +110,8 @@ export const NOTIFICATION_ICON_STYLE: Record<NotificationType, string> = {
   member_health_updated: 'bg-purple-50 text-purple-600',
   meta_token_expiring: 'bg-amber-50 text-amber-600',
   birthday_today: 'bg-pink-50 text-pink-600',
+  store_pix_pending: 'bg-amber-50 text-amber-600',
+  store_sale: 'bg-emerald-50 text-emerald-600',
 }
 
 /** "há 5 minutos" / "há 2 horas" / "ontem às 14:30" / "dd/MM/yyyy às HH:mm". */
@@ -134,6 +140,7 @@ export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'enti
     if (!n.entityId) return '/calendario'
     return n.entityId.startsWith('http') ? n.entityId : `https://wa.me/${n.entityId}`
   }
+  if (n.type === 'store_pix_pending' || n.type === 'store_sale') return '/loja'
   if (!n.entityType) return null
   switch (n.entityType) {
     case 'client':

@@ -35,7 +35,7 @@ export interface PublicCheckout {
     footerText: string
   }
   bumps: { productId: string; name: string; imageUrl: string | null; headline: string; description: string; cta: string; price: number; fullPrice: number }[]
-  gateway: { mercadoPago: boolean; publicKey: string | null; testMode: boolean }
+  gateway: { mercadoPago: boolean; publicKey: string | null; pixManual: boolean; testMode: boolean }
 }
 
 export interface PixData {
@@ -43,6 +43,9 @@ export interface PixData {
   qrBase64: string | null
   ticketUrl: string | null
   expiresAt: string | null
+  /** Pix direto na conta (confirmação manual pela equipe). */
+  manual?: boolean
+  whatsapp?: string | null
 }
 
 export interface OrderResult {
@@ -68,6 +71,7 @@ export interface OrderStatus {
   accessUrl: string | null
   emailSent: boolean
   productId: string
+  manualPix?: boolean
 }
 
 async function call<T>(action: string, opts: { method?: 'GET' | 'POST'; params?: Record<string, string>; body?: unknown; token?: string | null } = {}): Promise<T> {
@@ -107,7 +111,7 @@ export async function memberSetPassword(password: string) {
 
 /* equipe */
 export async function storeAdminStatus() {
-  return call<{ mercadoPago: boolean; email: boolean }>('admin-status', { token: await staffToken() })
+  return call<{ mercadoPago: boolean; pixManual: boolean; email: boolean }>('admin-status', { token: await staffToken() })
 }
 export async function storeGrantAccess(email: string, name: string, productId: string) {
   return call<{ uid: string; accessUrl: string }>('admin-grant', { body: { email, name, productId }, token: await staffToken() })
@@ -117,6 +121,12 @@ export async function storeAccessLink(uid: string) {
 }
 export async function storeRevokeAccess(uid: string, productId: string) {
   return call<{ ok: true }>('admin-revoke', { body: { uid, productId }, token: await staffToken() })
+}
+export async function storeConfirmOrder(orderId: string) {
+  return call<{ ok: true; accessUrl: string | null }>('admin-confirm', { body: { orderId }, token: await staffToken() })
+}
+export async function storeCancelOrder(orderId: string) {
+  return call<{ ok: true }>('admin-cancel', { body: { orderId }, token: await staffToken() })
 }
 export async function storeRefundOrder(orderId: string) {
   return call<{ ok: true }>('admin-refund', { body: { orderId }, token: await staffToken() })
