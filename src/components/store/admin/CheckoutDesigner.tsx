@@ -88,7 +88,7 @@ function previewData(product: StoreProduct, all: StoreProduct[]): PublicCheckout
     bumps: c.bumps
       .map((b) => {
         const p = all.find((x) => x.id === b.productId)
-        if (!p) return null
+        if (!p || p.status === 'archived') return null
         return { productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, headline: b.headline || `Leve também: ${p.name}`, description: b.description || p.description, cta: b.cta || 'Sim, eu quero!', animation: b.animation ?? 'none', price: b.price || p.price, fullPrice: p.price }
       })
       .filter((b): b is NonNullable<typeof b> => !!b),
@@ -105,7 +105,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const c = product.checkout
   const d = c.design ?? {}
-  const others = allProducts.filter((p) => p.id !== product.id)
+  const others = allProducts.filter((p) => p.id !== product.id && p.status !== 'archived')
 
   const setDesign = (patch: Partial<StoreCheckoutDesign>) => onChange({ design: { ...d, ...patch } })
   const setDesktop = (patch: NonNullable<StoreCheckoutDesign['desktop']>) => setDesign({ desktop: { ...d.desktop, ...patch } })

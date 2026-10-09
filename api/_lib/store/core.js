@@ -107,7 +107,8 @@ export async function resolveBumps(product) {
   for (const b of bumps) {
     if (!b?.productId || b.productId === product.id) continue
     const p = await getProduct(b.productId)
-    if (!p || p.status !== 'active') continue
+    // Rascunho pode ser vendido como bump (não precisa de checkout próprio); arquivado não.
+    if (!p || p.status === 'archived') continue
     const price = Number.isInteger(b.price) && b.price > 0 ? b.price : p.price
     out.push({
       productId: p.id,
