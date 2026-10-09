@@ -72,7 +72,7 @@ export function CheckoutThanksPage() {
       /* segue */
     }
     tracked.current = true
-    trackMetaPixel('Purchase', { value: order.amount / 100, currency: 'BRL', content_name: order.items.map((i) => i.name).join(' + ') })
+    trackMetaPixel('Purchase', { value: order.amount / 100, currency: 'BRL', content_name: order.items.map((i) => i.name).join(' + ') }, `purchase-${order.orderId}`)
   }, [order, product])
 
   // Página de obrigado própria (configurada no produto).

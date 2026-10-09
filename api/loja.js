@@ -25,6 +25,9 @@
 //   POST admin-confirm { orderId }   confirma Pix direto (Nubank) e libera o acesso
 //   POST admin-cancel  { orderId }   cancela pedido que não foi pago
 //   POST admin-invoice-token { token }     token da Focus NFe (gravado cifrado)
+//   GET  admin-capi-status                  pixels com token da API de Conversões
+//   POST admin-capi-token { pixelId, token } token da API de Conversões (cifrado; vazio = remove)
+//   POST admin-capi-test  { pixelId, testCode } manda um Purchase de teste
 //   POST admin-invoice-emit  { orderId }   emite/reemite a nota do pedido
 //   POST admin-invoice-sync  { orderIds }  atualiza notas em processamento
 // Focus NFe (gatilho configurado no painel deles):
@@ -67,6 +70,7 @@ import {
   pixAccountFor,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
+import { capiStatus, cleanPixelId, removeCapiToken, saveCapiToken, sendCapiTest, trackingFromRequest } from './_lib/store/metaCapi.js'
 import { invoiceStatus, saveInvoiceToken, emitInvoice, syncInvoice, cancelInvoice, getInvoiceSettings } from './_lib/store/invoice.js'
 
 class HttpError extends Error {
@@ -178,6 +182,7 @@ async function actionOrder(req) {
     key,
     supportEmail: product.supportEmail || null,
     utm: cleanUtm(body.utm),
+    tracking: trackingFromRequest(req, body.tracking),
     createdAt: nowIso(),
     updatedAt: nowIso(),
   }
@@ -532,6 +537,29 @@ async function actionInvoiceWebhook(req) {
   return { ok: true }
 }
 
+async function actionAdminCapiStatus() {
+  return capiStatus()
+}
+
+async function actionAdminCapiToken(req, user) {
+  const pixelId = cleanPixelId(req.body?.pixelId)
+  if (!pixelId) throw new HttpError(400, 'Número do pixel inválido')
+  const token = String(req.body?.token || '').trim()
+  if (!token) {
+    await removeCapiToken(pixelId)
+    return { ok: true, removed: true }
+  }
+  if (token.length < 30) throw new HttpError(400, 'Token inválido')
+  await saveCapiToken(pixelId, token, user.name)
+  return { ok: true }
+}
+
+async function actionAdminCapiTest(req) {
+  const pixelId = cleanPixelId(req.body?.pixelId)
+  if (!pixelId) throw new HttpError(400, 'Número do pixel inválido')
+  return sendCapiTest(pixelId, String(req.body?.testCode || '').trim() || null)
+}
+
 async function actionAdminInvoiceToken(req, user) {
   const token = String(req.body?.token || '').trim()
   if (token.length < 10) throw new HttpError(400, 'Token inválido')
@@ -580,6 +608,9 @@ const ADMIN = {
   'POST admin-delete-member': actionAdminDeleteMember,
   'POST admin-cancel': actionAdminCancel,
   'POST admin-invoice-token': actionAdminInvoiceToken,
+  'GET admin-capi-status': actionAdminCapiStatus,
+  'POST admin-capi-token': actionAdminCapiToken,
+  'POST admin-capi-test': actionAdminCapiTest,
   'POST admin-invoice-emit': actionAdminInvoiceEmit,
   'POST admin-invoice-sync': actionAdminInvoiceSync,
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { subscribeStorePaymentSettings } from '../../services/storeService'
+import { saveStoreLinks, subscribeStoreLinks, subscribeStorePaymentSettings } from '../../services/storeService'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Copy, CopyPlus, ExternalLink, Save, Trash2 } from 'lucide-react'
@@ -55,6 +55,9 @@ export function StoreProductPage() {
   const [duplicating, setDuplicating] = useState(false)
   const [pixAccounts, setPixAccounts] = useState<{ id: string; label: string }[]>([])
 
+  const [storeLinks, setStoreLinks] = useState<{ checkoutDomain?: string | null } | null>(null)
+  const [domainDraft, setDomainDraft] = useState('')
+  useEffect(() => subscribeStoreLinks((l) => { setStoreLinks(l); setDomainDraft(l?.checkoutDomain ?? '') }), [])
   useEffect(() => subscribeStorePaymentSettings((s) => setPixAccounts((s?.pixAccounts ?? []).map((a) => ({ id: a.id, label: a.label })))), [])
 
   // O rascunho nasce do servidor uma vez; depois só muda pela tela (salvar grava tudo).
@@ -113,7 +116,13 @@ export function StoreProductPage() {
   }
 
   const origin = window.location.origin
-  const checkoutUrl = `${origin}/pay/${server.slug}`
+  const checkoutUrl = storeLinks?.checkoutDomain ? `https://${storeLinks.checkoutDomain}/${server.slug}` : `${origin}/pay/${server.slug}`
+  const saveDomain = async () => {
+    const domain = domainDraft.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+    if (domain && !/^(pay|checkout|compra|loja)\.[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return toast.error('Use um subdomínio que comece com pay., checkout., compra. ou loja.')
+    await saveStoreLinks({ checkoutDomain: domain || null }, profile?.id ?? '')
+    toast.success(domain ? 'Domínio curto salvo' : 'Voltou pro link normal')
+  }
   const membersUrl = `${origin}/membros`
 
   const general = (
@@ -219,6 +228,19 @@ export function StoreProductPage() {
         </div>
         <Field label="Endereço (final do link)"><Input value={draft.slug} onChange={(e) => set({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} /></Field>
         <p className="text-xs text-slate-400">Para rastrear campanhas, use UTMs no link: {checkoutUrl}?utm_source=meta&utm_campaign=nome. Elas ficam salvas em cada pedido.</p>
+        <details className="rounded-lg border border-slate-200 p-3 text-sm">
+          <summary className="cursor-pointer font-medium text-slate-700">Link curto (domínio próprio do checkout)</summary>
+          <div className="mt-3 space-y-2">
+            <p className="text-xs leading-relaxed text-slate-500">
+              Com um subdomínio como <b>pay.marketingparalimpeza.com.br</b>, o link fica <b>pay.marketingparalimpeza.com.br/{server.slug}</b>. Antes de salvar aqui, o subdomínio precisa estar apontado: no registro do domínio, crie um CNAME <b>pay</b> apontando para <b>cname.vercel-dns.com</b> e adicione o domínio no projeto da Vercel (Settings, Domains). Vale pra todos os produtos.
+            </p>
+            <div className="flex gap-2">
+              <Input value={domainDraft} onChange={(e) => setDomainDraft(e.target.value)} placeholder="pay.marketingparalimpeza.com.br" aria-label="Domínio curto do checkout" />
+              <Button variant="secondary" onClick={saveDomain}>Salvar</Button>
+            </div>
+            <p className="text-xs text-slate-400">Para encurtar ainda mais, troque o "Endereço (final do link)" acima por algo curto, tipo <b>script-whats</b>.</p>
+          </div>
+        </details>
       </section>
       <section className={card}>
         <h2 className="text-[15px] font-semibold text-slate-800">Área de membros</h2>

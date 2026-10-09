@@ -624,3 +624,30 @@ body {
   to { opacity: 1; transform: none; }
 }
 .lf-message { animation: lf-message-in 0.25s ease-out; }
+
+/* Animações do order bump no checkout da Loja (StoreBumpAnimation). --ob = cor principal. */
+@keyframes ob-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ob) 45%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ob) 0%, transparent); }
+}
+@keyframes ob-glow {
+  0%, 100% { box-shadow: 0 0 4px color-mix(in srgb, var(--ob) 30%, transparent); border-color: color-mix(in srgb, var(--ob) 50%, #cbd5e1); }
+  50% { box-shadow: 0 0 18px color-mix(in srgb, var(--ob) 65%, transparent); border-color: var(--ob); }
+}
+@keyframes ob-arrow {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(5px); }
+}
+@keyframes ob-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.ob-pulse { animation: ob-pulse 1.6s ease-out infinite; }
+.ob-glow { animation: ob-glow 2s ease-in-out infinite; }
+.ob-shake { animation: lf-shake 3s ease-in-out infinite; }
+.ob-bounce { animation: lf-bounce 2.4s ease-in-out infinite; }
+.ob-arrow { animation: ob-arrow 0.9s ease-in-out infinite; }
+.ob-blink { animation: ob-blink 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .ob-anim { animation: none !important; }
+}

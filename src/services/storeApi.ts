@@ -36,7 +36,7 @@ export interface PublicCheckout {
     thankYouUrl: string | null
     footerText: string
   }
-  bumps: { productId: string; name: string; imageUrl: string | null; headline: string; description: string; cta: string; price: number; fullPrice: number }[]
+  bumps: { productId: string; name: string; imageUrl: string | null; headline: string; description: string; cta: string; animation?: import('../types/store').StoreBumpAnimation; price: number; fullPrice: number }[]
   gateway: { mercadoPago: boolean; publicKey: string | null; pixManual: boolean; testMode: boolean }
 }
 
@@ -145,6 +145,15 @@ export async function storeAccessLink(uid: string) {
 }
 export async function storeRevokeAccess(uid: string, productId: string) {
   return call<{ ok: true }>('admin-revoke', { body: { uid, productId }, token: await staffToken() })
+}
+export async function storeCapiStatus() {
+  return call<{ pixels: Record<string, { updatedAt: string | null; updatedBy: string | null }> }>('admin-capi-status', { token: await staffToken() })
+}
+export async function storeSaveCapiToken(pixelId: string, token: string) {
+  return call<{ ok: true }>('admin-capi-token', { body: { pixelId, token }, token: await staffToken() })
+}
+export async function storeTestCapi(pixelId: string, testCode: string) {
+  return call<{ ok: boolean; error?: string; received?: number }>('admin-capi-test', { body: { pixelId, testCode }, token: await staffToken() })
 }
 export async function storeSaveInvoiceToken(token: string) {
   return call<{ ok: true }>('admin-invoice-token', { body: { token }, token: await staffToken() })

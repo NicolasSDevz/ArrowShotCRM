@@ -16,6 +16,7 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import { randomUUID } from 'node:crypto'
 import { getDoc, setDoc, updateDoc, queryDocs, listDocs } from '../firebaseAdmin.js'
 import { emitInvoice } from './invoice.js'
+import { trackOrderEvent } from './metaCapi.js'
 
 export const nowIso = () => new Date().toISOString()
 
@@ -115,6 +116,7 @@ export async function resolveBumps(product) {
       headline: b.headline || `Leve também: ${p.name}`,
       description: b.description || p.description || '',
       cta: b.cta || 'Sim, eu quero!',
+      animation: ['pulse', 'glow', 'shake', 'bounce', 'arrow', 'blink'].includes(b.animation) ? b.animation : 'none',
       price,
       fullPrice: p.price,
     })
@@ -328,6 +330,8 @@ export async function fulfillOrder(origin, orderId) {
   await updateDoc(`storeOrders/${orderId}`, patch)
   if (!order.test) {
     const total = (order.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    const product = await getProduct(order.productId).catch(() => null)
+    await trackOrderEvent({ ...order, ...patch }, product, 'Purchase').catch((err) => console.warn('[loja] CAPI falhou:', err?.message))
     await notifyStaff('store_sale', `Venda aprovada: ${order.buyer.name} comprou ${order.items.map((i) => i.name).join(' + ')} por ${total}.`)
     // Nota fiscal automática (se ligada em Loja > Nota fiscal). Erro não trava a venda.
     await emitInvoice(orderId).catch((err) => console.warn('[loja] nota fiscal falhou:', err?.message))

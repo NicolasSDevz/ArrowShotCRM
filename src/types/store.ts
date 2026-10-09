@@ -13,7 +13,11 @@ export interface StoreOrderBump {
   cta: string
   /** Preço especial da oferta (centavos). Vazio = preço normal do produto. */
   price?: number | null
+  /** Animação pra chamar atenção. */
+  animation?: StoreBumpAnimation
 }
+
+export type StoreBumpAnimation = 'none' | 'pulse' | 'glow' | 'shake' | 'bounce' | 'arrow' | 'blink'
 
 export interface StoreTestimonial {
   name: string
@@ -110,6 +114,10 @@ export interface StoreCheckoutConfig {
   confirmEmail: boolean
   buttonText: string
   fbPixelId?: string | null
+  /** API de Conversões ligada (precisa do token do pixel salvo). Padrão: ligada. */
+  capiEnabled?: boolean
+  /** Código de Eventos de teste do Gerenciador (só enquanto testa; apague depois). */
+  capiTestCode?: string | null
   thankYouUrl?: string | null
   footerText?: string
   bumps: StoreOrderBump[]

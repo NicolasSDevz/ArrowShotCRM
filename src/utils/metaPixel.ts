@@ -48,6 +48,8 @@ export function loadMetaPixel(pixelId: string) {
 }
 
 /** Evento padrão do Meta (ex: 'Lead' quando o formulário é enviado). */
-export function trackMetaPixel(event: string, params?: Record<string, unknown>) {
-  window.fbq?.('track', event, params)
+export function trackMetaPixel(event: string, params?: Record<string, unknown>, eventId?: string) {
+  // eventID igual ao da API de Conversões = o Meta conta uma vez só.
+  if (eventId) window.fbq?.('track', event, params, { eventID: eventId })
+  else window.fbq?.('track', event, params)
 }

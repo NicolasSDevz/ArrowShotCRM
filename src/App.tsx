@@ -45,6 +45,10 @@ import { MembersHomePage } from './pages/store/members/MembersHomePage'
 import { MembersCoursePage } from './pages/store/members/MembersCoursePage'
 import { MembersLessonPage } from './pages/store/members/MembersLessonPage'
 
+/** Domínio curto do checkout (pay., checkout., compra. ou loja.): o link fica
+ *  pay.seudominio.com.br/nome-do-produto, sem o /pay. Mesmo app, mesma API. */
+const CHECKOUT_HOST = typeof window !== 'undefined' && /^(pay|checkout|compra|loja)\./i.test(window.location.hostname)
+
 function App() {
   return (
     <ThemeProvider>
@@ -66,6 +70,8 @@ function App() {
           {/* Loja: checkout e área de membros são públicos (o aluno tem login próprio) */}
           <Route path="/pay/:slug" element={<CheckoutPage />} />
           <Route path="/pay/:slug/obrigado" element={<CheckoutThanksPage />} />
+          {CHECKOUT_HOST && <Route path="/:slug" element={<CheckoutPage />} />}
+          {CHECKOUT_HOST && <Route path="/:slug/obrigado" element={<CheckoutThanksPage />} />}
           <Route path="/membros" element={<MembersLayout />}>
             <Route index element={<MembersHomePage />} />
             <Route path="login" element={<MembersLoginPage />} />

@@ -3,6 +3,7 @@ import { Monitor, Plus, Settings2, Smartphone, Trash2 } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../../ui/Field'
 import { ImageField } from './ImageField'
 import { TextListEditor } from './ListEditor'
+import { MetaCapiField } from './MetaCapiField'
 import { CheckoutView } from '../CheckoutView'
 import { EditorSection, Toggle } from '../../leads/LeadFormBuilderParts'
 import { ButtonAnimationPicker, Segmented } from '../../leads/LeadFormBlocksEditor'
@@ -17,6 +18,7 @@ import {
   type StoreCountdownConfig,
   type StoreProduct,
   type StoreSealKey,
+  type StoreBumpAnimation,
 } from '../../../types/store'
 import type { PublicCheckout } from '../../../services/storeApi'
 
@@ -83,7 +85,7 @@ function previewData(product: StoreProduct, all: StoreProduct[]): PublicCheckout
       .map((b) => {
         const p = all.find((x) => x.id === b.productId)
         if (!p) return null
-        return { productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, headline: b.headline || `Leve também: ${p.name}`, description: b.description || p.description, cta: b.cta || 'Sim, eu quero!', price: b.price || p.price, fullPrice: p.price }
+        return { productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, headline: b.headline || `Leve também: ${p.name}`, description: b.description || p.description, cta: b.cta || 'Sim, eu quero!', animation: b.animation ?? 'none', price: b.price || p.price, fullPrice: p.price }
       })
       .filter((b): b is NonNullable<typeof b> => !!b),
     gateway: { mercadoPago: true, publicKey: null, pixManual: false, testMode: false },
@@ -275,12 +277,24 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
                 </Select>
                 <button type="button" onClick={() => onChange({ bumps: c.bumps.filter((_, j) => j !== i) })} className="rounded-lg px-2 text-slate-400 hover:bg-slate-100 hover:text-red-600" aria-label={`Remover order bump ${i + 1}`}><Trash2 size={15} /></button>
               </div>
-              <Input aria-label="Chamada" placeholder="Chamada (ex.: Adquira também os moldes de buquê)" value={b.headline} onChange={(e) => set({ headline: e.target.value })} />
+              <Input aria-label="Chamada" placeholder="Chamada (ex.: Leve também o Script de vendas para WhatsApp)" value={b.headline} onChange={(e) => set({ headline: e.target.value })} />
               <Textarea aria-label="Descrição" rows={2} placeholder="Descrição curta" value={b.description} onChange={(e) => set({ description: e.target.value })} />
               <div className="grid grid-cols-2 gap-2">
                 <Input aria-label="Texto da caixinha" placeholder="Sim, eu quero!" value={b.cta} onChange={(e) => set({ cta: e.target.value })} />
                 <Input aria-label="Preço especial" placeholder="Preço especial (opcional)" value={b.price ? maskCurrencyInput(String(b.price)) : ''} onChange={(e) => { const v = parseCurrencyToNumber(e.target.value); set({ price: v ? Math.round(v * 100) : null }) }} />
               </div>
+              <Field label="Animação pra chamar atenção">
+                <Select value={b.animation ?? 'none'} onChange={(e) => set({ animation: e.target.value as StoreBumpAnimation })}>
+                  <option value="none">Nenhuma (parado)</option>
+                  <option value="pulse">Pulsar: borda pulsando na cor principal</option>
+                  <option value="glow">Brilho: borda brilhando em volta</option>
+                  <option value="shake">Balançar de vez em quando</option>
+                  <option value="bounce">Pular de vez em quando</option>
+                  <option value="arrow">Seta apontando pra caixinha</option>
+                  <option value="blink">Chamada piscando</option>
+                </Select>
+              </Field>
+              <p className="text-[11px] text-slate-400">Para quando a pessoa marca a caixinha. Quem pede menos movimento no celular vê parado.</p>
             </div>
           )
         })}
@@ -323,7 +337,8 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
         <Field label="Pixel do Meta (número ou código)">
           <Input value={c.fbPixelId ?? ''} onChange={(e) => onChange({ fbPixelId: parseMetaPixelId(e.target.value) ?? e.target.value })} placeholder="1234567890" />
         </Field>
-        <p className="text-[11px] text-slate-400">Dispara InitiateCheckout, AddPaymentInfo e Purchase (com valor). UTMs do link ficam salvas no pedido.</p>
+        <p className="text-[11px] text-slate-400">No navegador: PageView, InitiateCheckout, AddPaymentInfo e Purchase (com valor). UTMs do link ficam salvas no pedido.</p>
+        <MetaCapiField pixelId={c.fbPixelId ?? null} enabled={c.capiEnabled !== false} testCode={c.capiTestCode ?? ''} onChange={onChange} />
         <Field label="Página de obrigado própria (opcional)"><Input value={c.thankYouUrl ?? ''} onChange={(e) => onChange({ thankYouUrl: e.target.value || null })} placeholder="https://..." /></Field>
         <Field label="Rodapé"><Input value={c.footerText ?? ''} onChange={(e) => onChange({ footerText: e.target.value })} placeholder="Arrow Shot, CNPJ 00.000.000/0001-00" /></Field>
       </EditorSection>

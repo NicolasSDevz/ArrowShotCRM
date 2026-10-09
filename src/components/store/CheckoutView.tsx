@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BadgeCheck, Check, CreditCard, Headphones, Infinity as InfinityIcon, Lock, QrCode, ShieldCheck, Star, Ticket, UserCheck, Zap, type LucideIcon } from 'lucide-react'
+import { ArrowRight, BadgeCheck, Check, CreditCard, Headphones, Infinity as InfinityIcon, Lock, QrCode, ShieldCheck, Star, Ticket, UserCheck, Zap, type LucideIcon } from 'lucide-react'
 import { checkCoupon, createOrder, type PublicCheckout } from '../../services/storeApi'
 import { maskDocument, maskPhone } from '../../utils/masks'
 import { trackMetaPixel } from '../../utils/metaPixel'
@@ -16,7 +16,7 @@ const SEAL_ICONS: Record<StoreSealKey, LucideIcon> = {
   support: Headphones,
   lifetime: InfinityIcon,
 }
-import { formatClock, mountCardBrick, readUtms, refusalMessage, useCountdown, useGoogleFont, useIsNarrow, type CardBrickFormData } from './checkoutUtils'
+import { formatClock, mountCardBrick, readUtms, refusalMessage, readTracking, useCountdown, useGoogleFont, useIsNarrow, type CardBrickFormData } from './checkoutUtils'
 
 type Method = 'pix' | 'card' | 'test'
 
@@ -80,6 +80,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     coupon: coupon?.code ?? null,
     buyer: { name, email, phone, cpf },
     utm: readUtms(),
+    tracking: readTracking(),
   })
 
   const goToThanks = (orderId: string, key: string) => {
@@ -373,8 +374,12 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               {data.bumps.map((b) => {
                 const on = bumps.includes(b.productId)
                 return (
-                  <label key={b.productId} className="block cursor-pointer rounded-xl border-2 border-dashed p-4" style={{ borderColor: on ? color : '#cbd5e1', background: on ? `color-mix(in srgb, ${color} 8%, transparent)` : 'transparent' }}>
-                    <p className="text-sm font-bold uppercase tracking-wide" style={{ color }}>{b.headline}</p>
+                  <label
+                    key={b.productId}
+                    className={`block cursor-pointer border-2 border-dashed p-4 ${!on && b.animation && !['none', 'arrow', 'blink'].includes(b.animation) ? `ob-anim ob-${b.animation}` : ''}`}
+                    style={{ borderColor: on ? color : '#cbd5e1', background: on ? `color-mix(in srgb, ${color} 8%, transparent)` : 'transparent', borderRadius: radius, ['--ob' as string]: color }}
+                  >
+                    <p className={`text-sm font-bold uppercase tracking-wide ${!on && b.animation === 'blink' ? 'ob-anim ob-blink' : ''}`} style={{ color }}>{b.headline}</p>
                     <div className="mt-2 flex gap-3">
                       {b.imageUrl && <img src={b.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />}
                       <div className="min-w-0 text-sm opacity-90">
@@ -387,6 +392,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                       </div>
                     </div>
                     <span className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                      {!on && b.animation === 'arrow' && <ArrowRight size={18} className="ob-anim ob-arrow shrink-0" style={{ color }} aria-hidden="true" />}
                       <input
                         type="checkbox"
                         checked={on}

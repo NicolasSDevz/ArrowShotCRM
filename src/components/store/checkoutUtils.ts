@@ -136,6 +136,12 @@ export function refusalMessage(detail?: string | null) {
   }
 }
 
+/** Cookies do Pixel (_fbp/_fbc) e a página, pra API de Conversões casar o comprador. */
+export function readTracking() {
+  const cookie = (name: string) => document.cookie.split('; ').find((c) => c.startsWith(`${name}=`))?.split('=')[1] || null
+  return { fbp: cookie('_fbp'), fbc: cookie('_fbc'), fbclid: new URLSearchParams(window.location.search).get('fbclid'), url: window.location.href.split('?')[0] }
+}
+
 export function readUtms(): Record<string, string> {
   const out: Record<string, string> = {}
   const params = new URLSearchParams(window.location.search)

@@ -280,6 +280,15 @@ export function saveStoreInvoiceSettings(data: StoreInvoiceSettings, userId: str
   return setDoc(doc(db, 'storeSettings', 'invoice'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId })
 }
 
+/** storeSettings/links — domínio curto do checkout (ex.: pay.marketingparalimpeza.com.br). */
+export function subscribeStoreLinks(onData: (s: { checkoutDomain?: string | null } | null) => void, onError?: OnError) {
+  return onSnapshot(doc(db, 'storeSettings', 'links'), (s) => onData(s.exists() ? (s.data() as { checkoutDomain?: string | null }) : null), onError)
+}
+
+export function saveStoreLinks(data: { checkoutDomain: string | null }, userId: string) {
+  return setDoc(doc(db, 'storeSettings', 'links'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId })
+}
+
 export function subscribeStoreMembersTheme(onData: (s: StoreMembersTheme | null) => void, onError?: OnError) {
   return onSnapshot(doc(db, 'storeSettings', 'membersTheme'), (s) => onData(s.exists() ? (s.data() as StoreMembersTheme) : null), onError)
 }
