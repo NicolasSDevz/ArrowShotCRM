@@ -140,11 +140,11 @@ export function StorePage() {
           tabs={[
             { icon: <BarChart3 size={ico} />, label: 'Visão geral', content: <StoreOverview orders={orders} products={products} /> },
             { icon: <Package size={ico} />, label: `Produtos (${products.length})`, content: <ProductsGrid products={products} orders={orders} onCreate={() => setCreating(true)} /> },
+            { icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel /> },
             { icon: <Receipt size={ico} />, label: salesBadges ? `Vendas (${salesBadges})` : 'Vendas', content: <StoreOrdersTable orders={orders} products={products} /> },
             { icon: <Users size={ico} />, label: `Alunos (${members.length})`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} /> },
             { icon: <Ticket size={ico} />, label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} /> },
-            { icon: <MessageSquare size={ico} />, label: pendingComments ? `Comentários (${pendingComments} novos)` : 'Comentários', content: <StoreCommentsPanel comments={comments} products={products} /> },
-            { icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel />, secondary: true },
+            { icon: <MessageSquare size={ico} />, label: pendingComments ? `Comentários (${pendingComments} novos)` : 'Comentários', content: <StoreCommentsPanel comments={comments} products={products} />, secondary: true },
             { icon: <Wallet size={ico} />, label: 'Recebimento', content: <StorePaymentSettingsPanel mercadoPago={status?.mercadoPago ?? false} />, secondary: true },
             { icon: <FileText size={ico} />, label: 'Nota fiscal', content: <StoreInvoicePanel hasToken={status?.invoice?.hasToken ?? false} onTokenSaved={() => storeAdminStatus().then(setStatus).catch(() => {})} />, secondary: true },
           ]}
