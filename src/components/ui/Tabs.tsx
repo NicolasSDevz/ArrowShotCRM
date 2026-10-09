@@ -11,7 +11,7 @@ export function Tabs({
   tabs,
   label = 'Abas',
 }: {
-  tabs: { label: string; content: ReactNode; secondary?: boolean }[]
+  tabs: { label: string; content: ReactNode; secondary?: boolean; icon?: ReactNode }[]
   /** Nome da lista de abas lido pelo leitor de tela. */
   label?: string
 }) {
@@ -75,7 +75,14 @@ export function Tabs({
           : 'border-transparent text-slate-400 hover:text-slate-600'
       }`}
     >
-      {t.label}
+      {t.icon ? (
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="opacity-80">{t.icon}</span>
+          {t.label}
+        </span>
+      ) : (
+        t.label
+      )}
     </button>
   )
 
