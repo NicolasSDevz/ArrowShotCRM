@@ -165,3 +165,29 @@ export function useIsNarrow() {
   }, [])
   return narrow
 }
+
+function luminance(hex: string) {
+  const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(hex.trim())
+  if (!m) return null
+  const h = m[1].length === 3 ? m[1].split('').map((ch) => ch + ch).join('') : m[1]
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const v = parseInt(h.slice(i, i + 2), 16) / 255
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/** Contraste entre duas cores (1 a 21). null = cor inválida. */
+export function contrastRatio(a: string, b: string) {
+  const la = luminance(a)
+  const lb = luminance(b)
+  if (la === null || lb === null) return null
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+/** Cor do texto legível sobre o fundo: mantém a escolhida se der pra ler, senão escuro/claro automático. */
+export function readableOn(text: string, bg: string, min = 3) {
+  const ratio = contrastRatio(text, bg)
+  if (ratio === null || ratio >= min) return text
+  return (luminance(bg) ?? 1) > 0.4 ? '#0f172a' : '#f8fafc'
+}

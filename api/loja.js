@@ -105,7 +105,7 @@ async function actionCheckout(req) {
 async function actionMembersTheme() {
   const snap = await getDoc('storeSettings/membersTheme')
   const t = snap.exists ? snap.data() : {}
-  const pick = ['brandName', 'logoUrl', 'mode', 'primaryColor', 'backgroundColor', 'cardColor', 'font', 'loginLayout', 'loginBgUrl', 'loginTitle', 'loginText', 'loginButtonText', 'loginHelpText', 'supportWhatsapp']
+  const pick = ['brandName', 'logoUrl', 'mode', 'primaryColor', 'backgroundColor', 'cardColor', 'font', 'loginLayout', 'loginBgUrl', 'loginTitle', 'loginText', 'loginButtonText', 'loginHelpText', 'supportWhatsapp', 'loginMode', 'loginPrimaryColor', 'loginBackgroundColor', 'loginCardColor', 'loginLogoUrl', 'loginOverlay']
   return Object.fromEntries(pick.filter((k) => t[k] !== undefined).map((k) => [k, t[k]]))
 }
 

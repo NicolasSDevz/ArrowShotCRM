@@ -389,6 +389,14 @@ export interface StoreMembersTheme {
   cardColor?: string | null
   font: string
   loginLayout: 'center' | 'split'
+  /** Visual só da tela de login (vazio = igual à área de membros). */
+  loginMode?: 'dark' | 'light' | null
+  loginPrimaryColor?: string | null
+  loginBackgroundColor?: string | null
+  loginCardColor?: string | null
+  loginLogoUrl?: string | null
+  /** Escurecer a imagem de fundo do login (0 a 80%). */
+  loginOverlay?: number
   loginBgUrl?: string | null
   loginTitle: string
   loginText?: string
@@ -413,6 +421,20 @@ export function defaultMembersTheme(): StoreMembersTheme {
     loginButtonText: 'Entrar',
     loginHelpText: 'Primeiro acesso? Use o botão Acessar a área de membros que aparece depois da compra. Lá dentro você cria a sua senha.',
     supportWhatsapp: '',
+  }
+}
+
+/** Tema efetivo da tela de login: o que foi trocado só no login vale por cima da área. */
+export function loginTheme(t: StoreMembersTheme): StoreMembersTheme {
+  const ownMode = !!t.loginMode && t.loginMode !== t.mode
+  return {
+    ...t,
+    mode: t.loginMode || t.mode,
+    primaryColor: t.loginPrimaryColor || t.primaryColor,
+    // Trocou o modo só no login: as cores de fundo da área (feitas pro outro modo) não valem.
+    backgroundColor: t.loginBackgroundColor || (ownMode ? null : t.backgroundColor),
+    cardColor: t.loginCardColor || (ownMode ? null : t.cardColor),
+    logoUrl: t.loginLogoUrl || t.logoUrl,
   }
 }
 

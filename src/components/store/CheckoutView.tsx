@@ -16,7 +16,7 @@ const SEAL_ICONS: Record<StoreSealKey, LucideIcon> = {
   support: Headphones,
   lifetime: InfinityIcon,
 }
-import { formatClock, mountCardBrick, readUtms, refusalMessage, readTracking, useCountdown, useGoogleFont, useIsNarrow, type CardBrickFormData } from './checkoutUtils'
+import { formatClock, mountCardBrick, readUtms, refusalMessage, readTracking, readableOn, useCountdown, useGoogleFont, useIsNarrow, type CardBrickFormData } from './checkoutUtils'
 
 type Method = 'pix' | 'card' | 'test'
 
@@ -28,7 +28,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const uid = useId().replace(/:/g, '')
   const brickId = `card-brick-${uid}`
   useGoogleFont(c.font)
-  const secondsLeft = useCountdown(`cd-${data.slug}`, c.countdown?.minutes ?? null)
+  const secondsLeft = useCountdown(`cd-${data.slug}-${c.countdown?.minutes ?? 0}`, c.countdown?.minutes ?? null)
 
   const methods: Method[] = useMemo(() => {
     if (data.gateway.testMode) return ['test']
@@ -181,9 +181,13 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const d = c.design ?? {}
   const dk = d.desktop ?? {}
   const mb = d.mobile ?? {}
-  const textColor = d.textColor || '#0f172a'
+  // Texto ilegível (ex.: branco em cartão branco) é trocado sozinho por um que dê pra ler.
+  const cardBg = d.cardColor || '#ffffff'
+  const textColor = readableOn(d.textColor || '#0f172a', cardBg)
+  const pageText = readableOn(d.textColor || '#0f172a', c.backgroundColor)
+  const btnText = readableOn(d.buttonTextColor || '#ffffff', color, 2.5)
   const radius = d.radius === 'square' ? '4px' : d.radius === 'round' ? '22px' : '12px'
-  const cardStyle = { background: d.cardColor || '#ffffff', color: textColor, borderRadius: radius }
+  const cardStyle = { background: cardBg, color: textColor, borderRadius: radius }
   const btnAnim = d.buttonAnimation && d.buttonAnimation !== 'none' ? `lf-anim lf-anim-${d.buttonAnimation}` : ''
   const inputCls = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-[15px] text-slate-900 outline-none focus:border-[var(--ck)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ck)_25%,transparent)]'
   const labelCls = 'mb-1 block text-sm opacity-75'
@@ -435,7 +439,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                   type="submit"
                   disabled={busy}
                   className={`flex h-14 w-full items-center justify-center gap-2 text-lg font-bold shadow-md transition hover:brightness-110 disabled:opacity-60 ${btnAnim}`}
-                  style={{ background: color, color: d.buttonTextColor || '#ffffff', borderRadius: radius }}
+                  style={{ background: color, color: btnText, borderRadius: radius }}
                 >
                   <Lock size={18} /> {submitLabel}
                 </button>
@@ -449,7 +453,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   return (
     <div
       className="min-h-full"
-      style={{ background: c.backgroundColor, color: textColor, fontFamily: `'${c.font}', Inter, system-ui, sans-serif`, ['--ck' as string]: color, colorScheme: 'light' }}
+      style={{ background: c.backgroundColor, color: pageText, fontFamily: `'${c.font}', Inter, system-ui, sans-serif`, ['--ck' as string]: color, colorScheme: 'light' }}
     >
       {cdPos === 'top' && cd && secondsLeft !== null && (
         <div className="sticky top-0 z-10 px-4 py-2.5 text-center" style={{ background: cd.color, color: cd.textColor }} role="timer" aria-label={`${cd.text}: ${formatClock(secondsLeft)}`}>
@@ -484,7 +488,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
             onClick={() => formRef.current?.requestSubmit()}
             disabled={busy}
             className={`flex h-12 w-full items-center justify-center gap-2 font-bold disabled:opacity-60 ${btnAnim}`}
-            style={{ background: color, color: d.buttonTextColor || '#ffffff', borderRadius: radius }}
+            style={{ background: color, color: btnText, borderRadius: radius }}
           >
             <Lock size={16} /> {submitLabel} · {formatCents(total)}
           </button>

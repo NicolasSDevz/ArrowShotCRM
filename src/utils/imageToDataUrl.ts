@@ -31,7 +31,10 @@ export function compressImageToDataUrl(file: File, maxSize = 320, quality = 0.82
       }
       ctx.drawImage(img, 0, 0, width, height)
 
-      const dataUrl = canvas.toDataURL('image/jpeg', quality)
+      // PNG/WebP/GIF/SVG podem ter fundo transparente: JPEG pintaria de preto (logo).
+      // WebP mantém a transparência e fica leve; navegador sem WebP devolve PNG.
+      const transparent = /image\/(png|webp|gif|svg\+xml)/.test(file.type)
+      const dataUrl = canvas.toDataURL(transparent ? 'image/webp' : 'image/jpeg', quality)
       // ~700KB base64 cap, comfortably under Firestore's 1MB document limit.
       if (dataUrl.length > 700_000) {
         reject(new Error('Imagem muito grande mesmo após compressão. Tente uma foto menor.'))

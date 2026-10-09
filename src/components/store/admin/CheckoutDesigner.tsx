@@ -5,6 +5,7 @@ import { ImageField } from './ImageField'
 import { TextListEditor } from './ListEditor'
 import { MetaCapiField } from './MetaCapiField'
 import { CheckoutView } from '../CheckoutView'
+import { contrastRatio } from '../checkoutUtils'
 import { EditorSection, Toggle } from '../../leads/LeadFormBuilderParts'
 import { ButtonAnimationPicker, Segmented } from '../../leads/LeadFormBlocksEditor'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../../utils/masks'
@@ -199,6 +200,11 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
           <ColorInput label="Fundo dos cartões" value={d.cardColor || '#ffffff'} onChange={(v) => setDesign({ cardColor: v })} />
           <ColorInput label="Cor do texto" value={d.textColor || '#0f172a'} onChange={(v) => setDesign({ textColor: v })} />
         </div>
+        {(contrastRatio(d.textColor || '#0f172a', d.cardColor || '#ffffff') ?? 21) < 3 && (
+          <p role="alert" className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
+            A cor do texto quase some no fundo dos cartões. No checkout ela é trocada sozinha por uma que dê pra ler. Escolha cores mais diferentes ou use um modelo pronto.
+          </p>
+        )}
         <Field label="Fonte">
           <Select value={c.font} onChange={(e) => onChange({ font: e.target.value })}>
             {STORE_FONTS.map((f) => <option key={f}>{f}</option>)}

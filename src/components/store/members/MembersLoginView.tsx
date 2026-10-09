@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { MessageCircle } from 'lucide-react'
-import { membersThemeVars, type StoreMembersTheme } from '../../../types/store'
+import { loginTheme, membersThemeVars, type StoreMembersTheme } from '../../../types/store'
 
 const inputCls =
   'h-11 w-full rounded-lg border border-[var(--m-border)] bg-[var(--m-soft)] px-3 text-[var(--m-text)] outline-none placeholder:text-[var(--m-faint)] focus:border-[var(--m-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--m-primary)_30%,transparent)]'
@@ -8,7 +8,7 @@ const inputCls =
 /** Tela de login da área de membros, com o visual do tema. Usada na página
  *  real (/membros/login) e na prévia do CRM (preview = não envia nada). */
 export function MembersLoginView({
-  theme,
+  theme: baseTheme,
   preview = false,
   onLogin,
 }: {
@@ -16,6 +16,8 @@ export function MembersLoginView({
   preview?: boolean
   onLogin?: (email: string, password: string) => Promise<void>
 }) {
+  const theme = loginTheme(baseTheme)
+  const overlay = Math.min(80, Math.max(0, baseTheme.loginOverlay ?? 45)) / 100
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -81,7 +83,7 @@ export function MembersLoginView({
         </div>
       ) : (
         <div className={`relative flex ${preview ? 'min-h-[560px]' : 'min-h-screen'} items-center justify-center bg-cover bg-center px-4 py-10`} style={bg}>
-          {theme.loginBgUrl && <div className="absolute inset-0 bg-black/45" aria-hidden="true" />}
+          {theme.loginBgUrl && overlay > 0 && <div className="absolute inset-0 bg-black" style={{ opacity: overlay }} aria-hidden="true" />}
           <div className="relative w-full max-w-sm">{card}</div>
         </div>
       )}
