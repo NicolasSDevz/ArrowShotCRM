@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Ban, CheckCircle2, Copy, Download, FileText, RotateCcw } from 'lucide-react'
+import { Ban, CheckCircle2, Copy, Download, FileText, RotateCcw, Trash2 } from 'lucide-react'
+import { useAuth } from '../../../context/AuthContext'
 import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
 import { Input, Select } from '../../ui/Field'
 import { EmptyState } from '../../ui/EmptyState'
-import { storeAccessLink, storeCancelOrder, storeConfirmOrder, storeEmitInvoice, storeReconcileOrders, storeRefundOrder, storeSyncInvoices } from '../../../services/storeApi'
+import { storeAccessLink, storeCancelOrder, storeDeleteOrder, storeConfirmOrder, storeEmitInvoice, storeReconcileOrders, storeRefundOrder, storeSyncInvoices } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { formatCents, STORE_METHOD_LABEL, STORE_ORDER_STATUS_LABEL, type StoreOrder, type StoreOrderStatus, type StoreProduct } from '../../../types/store'
 
@@ -153,7 +154,29 @@ export function useOrderActions() {
     }
   }
 
-  return { busy: refunding, confirmPayment, cancelOrder, refund, copyAccess }
+  const { profile } = useAuth()
+  const canDelete = profile?.role === 'admin'
+  const deleteOrder = async (o: StoreOrder) => {
+    const paid = o.status === 'approved' && !o.test && o.amount > 0
+    const ok = await askConfirm({
+      title: 'Excluir pedido',
+      message: `${o.buyer.name}, ${formatCents(o.amount)}. O pedido some das Vendas junto com o acesso que ele liberou e os avisos da venda. Não tem volta.${paid ? ' O dinheiro não é devolvido: se foi pago de verdade, use Reembolsar antes.' : ''}`,
+      confirmLabel: 'Excluir pedido',
+      danger: true,
+    })
+    if (!ok) return
+    setRefunding(o.id)
+    try {
+      await storeDeleteOrder(o.id)
+      toast.success('Pedido excluído')
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setRefunding(null)
+    }
+  }
+
+  return { busy: refunding, confirmPayment, cancelOrder, refund, copyAccess, deleteOrder, canDelete }
 }
 
 /** Lista de pedidos com filtro, exportação CSV, link de acesso e reembolso. */
@@ -161,7 +184,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | StoreOrderStatus>('')
   const [productId, setProductId] = useState('')
-  const { busy: refunding, confirmPayment, cancelOrder, refund, copyAccess } = useOrderActions()
+  const { busy: refunding, confirmPayment, cancelOrder, refund, copyAccess, deleteOrder, canDelete } = useOrderActions()
   useReconcilePending(orders)
   const [emitting, setEmitting] = useState<string | null>(null)
 
@@ -306,6 +329,11 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                     {o.status === 'approved' && (
                       <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} loading={refunding === o.id} onClick={() => refund(o)} aria-label={`Reembolsar pedido de ${o.buyer.name}`}>
                         Reembolsar
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} loading={refunding === o.id} onClick={() => deleteOrder(o)} aria-label={`Excluir pedido de ${o.buyer.name}`}>
+                        Excluir
                       </Button>
                     )}
                   </td>

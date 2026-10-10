@@ -41,7 +41,7 @@
 //   POST invoice-webhook { ref }
 
 import { requireInternalUser, AuthError } from './_lib/auth.js'
-import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, createCustomToken, verifyIdTokenWithClaims } from './_lib/firebaseAdmin.js'
+import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, incrementField, createCustomToken, verifyIdTokenWithClaims } from './_lib/firebaseAdmin.js'
 import {
   mpConfigured,
   mpPublicKey,
@@ -556,6 +556,10 @@ async function actionAdminRevoke(req) {
 async function actionAdminDeleteMember(req) {
   const uid = String(req.body?.uid || '')
   if (!/^m_[a-f0-9]{26}$/.test(uid)) throw new HttpError(400, 'Aluno inválido')
+  return { ok: true, removed: await deleteMemberData(uid) }
+}
+
+async function deleteMemberData(uid) {
   const [enrollments, progress, codes] = await Promise.all([
     queryDocs('storeEnrollments', [['uid', uid]]),
     queryDocs('storeProgress', [['uid', uid]]),
@@ -568,7 +572,54 @@ async function actionAdminDeleteMember(req) {
     deleteDoc(`storeMemberSecrets/${uid}`),
   ])
   await deleteDoc(`storeMembers/${uid}`)
-  return { ok: true, removed: { enrollments: enrollments.length, progress: progress.length, links: codes.length } }
+  return { enrollments: enrollments.length, progress: progress.length, links: codes.length }
+}
+
+const STORE_NOTIFICATION_TYPES = ['store_sale', 'store_pix_pending', 'store_refund_request', 'store_refund', 'store_capi_error']
+
+/** Exclui um pedido de teste (só admin): some das Vendas junto com os acessos que
+ *  ele liberou, os avisos da venda e o uso do cupom. Aluno que fica sem nenhum
+ *  acesso nem outro pedido é apagado também. Não mexe no dinheiro: venda paga de
+ *  verdade se reembolsa antes. */
+async function actionAdminDeleteOrder(req, user) {
+  if (user.role !== 'admin') throw new HttpError(403, 'Só admin pode excluir pedidos')
+  const orderId = String(req.body?.orderId || '')
+  if (!/^ord_[A-Za-z0-9]{6,40}$/.test(orderId)) throw new HttpError(400, 'Pedido inválido')
+  const snap = await getDoc(`storeOrders/${orderId}`)
+  if (!snap.exists) throw new HttpError(404, 'Pedido não encontrado')
+  const order = snap.data()
+  if (order.invoice?.status === 'autorizado') throw new HttpError(400, 'Esse pedido tem nota fiscal emitida. Cancele a nota antes de excluir.')
+
+  // Acessos liberados por este pedido (outro pedido do mesmo aluno continua valendo).
+  const uid = order.memberUid || memberUidFor(order.buyer?.email || '')
+  const enrollments = await queryDocs('storeEnrollments', [['orderId', orderId]])
+  await Promise.all(enrollments.map((e) => deleteDoc(`storeEnrollments/${e.id}`)))
+
+  // Avisos desta venda: o aviso guarda o texto, então casa pelo nome do comprador a partir da data do pedido.
+  const since = new Date(order.createdAt).getTime() - 5 * 60_000
+  const name = String(order.buyer?.name || '').trim()
+  let notifications = 0
+  if (name) {
+    const lists = await Promise.all(STORE_NOTIFICATION_TYPES.map((t) => queryDocs('notifications', [['type', t]])))
+    const mine = lists.flat().filter((n) => String(n.message || '').includes(name) && new Date(n.createdAt).getTime() >= since)
+    await Promise.all(mine.map((n) => deleteDoc(`notifications/${n.id}`)))
+    notifications = mine.length
+  }
+
+  if (order.couponId && order.fulfilledAt) await incrementField(`storeCoupons/${order.couponId}`, 'uses', -1).catch(() => {})
+  await deleteDoc(`storeLocks/fulfill_${orderId}`).catch(() => {})
+  await deleteDoc(`storeOrders/${orderId}`)
+
+  let memberDeleted = false
+  if (uid && /^m_[a-f0-9]{26}$/.test(uid)) {
+    const [left, otherOrders] = await Promise.all([queryDocs('storeEnrollments', [['uid', uid]]), queryDocs('storeOrders', [['memberUid', uid]])])
+    if (!left.length && !otherOrders.length) {
+      await deleteMemberData(uid)
+      memberDeleted = true
+    }
+  }
+  console.log(`[loja] pedido ${orderId} excluído por ${user.name}`)
+  return { ok: true, removed: { enrollments: enrollments.length, notifications, memberDeleted } }
 }
 
 async function actionAdminRefund(req, user) {
@@ -745,6 +796,7 @@ const ADMIN = {
   'POST admin-link': actionAdminLink,
   'POST admin-revoke': actionAdminRevoke,
   'POST admin-refund': actionAdminRefund,
+  'POST admin-delete-order': actionAdminDeleteOrder,
   'POST admin-confirm': actionAdminConfirm,
   'POST admin-delete-member': actionAdminDeleteMember,
   'POST admin-cancel': actionAdminCancel,

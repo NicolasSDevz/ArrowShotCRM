@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { AlertCircle, Ban, Banknote, CheckCircle2, Copy, Home, LogOut, Receipt, RotateCcw, Settings, Store } from 'lucide-react'
+import { AlertCircle, Ban, Banknote, CheckCircle2, Copy, Home, LogOut, Receipt, RotateCcw, Settings, Store, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useStoreOrders } from '../../hooks/useStore'
 import { Button } from '../../components/ui/Button'
@@ -179,7 +179,7 @@ function SalesTab({ orders }: { orders: StoreOrder[] }) {
 }
 
 function OrderCard({ order: o, compact = false }: { order: StoreOrder; compact?: boolean }) {
-  const { busy, confirmPayment, cancelOrder, refund, copyAccess } = useOrderActions()
+  const { busy, confirmPayment, cancelOrder, refund, copyAccess, deleteOrder, canDelete } = useOrderActions()
   const manualPending = o.method === 'pix_manual' && (o.status === 'pending' || (o.status === 'refused' && !!o.expiredAt))
 
   return (
@@ -239,6 +239,11 @@ function OrderCard({ order: o, compact = false }: { order: StoreOrder; compact?:
             {o.status === 'approved' && (
               <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} loading={busy === o.id} onClick={() => refund(o)}>
                 Reembolsar
+              </Button>
+            )}
+            {canDelete && (
+              <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} loading={busy === o.id} onClick={() => deleteOrder(o)} aria-label={`Excluir pedido de ${o.buyer.name}`}>
+                Excluir
               </Button>
             )}
           </div>

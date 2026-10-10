@@ -215,6 +215,11 @@ export async function storeCancelOrder(orderId: string) {
 export async function storeDeleteMember(uid: string) {
   return call<{ ok: true }>('admin-delete-member', { body: { uid }, token: await staffToken() })
 }
+/** Exclui um pedido de teste (só admin): pedido, acessos liberados por ele e avisos da venda. */
+export async function storeDeleteOrder(orderId: string) {
+  return call<{ ok: true; removed: { enrollments: number; notifications: number; memberDeleted: boolean } }>('admin-delete-order', { body: { orderId }, token: await staffToken() })
+}
+
 export async function storeRefundOrder(orderId: string) {
   return call<{ ok: true }>('admin-refund', { body: { orderId }, token: await staffToken() })
 }
