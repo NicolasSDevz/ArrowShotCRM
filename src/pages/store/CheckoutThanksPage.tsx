@@ -70,6 +70,8 @@ export function CheckoutThanksPage() {
   useEffect(() => {
     if (!order || order.status !== 'approved' || !product?.checkout.fbPixelId || tracked.current) return
     if (!(order.amount > 0)) return
+    // Compra do "modo teste" do produto não é venda: não conta no Meta (o servidor também não manda).
+    if (order.method === 'test') return
     if (order.approvedAt && Date.now() - new Date(order.approvedAt).getTime() > 24 * 3600_000) return
     const flag = `px-purchase-${order.orderId}`
     try {
