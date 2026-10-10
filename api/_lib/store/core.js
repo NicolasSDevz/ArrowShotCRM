@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto'
 import { getDoc, setDoc, updateDoc, queryDocs, listDocs } from '../firebaseAdmin.js'
 import { emitInvoice } from './invoice.js'
 import { trackOrderEvent } from './metaCapi.js'
+import { sendPushToUsers } from '../webPush.js'
 
 export const nowIso = () => new Date().toISOString()
 
@@ -66,7 +67,10 @@ export function pixAccountFor(settings, product) {
   return { id: '', label: 'Conta principal', pixKey: settings.pixKey, pixKeyType: settings.pixKeyType, pixName: settings.pixName, pixCity: settings.pixCity }
 }
 
-/** Aviso no sino do CRM para admins e gerentes ativos. */
+const PUSH_TAG = { store_sale: 'venda', store_pix_pending: 'pix', store_refund_request: 'reembolso' }
+
+/** Aviso no sino do CRM para admins e gerentes ativos e, nos aparelhos em que
+ *  ativaram, notificação push ("Pix para conferir: ..." vira título + texto). */
 export async function notifyStaff(type, message, actorName = 'Loja') {
   try {
     const users = await listDocs('users')
@@ -76,6 +80,10 @@ export async function notifyStaff(type, message, actorName = 'Loja') {
         setDoc(`notifications/${randomUUID()}`, { userId: u.id, type, message, actorName, read: false, createdAt: new Date() })
       )
     )
+    const cut = message.indexOf(': ')
+    const title = cut > 0 && cut < 40 ? message.slice(0, cut) : 'Loja'
+    const body = cut > 0 && cut < 40 ? message.slice(cut + 2) : message
+    await sendPushToUsers(staff.map((u) => u.id), { title, body, url: '/loja', tag: `${PUSH_TAG[type] || type}-${Date.now()}` })
   } catch (err) {
     console.warn('[loja] falha ao notificar a equipe:', err?.message)
   }

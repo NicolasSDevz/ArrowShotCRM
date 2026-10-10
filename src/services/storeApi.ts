@@ -211,3 +211,9 @@ export async function storeDeleteMember(uid: string) {
 export async function storeRefundOrder(orderId: string) {
   return call<{ ok: true }>('admin-refund', { body: { orderId }, token: await staffToken() })
 }
+
+/* notificações push (CRM instalado como app) */
+export const pushPublicKey = async () => call<{ publicKey: string | null }>('admin-push-key', { token: await staffToken() })
+export const pushSubscribe = async (subscription: PushSubscriptionJSON) => call<{ ok: true }>('admin-push-subscribe', { body: { subscription }, token: await staffToken() })
+export const pushUnsubscribe = async (endpoint: string) => call<{ ok: true }>('admin-push-unsubscribe', { body: { endpoint }, token: await staffToken() })
+export const pushTest = async () => call<{ sent: number }>('admin-push-test', { body: {}, token: await staffToken() })

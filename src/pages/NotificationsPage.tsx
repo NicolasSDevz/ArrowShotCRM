@@ -8,6 +8,7 @@ import { NOTIFICATION_ICON, NOTIFICATION_ICON_STYLE, formatNotificationTime, res
 import { NOTIFICATION_TYPE_LABEL, type AppNotification, type NotificationType } from '../types'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
+import { PushNotificationsCard } from '../components/notifications/PushNotificationsCard'
 
 type ReadFilter = 'all' | 'unread'
 
@@ -72,6 +73,8 @@ export function NotificationsPage() {
           </Button>
         )}
       </div>
+
+      {profile && profile.role !== 'client' && <PushNotificationsCard />}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg border border-slate-200 p-0.5">

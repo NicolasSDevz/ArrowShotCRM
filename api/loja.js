@@ -31,6 +31,10 @@
 //   POST admin-capi-test  { pixelId, testCode } manda um Purchase de teste
 //   POST admin-invoice-emit  { orderId }   emite/reemite a nota do pedido
 //   POST admin-invoice-sync  { orderIds }  atualiza notas em processamento
+//   GET  admin-push-key                      chave pública das notificações push (null = não configurado)
+//   POST admin-push-subscribe { subscription }  liga as notificações neste aparelho
+//   POST admin-push-unsubscribe { endpoint }    desliga neste aparelho
+//   POST admin-push-test                       manda uma notificação de teste pros aparelhos de quem pediu
 // Focus NFe (gatilho configurado no painel deles):
 //   POST invoice-webhook { ref }
 
@@ -74,6 +78,7 @@ import { buildPixCode } from './_lib/store/pixCode.js'
 import { fetchPdf, stampPdf } from './_lib/store/protectedPdf.js'
 import { encryptToken, decryptToken } from './_lib/tokenCrypto.js'
 import { capiStatus, cleanPixelId, removeCapiToken, saveCapiToken, sendCapiTest, trackingFromRequest } from './_lib/store/metaCapi.js'
+import { pushConfigured, pushPublicKey, cleanSubscription, savePushSubscription, removePushSubscription, sendPushToUsers } from './_lib/webPush.js'
 import { invoiceStatus, saveInvoiceToken, emitInvoice, syncInvoice, cancelInvoice, getInvoiceSettings } from './_lib/store/invoice.js'
 
 class HttpError extends Error {
@@ -648,6 +653,38 @@ async function actionAdminInvoiceSync(req) {
   return { results }
 }
 
+/* ------------------------- notificações push ------------------------- */
+
+async function actionAdminPushKey() {
+  return { publicKey: pushPublicKey() }
+}
+
+async function actionAdminPushSubscribe(req, user) {
+  if (!pushConfigured()) throw new HttpError(503, 'As notificações ainda não foram configuradas no servidor')
+  const sub = cleanSubscription(req.body?.subscription)
+  if (!sub) throw new HttpError(400, 'Aparelho inválido')
+  await savePushSubscription(user.uid, sub, req.headers['user-agent'])
+  return { ok: true }
+}
+
+async function actionAdminPushUnsubscribe(req) {
+  const endpoint = String(req.body?.endpoint || '')
+  if (endpoint) await removePushSubscription(endpoint)
+  return { ok: true }
+}
+
+async function actionAdminPushTest(req, user) {
+  if (!pushConfigured()) throw new HttpError(503, 'As notificações ainda não foram configuradas no servidor')
+  const { sent } = await sendPushToUsers([user.uid], {
+    title: 'Venda aprovada',
+    body: 'Teste: é assim que o aviso chega quando alguém comprar. Toque para abrir a Loja.',
+    url: '/loja',
+    tag: `teste-${Date.now()}`,
+  })
+  if (!sent) throw new HttpError(404, 'Nenhum aparelho com notificação ativa encontrado. Ative de novo neste aparelho.')
+  return { sent }
+}
+
 /* ------------------------------- roteador ------------------------------ */
 
 const PUBLIC = {
@@ -692,6 +729,10 @@ const ADMIN = {
   'POST admin-capi-test': actionAdminCapiTest,
   'POST admin-invoice-emit': actionAdminInvoiceEmit,
   'POST admin-invoice-sync': actionAdminInvoiceSync,
+  'GET admin-push-key': actionAdminPushKey,
+  'POST admin-push-subscribe': actionAdminPushSubscribe,
+  'POST admin-push-unsubscribe': actionAdminPushUnsubscribe,
+  'POST admin-push-test': actionAdminPushTest,
 }
 
 export default async function handler(req, res) {
