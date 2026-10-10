@@ -14,9 +14,10 @@
 
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { randomUUID } from 'node:crypto'
-import { getDoc, setDoc, updateDoc, queryDocs, listDocs } from '../firebaseAdmin.js'
-import { emitInvoice } from './invoice.js'
+import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, listDocs, createDocIfMissing, incrementField } from '../firebaseAdmin.js'
+import { emitInvoice, cancelInvoice } from './invoice.js'
 import { trackOrderEvent } from './metaCapi.js'
+import { mpConfigured, getPayment, orderStatusFromMp } from './mercadoPago.js'
 import { sendPushToUsers } from '../webPush.js'
 
 export const nowIso = () => new Date().toISOString()
@@ -67,7 +68,21 @@ export function pixAccountFor(settings, product) {
   return { id: '', label: 'Conta principal', pixKey: settings.pixKey, pixKeyType: settings.pixKeyType, pixName: settings.pixName, pixCity: settings.pixCity }
 }
 
-const PUSH_TAG = { store_sale: 'venda', store_pix_pending: 'pix', store_refund_request: 'reembolso' }
+const PUSH_TAG = { store_sale: 'venda', store_pix_pending: 'pix', store_refund_request: 'reembolso', store_refund: 'estorno', store_capi_error: 'meta' }
+
+/** Limite simples por chave (IP, e-mail) numa janela de tempo. false = passou do limite. */
+export async function rateLimit(key, max, windowMs) {
+  const path = `storeRateLimits/${sha256(key).slice(0, 40)}`
+  const snap = await getDoc(path)
+  const d = snap.exists ? snap.data() : null
+  if (!d || Date.now() - new Date(d.windowStart).getTime() > windowMs) {
+    await setDoc(path, { windowStart: nowIso(), count: 1 })
+    return true
+  }
+  if (Number(d.count) >= max) return false
+  await incrementField(path, 'count', 1)
+  return true
+}
 
 /** Aviso no sino do CRM para admins e gerentes ativos e, nos aparelhos em que
  *  ativaram, notificação push ("Pix para conferir: ..." vira título + texto). */
@@ -206,7 +221,7 @@ export async function findCoupon(code, productId) {
   if (Number(c.maxUses) > 0 && Number(c.uses || 0) >= Number(c.maxUses)) return null
   const percent = Math.min(100, Math.max(0, Number(c.percent) || 0))
   if (!percent) return null
-  return { id: c.id, code: clean, percent }
+  return { id: c.id, code: clean, percent, maxUses: Number(c.maxUses) || 0, uses: Number(c.uses) || 0 }
 }
 
 /* --------------------------- alunos e acesso --------------------------- */
@@ -253,12 +268,21 @@ export async function createAccessLink(origin, uid) {
   return `${origin}/membros/entrar?code=${code}`
 }
 
+/** Link de acesso vale por 30 dias a partir do primeiro uso (depois o aluno entra
+ *  com senha ou pede um link novo). Assim um link repassado não vale pra sempre. */
+const ACCESS_LINK_TTL_MS = 30 * 86400_000
+
+/** { uid } quando o link vale; { expired: true } quando venceu; null quando não existe. */
 export async function uidFromAccessCode(code) {
   if (!code || !/^[A-Za-z0-9_-]{20,80}$/.test(code)) return null
-  const snap = await getDoc(`storeAccessCodes/${sha256(code)}`)
+  const path = `storeAccessCodes/${sha256(code)}`
+  const snap = await getDoc(path)
   if (!snap.exists) return null
   const data = snap.data()
-  return data.revoked ? null : data.uid
+  if (data.revoked) return null
+  if (data.firstUsedAt && Date.now() - new Date(data.firstUsedAt).getTime() > ACCESS_LINK_TTL_MS) return { expired: true }
+  await updateDoc(path, { ...(data.firstUsedAt ? {} : { firstUsedAt: nowIso() }), uses: Number(data.uses || 0) + 1, lastUsedAt: nowIso() })
+  return { uid: data.uid }
 }
 
 export function hashPassword(password) {
@@ -307,6 +331,31 @@ export async function sendAccessEmail({ to, name, productNames, accessUrl, suppo
   }
 }
 
+/** E-mail com um link de acesso novo (aluno que perdeu o link ou a senha). */
+export async function sendLoginLinkEmail({ to, name, accessUrl }) {
+  const key = process.env.RESEND_API_KEY
+  const from = process.env.STORE_EMAIL_FROM
+  if (!key || !from) return false
+  const first = String(name || '').split(' ')[0] || 'Olá'
+  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0f172a">
+    <h2>${escapeHtml(first)}, aqui está seu novo acesso</h2>
+    <p><a href="${accessUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Entrar na área de membros</a></p>
+    <p style="font-size:13px;color:#64748b">Lá dentro, em Meu perfil, crie uma senha para entrar das próximas vezes. Se não foi você que pediu, ignore este e-mail.</p>
+  </div>`
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: [to], subject: 'Seu link de acesso', html }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    return res.ok
+  } catch (err) {
+    console.warn('[loja] falha ao enviar e-mail:', err?.message)
+    return false
+  }
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch])
 }
@@ -321,15 +370,35 @@ export async function fulfillOrder(origin, orderId) {
   const order = { id: orderId, ...snap.data() }
   if (order.status !== 'approved' || order.fulfilledAt) return order
 
+  // Trava: o webhook e a página de obrigado chegam juntos. Só um entrega
+  // (senão saem dois links, dois e-mails, cupom contado duas vezes...).
+  const lockPath = `storeLocks/fulfill_${orderId}`
+  if (!(await createDocIfMissing(lockPath, { orderId, createdAt: nowIso() }))) {
+    const lock = await getDoc(lockPath)
+    const age = Date.now() - new Date(lock.data()?.createdAt || 0).getTime()
+    // Trava velha = uma entrega anterior caiu no meio; pode tentar de novo.
+    if (age < 120_000) return order
+    await deleteDoc(lockPath)
+    if (!(await createDocIfMissing(lockPath, { orderId, createdAt: nowIso() }))) return order
+  }
+  try {
+    const fresh = await getDoc(`storeOrders/${orderId}`)
+    if (fresh.data()?.fulfilledAt) return { id: orderId, ...fresh.data() }
+    return await deliver(origin, order)
+  } catch (err) {
+    await deleteDoc(lockPath).catch(() => {})
+    throw err
+  }
+}
+
+async function deliver(origin, order) {
+  const orderId = order.id
   const uid = await ensureMember({ email: order.buyer.email, name: order.buyer.name, phone: order.buyer.phone })
   for (const item of order.items || []) {
     await grantAccess({ uid, email: order.buyer.email, productId: item.productId, orderId })
   }
   const accessUrl = await createAccessLink(origin, uid)
-  if (order.couponId) {
-    const c = await getDoc(`storeCoupons/${order.couponId}`)
-    if (c.exists) await updateDoc(`storeCoupons/${order.couponId}`, { uses: Number(c.data().uses || 0) + 1 })
-  }
+  if (order.couponId) await incrementField(`storeCoupons/${order.couponId}`, 'uses', 1).catch((err) => console.warn('[loja] cupom:', err?.message))
   const emailSent = await sendAccessEmail({
     to: order.buyer.email,
     name: order.buyer.name,
@@ -342,10 +411,102 @@ export async function fulfillOrder(origin, orderId) {
   if (!order.test) {
     const total = (order.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     const product = await getProduct(order.productId).catch(() => null)
-    await trackOrderEvent({ ...order, ...patch }, product, 'Purchase').catch((err) => console.warn('[loja] CAPI falhou:', err?.message))
     await notifyStaff('store_sale', `Venda aprovada: ${order.buyer.name} comprou ${order.items.map((i) => i.name).join(' + ')} por ${total}.`)
+    const capi = await trackOrderEvent({ ...order, ...patch }, product, 'Purchase').catch((err) => ({ ok: false, error: err?.message }))
+    if (capi && !capi.ok) await notifyCapiFailure(order, capi.error)
     // Nota fiscal automática (se ligada em Loja > Nota fiscal). Erro não trava a venda.
     await emitInvoice(orderId).catch((err) => console.warn('[loja] nota fiscal falhou:', err?.message))
   }
   return { ...order, ...patch }
+}
+
+/* ------------------------ Meta (API de Conversões) ------------------------ */
+
+async function notifyCapiFailure(order, error) {
+  await notifyStaff('store_capi_error', `Venda não marcada no Meta: a venda de ${order.buyer?.name || 'um cliente'} não foi enviada pela API de Conversões (${String(error || 'erro desconhecido').slice(0, 160)}). O sistema tenta de novo todo dia; confira o token do pixel na Loja.`)
+}
+
+/** Reenvia ao Meta as vendas dos últimos 7 dias que ele recusou (rodado pelo cron). */
+export async function retryFailedCapi(limit = 40) {
+  const rows = await queryDocs('storeOrders', [['capi.purchase.ok', false]])
+  const weekAgo = Date.now() - 7 * 86400_000
+  const due = rows
+    .filter((o) => o.status === 'approved' && !o.test && Number(o.capi?.purchase?.attempts || 0) < 6 && new Date(o.createdAt).getTime() > weekAgo)
+    .slice(0, limit)
+  let fixed = 0
+  const stillFailing = []
+  for (const o of due) {
+    const product = await getProduct(o.productId).catch(() => null)
+    const r = await trackOrderEvent(o, product, 'Purchase').catch((err) => ({ ok: false, error: err?.message }))
+    if (r?.ok) fixed++
+    else if (r) stillFailing.push(r.error)
+  }
+  if (stillFailing.length) {
+    await notifyStaff('store_capi_error', `Vendas não marcadas no Meta: ${stillFailing.length} venda(s) continuam sendo recusadas pela API de Conversões (${String(stillFailing[0] || '').slice(0, 160)}). Confira o token do pixel na Loja.`)
+  }
+  return { pending: due.length, fixed, failing: stillFailing.length }
+}
+
+/* ------------------------- Mercado Pago (status) ------------------------- */
+
+/** Confere o pagamento no MP e atualiza o pedido. force = consulta mesmo com o
+ *  pedido já aprovado e entregue (webhook: pode ser reembolso ou chargeback). */
+export async function syncOrderWithMp(origin, orderId, order, { force = false } = {}) {
+  if (!order.mpPaymentId || !mpConfigured()) return order
+  if (order.status === 'refunded') return order
+  if (!force && order.status === 'approved' && order.fulfilledAt) return order
+  const p = await getPayment(order.mpPaymentId)
+  let status = orderStatusFromMp(p.status)
+  // Aprovado só deixa de ser aprovado se o dinheiro voltou. Disputa aberta
+  // (in_mediation) não tira o acesso: espera o resultado.
+  if (order.status === 'approved' && status !== 'refunded') status = 'approved'
+  if (status !== order.status || p.status !== order.mpStatus) {
+    const wasApproved = order.status === 'approved'
+    const patch = { status, mpStatus: p.status, mpStatusDetail: p.status_detail || null, updatedAt: nowIso() }
+    if (status === 'approved' && !order.approvedAt) patch.approvedAt = nowIso()
+    if (status === 'refunded') Object.assign(patch, { refundedAt: nowIso(), refundedBy: p.status === 'charged_back' ? 'Chargeback (Mercado Pago)' : 'Mercado Pago' })
+    await updateDoc(`storeOrders/${orderId}`, patch)
+    order = { ...order, ...patch }
+    if (status === 'refunded') {
+      for (const pid of order.productIds || [order.productId]) {
+        if (order.memberUid) await revokeAccess(order.memberUid, pid).catch(() => {})
+      }
+      if (wasApproved) {
+        await cancelInvoice(orderId).catch((err) => console.warn('[loja] cancelar nota falhou:', err?.message))
+        const total = (order.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        const why = p.status === 'charged_back' ? 'chargeback (contestação no cartão)' : 'reembolso feito no Mercado Pago'
+        await notifyStaff('store_refund', `Estorno: ${order.buyer?.name} teve ${total} devolvido por ${why}. O acesso foi removido.`)
+      }
+    }
+  }
+  if (order.status === 'approved') order = (await fulfillOrder(origin, orderId)) || order
+  return order
+}
+
+/** Rede de segurança do webhook: confere no MP os pedidos pendentes dos últimos
+ *  3 dias e expira Pix direto que ninguém confirmou em 7 dias. */
+export async function reconcilePendingOrders(origin, limit = 40) {
+  const rows = await queryDocs('storeOrders', [['status', 'pending']])
+  const now = Date.now()
+  let checked = 0
+  let approved = 0
+  let expired = 0
+  for (const o of rows) {
+    const age = now - new Date(o.createdAt).getTime()
+    if (o.method === 'pix_manual') {
+      if (age > 7 * 86400_000) {
+        await updateDoc(`storeOrders/${o.id}`, { status: 'refused', expiredAt: nowIso(), updatedAt: nowIso() })
+        expired++
+      }
+      continue
+    }
+    if (!o.mpPaymentId || age > 3 * 86400_000 || checked >= limit) continue
+    checked++
+    const out = await syncOrderWithMp(origin, o.id, o).catch((err) => {
+      console.warn('[loja] reconciliar', o.id, err?.message)
+      return o
+    })
+    if (out.status === 'approved') approved++
+  }
+  return { pending: rows.length, checked, approved, expired }
 }

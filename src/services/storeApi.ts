@@ -74,6 +74,7 @@ export interface OrderStatus {
   emailSent: boolean
   productId: string
   manualPix?: boolean
+  approvedAt?: string | null
 }
 
 async function call<T>(action: string, opts: { method?: 'GET' | 'POST'; params?: Record<string, string>; body?: unknown; token?: string | null } = {}): Promise<T> {
@@ -119,6 +120,8 @@ export const createOrder = (body: unknown) => call<OrderResult>('order', { body 
 export const fetchOrderStatus = (id: string, key: string) => call<OrderStatus>('order', { params: { id, key } })
 
 /* alunos */
+/** Pede um link de acesso novo por e-mail. email: false = o envio de e-mail não está configurado. */
+export const memberSendLink = (email: string) => call<{ ok: true; email: boolean }>('member-send-link', { body: { email } })
 export const memberEnter = (code: string) => call<{ token: string; hasPassword: boolean }>('member-enter', { body: { code } })
 export const memberLogin = (email: string, password: string) => call<{ token: string; hasPassword: boolean }>('member-login', { body: { email, password } })
 export interface MemberOrder {
@@ -201,6 +204,10 @@ export async function storeSyncInvoices(orderIds: string[]) {
 }
 export async function storeConfirmOrder(orderId: string) {
   return call<{ ok: true; accessUrl: string | null }>('admin-confirm', { body: { orderId }, token: await staffToken() })
+}
+/** Confere no Mercado Pago os pedidos pendentes (webhook que não chegou). */
+export async function storeReconcileOrders() {
+  return call<{ skipped?: boolean; checked?: number; approved?: number; expired?: number }>('admin-reconcile', { body: {}, token: await staffToken() })
 }
 export async function storeCancelOrder(orderId: string) {
   return call<{ ok: true }>('admin-cancel', { body: { orderId }, token: await staffToken() })

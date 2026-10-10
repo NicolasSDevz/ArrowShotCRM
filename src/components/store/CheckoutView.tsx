@@ -16,7 +16,7 @@ const SEAL_ICONS: Record<StoreSealKey, LucideIcon> = {
   support: Headphones,
   lifetime: InfinityIcon,
 }
-import { formatClock, mountCardBrick, readUtms, refusalMessage, readTracking, readableOn, useCountdown, useGoogleFont, useIsNarrow, type CardBrickFormData } from './checkoutUtils'
+import { emailTypoSuggestion, formatClock, mountCardBrick, readUtms, refusalMessage, readTracking, readableOn, useCountdown, useGoogleFont, useIsNarrow, type CardBrickFormData } from './checkoutUtils'
 
 type Method = 'pix' | 'card' | 'test'
 
@@ -52,6 +52,9 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+
+  // "fulano@gmial.com": o acesso iria pro e-mail errado.
+  const emailFix = emailTypoSuggestion(email)
 
   const mainPrice = coupon ? Math.round(data.price * (1 - coupon.percent / 100)) : data.price
   const bumpTotal = data.bumps.filter((b) => bumps.includes(b.productId)).reduce((s, b) => s + b.price, 0)
@@ -353,8 +356,14 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               </label>
               <label className="block">
                 <span className={labelCls}>E-mail (é por ele que você vai acessar)</span>
-                <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+                <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required aria-describedby={emailFix ? `${uid}-email-fix` : undefined} />
               </label>
+              {emailFix && (
+                <p id={`${uid}-email-fix`} className="-mt-1 text-sm text-amber-700" aria-live="polite">
+                  Você quis dizer <strong>{emailFix}</strong>?{' '}
+                  <button type="button" className="font-semibold underline" onClick={() => { setEmail(emailFix); if (c.confirmEmail) setEmail2(emailFix) }}>Corrigir</button>
+                </p>
+              )}
               {c.confirmEmail && (
                 <label className="block">
                   <span className={labelCls}>Confirme o e-mail</span>

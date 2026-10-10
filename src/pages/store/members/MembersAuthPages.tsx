@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { memberEnter, memberLogin, memberSetPassword } from '../../../services/storeApi'
+import { memberEnter, memberLogin, memberSendLink, memberSetPassword } from '../../../services/storeApi'
 import { useMembers } from '../../../components/store/members/MembersContext'
 import { Spinner } from '../../../components/ui/FullPageSpinner'
 import { MyPurchases } from '../../../components/store/members/MyPurchases'
@@ -34,6 +34,7 @@ export function MembersLoginPage() {
         await signInWithToken(token)
         navigate('/membros', { replace: true })
       }}
+      onSendLink={async (email) => (await memberSendLink(email)).email}
     />
   )
 }
@@ -63,7 +64,7 @@ export function MembersEnterPage() {
       {error ? (
         <>
           <p role="alert" className="text-sm text-red-400">{error}</p>
-          <Link to="/membros/login" className="mt-4 inline-block text-sm text-[var(--m-primary)] hover:underline">Entrar com e-mail e senha</Link>
+          <Link to="/membros/login" className="mt-4 inline-block text-sm text-[var(--m-primary)] hover:underline">Entrar com e-mail e senha ou pedir um link novo</Link>
         </>
       ) : (
         <p className="flex items-center gap-2 text-sm text-[var(--m-muted)]" aria-live="polite"><Spinner className="h-4 w-4" /> Liberando o seu acesso</p>

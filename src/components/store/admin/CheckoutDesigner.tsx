@@ -4,6 +4,7 @@ import { Field, Input, Select, Textarea } from '../../ui/Field'
 import { ImageField } from './ImageField'
 import { TextListEditor } from './ListEditor'
 import { MetaCapiField } from './MetaCapiField'
+import { SalesPageSnippet } from './SalesPageSnippet'
 import { CheckoutView } from '../CheckoutView'
 import { PreviewFrame } from '../../ui/PreviewFrame'
 import { contrastRatio } from '../checkoutUtils'
@@ -363,7 +364,8 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
           <Input value={c.fbPixelId ?? ''} onChange={(e) => onChange({ fbPixelId: parseMetaPixelId(e.target.value) ?? e.target.value })} placeholder="1234567890" />
         </Field>
         <p className="text-[11px] text-slate-400">No navegador: PageView, InitiateCheckout, AddPaymentInfo e Purchase (com valor). UTMs do link ficam salvas no pedido.</p>
-        <MetaCapiField pixelId={c.fbPixelId ?? null} enabled={c.capiEnabled !== false} testCode={c.capiTestCode ?? ''} onChange={onChange} />
+        <MetaCapiField pixelId={c.fbPixelId ?? null} enabled={c.capiEnabled !== false} testCode={c.capiTestCode ?? ''} testCodeAt={c.capiTestCodeAt ?? null} onChange={onChange} />
+        <SalesPageSnippet />
         <Field label="Página de obrigado própria (opcional)"><Input value={c.thankYouUrl ?? ''} onChange={(e) => onChange({ thankYouUrl: e.target.value || null })} placeholder="https://..." /></Field>
         <Field label="Rodapé"><Input value={c.footerText ?? ''} onChange={(e) => onChange({ footerText: e.target.value })} placeholder="Arrow Shot, CNPJ 00.000.000/0001-00" /></Field>
       </EditorSection>

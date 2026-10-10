@@ -9,7 +9,13 @@ import crypto from 'node:crypto'
 import { getDoc, setDoc, updateDocPaths } from '../firebaseAdmin.js'
 import { encryptToken, decryptToken } from '../tokenCrypto.js'
 
-const GRAPH_VERSION = 'v19.0'
+// Versão recente da Graph API: as antigas saem do ar com o tempo (cerca de 2 anos).
+const GRAPH_VERSION = 'v24.0'
+// O Meta só aceita eventos de até 7 dias atrás.
+const MAX_EVENT_AGE_S = 7 * 86400 - 3600
+// Código de teste só vale por algumas horas: esquecido preenchido, as vendas reais
+// iriam para "Eventos de teste" e não contariam nas campanhas.
+const TEST_CODE_TTL_MS = 3 * 3600_000
 const SECRET_DOC = 'storeSecrets/metaCapi'
 
 const sha = (v) => (v ? crypto.createHash('sha256').update(String(v).trim().toLowerCase()).digest('hex') : undefined)
@@ -57,7 +63,9 @@ export function trackingFromRequest(req, raw = {}) {
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || null
   const fbclid = raw.fbclid ? String(raw.fbclid).slice(0, 500) : null
   let fbc = raw.fbc ? String(raw.fbc).slice(0, 500) : null
-  if (!fbc && fbclid) fbc = `fb.1.${Date.now()}.${fbclid}`
+  // fbc = hora do clique no anúncio + fbclid. O navegador guarda a hora em que viu o fbclid.
+  const clickAt = Number(raw.fbclidAt)
+  if (!fbc && fbclid) fbc = `fb.1.${clickAt > 1e12 && clickAt <= Date.now() ? Math.floor(clickAt) : Date.now()}.${fbclid}`
   return {
     fbp: raw.fbp ? String(raw.fbp).slice(0, 200) : null,
     fbc,
@@ -89,12 +97,28 @@ function userData(order) {
 }
 
 /** Manda um evento. Nunca lança erro (venda não pode travar por causa do Meta). */
+/** Hora da compra (quando o pedido foi feito), dentro do limite de 7 dias do Meta. */
+function eventTime(order) {
+  const now = Math.floor(Date.now() / 1000)
+  const created = order.createdAt ? Math.floor(new Date(order.createdAt).getTime() / 1000) : now
+  if (!Number.isFinite(created) || created > now) return now
+  return Math.max(created, now - MAX_EVENT_AGE_S)
+}
+
+/** Código de teste do produto, só se foi colocado há pouco tempo. */
+export function activeTestCode(checkout = {}) {
+  const code = String(checkout.capiTestCode || '').trim()
+  if (!code) return null
+  const at = checkout.capiTestCodeAt ? new Date(checkout.capiTestCodeAt).getTime() : 0
+  return at && Date.now() - at < TEST_CODE_TTL_MS ? code : null
+}
+
 export async function sendCapiEvent({ pixelId, token, eventName, eventId, order, testCode }) {
   const body = {
     data: [
       {
         event_name: eventName,
-        event_time: Math.floor(Date.now() / 1000),
+        event_time: eventTime(order),
         event_id: eventId,
         action_source: 'website',
         event_source_url: order.tracking?.url || undefined,
@@ -129,6 +153,8 @@ export async function sendCapiEvent({ pixelId, token, eventName, eventId, order,
 /** Purchase de um pedido aprovado. O event_id bate com o que o navegador manda (dedup). Grava o resultado no pedido. */
 export async function trackOrderEvent(order, product, eventName) {
   if (!order || order.test) return null
+  // Cupom de 100% (R$ 0) não é venda: mandar zera o ROAS e confunde a otimização.
+  if (!(Number(order.amount) > 0)) return null
   const pixelId = cleanPixelId(product?.checkout?.fbPixelId)
   if (!pixelId || product?.checkout?.capiEnabled === false) return null
   const token = await tokenFor(pixelId)
@@ -141,9 +167,10 @@ export async function trackOrderEvent(order, product, eventName) {
     eventName,
     eventId: eventName === 'Purchase' ? `purchase-${order.id}` : `payinfo-${order.id}`,
     order,
-    testCode: product.checkout.capiTestCode || null,
+    testCode: activeTestCode(product.checkout),
   })
-  const entry = { ...result, pixelId, at: new Date().toISOString() }
+  const attempts = Number(order.capi?.[key]?.attempts || 0) + 1
+  const entry = { ...result, pixelId, attempts, at: new Date().toISOString() }
   await updateDocPaths(`storeOrders/${order.id}`, { capi: { [key]: entry } }, [`capi.${key}`]).catch(() => {})
   if (!result.ok) console.warn(`[loja] CAPI ${eventName} falhou (${order.id}):`, result.error)
   return entry

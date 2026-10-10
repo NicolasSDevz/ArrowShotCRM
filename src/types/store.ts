@@ -154,6 +154,8 @@ export interface StoreCheckoutConfig {
   capiEnabled?: boolean
   /** Código de Eventos de teste do Gerenciador (só enquanto testa; apague depois). */
   capiTestCode?: string | null
+  /** Quando o código de teste foi colocado: o servidor só usa por 3 h (esquecido, as vendas reais não contariam). */
+  capiTestCodeAt?: string | null
   thankYouUrl?: string | null
   footerText?: string
   bumps: StoreOrderBump[]
@@ -295,6 +297,11 @@ export interface StoreOrder {
   createdAt: string
   approvedAt?: string
   refundedAt?: string
+  refundedBy?: string
+  /** Pix direto que ninguém confirmou em 7 dias (ainda dá pra confirmar se o dinheiro caiu). */
+  expiredAt?: string
+  /** Resultado do envio da venda pela API de Conversões do Meta. */
+  capi?: { purchase?: { ok: boolean; error?: string; attempts?: number; at?: string } }
 }
 
 export interface StoreCoupon extends BaseDoc {

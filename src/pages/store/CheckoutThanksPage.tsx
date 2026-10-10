@@ -43,6 +43,7 @@ export function CheckoutThanksPage() {
     let stop = false
     let timer: ReturnType<typeof setTimeout>
     const started = Date.now()
+    let waitingAccess = 0
     const poll = async () => {
       try {
         const o = await fetchOrderStatus(orderId, key)
@@ -50,6 +51,8 @@ export function CheckoutThanksPage() {
         setOrder(o)
         // 5 s nos primeiros 10 min; depois a cada 30 s (Pix confirmado à mão pode demorar).
         if (o.status === 'pending') timer = setTimeout(poll, Date.now() - started < 600_000 ? 5000 : 30_000)
+        // Aprovado mas o acesso ainda está sendo gerado (outra conferência chegou junto): busca de novo.
+        else if (o.status === 'approved' && !o.accessUrl && waitingAccess++ < 10) timer = setTimeout(poll, 3000)
       } catch (err) {
         if (!stop) setError((err as Error).message)
       }
@@ -61,9 +64,13 @@ export function CheckoutThanksPage() {
     }
   }, [orderId, key])
 
-  // Purchase no Pixel uma vez só por pedido.
+  // Purchase no Pixel uma vez só por pedido. Só nas primeiras 24 h depois da aprovação:
+  // o Meta junta navegador + servidor (mesmo event_id) só dentro de 48 h, então
+  // reabrir esta página dias depois (ou em outro aparelho) contaria a venda de novo.
   useEffect(() => {
     if (!order || order.status !== 'approved' || !product?.checkout.fbPixelId || tracked.current) return
+    if (!(order.amount > 0)) return
+    if (order.approvedAt && Date.now() - new Date(order.approvedAt).getTime() > 24 * 3600_000) return
     const flag = `px-purchase-${order.orderId}`
     try {
       if (localStorage.getItem(flag)) return
@@ -75,9 +82,11 @@ export function CheckoutThanksPage() {
     trackMetaPixel('Purchase', { value: order.amount / 100, currency: 'BRL', content_name: order.items.map((i) => i.name).join(' + ') }, `purchase-${order.orderId}`)
   }, [order, product])
 
-  // Página de obrigado própria (configurada no produto).
+  // Página de obrigado própria (configurada no produto). Só leva embora sozinho se o
+  // acesso também foi por e-mail: senão o botão daqui é o único jeito de entrar.
+  const thankYouUrl = order?.status === 'approved' ? product?.checkout.thankYouUrl || null : null
   useEffect(() => {
-    if (order?.status === 'approved' && product?.checkout.thankYouUrl) {
+    if (order?.status === 'approved' && order.emailSent && order.accessUrl && product?.checkout.thankYouUrl) {
       const t = setTimeout(() => window.location.assign(product.checkout.thankYouUrl!), 4000)
       return () => clearTimeout(t)
     }
@@ -167,7 +176,15 @@ export function CheckoutThanksPage() {
                 Acessar a área de membros
               </a>
             )}
+            {order.status === 'approved' && !order.accessUrl && (
+              <p className="mt-5 flex items-center justify-center gap-2 text-sm text-slate-500"><Spinner className="h-3.5 w-3.5" /> Preparando seu acesso...</p>
+            )}
             <p className="mt-3 text-xs text-slate-400">Salve esta página nos favoritos: o botão acima é o seu acesso. Lá dentro você pode criar uma senha.</p>
+            {thankYouUrl && !order.emailSent && (
+              <a href={thankYouUrl} className="mt-4 inline-block text-sm font-medium underline" style={{ color }}>
+                Já guardei meu acesso, continuar
+              </a>
+            )}
           </section>
         )}
 

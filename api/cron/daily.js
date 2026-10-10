@@ -5,6 +5,8 @@
 //   1. check-meta-token-expiry — avisa tokens Meta Ads expirando em <=7 dias
 //   2. update-metrics          — recalcula o snapshot diário de métricas
 //   3. birthday-notifications  — avisa aniversários de responsáveis hoje
+//   4. Loja — notas em processamento, pedidos pendentes (webhook perdido) e
+//      vendas que o Meta recusou na API de Conversões
 //
 // Rodam em sequência; uma falhar não impede as outras de rodar — o erro
 // fica registrado em `results.<rotina>.error` e o status HTTP vira 500.
@@ -18,6 +20,7 @@ import { getDoc, setDoc, queryDocs, listDocs, updateDoc } from '../_lib/firebase
 import { listAllTokenStatuses, markExpiryNotified } from '../_lib/metaTokenStore.js'
 import { computeAndStoreMetrics } from '../_lib/metricsStore.js'
 import { syncInvoice } from '../_lib/store/invoice.js'
+import { publicOrigin, reconcilePendingOrders, retryFailedCapi } from '../_lib/store/core.js'
 
 const WARN_WITHIN_DAYS = 7
 const RENOTIFY_AFTER_MS = 20 * 3600 * 1000
@@ -196,6 +199,16 @@ async function runInvoiceSync() {
   return { pending: pending.length, updated }
 }
 
+/** Loja: pedidos que o webhook do Mercado Pago não atualizou + Pix direto esquecido. */
+function runStoreReconcile(req) {
+  return reconcilePendingOrders(publicOrigin(req), 60)
+}
+
+/** Loja: reenvia ao Meta as vendas que a API de Conversões recusou. */
+function runCapiRetry() {
+  return retryFailedCapi(60)
+}
+
 export default async function handler(req, res) {
   const secret = process.env.CRON_SECRET
   if (secret && req.headers.authorization !== `Bearer ${secret}`) {
@@ -210,9 +223,11 @@ export default async function handler(req, res) {
     ['metrics', runMetricsUpdate],
     ['birthdays', runBirthdayNotifications],
     ['invoices', runInvoiceSync],
+    ['storeOrders', runStoreReconcile],
+    ['metaCapi', runCapiRetry],
   ]) {
     try {
-      results[key] = await run()
+      results[key] = await run(req)
     } catch (err) {
       console.error(`[cron/daily] ${key} falhou:`, err)
       results[key] = { error: err.message }

@@ -11,12 +11,14 @@ export function MetaCapiField({
   pixelId,
   enabled,
   testCode,
+  testCodeAt,
   onChange,
 }: {
   pixelId: string | null
   enabled: boolean
   testCode: string
-  onChange: (patch: { capiEnabled?: boolean; capiTestCode?: string | null }) => void
+  testCodeAt: string | null
+  onChange: (patch: { capiEnabled?: boolean; capiTestCode?: string | null; capiTestCodeAt?: string | null }) => void
 }) {
   const id = (pixelId || '').replace(/\D/g, '')
   const [saved, setSaved] = useState<Record<string, { updatedAt: string | null; updatedBy: string | null }> | null>(null)
@@ -33,6 +35,8 @@ export function MetaCapiField({
   if (id.length < 10) return <p className="text-[11px] text-slate-400">Coloque o número do pixel acima para ligar a API de Conversões.</p>
 
   const has = !!saved?.[id]
+  // O servidor só usa o código de teste por 3 h depois de colocado.
+  const testActive = !!testCode && !!testCodeAt && Date.now() - new Date(testCodeAt).getTime() < 3 * 3600_000
 
   const save = async (value: string) => {
     setBusy(true)
@@ -91,9 +95,24 @@ export function MetaCapiField({
             Onde pegar: Gerenciador de Eventos, escolha o pixel, aba Configurações, "API de Conversões", "Gerar token de acesso". O token fica guardado cifrado no servidor e vale pra todos os produtos com esse pixel.
           </p>
           <Field label="Código de teste (opcional)">
-            <Input value={testCode} onChange={(e) => onChange({ capiTestCode: e.target.value.trim() || null })} placeholder="TEST12345" />
+            <Input
+              value={testCode}
+              onChange={(e) => {
+                const v = e.target.value.trim()
+                onChange({ capiTestCode: v || null, capiTestCodeAt: v ? new Date().toISOString() : null })
+              }}
+              placeholder="TEST12345"
+            />
           </Field>
-          <p className="text-[11px] text-slate-400">Pegue em Gerenciador de Eventos, Eventos de teste. Enquanto estiver preenchido, as vendas reais também vão como teste. Apague depois de conferir.</p>
+          {testCode ? (
+            <p role="status" className={`rounded-lg p-2 text-xs ${testActive ? 'bg-amber-50 text-amber-800' : 'bg-slate-50 text-slate-500'}`}>
+              {testActive
+                ? `Modo teste ligado até ${new Date(new Date(testCodeAt!).getTime() + 3 * 3600_000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}: as vendas reais vão para Eventos de teste e NÃO contam nas campanhas. Depois disso volta ao normal sozinho.`
+                : 'Código de teste vencido: as vendas já contam normalmente. Pode apagar o campo.'}
+            </p>
+          ) : (
+            <p className="text-[11px] text-slate-400">Pegue em Gerenciador de Eventos, Eventos de teste. Vale por 3 horas depois de colocado; depois disso as vendas voltam a contar sozinhas.</p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" disabled={busy || !has} onClick={test} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">Testar envio</button>
             {has && (

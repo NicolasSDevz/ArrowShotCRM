@@ -11,10 +11,13 @@ export function MembersLoginView({
   theme: baseTheme,
   preview = false,
   onLogin,
+  onSendLink,
 }: {
   theme: StoreMembersTheme
   preview?: boolean
   onLogin?: (email: string, password: string) => Promise<void>
+  /** Pede um link de acesso novo por e-mail. Devolve false se o envio de e-mail não está configurado. */
+  onSendLink?: (email: string) => Promise<boolean>
 }) {
   const theme = loginTheme(baseTheme)
   const overlay = Math.min(80, Math.max(0, baseTheme.loginOverlay ?? 45)) / 100
@@ -22,6 +25,7 @@ export function MembersLoginView({
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [linkMsg, setLinkMsg] = useState('')
   const split = theme.loginLayout === 'split'
   const whatsapp = String(theme.supportWhatsapp || '').replace(/\D/g, '')
 
@@ -32,6 +36,29 @@ export function MembersLoginView({
     setError('')
     try {
       await onLogin(email, password)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const sendLink = async () => {
+    if (preview || !onSendLink) return
+    setError('')
+    setLinkMsg('')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+      setError('Digite acima o e-mail usado na compra.')
+      return
+    }
+    setBusy(true)
+    try {
+      const sent = await onSendLink(email.trim())
+      setLinkMsg(
+        sent
+          ? 'Se esse e-mail tiver uma compra, o link de acesso chega em instantes. Confira também o spam.'
+          : 'O envio por e-mail não está disponível. Fale com o suporte para receber um link novo.'
+      )
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -58,6 +85,12 @@ export function MembersLoginView({
           {busy ? 'Entrando...' : theme.loginButtonText || 'Entrar'}
         </button>
       </form>
+      {(onSendLink || preview) && (
+        <button type="button" onClick={sendLink} disabled={busy} className="mt-3 text-sm text-[var(--m-primary)] hover:underline disabled:opacity-60">
+          Esqueci a senha ou ainda não criei: receber link de acesso por e-mail
+        </button>
+      )}
+      {linkMsg && <p role="status" className="mt-2 text-sm text-[var(--m-muted)]">{linkMsg}</p>}
       {theme.loginHelpText && <p className="mt-5 text-sm text-[var(--m-muted)]">{theme.loginHelpText}</p>}
       {whatsapp && (
         <a

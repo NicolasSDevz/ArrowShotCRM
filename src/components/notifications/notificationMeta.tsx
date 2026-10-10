@@ -73,6 +73,8 @@ export const NOTIFICATION_ICON: Record<NotificationType, IconType> = {
   store_pix_pending: QrCode,
   store_sale: ShoppingBag,
   store_refund_request: RotateCcw,
+  store_refund: RotateCcw,
+  store_capi_error: AlertTriangle,
 }
 
 /** Icon chip background/text, per the spec's colors (azul, verde, vermelho,
@@ -114,6 +116,8 @@ export const NOTIFICATION_ICON_STYLE: Record<NotificationType, string> = {
   store_pix_pending: 'bg-amber-50 text-amber-600',
   store_sale: 'bg-emerald-50 text-emerald-600',
   store_refund_request: 'bg-red-50 text-red-600',
+  store_refund: 'bg-red-50 text-red-600',
+  store_capi_error: 'bg-amber-50 text-amber-600',
 }
 
 /** "há 5 minutos" / "há 2 horas" / "ontem às 14:30" / "dd/MM/yyyy às HH:mm". */
@@ -142,7 +146,7 @@ export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'enti
     if (!n.entityId) return '/calendario'
     return n.entityId.startsWith('http') ? n.entityId : `https://wa.me/${n.entityId}`
   }
-  if (n.type === 'store_pix_pending' || n.type === 'store_sale' || n.type === 'store_refund_request') return '/loja'
+  if (n.type.startsWith('store_')) return '/loja'
   if (!n.entityType) return null
   switch (n.entityType) {
     case 'client':

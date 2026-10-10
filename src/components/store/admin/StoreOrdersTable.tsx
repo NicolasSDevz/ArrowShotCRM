@@ -5,7 +5,7 @@ import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
 import { Input, Select } from '../../ui/Field'
 import { EmptyState } from '../../ui/EmptyState'
-import { storeCancelOrder, storeConfirmOrder, storeEmitInvoice, storeRefundOrder, storeSyncInvoices } from '../../../services/storeApi'
+import { storeAccessLink, storeCancelOrder, storeConfirmOrder, storeEmitInvoice, storeReconcileOrders, storeRefundOrder, storeSyncInvoices } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { formatCents, STORE_METHOD_LABEL, STORE_ORDER_STATUS_LABEL, type StoreOrder, type StoreOrderStatus, type StoreProduct } from '../../../types/store'
 
@@ -16,8 +16,8 @@ const STATUS_CLS: Record<StoreOrderStatus, string> = {
   refunded: 'bg-slate-100 text-slate-600',
 }
 
-export function OrderStatusBadge({ status, manual }: { status: StoreOrderStatus; manual?: boolean }) {
-  return <Badge className={STATUS_CLS[status]}>{status === 'pending' && manual ? 'Aguardando confirmação' : STORE_ORDER_STATUS_LABEL[status]}</Badge>
+export function OrderStatusBadge({ status, manual, expired }: { status: StoreOrderStatus; manual?: boolean; expired?: boolean }) {
+  return <Badge className={STATUS_CLS[status]}>{status === 'pending' && manual ? 'Aguardando confirmação' : expired && status === 'refused' ? 'Expirado' : STORE_ORDER_STATUS_LABEL[status]}</Badge>
 }
 
 export async function copyText(text: string, okMsg = 'Copiado') {
@@ -99,6 +99,24 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
     syncedOnce.current = true
     storeSyncInvoices(processing).catch(() => {})
   }, [orders])
+
+  // Pedidos do Mercado Pago ainda pendentes: confere lá (cobre webhook que não chegou).
+  const reconciledOnce = useRef(false)
+  useEffect(() => {
+    if (reconciledOnce.current || !orders.some((o) => o.status === 'pending' && o.mpPaymentId)) return
+    reconciledOnce.current = true
+    storeReconcileOrders().catch(() => {})
+  }, [orders])
+
+  // Link novo na hora: o salvo no pedido vence 30 dias depois do primeiro uso.
+  const copyAccess = async (o: StoreOrder) => {
+    try {
+      const url = o.memberUid ? (await storeAccessLink(o.memberUid)).accessUrl : o.accessUrl!
+      await copyText(url, 'Link de acesso copiado')
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
 
   const emitInvoice = async (o: StoreOrder) => {
     setEmitting(o.id)
@@ -234,7 +252,14 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                     {o.pixAccountLabel && <p className="text-xs text-slate-400">Conta: {o.pixAccountLabel}</p>}
                   </td>
                   <td className="px-4 py-3">
-                    <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} />
+                    <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} expired={!!o.expiredAt} />
+                    {o.status === 'refunded' && o.refundedBy && <p className="mt-1 text-xs text-slate-400">Por {o.refundedBy}</p>}
+                    {o.status === 'approved' && o.capi?.purchase && !o.capi.purchase.ok && (
+                      <div className="mt-1">
+                        <Badge className="bg-amber-50 text-amber-700">Não marcou no Meta</Badge>
+                        <p className="mt-0.5 max-w-[220px] text-xs text-slate-500">{o.capi.purchase.error || 'O Meta recusou'}. Tenta de novo todo dia.</p>
+                      </div>
+                    )}
                     {o.refundRequest && o.status === 'approved' && (
                       <div className="mt-1">
                         <Badge className="bg-red-50 text-red-600">Reembolso pedido</Badge>
@@ -251,18 +276,20 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(o.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
-                    {o.status === 'pending' && o.method === 'pix_manual' && (
+                    {o.method === 'pix_manual' && (o.status === 'pending' || (o.status === 'refused' && o.expiredAt)) && (
                       <>
                         <Button size="sm" icon={<CheckCircle2 size={14} />} loading={refunding === o.id} onClick={() => confirmPayment(o)} aria-label={`Confirmar pagamento de ${o.buyer.name}, ${formatCents(o.amount)}`}>
                           Confirmar pagamento
                         </Button>
-                        <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => cancelOrder(o)} aria-label={`Cancelar pedido de ${o.buyer.name}`}>
-                          Cancelar
-                        </Button>
+                        {o.status === 'pending' && (
+                          <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => cancelOrder(o)} aria-label={`Cancelar pedido de ${o.buyer.name}`}>
+                            Cancelar
+                          </Button>
+                        )}
                       </>
                     )}
                     {o.accessUrl && o.status === 'approved' && (
-                      <Button size="sm" variant="ghost" icon={<Copy size={14} />} onClick={() => copyText(o.accessUrl!, 'Link de acesso copiado')} aria-label={`Copiar link de acesso de ${o.buyer.name}`}>
+                      <Button size="sm" variant="ghost" icon={<Copy size={14} />} onClick={() => copyAccess(o)} aria-label={`Copiar link de acesso de ${o.buyer.name}`}>
                         Acesso
                       </Button>
                     )}

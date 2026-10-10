@@ -12,6 +12,7 @@
 // Alunos:
 //   POST member-enter    { code }              → { token } (link de acesso)
 //   POST member-login    { email, password }   → { token }
+//   POST member-send-link { email }             manda um link de acesso novo por e-mail
 //   POST member-password { password }          (Bearer do aluno)
 //   GET  member-orders                          compras do aluno e prazo de garantia
 //   GET  members-catalog                        produtos no ar para mostrar bloqueados na área (cache de 5 min)
@@ -25,6 +26,7 @@
 //   POST admin-refund  { orderId }
 //   POST admin-confirm { orderId }   confirma Pix direto (Nubank) e libera o acesso
 //   POST admin-cancel  { orderId }   cancela pedido que não foi pago
+//   POST admin-reconcile             confere no MP os pedidos pendentes (webhook perdido)
 //   POST admin-invoice-token { token }     token da Focus NFe (gravado cifrado)
 //   GET  admin-capi-status                  pixels com token da API de Conversões
 //   POST admin-capi-token { pixelId, token } token da API de Conversões (cifrado; vazio = remove)
@@ -47,7 +49,6 @@ import {
   createCardPayment,
   getPayment,
   refundPayment,
-  orderStatusFromMp,
 } from './_lib/store/mercadoPago.js'
 import {
   nowIso,
@@ -73,6 +74,10 @@ import {
   notifyStaff,
   pixDiscount,
   pixAccountFor,
+  rateLimit,
+  syncOrderWithMp,
+  reconcilePendingOrders,
+  sendLoginLinkEmail,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
 import { fetchPdf, stampPdf } from './_lib/store/protectedPdf.js'
@@ -169,6 +174,9 @@ async function actionOrder(req) {
   const body = req.body || {}
   const product = await loadActiveProduct(String(body.slug || ''))
   const buyer = cleanBuyer(body.buyer)
+  // Sem limite, um script cria pedidos sem parar (e cada Pix direto avisa a equipe no celular).
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'sem-ip'
+  if (!(await rateLimit(`order:${ip}`, 8, 15 * 60_000))) throw new HttpError(429, 'Muitas tentativas seguidas. Espere alguns minutos e tente de novo.')
   const invoiceOn = (await getInvoiceSettings()).enabled === true
   if ((product.checkout?.askCpf === true || invoiceOn) && ![11, 14].includes(String(buyer.cpf || '').length)) {
     throw new HttpError(400, 'Informe seu CPF ou CNPJ')
@@ -179,6 +187,14 @@ async function actionOrder(req) {
 
   // Itens: produto principal (com cupom) + order bumps escolhidos.
   const coupon = body.coupon ? await findCoupon(body.coupon, product.id) : null
+  if (body.coupon && !coupon) throw new HttpError(400, 'Cupom inválido ou expirado. Remova o cupom e tente de novo.')
+  if (coupon?.maxUses > 0) {
+    // O uso só é contado quando o pagamento cai: pedidos em aberto dos últimos 30 min "seguram" uma vaga.
+    const holding = (await queryDocs('storeOrders', [['couponId', coupon.id], ['status', 'pending']])).filter(
+      (o) => Date.now() - new Date(o.createdAt).getTime() < 30 * 60_000
+    ).length
+    if (coupon.uses + holding >= coupon.maxUses) throw new HttpError(400, 'Esse cupom atingiu o limite de usos.')
+  }
   const mainPrice = coupon ? Math.round(product.price * (1 - coupon.percent / 100)) : product.price
   const items = [{ productId: product.id, name: product.name, price: mainPrice, fullPrice: product.price, bump: false }]
   const wantedBumps = new Set(Array.isArray(body.bumpIds) ? body.bumpIds.map(String) : [])
@@ -302,28 +318,6 @@ async function actionOrder(req) {
   }
 }
 
-/** Confere o pagamento no MP e atualiza o pedido (usado pelo webhook e pela
- *  página de obrigado — assim funciona mesmo sem o webhook configurado). */
-async function syncOrderWithMp(origin, orderId, order) {
-  if (!order.mpPaymentId || !mpConfigured()) return order
-  if (order.status === 'approved' && order.fulfilledAt) return order
-  const p = await getPayment(order.mpPaymentId)
-  const status = orderStatusFromMp(p.status)
-  if (status !== order.status || p.status !== order.mpStatus) {
-    const patch = { status, mpStatus: p.status, mpStatusDetail: p.status_detail || null, updatedAt: nowIso() }
-    if (status === 'approved' && !order.approvedAt) patch.approvedAt = nowIso()
-    await updateDoc(`storeOrders/${orderId}`, patch)
-    order = { ...order, ...patch }
-  }
-  if (order.status === 'approved') order = (await fulfillOrder(origin, orderId)) || order
-  if (order.status === 'refunded') {
-    for (const pid of order.productIds || []) {
-      if (order.memberUid) await revokeAccess(order.memberUid, pid).catch(() => {})
-    }
-  }
-  return order
-}
-
 async function actionOrderStatus(req) {
   const id = String(req.query.id || '')
   const key = String(req.query.key || '')
@@ -345,6 +339,7 @@ async function actionOrderStatus(req) {
     accessUrl: order.status === 'approved' ? order.accessUrl || null : null,
     emailSent: order.emailSent === true,
     productId: order.productId,
+    approvedAt: order.approvedAt || null,
   }
 }
 
@@ -360,7 +355,8 @@ async function actionWebhook(req) {
   if (!orderId || !/^ord_/.test(orderId)) return { ok: true }
   const snap = await getDoc(`storeOrders/${orderId}`)
   if (!snap.exists) return { ok: true }
-  await syncOrderWithMp(publicOrigin(req), orderId, { id: orderId, ...snap.data(), mpPaymentId: String(p.id) })
+  // force: pedido já entregue também é conferido (o aviso pode ser de reembolso ou chargeback).
+  await syncOrderWithMp(publicOrigin(req), orderId, { id: orderId, ...snap.data(), mpPaymentId: String(p.id) }, { force: true })
   return { ok: true }
 }
 
@@ -375,9 +371,29 @@ async function memberToken(uid) {
 }
 
 async function actionMemberEnter(req) {
-  const uid = await uidFromAccessCode(String(req.body?.code || ''))
-  if (!uid) throw new HttpError(401, 'Link de acesso inválido. Peça um novo ao suporte.')
-  return memberToken(uid)
+  const found = await uidFromAccessCode(String(req.body?.code || ''))
+  if (found?.expired) throw new HttpError(401, 'Este link de acesso venceu. Entre com e-mail e senha ou peça um link novo na tela de login.')
+  if (!found?.uid) throw new HttpError(401, 'Link de acesso inválido. Peça um novo na tela de login ou ao suporte.')
+  return memberToken(found.uid)
+}
+
+/** Manda um link de acesso novo pro e-mail do aluno (perdeu o link ou a senha).
+ *  Responde igual exista ou não o aluno, pra não revelar quem comprou. */
+async function actionMemberSendLink(req) {
+  const email = normalizeEmail(req.body?.email)
+  if (!isValidEmail(email)) throw new HttpError(400, 'Informe um e-mail válido')
+  const emailOn = Boolean(process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM)
+  if (!emailOn) return { ok: true, email: false }
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'sem-ip'
+  if (!(await rateLimit(`link:${email}`, 3, 3600_000)) || !(await rateLimit(`link-ip:${ip}`, 10, 3600_000))) {
+    throw new HttpError(429, 'Muitos pedidos seguidos. Espere um pouco e confira sua caixa de entrada e o spam.')
+  }
+  const uid = memberUidFor(email)
+  const snap = await getDoc(`storeMembers/${uid}`)
+  if (snap.exists) {
+    await sendLoginLinkEmail({ to: email, name: snap.data().name, accessUrl: await createAccessLink(publicOrigin(req), uid) })
+  }
+  return { ok: true, email: true }
 }
 
 async function actionMemberLogin(req) {
@@ -576,11 +592,20 @@ async function actionAdminConfirm(req, user) {
   const snap = await getDoc(`storeOrders/${orderId}`)
   if (!snap.exists) throw new HttpError(404, 'Pedido não encontrado')
   const order = snap.data()
-  if (order.status !== 'pending') throw new HttpError(400, 'Esse pedido não está aguardando pagamento')
+  // Pix direto expirado (7 dias sem confirmação) ainda pode ser confirmado se o dinheiro caiu.
+  const expiredPix = order.status === 'refused' && !!order.expiredAt
+  if (order.status !== 'pending' && !expiredPix) throw new HttpError(400, 'Esse pedido não está aguardando pagamento')
   if (order.method !== 'pix_manual') throw new HttpError(400, 'Só pedidos de Pix direto são confirmados à mão')
   await updateDoc(`storeOrders/${orderId}`, { status: 'approved', approvedAt: nowIso(), confirmedBy: user.name, updatedAt: nowIso() })
   const done = await fulfillOrder(publicOrigin(req), orderId)
   return { ok: true, accessUrl: done?.accessUrl || null }
+}
+
+/** Confere no Mercado Pago os pedidos pendentes (o CRM chama ao abrir as Vendas;
+ *  cobre webhook que não chegou). Limitado a 1x a cada 2 min. */
+async function actionAdminReconcile(req) {
+  if (!(await rateLimit('admin-reconcile', 1, 2 * 60_000))) return { skipped: true }
+  return reconcilePendingOrders(publicOrigin(req), 25)
 }
 
 async function actionAdminCancel(req, user) {
@@ -697,6 +722,7 @@ const PUBLIC = {
   'POST webhook': actionWebhook,
   'GET webhook': actionWebhook,
   'POST member-enter': actionMemberEnter,
+  'POST member-send-link': actionMemberSendLink,
   'POST member-login': actionMemberLogin,
   'POST member-password': actionMemberPassword,
   'GET member-orders': actionMemberOrders,
@@ -722,6 +748,7 @@ const ADMIN = {
   'POST admin-confirm': actionAdminConfirm,
   'POST admin-delete-member': actionAdminDeleteMember,
   'POST admin-cancel': actionAdminCancel,
+  'POST admin-reconcile': actionAdminReconcile,
   'POST admin-invoice-token': actionAdminInvoiceToken,
   'GET admin-capi-status': actionAdminCapiStatus,
   'POST admin-file-seal': actionAdminFileSeal,

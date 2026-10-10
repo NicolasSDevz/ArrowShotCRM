@@ -41,6 +41,8 @@ export type NotificationType =
   | 'store_pix_pending' // Loja: Pix direto gerado, conferir no banco e confirmar
   | 'store_sale' // Loja: venda aprovada
   | 'store_refund_request' // Loja: aluno pediu reembolso
+  | 'store_refund' // Loja: reembolso/chargeback feito no Mercado Pago (acesso removido)
+  | 'store_capi_error' // Loja: o Meta recusou a venda na API de Conversões
 
 export interface AppNotification {
   id: string
@@ -93,6 +95,8 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   store_pix_pending: 'Pix para conferir',
   store_sale: 'Venda na Loja',
   store_refund_request: 'Pedido de reembolso',
+  store_refund: 'Estorno no Mercado Pago',
+  store_capi_error: 'Venda não marcada no Meta',
 }
 
 /** Notifications older than this are pruned client-side (no backend

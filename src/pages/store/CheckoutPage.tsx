@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { fetchCheckout, type PublicCheckout } from '../../services/storeApi'
 import { CheckoutView } from '../../components/store/CheckoutView'
 import { loadMetaPixel } from '../../utils/metaPixel'
+import { captureAttribution } from '../../components/store/checkoutUtils'
 import { Spinner } from '../../components/ui/FullPageSpinner'
 
 /** /pay/:slug — página pública de pagamento de um produto da Loja. */
@@ -10,6 +11,11 @@ export function CheckoutPage() {
   const { slug = '' } = useParams()
   const [data, setData] = useState<PublicCheckout | null>(null)
   const [error, setError] = useState('')
+
+  // Guarda já na chegada o que veio do anúncio (UTMs, fbclid, cookies repassados).
+  useEffect(() => {
+    captureAttribution()
+  }, [])
 
   useEffect(() => {
     fetchCheckout(slug)

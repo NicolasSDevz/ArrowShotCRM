@@ -176,6 +176,41 @@ export async function updateDocPaths(path, data, fieldPaths) {
   if (!res.ok) throw new Error(`Firestore PATCH(paths) ${path}: ${body?.error?.message || res.status}`)
 }
 
+/** Cria o documento SÓ se ele ainda não existir (atômico no Firestore).
+ *  true = criou; false = já existia. Serve de trava entre chamadas simultâneas. */
+export async function createDocIfMissing(path, data) {
+  const token = await getAccessToken()
+  const url = new URL(`${FS_BASE}/${path}`)
+  url.searchParams.set('currentDocument.exists', 'false')
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: toFields(data) }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
+  if (res.ok) return true
+  const body = await res.json().catch(() => ({}))
+  const status = body?.error?.status
+  if (res.status === 409 || status === 'ALREADY_EXISTS' || status === 'FAILED_PRECONDITION') return false
+  throw new Error(`Firestore CREATE ${path}: ${body?.error?.message || res.status}`)
+}
+
+/** Soma `by` num campo numérico de forma atômica (sem ler antes). */
+export async function incrementField(path, field, by = 1) {
+  const token = await getAccessToken()
+  const name = `projects/${PROJECT_ID}/databases/(default)/documents/${path}`
+  const res = await fetch(`${FS_BASE}:commit`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      writes: [{ transform: { document: name, fieldTransforms: [{ fieldPath: field, increment: toValue(by) }] } }],
+    }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(`Firestore INCREMENT ${path}: ${body?.error?.message || res.status}`)
+}
+
 /** Lista todos os documentos de uma coleção. Retorna [{ id, ...campos }].
  *  Pagina sozinho via nextPageToken. */
 export async function listDocs(collectionPath) {

@@ -136,20 +136,83 @@ export function refusalMessage(detail?: string | null) {
   }
 }
 
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'src', 'fbclid']
+const ATTRIBUTION_KEY = 'ck-attribution'
+const ATTRIBUTION_TTL_MS = 7 * 86400_000
+
+interface Attribution {
+  at: number
+  fbclidAt?: number
+  fbp?: string
+  fbc?: string
+  utm: Record<string, string>
+}
+
+/** Guarda o que veio no link do anúncio (UTMs, fbclid e os cookies do Pixel que a
+ *  página de vendas repassa como ?fbp=&fbc=). Sem isso, recarregar a página ou
+ *  voltar depois perde a origem da venda e o Meta não liga a compra ao anúncio. */
+export function captureAttribution() {
+  const params = new URLSearchParams(window.location.search)
+  let saved: Attribution | null = null
+  try {
+    saved = JSON.parse(localStorage.getItem(ATTRIBUTION_KEY) || 'null')
+    if (saved && Date.now() - saved.at > ATTRIBUTION_TTL_MS) saved = null
+  } catch {
+    saved = null
+  }
+  const utm: Record<string, string> = {}
+  for (const k of UTM_KEYS) {
+    const v = params.get(k)
+    if (v) utm[k] = v
+  }
+  const fresh = Object.keys(utm).length > 0 || params.get('fbp') || params.get('fbc')
+  if (!fresh) return saved
+  const next: Attribution = {
+    at: Date.now(),
+    // Mesmo fbclid de antes = mesmo clique: mantém a hora original.
+    fbclidAt: utm.fbclid ? (saved?.utm.fbclid === utm.fbclid && saved.fbclidAt ? saved.fbclidAt : Date.now()) : saved?.fbclidAt,
+    fbp: params.get('fbp') || saved?.fbp,
+    fbc: params.get('fbc') || (utm.fbclid ? undefined : saved?.fbc),
+    utm: Object.keys(utm).length ? utm : saved?.utm || {},
+  }
+  try {
+    localStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(next))
+  } catch {
+    /* sem storage: segue só com a URL */
+  }
+  return next
+}
+
 /** Cookies do Pixel (_fbp/_fbc) e a página, pra API de Conversões casar o comprador. */
 export function readTracking() {
   const cookie = (name: string) => document.cookie.split('; ').find((c) => c.startsWith(`${name}=`))?.split('=')[1] || null
-  return { fbp: cookie('_fbp'), fbc: cookie('_fbc'), fbclid: new URLSearchParams(window.location.search).get('fbclid'), url: window.location.href.split('?')[0] }
+  const a = captureAttribution()
+  const fbclid = a?.utm.fbclid || null
+  // Cookie de clique daqui só vale se for do mesmo fbclid; senão o repassado pela página de vendas.
+  const fbcCookie = cookie('_fbc')
+  const fbc = fbcCookie && (!fbclid || fbcCookie.endsWith(fbclid)) ? fbcCookie : a?.fbc || null
+  return { fbp: a?.fbp || cookie('_fbp'), fbc, fbclid, fbclidAt: a?.fbclidAt ?? null, url: window.location.href.split('?')[0] }
 }
 
 export function readUtms(): Record<string, string> {
-  const out: Record<string, string> = {}
-  const params = new URLSearchParams(window.location.search)
-  for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'src', 'fbclid']) {
-    const v = params.get(k)
-    if (v) out[k] = v
+  return captureAttribution()?.utm ?? {}
+}
+
+/** Erros de digitação comuns no domínio do e-mail. Devolve a sugestão ou null. */
+export function emailTypoSuggestion(email: string): string | null {
+  const m = /^([^\s@]+)@([^\s@]+)$/.exec(email.trim().toLowerCase())
+  if (!m) return null
+  const fixes: Record<string, string> = {
+    'gmial.com': 'gmail.com', 'gmai.com': 'gmail.com', 'gmal.com': 'gmail.com', 'gamil.com': 'gmail.com', 'gnail.com': 'gmail.com',
+    'gmail.co': 'gmail.com', 'gmail.con': 'gmail.com', 'gmail.cm': 'gmail.com', 'gmail.om': 'gmail.com', 'gmail.com.br': 'gmail.com', 'gmaill.com': 'gmail.com',
+    'hotmal.com': 'hotmail.com', 'hotmai.com': 'hotmail.com', 'hotmial.com': 'hotmail.com', 'hotmail.co': 'hotmail.com', 'hotmail.con': 'hotmail.com', 'hotmil.com': 'hotmail.com', 'homail.com': 'hotmail.com',
+    'outlok.com': 'outlook.com', 'outlook.co': 'outlook.com', 'outlook.con': 'outlook.com', 'otlook.com': 'outlook.com',
+    'yahoo.com.b': 'yahoo.com.br', 'yaho.com.br': 'yahoo.com.br', 'yahoo.co': 'yahoo.com', 'yahoo.con': 'yahoo.com',
+    'icloud.co': 'icloud.com', 'icloud.con': 'icloud.com', 'iclod.com': 'icloud.com', 'icoud.com': 'icloud.com',
+    'uol.com': 'uol.com.br', 'bol.com': 'bol.com.br',
   }
-  return out
+  const fix = fixes[m[2]]
+  return fix ? `${m[1]}@${fix}` : null
 }
 
 /** true quando a tela é de celular/tablet em pé (abaixo de 1024 px). */
