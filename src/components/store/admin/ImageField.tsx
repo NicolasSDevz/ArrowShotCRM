@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { ImagePlus, Trash2 } from 'lucide-react'
-import { uploadStoreImage } from '../../../services/storeService'
+import { releaseStoreImage, uploadStoreImage } from '../../../services/storeService'
 
 /** Campo de imagem: enviar arquivo, colar link ou remover. */
 export function ImageField({
@@ -27,12 +27,17 @@ export function ImageField({
   const id = useId()
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  // Troca a imagem e libera a anterior pra ser apagada do Storage quando o produto for salvo.
+  const replace = (url: string | null) => {
+    if (value && value !== url) releaseStoreImage(value)
+    onChange(url)
+  }
 
   const onFile = async (file?: File) => {
     if (!file) return
     setBusy(true)
     try {
-      onChange(await uploadStoreImage(productId, assetKey, file))
+      replace(await uploadStoreImage(productId, assetKey, file))
     } catch (err) {
       toast.error((err as Error).message)
     } finally {
@@ -56,7 +61,7 @@ export function ImageField({
               <ImagePlus size={14} /> {busy ? 'Enviando...' : value ? 'Trocar imagem' : 'Enviar imagem'}
             </button>
             {value && (
-              <button type="button" onClick={() => onChange(null)} className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs text-slate-500 hover:bg-slate-100" aria-label={`Remover ${label}`}>
+              <button type="button" onClick={() => replace(null)} className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs text-slate-500 hover:bg-slate-100" aria-label={`Remover ${label}`}>
                 <Trash2 size={14} /> Remover
               </button>
             )}
@@ -66,7 +71,7 @@ export function ImageField({
             aria-label={`${label}: link da imagem`}
             placeholder="ou cole o link da imagem"
             value={value && !value.startsWith('data:') ? value : ''}
-            onChange={(e) => onChange(e.target.value.trim() || null)}
+            onChange={(e) => replace(e.target.value.trim() || null)}
             className="h-8 w-full rounded-lg border border-slate-200 px-2.5 text-xs outline-none focus:border-brand-600"
           />
           {!value && fallback && <p className="text-[11px] text-brand-600">Usando a foto do produto. Envie outra só se quiser trocar aqui.</p>}

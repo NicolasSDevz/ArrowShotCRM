@@ -16,7 +16,7 @@ import {
   type FirestoreError,
   type Query,
 } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from 'firebase/storage'
 import { db, storage } from '../firebase/config'
 import { collectionService } from './firestore'
 import { compressImageToDataUrl } from '../utils/imageToDataUrl'
@@ -137,8 +137,9 @@ export async function duplicateStoreProduct(source: StoreProduct, name: string, 
   return newId
 }
 
-export function updateStoreProduct(id: string, data: Partial<StoreProduct>, userId: string) {
-  return products.update(id, data, userId)
+export async function updateStoreProduct(id: string, data: Partial<StoreProduct>, userId: string) {
+  await products.update(id, data, userId)
+  if ('imageUrl' in data || 'checkout' in data || 'members' in data) cleanupStoreImages(id)
 }
 
 export async function deleteStoreProduct(id: string) {
@@ -150,6 +151,7 @@ export async function deleteStoreProduct(id: string) {
   }
   batch.delete(doc(db, 'storeProducts', id))
   await batch.commit()
+  cleanupStoreImages(id)
 }
 
 /* --------------------------- módulos e aulas --------------------------- */
@@ -166,8 +168,9 @@ export function createStoreModule(productId: string, data: Omit<StoreModule, 'id
   return addDoc(collection(db, 'storeProducts', productId, 'modules'), { ...data, createdAt: serverTimestamp() })
 }
 
-export function updateStoreModule(productId: string, id: string, data: Partial<StoreModule>) {
-  return updateDoc(doc(db, 'storeProducts', productId, 'modules', id), data)
+export async function updateStoreModule(productId: string, id: string, data: Partial<StoreModule>) {
+  await updateDoc(doc(db, 'storeProducts', productId, 'modules', id), data)
+  if ('coverUrl' in data) cleanupStoreImages(productId)
 }
 
 export async function deleteStoreModule(productId: string, id: string, lessons: StoreLesson[]) {
@@ -175,6 +178,7 @@ export async function deleteStoreModule(productId: string, id: string, lessons: 
   lessons.filter((l) => l.moduleId === id).forEach((l) => batch.delete(doc(db, 'storeProducts', productId, 'lessons', l.id)))
   batch.delete(doc(db, 'storeProducts', productId, 'modules', id))
   await batch.commit()
+  cleanupStoreImages(productId)
 }
 
 export function createStoreLesson(productId: string, data: Omit<StoreLesson, 'id'>) {
@@ -293,8 +297,9 @@ export function subscribeStoreMembersTheme(onData: (s: StoreMembersTheme | null)
   return onSnapshot(doc(db, 'storeSettings', 'membersTheme'), (s) => onData(s.exists() ? (s.data() as StoreMembersTheme) : null), onError)
 }
 
-export function saveStoreMembersTheme(data: StoreMembersTheme, userId: string) {
-  return setDoc(doc(db, 'storeSettings', 'membersTheme'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId })
+export async function saveStoreMembersTheme(data: StoreMembersTheme, userId: string) {
+  await setDoc(doc(db, 'storeSettings', 'membersTheme'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId })
+  cleanupStoreImages('tema')
 }
 
 /* -------------------------------- imagens -------------------------------- */
@@ -310,9 +315,45 @@ export async function uploadStoreImage(productId: string, key: string, file: Fil
     const r = ref(storage, `store/${productId}/${key}-${Date.now()}`)
     const upload = uploadBytes(r, file, { contentType: file.type })
     await Promise.race([upload, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))])
-    return await getDownloadURL(r)
+    const url = await getDownloadURL(r)
+    pendingUploads.add(r.fullPath)
+    return url
   } catch (err) {
     console.warn('Storage indisponível — salvando imagem da loja como data URI.', err)
     return compressImageToDataUrl(file, Math.min(maxSize, 1000), 0.75)
+  }
+}
+
+/* Só a imagem atual fica no Storage. Depois de salvar, apaga de store/{pasta}/ os
+ * arquivos que nenhum produto, módulo ou config da loja usa mais (trocados,
+ * removidos ou de produto excluído). Produto duplicado reaproveita os links do
+ * original, por isso a conferência olha a loja inteira, não só o produto salvo.
+ * Imagem enviada nesta sessão e ainda não salva fica protegida até ser trocada
+ * ou removida no campo (releaseStoreImage). */
+const pendingUploads = new Set<string>()
+
+function storagePathOf(url?: string | null) {
+  const m = /\/o\/([^?]+)/.exec(url || '')
+  return m ? decodeURIComponent(m[1]) : null
+}
+
+/** O campo de imagem trocou ou removeu esta imagem: ela pode ser apagada no próximo salvar. */
+export function releaseStoreImage(url?: string | null) {
+  const path = storagePathOf(url)
+  if (path) pendingUploads.delete(path)
+}
+
+export async function cleanupStoreImages(folder: string) {
+  try {
+    const { items } = await listAll(ref(storage, `store/${folder}`))
+    const candidates = items.filter((i) => !pendingUploads.has(i.fullPath))
+    if (!candidates.length) return
+    const [prods, settings] = await Promise.all([getDocs(collection(db, 'storeProducts')), getDocs(collection(db, 'storeSettings'))])
+    const mods = await Promise.all(prods.docs.map((p) => getDocs(collection(db, 'storeProducts', p.id, 'modules'))))
+    const used = JSON.stringify([...prods.docs, ...settings.docs, ...mods.flatMap((m) => m.docs)].map((d) => d.data()))
+    const stale = candidates.filter((i) => !used.includes(encodeURIComponent(i.fullPath)))
+    await Promise.all(stale.map((i) => deleteObject(i).catch(() => {})))
+  } catch (err) {
+    console.warn('Limpeza das imagens da loja falhou (tenta de novo no próximo salvar).', err)
   }
 }
