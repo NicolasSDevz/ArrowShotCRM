@@ -9,6 +9,7 @@ import {
 import { auth } from '../firebase/config'
 import { ensureUserProfile, subscribeUserProfile } from '../services/userService'
 import { usePresenceHeartbeat } from '../hooks/usePresenceHeartbeat'
+import { clearSharedSubscriptions } from '../hooks/useCollectionSubscription'
 import {
   checkServerSession,
   markManualSignOut,
@@ -30,7 +31,7 @@ interface AuthContextValue {
 }
 
 /** Igual ignorando a presença: touchPresence grava lastSeenAt/presenceState no
- *  doc do perfil a cada 30s, e isso não pode virar um "perfil novo" que faz o
+ *  doc do perfil (ao mudar de estado e a cada 4 min), e isso não pode virar um "perfil novo" que faz o
  *  app inteiro renderizar de novo. */
 function sameProfile(a: AppUser, b: AppUser): boolean {
   const strip = ({ lastSeenAt: _l, presenceState: _p, session: _s, lastSessionIssue: _i, ...rest }: AppUser) => rest
@@ -118,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         watchProfile(user)
       } else {
         noteSignedOut()
+        clearSharedSubscriptions()
         sessionCheckedFor = null
         clearProfileWatch()
         setProfile(null)

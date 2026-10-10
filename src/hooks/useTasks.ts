@@ -1,6 +1,6 @@
 import { subscribeAllTasks, subscribeTasks, type TaskFilters } from '../services/taskService'
 import type { Task } from '../types'
-import { useCollectionSubscription } from './useCollectionSubscription'
+import { useCollectionSubscription, useSharedSubscription } from './useCollectionSubscription'
 
 export function useTasks(filters: TaskFilters = {}) {
   return useCollectionSubscription<Task>(
@@ -10,5 +10,5 @@ export function useTasks(filters: TaskFilters = {}) {
 }
 
 export function useAllTasks() {
-  return useCollectionSubscription<Task>((onData, onError) => subscribeAllTasks(onData, onError), [])
+  return useSharedSubscription<Task>('tasks:all', (onData, onError) => subscribeAllTasks(onData, onError))
 }

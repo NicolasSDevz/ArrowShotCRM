@@ -2,11 +2,17 @@ import { formatDistanceToNowStrict } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Timestamp } from 'firebase/firestore'
 
-/** Intervalo entre "estou aqui" enviados pela aba ativa. */
-export const PRESENCE_HEARTBEAT_MS = 30_000
+/** "Ainda estou aqui" enviado pela aba ativa parada em online. Cada aviso
+ *  grava no perfil e vira uma leitura para cada pessoa com o CRM aberto, por
+ *  isso é espaçado (mudança de estado, online ↔ ausente, grava na hora). */
+export const PRESENCE_HEARTBEAT_MS = 4 * 60_000
+/** De quanto em quanto tempo a aba confere, localmente, se mudou de estado. */
+export const PRESENCE_CHECK_MS = 30_000
+/** Aba escondida por mais que isso = ausente (trocar de aba rapidinho não grava). */
+export const PRESENCE_HIDDEN_GRACE_MS = 60_000
 /** Sem sinal há mais que isso = offline (aba fechada à força, internet caiu…).
- *  Um pouco mais que 2 heartbeats pra não piscar por atraso de rede. */
-export const PRESENCE_ONLINE_WINDOW_MS = 75_000
+ *  Dois heartbeats e um pouco, pra não piscar por atraso de rede. */
+export const PRESENCE_ONLINE_WINDOW_MS = 9 * 60_000
 /** Aba aberta mas sem mexer no mouse/teclado há esse tempo = ausente. */
 export const PRESENCE_IDLE_MS = 5 * 60_000
 

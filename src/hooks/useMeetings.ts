@@ -1,9 +1,9 @@
 import { subscribeAllMeetings, subscribeClientMeetings } from '../services/meetingService'
 import type { Meeting } from '../types'
-import { useCollectionSubscription } from './useCollectionSubscription'
+import { useCollectionSubscription, useSharedSubscription } from './useCollectionSubscription'
 
 export function useAllMeetings() {
-  return useCollectionSubscription<Meeting>((onData, onError) => subscribeAllMeetings(onData, onError), [])
+  return useSharedSubscription<Meeting>('meetings:all', (onData, onError) => subscribeAllMeetings(onData, onError))
 }
 
 export function useClientMeetings(clientId: string | undefined) {

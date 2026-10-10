@@ -1,7 +1,7 @@
 import { subscribeTeamMembers } from '../services/teamMemberService'
 import type { TeamMember } from '../types'
-import { useCollectionSubscription } from './useCollectionSubscription'
+import { useSharedSubscription } from './useCollectionSubscription'
 
 export function useTeamMembers() {
-  return useCollectionSubscription<TeamMember>((onData, onError) => subscribeTeamMembers(onData, onError), [])
+  return useSharedSubscription<TeamMember>('teamMembers', (onData, onError) => subscribeTeamMembers(onData, onError))
 }
