@@ -82,31 +82,19 @@ function toCsv(orders: StoreOrder[]) {
   return [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n')
 }
 
-/** Lista de pedidos com filtro, exportação CSV, link de acesso e reembolso. */
-export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; products: StoreProduct[] }) {
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<'' | StoreOrderStatus>('')
-  const [productId, setProductId] = useState('')
-  const [refunding, setRefunding] = useState<string | null>(null)
-  const [emitting, setEmitting] = useState<string | null>(null)
-
-  // Notas em processamento: confere na Focus ao abrir a tela (o webhook e o cron também fazem isso).
-  const syncedOnce = useRef(false)
-  useEffect(() => {
-    if (syncedOnce.current) return
-    const processing = orders.filter((o) => o.invoice?.status === 'processando').map((o) => o.id)
-    if (!processing.length) return
-    syncedOnce.current = true
-    storeSyncInvoices(processing).catch(() => {})
-  }, [orders])
-
-  // Pedidos do Mercado Pago ainda pendentes: confere lá (cobre webhook que não chegou).
+/** Pedidos do Mercado Pago ainda pendentes: confere lá ao abrir a tela (cobre webhook que não chegou). */
+export function useReconcilePending(orders: StoreOrder[]) {
   const reconciledOnce = useRef(false)
   useEffect(() => {
     if (reconciledOnce.current || !orders.some((o) => o.status === 'pending' && o.mpPaymentId)) return
     reconciledOnce.current = true
     storeReconcileOrders().catch(() => {})
   }, [orders])
+}
+
+/** Ações de um pedido (confirmar Pix direto, cancelar, reembolsar, copiar acesso). Usado pela tabela e pelo app do celular. */
+export function useOrderActions() {
+  const [refunding, setRefunding] = useState<string | null>(null)
 
   // Link novo na hora: o salvo no pedido vence 30 dias depois do primeiro uso.
   const copyAccess = async (o: StoreOrder) => {
@@ -116,37 +104,6 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
     } catch (err) {
       toast.error((err as Error).message)
     }
-  }
-
-  const emitInvoice = async (o: StoreOrder) => {
-    setEmitting(o.id)
-    try {
-      await storeEmitInvoice(o.id)
-      toast.success('Nota enviada para emissão')
-    } catch (err) {
-      toast.error((err as Error).message)
-    } finally {
-      setEmitting(null)
-    }
-  }
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return orders.filter(
-      (o) =>
-        (!status || o.status === status) &&
-        (!productId || o.productIds?.includes(productId)) &&
-        (!q || o.buyer.name.toLowerCase().includes(q) || o.buyer.email.includes(q) || o.id.toLowerCase().includes(q))
-    )
-  }, [orders, search, status, productId])
-
-  const exportCsv = () => {
-    const blob = new Blob([`﻿${toCsv(filtered)}`], { type: 'text/csv;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `vendas-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(a.href)
   }
 
   const confirmPayment = async (o: StoreOrder) => {
@@ -194,6 +151,59 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
     } finally {
       setRefunding(null)
     }
+  }
+
+  return { busy: refunding, confirmPayment, cancelOrder, refund, copyAccess }
+}
+
+/** Lista de pedidos com filtro, exportação CSV, link de acesso e reembolso. */
+export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; products: StoreProduct[] }) {
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<'' | StoreOrderStatus>('')
+  const [productId, setProductId] = useState('')
+  const { busy: refunding, confirmPayment, cancelOrder, refund, copyAccess } = useOrderActions()
+  useReconcilePending(orders)
+  const [emitting, setEmitting] = useState<string | null>(null)
+
+  // Notas em processamento: confere na Focus ao abrir a tela (o webhook e o cron também fazem isso).
+  const syncedOnce = useRef(false)
+  useEffect(() => {
+    if (syncedOnce.current) return
+    const processing = orders.filter((o) => o.invoice?.status === 'processando').map((o) => o.id)
+    if (!processing.length) return
+    syncedOnce.current = true
+    storeSyncInvoices(processing).catch(() => {})
+  }, [orders])
+
+  const emitInvoice = async (o: StoreOrder) => {
+    setEmitting(o.id)
+    try {
+      await storeEmitInvoice(o.id)
+      toast.success('Nota enviada para emissão')
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setEmitting(null)
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return orders.filter(
+      (o) =>
+        (!status || o.status === status) &&
+        (!productId || o.productIds?.includes(productId)) &&
+        (!q || o.buyer.name.toLowerCase().includes(q) || o.buyer.email.includes(q) || o.id.toLowerCase().includes(q))
+    )
+  }, [orders, search, status, productId])
+
+  const exportCsv = () => {
+    const blob = new Blob([`﻿${toCsv(filtered)}`], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `vendas-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
   }
 
   return (

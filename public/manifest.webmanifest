@@ -1,9 +1,9 @@
 {
   "name": "Quiver CRM",
   "short_name": "Quiver",
-  "description": "CRM da Arrow Shot, com avisos de venda e Pix no celular.",
+  "description": "Vendas da Loja Arrow Shot no celular, com avisos de venda e Pix.",
   "lang": "pt-BR",
-  "start_url": "/",
+  "start_url": "/app",
   "scope": "/",
   "id": "/",
   "display": "standalone",

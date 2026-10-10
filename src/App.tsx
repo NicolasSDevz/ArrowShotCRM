@@ -37,6 +37,7 @@ import { UniversityAdminPage } from './pages/UniversityAdminPage'
 import { OptimizationCalendarPage } from './pages/OptimizationCalendarPage'
 import { StorePage } from './pages/store/StorePage'
 import { StoreProductPage } from './pages/store/StoreProductPage'
+import { StoreAppPage } from './pages/store/StoreAppPage'
 import { CheckoutPage } from './pages/store/CheckoutPage'
 import { CheckoutThanksPage } from './pages/store/CheckoutThanksPage'
 import { MembersLayout } from './components/store/members/MembersLayout'
@@ -80,6 +81,15 @@ function App() {
             <Route path="curso/:productId" element={<MembersCoursePage />} />
             <Route path="curso/:productId/aula/:lessonId" element={<MembersLessonPage />} />
           </Route>
+          {/* App do celular: só a Loja, sem o menu do CRM */}
+          <Route
+            path="/app"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'manager']} showDeniedScreen>
+                <StoreAppPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             element={
               <ProtectedRoute allowedRoles={['admin', 'manager', 'employee']} showDeniedScreen>

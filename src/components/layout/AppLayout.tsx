@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { PrivacyModeBanner } from './PrivacyModeBanner'
@@ -10,6 +10,8 @@ import { AiAssistantWidget } from '../ai/AiAssistantWidget'
 import { useTaskDueDateSweep } from '../../hooks/useTaskDueDateSweep'
 import { useMonthlyConsultingSync } from '../../hooks/useMonthlyConsultingSync'
 import { useOnboardingAutoActivate } from '../../hooks/useOnboardingAutoActivate'
+import { useAuth } from '../../context/AuthContext'
+import { isStoreApp } from '../../utils/storeApp'
 
 export function AppLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -17,6 +19,10 @@ export function AppLayout() {
   useTaskDueDateSweep()
   useMonthlyConsultingSync()
   useOnboardingAutoActivate()
+  const { profile } = useAuth()
+
+  // Instalado no celular, o CRM vira o app da Loja (admin e gerente; quem não vê a Loja segue no CRM).
+  if (isStoreApp() && (profile?.role === 'admin' || profile?.role === 'manager')) return <Navigate to="/app" replace />
 
   // print:*: "Baixar PDF" do relatório imprime só o conteúdo da página (sem menu, topo nem Archer).
   return (
