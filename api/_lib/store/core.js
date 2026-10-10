@@ -68,6 +68,7 @@ export function pixAccountFor(settings, product) {
   return { id: '', label: 'Conta principal', pixKey: settings.pixKey, pixKeyType: settings.pixKeyType, pixName: settings.pixName, pixCity: settings.pixCity }
 }
 
+const PUSH_ONLY = new Set(['store_sale'])
 const PUSH_TAG = { store_sale: 'venda', store_pix_pending: 'pix', store_refund_request: 'reembolso', store_refund: 'estorno', store_capi_error: 'meta' }
 
 /** Limite simples por chave (IP, e-mail) numa janela de tempo. false = passou do limite. */
@@ -90,7 +91,8 @@ export async function notifyStaff(type, message, actorName = 'Loja') {
   try {
     const users = await listDocs('users')
     const staff = users.filter((u) => u.active !== false && (u.role === 'admin' || u.role === 'manager'))
-    await Promise.all(
+    // Venda aprovada só vai pro celular (push); o sino fica pro que pede ação.
+    if (!PUSH_ONLY.has(type)) await Promise.all(
       staff.map((u) =>
         setDoc(`notifications/${randomUUID()}`, { userId: u.id, type, message, actorName, read: false, createdAt: new Date() })
       )
