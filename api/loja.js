@@ -14,6 +14,7 @@
 //   POST member-login    { email, password }   → { token }
 //   POST member-password { password }          (Bearer do aluno)
 //   GET  member-orders                          compras do aluno e prazo de garantia
+//   GET  members-catalog                        produtos no ar para mostrar bloqueados na área (cache de 5 min)
 //   POST member-refund-request { orderId, reason }  pede reembolso (avisa a equipe)
 // Equipe (Bearer de usuário interno):
 //   GET  admin-status                          → gateway e e-mail configurados?
@@ -107,6 +108,28 @@ async function actionMembersTheme() {
   const t = snap.exists ? snap.data() : {}
   const pick = ['brandName', 'logoUrl', 'mode', 'primaryColor', 'backgroundColor', 'cardColor', 'font', 'loginLayout', 'loginBgUrl', 'loginTitle', 'loginText', 'loginButtonText', 'loginHelpText', 'supportWhatsapp', 'loginMode', 'loginPrimaryColor', 'loginBackgroundColor', 'loginCardColor', 'loginLogoUrl', 'loginOverlay']
   return Object.fromEntries(pick.filter((k) => t[k] !== undefined).map((k) => [k, t[k]]))
+}
+
+/** Produtos no ar para a vitrine da área de membros: quem não comprou vê bloqueado,
+ *  com botão de comprar. Público (só o que o checkout já mostra) e com cache na
+ *  Vercel, para não virar uma leitura no Firestore a cada aluno que abre a área. */
+async function actionMembersCatalog(req) {
+  const [rows, links] = await Promise.all([queryDocs('storeProducts', [['status', 'active']]), getDoc('storeSettings/links')])
+  const domain = links.exists ? links.data().checkoutDomain : null
+  const origin = publicOrigin(req)
+  const products = rows
+    .filter((p) => p.members?.showInCatalog !== false)
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'))
+    .map((p) => ({
+      id: p.id,
+      name: p.name || '',
+      description: String(p.description || '').slice(0, 280),
+      coverUrl: p.members?.coverUrl || p.imageUrl || null,
+      price: Number(p.price) || 0,
+      comparePrice: p.comparePrice || null,
+      buyUrl: /^https:\/\//.test(p.members?.salesUrl || '') ? p.members.salesUrl : domain ? `https://${domain}/${p.slug}` : `${origin}/pay/${p.slug}`,
+    }))
+  return { products }
 }
 
 async function actionCoupon(req) {
@@ -630,6 +653,7 @@ async function actionAdminInvoiceSync(req) {
 const PUBLIC = {
   'GET checkout': actionCheckout,
   'GET members-theme': actionMembersTheme,
+  'GET members-catalog': actionMembersCatalog,
   'POST coupon': actionCoupon,
   'POST order': actionOrder,
   'GET order': actionOrderStatus,
@@ -642,6 +666,14 @@ const PUBLIC = {
   'POST member-refund-request': actionMemberRefundRequest,
   'GET member-file': actionMemberFile,
   'POST invoice-webhook': actionInvoiceWebhook,
+}
+
+// Respostas públicas iguais para todo mundo: a Vercel guarda e responde sem chamar o Firestore.
+// Mudança no produto aparece no checkout em até ~1 min (a prévia do CRM é na hora).
+const CACHED = {
+  'GET checkout': 'public, s-maxage=60, stale-while-revalidate=120',
+  'GET members-theme': 'public, s-maxage=60, stale-while-revalidate=300',
+  'GET members-catalog': 'public, s-maxage=300, stale-while-revalidate=600',
 }
 
 const ADMIN = {
@@ -673,6 +705,7 @@ export default async function handler(req, res) {
         res.setHeader('Cache-Control', 'private, no-store')
         return res.status(200).send(out.__file)
       }
+      if (CACHED[route]) res.setHeader('Cache-Control', CACHED[route])
       return res.status(200).json(out)
     }
     if (ADMIN[route]) {

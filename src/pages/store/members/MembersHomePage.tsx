@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
-import { KeyRound, Play, X } from 'lucide-react'
+import { KeyRound, Lock, Play, ShoppingCart, X } from 'lucide-react'
 import { membersDb } from '../../../firebase/membersApp'
 import { useAccent, useMembers } from '../../../components/store/members/MembersContext'
-import { productImages, type StoreProgress } from '../../../types/store'
+import { formatCents, productImages, type StoreProgress } from '../../../types/store'
+import { fetchMembersCatalog, type MembersCatalogItem } from '../../../services/storeApi'
 
 /** /membros — vitrine: banner, "Continuar assistindo" e os cursos do aluno. */
 export function MembersHomePage() {
   const { user, member, products } = useMembers()
   const [progress, setProgress] = useState<Record<string, StoreProgress>>({})
   const [hidePasswordTip, setHidePasswordTip] = useState(false)
+  const [catalog, setCatalog] = useState<MembersCatalogItem[]>([])
   const hero = products.find((p) => productImages(p).banner) ?? products[0]
   const heroBanner = hero ? productImages(hero).banner : null
   const heroColor = useAccent(hero)
@@ -24,6 +26,15 @@ export function MembersHomePage() {
       })
     ).then((rows) => setProgress(Object.fromEntries(rows.filter(([, v]) => v)) as Record<string, StoreProgress>))
   }, [user, products])
+
+  // Outros produtos no ar: aparecem bloqueados, com botão de comprar.
+  useEffect(() => {
+    fetchMembersCatalog()
+      .then((r) => setCatalog(r.products))
+      .catch(() => setCatalog([]))
+  }, [])
+  const owned = new Set(products.map((p) => p.id))
+  const locked = catalog.filter((p) => !owned.has(p.id))
 
   const continuing = products.filter((p) => progress[p.id]?.lastLessonId)
   const showPasswordTip = !hidePasswordTip && member && !member.hasPassword
@@ -104,6 +115,45 @@ export function MembersHomePage() {
             </ul>
           )}
         </section>
+
+        {locked.length > 0 && (
+          <section aria-labelledby="more-title">
+            <h2 id="more-title" className="mb-1 text-xl font-bold">Mais conteúdos para você</h2>
+            <p className="mb-3 text-sm text-[var(--m-muted)]">Você ainda não tem acesso a estes. Compre e eles aparecem aqui em Meus cursos, no mesmo e-mail.</p>
+            <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {locked.map((p) => (
+                <li key={p.id} className="flex flex-col">
+                  <a href={p.buyUrl} target="_blank" rel="noreferrer" className="group block" aria-label={`${p.name}: bloqueado. Comprar por ${formatCents(p.price)}`}>
+                    <div
+                      className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[var(--m-card2)] bg-cover bg-center ring-[var(--m-border)] transition group-hover:ring-2"
+                      style={p.coverUrl ? { backgroundImage: `url(${p.coverUrl})` } : undefined}
+                    >
+                      {!p.coverUrl && <span className="flex h-full items-center justify-center p-3 text-center font-semibold">{p.name}</span>}
+                      <span className="absolute inset-0 bg-black/45 transition group-hover:bg-black/30" aria-hidden="true" />
+                      <span className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white" aria-hidden="true">
+                        <Lock size={15} />
+                      </span>
+                    </div>
+                  </a>
+                  <p className="mt-2 truncate text-sm font-medium">{p.name}</p>
+                  <p className="text-xs text-[var(--m-muted)]">
+                    {p.comparePrice && p.comparePrice > p.price && <span className="mr-1.5 line-through">{formatCents(p.comparePrice)}</span>}
+                    {formatCents(p.price)}
+                  </p>
+                  <a
+                    href={p.buyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white hover:brightness-110"
+                    style={{ background: heroColor }}
+                  >
+                    <ShoppingCart size={15} aria-hidden="true" /> Comprar
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </main>
   )

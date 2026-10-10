@@ -21,6 +21,17 @@ import { defaultCheckoutConfig, defaultMembersConfig, formatCents, type StorePro
 
 const card = 'space-y-3 rounded-2xl border border-slate-200 bg-white p-5'
 
+/** JSON com as chaves em ordem e sem `undefined`. O Firestore devolve os campos
+ *  em outra ordem (e sem os vazios) depois de salvar; comparar com JSON.stringify
+ *  puro deixava o aviso "Alterações não salvas" preso na tela. */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_k, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => [k, v[k]]))
+      : v
+  )
+}
+
 function Toggle({ label, checked, onChange, hint }: { label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
   return (
     <label className="flex items-start gap-2 text-sm text-slate-700">
@@ -68,7 +79,7 @@ export function StoreProductPage() {
   const dirty = useMemo(() => {
     if (!server || !draft) return false
     const strip = ({ updatedAt: _u, updatedBy: _b, lessonCount: _l, ...rest }: StoreProduct) => rest
-    return JSON.stringify(strip(normalize(server))) !== JSON.stringify(strip(draft))
+    return stableJson(strip(normalize(server))) !== stableJson(strip(draft))
   }, [server, draft])
 
   useEffect(() => {
@@ -212,6 +223,21 @@ export function StoreProductPage() {
         <Toggle label="Certificado ao concluir 100% das aulas" checked={draft.members.certificateEnabled} onChange={(v) => setMembers({ certificateEnabled: v })} />
         <Field label="Carga horária no certificado (horas)"><Input type="number" min={0} value={draft.members.certificateHours ?? ''} onChange={(e) => setMembers({ certificateHours: e.target.value ? Number(e.target.value) : undefined })} /></Field>
         <Field label="Nome do produtor (assina o certificado e as respostas)"><Input value={draft.members.producerName ?? ''} onChange={(e) => setMembers({ producerName: e.target.value })} /></Field>
+      </section>
+      <section className={card}>
+        <h2 className="text-[15px] font-semibold text-slate-800">Vitrine para quem não comprou</h2>
+        <Toggle
+          label="Mostrar este produto bloqueado na área de membros, com botão de comprar"
+          hint="Aparece para os alunos dos outros produtos, em Mais conteúdos. Só vale com o produto No ar."
+          checked={draft.members.showInCatalog !== false}
+          onChange={(v) => setMembers({ showInCatalog: v })}
+        />
+        {draft.members.showInCatalog !== false && (
+          <Field label="Link do botão Comprar (opcional)">
+            <Input value={draft.members.salesUrl ?? ''} onChange={(e) => setMembers({ salesUrl: e.target.value.trim() || null })} placeholder={checkoutUrl} />
+          </Field>
+        )}
+        {draft.members.showInCatalog !== false && <p className="text-xs text-slate-400">Em branco, o botão leva para o checkout deste produto. Use uma página de vendas, se tiver (precisa começar com https://). A vitrine atualiza em até 5 minutos.</p>}
       </section>
     </div>
   )

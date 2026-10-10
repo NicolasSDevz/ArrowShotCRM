@@ -15,7 +15,21 @@ export interface StoreOrderBump {
   price?: number | null
   /** Animação pra chamar atenção. */
   animation?: StoreBumpAnimation
+  /** Onde a oferta aparece no checkout. Vazio = no pagamento (como sempre foi). */
+  position?: StoreBumpPosition
 }
+
+/** Onde o order bump aparece: no topo (antes dos dados), entre os dados e o pagamento,
+ *  no pagamento (padrão), logo acima do botão de comprar ou na coluna lateral. */
+export type StoreBumpPosition = 'top' | 'beforePayment' | 'payment' | 'button' | 'side'
+
+export const STORE_BUMP_POSITIONS: { value: StoreBumpPosition; label: string }[] = [
+  { value: 'top', label: 'No topo, antes dos dados' },
+  { value: 'beforePayment', label: 'Entre os dados e o pagamento' },
+  { value: 'payment', label: 'No pagamento, embaixo das formas de pagamento (padrão)' },
+  { value: 'button', label: 'Logo acima do total e do botão de comprar' },
+  { value: 'side', label: 'Na coluna lateral (no celular vai pra cima do botão)' },
+]
 
 export type StoreBumpAnimation = 'none' | 'pulse' | 'glow' | 'shake' | 'bounce' | 'arrow' | 'blink'
 
@@ -158,6 +172,10 @@ export interface StoreMembersConfig {
   /** Carga horária impressa no certificado. */
   certificateHours?: number
   producerName?: string
+  /** Aparece bloqueado (com botão de comprar) para alunos que ainda não compraram. Padrão: sim. */
+  showInCatalog?: boolean
+  /** Para onde vai o botão Comprar da vitrine (vazio = checkout do produto). */
+  salesUrl?: string | null
 }
 
 export interface StoreProduct extends BaseDoc {
@@ -202,12 +220,34 @@ export interface StoreAttachment {
   sealed?: { ciphertext: string; iv: string; authTag: string } | null
 }
 
+/** Tipo de aula: o que aparece no lugar do player. Vazio = vídeo (aulas antigas). */
+export type StoreLessonKind = 'video' | 'text' | 'pdf' | 'link'
+
+export const STORE_LESSON_KINDS: { value: StoreLessonKind; label: string; hint: string }[] = [
+  { value: 'video', label: 'Vídeo', hint: 'YouTube, Vimeo, Panda, Bunny ou .mp4' },
+  { value: 'text', label: 'Texto', hint: 'Aula escrita, com títulos, listas e imagens' },
+  { value: 'pdf', label: 'PDF', hint: 'O PDF abre dentro da aula (Drive, Dropbox ou link direto)' },
+  { value: 'link', label: 'Links', hint: 'Botões para materiais externos (Notion, Canva, planilhas)' },
+]
+
+export interface StoreLessonLink {
+  label: string
+  url: string
+}
+
 export interface StoreLesson {
   id: string
   moduleId: string
   title: string
   order: number
+  kind?: StoreLessonKind
   videoUrl?: string | null
+  /** Aula de texto (Markdown). */
+  body?: string
+  /** Aula de PDF: link do arquivo (abre dentro da aula). */
+  pdfUrl?: string | null
+  /** Aula de links: botões para materiais externos. */
+  links?: StoreLessonLink[]
   description?: string
   attachments: StoreAttachment[]
   durationMin?: number | null

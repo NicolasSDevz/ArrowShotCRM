@@ -23,6 +23,8 @@ import {
   type StoreProduct,
   type StoreSealKey,
   type StoreBumpAnimation,
+  type StoreBumpPosition,
+  STORE_BUMP_POSITIONS,
 } from '../../../types/store'
 import type { PublicCheckout } from '../../../services/storeApi'
 
@@ -89,7 +91,7 @@ function previewData(product: StoreProduct, all: StoreProduct[]): PublicCheckout
       .map((b) => {
         const p = all.find((x) => x.id === b.productId)
         if (!p || p.status === 'archived') return null
-        return { productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, headline: b.headline || `Leve também: ${p.name}`, description: b.description || p.description, cta: b.cta || 'Sim, eu quero!', animation: b.animation ?? 'none', price: b.price || p.price, fullPrice: p.price }
+        return { productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, headline: b.headline || `Leve também: ${p.name}`, description: b.description || p.description, cta: b.cta || 'Sim, eu quero!', animation: b.animation ?? 'none', position: b.position ?? 'payment', price: b.price || p.price, fullPrice: p.price }
       })
       .filter((b): b is NonNullable<typeof b> => !!b),
     gateway: { mercadoPago: true, publicKey: null, pixManual: false, testMode: false },
@@ -301,6 +303,11 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
                 <Input aria-label="Texto da caixinha" placeholder="Sim, eu quero!" value={b.cta} onChange={(e) => set({ cta: e.target.value })} />
                 <Input aria-label="Preço especial" placeholder="Preço especial (opcional)" value={b.price ? maskCurrencyInput(String(b.price)) : ''} onChange={(e) => { const v = parseCurrencyToNumber(e.target.value); set({ price: v ? Math.round(v * 100) : null }) }} />
               </div>
+              <Field label="Onde aparece no checkout">
+                <Select value={b.position ?? 'payment'} onChange={(e) => set({ position: e.target.value as StoreBumpPosition })}>
+                  {STORE_BUMP_POSITIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </Select>
+              </Field>
               <Field label="Animação pra chamar atenção">
                 <Select value={b.animation ?? 'none'} onChange={(e) => set({ animation: e.target.value as StoreBumpAnimation })}>
                   <option value="none">Nenhuma (parado)</option>

@@ -118,6 +118,7 @@ export async function resolveBumps(product) {
       description: b.description || p.description || '',
       cta: b.cta || 'Sim, eu quero!',
       animation: ['pulse', 'glow', 'shake', 'bounce', 'arrow', 'blink'].includes(b.animation) ? b.animation : 'none',
+      position: ['top', 'beforePayment', 'payment', 'button', 'side'].includes(b.position) ? b.position : 'payment',
       price,
       fullPrice: p.price,
     })

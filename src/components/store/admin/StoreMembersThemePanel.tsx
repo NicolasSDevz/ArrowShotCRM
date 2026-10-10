@@ -273,7 +273,8 @@ export function StoreMembersThemePanel() {
         <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4" role="tabpanel">
           {tab === 'area' ? area : login}
         </div>
-        <div className="sticky bottom-0 z-10 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
+        {/* bg-white (não bg-white/95): só a cor cheia é trocada no modo escuro do CRM. Com a translúcida a barra ficava branca e o botão claro do modo escuro sumia nela. */}
+        <div className="sticky bottom-0 z-10 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
           <Button type="submit" loading={busy} disabled={!loaded}>Salvar visual</Button>
           <a href={tab === 'login' ? '/membros/login' : '/membros'} target="_blank" rel="noreferrer" className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
             <ExternalLink size={15} aria-hidden="true" /> Abrir {tab === 'login' ? 'o login' : 'a área'}

@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Award, CheckCircle2, ChevronLeft, ChevronRight, Circle, Download, Lock, Paperclip, Star } from 'lucide-react'
-import { useCourse, videoSource } from '../../../components/store/members/useCourse'
+import { Award, CheckCircle2, ChevronLeft, ChevronRight, Circle, Download, ExternalLink, Lock, Paperclip, Star } from 'lucide-react'
+import { pdfSource, useCourse, videoSource } from '../../../components/store/members/useCourse'
 import { releaseDate, useAccent, useMembers } from '../../../components/store/members/MembersContext'
 import { LessonComments } from '../../../components/store/members/LessonComments'
 import { downloadCertificate } from '../../../components/store/members/certificate'
@@ -50,7 +50,10 @@ export function MembersLessonPage() {
   const color = accent
   const locked = lockOf(lesson)
   const done = completed.has(lesson.id)
+  const kind = lesson.kind ?? 'video'
   const video = videoSource(lesson.videoUrl)
+  const pdf = pdfSource(lesson.pdfUrl)
+  const links = (lesson.links ?? []).filter((x) => x.url)
   const myRating = progress?.ratings?.[lesson.id] ?? 0
   const finished = percent === 100 && lessons.length > 0
 
@@ -70,13 +73,48 @@ export function MembersLessonPage() {
           <span>{module?.title}</span>
         </nav>
 
-        <div className="overflow-hidden rounded-xl bg-black">
-          {locked ? (
-            <div className="flex aspect-video flex-col items-center justify-center gap-2 text-[var(--m-text2)]">
-              <Lock size={32} aria-hidden="true" />
-              <p>Essa aula será liberada em {locked.toLocaleDateString('pt-BR')}.</p>
+        {locked ? (
+          <div className="flex aspect-video flex-col items-center justify-center gap-2 rounded-xl bg-black text-[var(--m-text2)]">
+            <Lock size={32} aria-hidden="true" />
+            <p>Essa aula será liberada em {locked.toLocaleDateString('pt-BR')}.</p>
+          </div>
+        ) : kind === 'text' ? (
+          <article className="members-prose prose max-w-none rounded-xl border border-[var(--m-border)] bg-[var(--m-card)] p-5 sm:p-8">
+            {lesson.body?.trim() ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{lesson.body}</ReactMarkdown> : <p>Esta aula ainda não tem texto.</p>}
+          </article>
+        ) : kind === 'pdf' ? (
+          pdf ? (
+            <div className="overflow-hidden rounded-xl border border-[var(--m-border)] bg-[var(--m-card)]">
+              <iframe src={pdf.embed} title={lesson.title} className="h-[75vh] min-h-[420px] w-full bg-white" allow="fullscreen" />
+              <div className="flex justify-end border-t border-[var(--m-border2)] p-2">
+                <a href={pdf.open} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm hover:bg-[var(--m-soft)]">
+                  <ExternalLink size={15} aria-hidden="true" /> Abrir o PDF em tela cheia
+                </a>
+              </div>
             </div>
-          ) : video?.kind === 'video' ? (
+          ) : (
+            <div className="flex aspect-video items-center justify-center rounded-xl bg-[var(--m-card)] text-[var(--m-faint)]">Esta aula ainda não tem PDF.</div>
+          )
+        ) : kind === 'link' ? (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {links.length === 0 && <li className="text-[var(--m-faint)]">Esta aula ainda não tem links.</li>}
+            {links.map((x, i) => (
+              <li key={i}>
+                <a href={x.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl border border-[var(--m-border)] bg-[var(--m-card)] p-4 hover:bg-[var(--m-soft)]">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: `color-mix(in srgb, ${color} 18%, transparent)`, color }} aria-hidden="true">
+                    <ExternalLink size={18} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold">{x.label || 'Abrir material'}</span>
+                    <span className="block truncate text-xs text-[var(--m-faint)]">{x.url.replace(/^https?:\/\//, '')}</span>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+        <div className="overflow-hidden rounded-xl bg-black">
+          {video?.kind === 'video' ? (
             <video src={video.src} controls className="aspect-video w-full" controlsList="nodownload" />
           ) : video ? (
             <iframe
@@ -90,6 +128,7 @@ export function MembersLessonPage() {
             <div className="flex aspect-video items-center justify-center text-[var(--m-faint)]">Esta aula não tem vídeo.</div>
           )}
         </div>
+        )}
 
         <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
           <h1 className="text-2xl font-bold">{lesson.title}</h1>

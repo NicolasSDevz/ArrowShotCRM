@@ -36,7 +36,7 @@ export interface PublicCheckout {
     thankYouUrl: string | null
     footerText: string
   }
-  bumps: { productId: string; name: string; imageUrl: string | null; headline: string; description: string; cta: string; animation?: import('../types/store').StoreBumpAnimation; price: number; fullPrice: number }[]
+  bumps: { productId: string; name: string; imageUrl: string | null; headline: string; description: string; cta: string; animation?: import('../types/store').StoreBumpAnimation; position?: import('../types/store').StoreBumpPosition; price: number; fullPrice: number }[]
   gateway: { mercadoPago: boolean; publicKey: string | null; pixManual: boolean; testMode: boolean }
 }
 
@@ -99,6 +99,18 @@ async function staffToken() {
 
 /* área de membros: visual (público) */
 export const fetchMembersTheme = () => call<Partial<import('../types/store').StoreMembersTheme>>('members-theme')
+
+/** Produtos no ar para mostrar bloqueados na área de membros (com botão de comprar). */
+export interface MembersCatalogItem {
+  id: string
+  name: string
+  description: string
+  coverUrl: string | null
+  price: number
+  comparePrice: number | null
+  buyUrl: string
+}
+export const fetchMembersCatalog = () => call<{ products: MembersCatalogItem[] }>('members-catalog')
 
 /* checkout público */
 export const fetchCheckout = (slug: string) => call<PublicCheckout>('checkout', { params: { slug } })

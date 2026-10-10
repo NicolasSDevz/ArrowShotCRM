@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { arrayRemove, arrayUnion, collection, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore'
 import { membersDb } from '../../../firebase/membersApp'
 import { useMembers } from './MembersContext'
@@ -13,6 +13,7 @@ export function useCourse(productId: string | undefined) {
   const [lessons, setLessons] = useState<StoreLesson[]>([])
   const [progress, setProgress] = useState<StoreProgress | null>(null)
   const [loading, setLoading] = useState(true)
+  const lastLessonRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!productId || !product) return
@@ -38,7 +39,11 @@ export function useCourse(productId: string | undefined) {
     if (!user || !productId) return
     return onSnapshot(
       doc(membersDb, 'storeProgress', `${user.uid}_${productId}`),
-      (s) => setProgress(s.exists() ? ({ id: s.id, ...s.data() } as StoreProgress) : null),
+      (s) => {
+        const p = s.exists() ? ({ id: s.id, ...s.data() } as StoreProgress) : null
+        lastLessonRef.current = p?.lastLessonId ?? null
+        setProgress(p)
+      },
       () => setProgress(null)
     )
   }, [user, productId])
@@ -57,7 +62,9 @@ export function useCourse(productId: string | undefined) {
 
   const setLastLesson = useCallback(
     async (lessonId: string) => {
-      if (!progressRef || !base) return
+      // Reabrir a mesma aula não grava de novo (cada gravação vira leitura para quem acompanha os alunos no CRM).
+      if (!progressRef || !base || lastLessonRef.current === lessonId) return
+      lastLessonRef.current = lessonId
       await setDoc(progressRef, { ...base, lastLessonId: lessonId }, { merge: true }).catch(() => {})
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,6 +84,27 @@ export function useCourse(productId: string | undefined) {
   const percent = lessons.length ? Math.round((lessons.filter((l) => completed.has(l.id)).length / lessons.length) * 100) : 0
 
   return { product, enrollment, modules, lessons, progress, completed, percent, loading: loading && !!product, setCompleted, setLastLesson, rate }
+}
+
+/** Link de PDF que abre dentro de um iframe: Drive vira /preview, Dropbox vira raw=1. */
+export function pdfSource(url?: string | null): { embed: string; open: string } | null {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    const host = u.hostname.replace(/^www\./, '')
+    if (host === 'drive.google.com') {
+      const id = u.pathname.match(/\/d\/([\w-]+)/)?.[1] || u.searchParams.get('id')
+      if (id) return { embed: `https://drive.google.com/file/d/${id}/preview`, open: `https://drive.google.com/file/d/${id}/view` }
+    }
+    if (host.endsWith('dropbox.com')) {
+      u.searchParams.delete('dl')
+      u.searchParams.set('raw', '1')
+      return { embed: u.toString(), open: u.toString() }
+    }
+    return { embed: url, open: url }
+  } catch {
+    return null
+  }
 }
 
 /** Converte link de YouTube, Vimeo, Panda, Bunny etc. em algo que dá pra tocar. */

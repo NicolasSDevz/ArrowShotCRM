@@ -231,6 +231,57 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     </ul>
   )
 
+  // Order bumps: cada um no lugar escolhido. No celular a lateral fica embaixo de tudo, então "Lateral" sobe pra cima do botão.
+  const bumpPos = (b: PublicCheckout['bumps'][number]) => {
+    const pos = b.position ?? 'payment'
+    return mobile && pos === 'side' ? 'button' : pos
+  }
+  const renderBump = (b: PublicCheckout['bumps'][number]) => {
+    const on = bumps.includes(b.productId)
+    return (
+      <label
+        key={b.productId}
+        className={`block cursor-pointer border-2 border-dashed p-4 ${!on && b.animation && !['none', 'arrow', 'blink'].includes(b.animation) ? `ob-anim ob-${b.animation}` : ''}`}
+        style={{ borderColor: on ? color : '#cbd5e1', background: on ? `color-mix(in srgb, ${color} 8%, transparent)` : 'transparent', borderRadius: radius, ['--ob' as string]: color }}
+      >
+        <p className={`text-sm font-bold uppercase tracking-wide ${!on && b.animation === 'blink' ? 'ob-anim ob-blink' : ''}`} style={{ color }}>{b.headline}</p>
+        <div className="mt-2 flex gap-3">
+          {b.imageUrl && <img src={b.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />}
+          <div className="min-w-0 text-sm opacity-90">
+            <p className="font-semibold">{b.name}</p>
+            {b.description && <p className="mt-0.5">{b.description}</p>}
+            <p className="mt-1 font-semibold">
+              {b.fullPrice > b.price && <span className="mr-2 font-normal text-slate-400 line-through">{formatCents(b.fullPrice)}</span>}
+              {formatCents(b.price)}
+            </p>
+          </div>
+        </div>
+        <span className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+          {!on && b.animation === 'arrow' && <ArrowRight size={18} className="ob-anim ob-arrow shrink-0" style={{ color }} aria-hidden="true" />}
+          <input
+            type="checkbox"
+            checked={on}
+            onChange={() => setBumps((prev) => (on ? prev.filter((x) => x !== b.productId) : [...prev, b.productId]))}
+            className="h-5 w-5"
+            style={{ accentColor: color }}
+          />
+          {b.cta}
+        </span>
+      </label>
+    )
+  }
+  // Dentro do cartão de pagamento os bumps entram soltos; fora dele ganham um cartão próprio.
+  const bumpsBlock = (pos: NonNullable<PublicCheckout['bumps'][number]['position']>) => {
+    const list = data.bumps.filter((b) => bumpPos(b) === pos)
+    if (!list.length) return null
+    if (pos === 'payment' || pos === 'button') return <div className="space-y-3">{list.map(renderBump)}</div>
+    return (
+      <section className="space-y-3 p-5 shadow-sm" style={cardStyle} aria-label="Ofertas especiais">
+        {list.map(renderBump)}
+      </section>
+    )
+  }
+
   const countdownBox = cd && secondsLeft !== null && (
     <div className="px-4 py-3 text-center" style={{ background: cd.color, color: cd.textColor, borderRadius: radius }} role="timer" aria-label={`${cd.text}: ${formatClock(secondsLeft)}`}>
       <span className="block text-3xl font-bold tabular-nums">{formatClock(secondsLeft)}</span>
@@ -241,6 +292,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const sideColumn = (
     <aside className="space-y-4">
       {cdPos === 'side' && countdownBox}
+      {bumpsBlock('side')}
       {!(mobile && mb.hideSideImages) && c.sideImages.map((src, i) => <img key={i} src={src} alt="" className="w-full" style={{ borderRadius: radius }} />)}
       {c.benefits.length > 0 && (
         <section className="p-5 shadow-sm" style={cardStyle}>
@@ -290,6 +342,8 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               </div>
             </section>
 
+            {bumpsBlock('top')}
+
             {/* Dados */}
             <section className="space-y-3 p-5 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-dados`}>
               <h2 id={`${uid}-dados`} className="text-base font-semibold">Seus dados</h2>
@@ -322,6 +376,8 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                 )}
               </div>
             </section>
+
+            {bumpsBlock('beforePayment')}
 
             {/* Pagamento */}
             <section className="space-y-4 p-5 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-pag`}>
@@ -368,41 +424,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                 <div id={brickId} />
               ))}
 
-              {/* Order bumps */}
-              {data.bumps.map((b) => {
-                const on = bumps.includes(b.productId)
-                return (
-                  <label
-                    key={b.productId}
-                    className={`block cursor-pointer border-2 border-dashed p-4 ${!on && b.animation && !['none', 'arrow', 'blink'].includes(b.animation) ? `ob-anim ob-${b.animation}` : ''}`}
-                    style={{ borderColor: on ? color : '#cbd5e1', background: on ? `color-mix(in srgb, ${color} 8%, transparent)` : 'transparent', borderRadius: radius, ['--ob' as string]: color }}
-                  >
-                    <p className={`text-sm font-bold uppercase tracking-wide ${!on && b.animation === 'blink' ? 'ob-anim ob-blink' : ''}`} style={{ color }}>{b.headline}</p>
-                    <div className="mt-2 flex gap-3">
-                      {b.imageUrl && <img src={b.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />}
-                      <div className="min-w-0 text-sm opacity-90">
-                        <p className="font-semibold">{b.name}</p>
-                        {b.description && <p className="mt-0.5">{b.description}</p>}
-                        <p className="mt-1 font-semibold">
-                          {b.fullPrice > b.price && <span className="mr-2 font-normal text-slate-400 line-through">{formatCents(b.fullPrice)}</span>}
-                          {formatCents(b.price)}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
-                      {!on && b.animation === 'arrow' && <ArrowRight size={18} className="ob-anim ob-arrow shrink-0" style={{ color }} aria-hidden="true" />}
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        onChange={() => setBumps((prev) => (on ? prev.filter((x) => x !== b.productId) : [...prev, b.productId]))}
-                        className="h-5 w-5"
-                        style={{ accentColor: color }}
-                      />
-                      {b.cta}
-                    </span>
-                  </label>
-                )
-              })}
+              {bumpsBlock('payment')}
 
               {/* Cupom */}
               <div>
@@ -418,6 +440,8 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                 )}
                 {couponMsg && <p className="mt-1.5 text-sm opacity-80" aria-live="polite">{couponMsg}</p>}
               </div>
+
+              {bumpsBlock('button')}
 
               {/* Resumo */}
               <div className="space-y-1 border-t border-black/10 pt-3 text-sm opacity-90">
