@@ -106,6 +106,13 @@ type Tab = 'general' | 'desktop' | 'mobile'
 export function CheckoutDesigner({ product, allProducts, onChange }: { product: StoreProduct; allProducts: StoreProduct[]; onChange: (patch: Partial<StoreCheckoutConfig>) => void }) {
   const [tab, setTab] = useState<Tab>('general')
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
+  // Seções começam fechadas. "Abrir/Fechar tudo" remonta o painel (gen) com o novo padrão.
+  const [openAll, setOpenAll] = useState(false)
+  const [gen, setGen] = useState(0)
+  const toggleAll = () => {
+    setOpenAll((v) => !v)
+    setGen((g) => g + 1)
+  }
   const c = product.checkout
   const d = c.design ?? {}
   const others = allProducts.filter((p) => p.id !== product.id && p.status !== 'archived')
@@ -122,7 +129,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
   const toggleSeal = (k: StoreSealKey, on: boolean) => setDesign({ seals: on ? [...seals, k] : seals.filter((x) => x !== k) })
 
   const countdownSection = (
-    <EditorSection title="Contador de escassez" hint="Escolha onde ele aparece e em qual tela." collapsible defaultOpen={c.countdown.enabled}>
+    <EditorSection collapsible defaultOpen={openAll} title="Contador de escassez" hint="Escolha onde ele aparece e em qual tela.">
       <Toggle label="Mostrar contador" checked={c.countdown.enabled} onChange={(v) => setCountdown({ enabled: v })} />
       {c.countdown.enabled && (
         <>
@@ -174,7 +181,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
 
   const general = (
     <>
-      <EditorSection title="Modelos prontos" hint="Troca todas as cores de uma vez. Depois ajuste o que quiser.">
+      <EditorSection collapsible defaultOpen={openAll} title="Modelos prontos" hint="Troca todas as cores de uma vez. Depois ajuste o que quiser.">
         <div className="grid grid-cols-3 gap-2">
           {PRESETS.map((p) => {
             const active = c.backgroundColor.toLowerCase() === p.bg && c.primaryColor.toLowerCase() === p.primary
@@ -196,7 +203,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
         </div>
       </EditorSection>
 
-      <EditorSection title="Cores e fonte">
+      <EditorSection collapsible defaultOpen={openAll} title="Cores e fonte">
         <div className="grid grid-cols-2 gap-3">
           <ColorInput label="Cor principal (botões)" value={c.primaryColor} onChange={(v) => onChange({ primaryColor: v })} />
           <ColorInput label="Texto do botão" value={d.buttonTextColor || '#ffffff'} onChange={(v) => setDesign({ buttonTextColor: v })} />
@@ -226,7 +233,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
         />
       </EditorSection>
 
-      <EditorSection title="Textos e botão">
+      <EditorSection collapsible defaultOpen={openAll} title="Textos e botão">
         <Field label="Título"><Input value={c.headline ?? ''} onChange={(e) => onChange({ headline: e.target.value })} placeholder={product.name} /></Field>
         <Field label="Subtítulo"><Input value={c.subheadline ?? ''} onChange={(e) => onChange({ subheadline: e.target.value })} /></Field>
         <Segmented
@@ -244,7 +251,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
 
       {countdownSection}
 
-      <EditorSection title="Garantia e selos de confiança" hint="Cada selo marcado vira um cartão do mesmo tamanho na lateral, um embaixo do outro. Clique no selo marcado para mudar o texto.">
+      <EditorSection collapsible defaultOpen={openAll} title="Garantia e selos de confiança" hint="Cada selo marcado vira um cartão do mesmo tamanho na lateral, um embaixo do outro. Clique no selo marcado para mudar o texto.">
         <Field label="Dias de garantia"><Input type="number" min={0} value={c.guaranteeDays} onChange={(ev) => onChange({ guaranteeDays: Number(ev.target.value) || 0 })} /></Field>
         <ul className="space-y-2">
           {STORE_SEALS.map((sl) => {
@@ -281,13 +288,13 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
         />
       </EditorSection>
 
-      <EditorSection title="Campos do formulário">
+      <EditorSection collapsible defaultOpen={openAll} title="Campos do formulário">
         <Toggle label="Pedir celular" checked={c.askPhone} onChange={(v) => onChange({ askPhone: v })} />
         <Toggle label="Pedir CPF ou CNPJ" checked={c.askCpf} onChange={(v) => onChange({ askCpf: v })} />
         <Toggle label="Pedir para confirmar o e-mail" checked={c.confirmEmail} onChange={(v) => onChange({ confirmEmail: v })} />
       </EditorSection>
 
-      <EditorSection title="Order bumps (ofertas extras no checkout)" collapsible defaultOpen={c.bumps.length > 0}>
+      <EditorSection collapsible defaultOpen={openAll} title="Order bumps (ofertas extras no checkout)">
         {c.bumps.map((b, i) => {
           const set = (patch: Partial<typeof b>) => onChange({ bumps: c.bumps.map((x, j) => (j === i ? { ...x, ...patch } : x)) })
           return (
@@ -333,7 +340,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
         )}
       </EditorSection>
 
-      <EditorSection title="Benefícios, depoimentos e imagens" collapsible defaultOpen={c.benefits.length + c.testimonials.length + c.sideImages.length > 0}>
+      <EditorSection collapsible defaultOpen={openAll} title="Benefícios, depoimentos e imagens">
         <TextListEditor label="O que a pessoa recebe" items={c.benefits} onChange={(v) => onChange({ benefits: v })} placeholder="Ex.: 40 aulas em vídeo" />
         <fieldset className="space-y-2">
           <legend className="mb-1 text-xs font-medium text-slate-500">Depoimentos</legend>
@@ -359,7 +366,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
         </fieldset>
       </EditorSection>
 
-      <EditorSection title="Rastreamento e pós-compra" collapsible defaultOpen={!!(c.fbPixelId || c.thankYouUrl || c.footerText)}>
+      <EditorSection collapsible defaultOpen={openAll} title="Rastreamento e pós-compra">
         <Field label="Pixel do Meta (número ou código)">
           <Input value={c.fbPixelId ?? ''} onChange={(e) => onChange({ fbPixelId: parseMetaPixelId(e.target.value) ?? e.target.value })} placeholder="1234567890" />
         </Field>
@@ -374,7 +381,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
 
   const desktop = (
     <>
-      <EditorSection title="Layout no computador">
+      <EditorSection collapsible defaultOpen={openAll} title="Layout no computador">
         <Segmented
           label="Largura da página"
           value={d.desktop?.width ?? 'normal'}
@@ -396,7 +403,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
           ]}
         />
       </EditorSection>
-      <EditorSection title="Banner do topo">
+      <EditorSection collapsible defaultOpen={openAll} title="Banner do topo">
         <ImageField label="Banner do topo" value={c.headerImageUrl} onChange={(v) => onChange({ headerImageUrl: v })} productId={product.id} assetKey="checkout-header" hint="Sugestão: 1200 x 300 px. Vale pro celular também, a menos que você coloque um próprio lá." aspect="aspect-[4/1]" />
         <Toggle label="Esconder o banner no computador" checked={!!d.desktop?.hideHeader} onChange={(v) => setDesktop({ hideHeader: v })} />
       </EditorSection>
@@ -406,16 +413,16 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
 
   const mobile = (
     <>
-      <EditorSection title="Banner do celular" hint="Banner mais alto costuma ficar melhor no celular. Em branco = usa o do computador.">
+      <EditorSection collapsible defaultOpen={openAll} title="Banner do celular" hint="Banner mais alto costuma ficar melhor no celular. Em branco = usa o do computador.">
         <ImageField label="Banner só do celular" value={d.mobile?.headerImageUrl ?? null} onChange={(v) => setMobile({ headerImageUrl: v })} productId={product.id} assetKey="checkout-header-mobile" hint="Sugestão: 1080 x 600 px" aspect="aspect-[9/5]" />
         <Toggle label="Esconder o banner no celular" checked={!!d.mobile?.hideHeader} onChange={(v) => setMobile({ hideHeader: v })} />
       </EditorSection>
-      <EditorSection title="Ordem e o que aparece">
+      <EditorSection collapsible defaultOpen={openAll} title="Ordem e o que aparece">
         <Toggle label="Benefícios e garantia antes do formulário" hint="Por padrão o formulário vem primeiro e a lateral desce pra baixo." checked={!!d.mobile?.sideFirst} onChange={(v) => setMobile({ sideFirst: v })} />
         <Toggle label="Esconder as imagens da lateral" hint="Deixa a página mais curta no celular." checked={!!d.mobile?.hideSideImages} onChange={(v) => setMobile({ hideSideImages: v })} />
         <Toggle label="Esconder os depoimentos" checked={!!d.mobile?.hideTestimonials} onChange={(v) => setMobile({ hideTestimonials: v })} />
       </EditorSection>
-      <EditorSection title="Botão fixo">
+      <EditorSection collapsible defaultOpen={openAll} title="Botão fixo">
         <Toggle label="Botão de comprar fixo no rodapé" hint="Fica sempre visível enquanto a pessoa rola, com o valor total. Não aparece no cartão de crédito (o Mercado Pago tem o botão próprio)." checked={!!d.mobile?.stickyButton} onChange={(v) => setMobile({ stickyButton: v })} />
       </EditorSection>
       {countdownSection}
@@ -445,7 +452,10 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
             </button>
           ))}
         </div>
-        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4" role="tabpanel">
+        <div key={gen} className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4" role="tabpanel">
+          <button type="button" onClick={toggleAll} className="self-end text-xs font-medium text-brand-700 hover:underline">
+            {openAll ? 'Fechar tudo' : 'Abrir tudo'}
+          </button>
           {tab === 'general' ? general : tab === 'desktop' ? desktop : mobile}
         </div>
       </div>
