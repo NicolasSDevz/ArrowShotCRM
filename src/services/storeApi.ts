@@ -192,6 +192,10 @@ export async function storeAccessLink(uid: string, productId?: string) {
 export async function storeSetPrivate(productId: string, isPrivate: boolean) {
   return call<{ ok: true; privateTo: string | null; moved: { orders: number; coupons: number; carts: number } }>('admin-set-private', { body: { productId, private: isPrivate }, token: await staffToken() })
 }
+/** Ver como aluno: libera os cursos da área no seu e-mail e devolve o link de entrada. */
+export async function storePreviewAsMember(area: string | null) {
+  return call<{ accessUrl: string; courses: number }>('admin-preview', { body: { area: area || null }, token: await staffToken() })
+}
 export async function storeAbandonedAction(id: string, op: 'contacted' | 'uncontacted' | 'delete') {
   return call<{ ok: true }>('admin-abandoned', { body: { id, op }, token: await staffToken() })
 }

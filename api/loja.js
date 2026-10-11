@@ -37,6 +37,7 @@
 //   POST admin-invoice-sync  { orderIds }  atualiza notas em processamento
 //   POST admin-set-private { productId, private }  produto "só eu vejo" (leva pedidos, cupons e carrinhos)
 //   POST admin-abandoned { id, op: contacted|uncontacted|delete }  carrinho abandonado
+//   POST admin-preview { area }   ver como aluno: libera os cursos da área pra quem é da equipe
 //   GET  admin-push-key                      chave pública das notificações push (null = não configurado)
 //   POST admin-push-subscribe { subscription }  liga as notificações neste aparelho
 //   POST admin-push-unsubscribe { endpoint }    desliga neste aparelho
@@ -878,6 +879,29 @@ async function actionAdminSetPrivate(req, user) {
   return { ok: true, privateTo, moved: { orders: orders.length, coupons: coupons.length, carts: carts.length } }
 }
 
+/** "Ver como aluno": libera pra quem é da equipe todos os cursos da área (no e-mail
+ *  dela, marcados como acesso de equipe) e devolve um link de entrada. Assim dá pra
+ *  conferir aulas e visual sem comprar. */
+async function actionAdminPreview(req, user) {
+  const slug = String(req.body?.area || '')
+  const area = slug ? await memberAreaBySlug(slug) : null
+  if (slug && !area) throw new HttpError(404, 'Área não encontrada')
+  if (area) assertVisible(area, user, 'Área')
+  const profile = (await getDoc(`users/${user.uid}`)).data() || {}
+  const email = normalizeEmail(profile.email)
+  if (!isValidEmail(email)) throw new HttpError(400, 'Seu usuário do CRM está sem e-mail')
+  const uid = await ensureMember({ email, name: profile.name || user.name })
+  const products = (await queryDocs('storeProducts', [])).filter(
+    (p) => p.status !== 'archived' && (p.membersAreaId || null) === (area?.id || null) && visibleTo(p, user.uid)
+  )
+  for (const p of products) {
+    const enr = await getDoc(`storeEnrollments/${uid}_${p.id}`)
+    // Não mexe em acesso de compra de verdade (se a pessoa também comprou).
+    if (!enr.exists || enr.data().active === false) await grantAccess({ uid, email, productId: p.id, source: 'equipe', grantedBy: user.name })
+  }
+  return { accessUrl: await createAccessLink(publicOrigin(req), uid, area ? `/m/${area.slug}` : '/membros'), courses: products.length }
+}
+
 /** Carrinho abandonado: marcar como contatado (ou desmarcar) e apagar. */
 async function actionAdminAbandoned(req, user) {
   const id = String(req.body?.id || '')
@@ -980,6 +1004,7 @@ const ADMIN = {
   'POST admin-invoice-emit': actionAdminInvoiceEmit,
   'POST admin-set-private': actionAdminSetPrivate,
   'POST admin-abandoned': actionAdminAbandoned,
+  'POST admin-preview': actionAdminPreview,
   'POST admin-invoice-sync': actionAdminInvoiceSync,
   'GET admin-push-key': actionAdminPushKey,
   'POST admin-push-subscribe': actionAdminPushSubscribe,

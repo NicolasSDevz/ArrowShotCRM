@@ -131,6 +131,7 @@ export function StoreMembersTable({
                       <li key={a.id} className="flex flex-wrap items-center gap-3 text-sm">
                         <span className="min-w-[180px] font-medium text-slate-700">{productName(a.productId)}</span>
                         {a.source === 'manual' && <Badge className="bg-slate-100 text-slate-600">liberado manualmente</Badge>}
+                        {a.source === 'equipe' && <Badge className="bg-brand-50 text-brand-700">equipe (ver como aluno)</Badge>}
                         <span className="flex items-center gap-2 text-slate-500">
                           <span className="h-1.5 w-28 rounded-full bg-slate-100" aria-hidden="true"><span className="block h-1.5 rounded-full bg-brand-600" style={{ width: `${pct}%` }} /></span>
                           {pct}% concluído

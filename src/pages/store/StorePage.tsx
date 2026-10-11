@@ -149,7 +149,7 @@ export function StorePage() {
         </ul>
       )}
 
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-clip rounded-3xl border border-slate-200 bg-white shadow-sm">
         <Tabs
           label="Seções da loja"
           tabs={[

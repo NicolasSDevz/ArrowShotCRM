@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import toast from 'react-hot-toast'
-import { ExternalLink, Home, LayoutDashboard, Lock, LogIn, Moon, Plus, Sun, Trash2, Users } from 'lucide-react'
+import { Eye, ExternalLink, Home, LayoutDashboard, Lock, LogIn, Moon, Plus, Sun, Trash2, Users } from 'lucide-react'
+import { storePreviewAsMember } from '../../../services/storeApi'
 import { useAuth } from '../../../context/AuthContext'
 import { useStoreMemberAreas } from '../../../hooks/useStore'
 import { Button } from '../../ui/Button'
@@ -94,6 +95,7 @@ export function StoreMembersThemePanel() {
   const [tab, setTab] = useState<Tab>('area')
   const [dirty, setDirty] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const loadedFor = useRef<string | null>(null)
   useGoogleFont(form.font)
 
@@ -167,6 +169,23 @@ export function StoreMembersThemePanel() {
       toast.success(area.privateTo ? 'A equipe volta a ver esta área' : 'Agora só você vê esta área no CRM')
     } catch (err) {
       toast.error((err as Error).message)
+    }
+  }
+
+  // Abre a área como aluno, com todos os cursos dela liberados (aba nova).
+  const viewAsMember = async () => {
+    const tab = window.open('', '_blank')
+    setPreviewing(true)
+    try {
+      const r = await storePreviewAsMember(area?.slug ?? null)
+      if (tab) tab.location.href = r.accessUrl
+      else window.location.href = r.accessUrl
+      if (!r.courses) toast('Esta área ainda não tem cursos. Escolha a área no produto, aba Área de membros.')
+    } catch (err) {
+      tab?.close()
+      toast.error((err as Error).message)
+    } finally {
+      setPreviewing(false)
     }
   }
 
@@ -408,6 +427,7 @@ export function StoreMembersThemePanel() {
           ))}
         </div>
         <Button size="sm" variant="secondary" icon={<Plus size={14} />} onClick={() => setCreating(true)}>Nova área</Button>
+        <Button size="sm" variant="secondary" icon={<Eye size={14} />} loading={previewing} onClick={viewAsMember}>Ver como aluno</Button>
         <span className="ml-auto truncate text-xs text-slate-400">Endereço: {window.location.origin}{base}</span>
         {area && (
           <div className="flex w-full flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs">

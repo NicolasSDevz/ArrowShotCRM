@@ -392,7 +392,7 @@ export interface StoreEnrollment {
   email: string
   productId: string
   orderId?: string | null
-  source: 'compra' | 'manual'
+  source: 'compra' | 'manual' | 'equipe'
   active: boolean
   createdAt: string
 }

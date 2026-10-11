@@ -2,6 +2,7 @@ import { useId, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { ImagePlus, Trash2 } from 'lucide-react'
 import { releaseStoreImage, uploadStoreImage } from '../../../services/storeService'
+import { ImageCropModal, ratioFromAspect, shrinkImage } from './ImageCropModal'
 
 /** Campo de imagem: enviar arquivo, colar link ou remover. */
 export function ImageField({
@@ -27,17 +28,28 @@ export function ImageField({
   const id = useId()
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [cropping, setCropping] = useState<File | null>(null)
+  // Logo (fundo transparente) e imagens da lateral do checkout (aparecem inteiras) não são cortadas.
+  const crop = !/logo/.test(assetKey) && !assetKey.startsWith('side-')
   // Troca a imagem e libera a anterior pra ser apagada do Storage quando o produto for salvo.
   const replace = (url: string | null) => {
     if (value && value !== url) releaseStoreImage(value)
     onChange(url)
   }
 
-  const onFile = async (file?: File) => {
+  const pick = (file?: File) => {
     if (!file) return
+    if (fileRef.current) fileRef.current.value = ''
+    if (!file.type.startsWith('image/')) return toast.error('Selecione um arquivo de imagem.')
+    if (crop && file.type !== 'image/gif') setCropping(file)
+    else upload(file)
+  }
+
+  const upload = async (file: File) => {
+    setCropping(null)
     setBusy(true)
     try {
-      replace(await uploadStoreImage(productId, assetKey, file))
+      replace(await uploadStoreImage(productId, assetKey, crop ? file : await shrinkImage(file)))
     } catch (err) {
       toast.error((err as Error).message)
     } finally {
@@ -78,7 +90,8 @@ export function ImageField({
           {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
         </div>
       </div>
-      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} aria-hidden="true" tabIndex={-1} />
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(e) => pick(e.target.files?.[0])} aria-hidden="true" tabIndex={-1} />
+      <ImageCropModal file={cropping} ratio={ratioFromAspect(aspect)} onCancel={() => setCropping(null)} onDone={upload} />
     </div>
   )
 }
