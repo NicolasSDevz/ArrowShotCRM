@@ -140,14 +140,21 @@ export function abandonedId(productId, email) {
   return `${productId}_${sha256(normalizeEmail(email)).slice(0, 20)}`
 }
 
-/** Comprou: o carrinho abandonado daquele produto vira "recuperado". */
+/** Carrinho vira "abandonado" depois de 15 min sem pagar (igual ao CRM e ao aviso no celular). */
+export const ABANDON_AFTER_MS = 15 * 60_000
+
+/** Comprou. Se o carrinho chegou a ser abandonado (15 min parado ou já avisado no
+ *  celular), vira "recuperado". Se comprou direto, é venda normal: o carrinho some. */
 async function markRecovered(order) {
+  const paidAt = new Date(order.approvedAt || nowIso()).getTime()
   for (const pid of order.productIds || [order.productId]) {
     const path = `storeAbandoned/${abandonedId(pid, order.buyer?.email)}`
     const snap = await getDoc(path).catch(() => null)
-    if (snap?.exists && !snap.data().recoveredAt) {
-      await updateDoc(path, { recoveredAt: nowIso(), orderId: order.id, orderStatus: 'approved', updatedAt: nowIso() }).catch(() => {})
-    }
+    if (!snap?.exists || snap.data().recoveredAt) continue
+    const cart = snap.data()
+    const wasAbandoned = cart.notified === true || paidAt - new Date(cart.updatedAt).getTime() > ABANDON_AFTER_MS
+    if (wasAbandoned) await updateDoc(path, { recoveredAt: nowIso(), orderId: order.id, orderStatus: 'approved', updatedAt: nowIso() }).catch(() => {})
+    else await deleteDoc(path).catch(() => {})
   }
 }
 
@@ -164,7 +171,7 @@ export async function notifyAbandonedCarts({ force = false } = {}) {
       await updateDoc(`storeAbandoned/${a.id}`, { notified: true }).catch(() => {})
       continue
     }
-    if (Date.now() - new Date(a.updatedAt).getTime() < 15 * 60_000) continue
+    if (Date.now() - new Date(a.updatedAt).getTime() < ABANDON_AFTER_MS) continue
     await updateDoc(`storeAbandoned/${a.id}`, { notified: true }).catch(() => {})
     const total = (Number(a.amount || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     const how = a.orderStatus === 'pending' ? 'gerou o Pix e não pagou' : a.orderStatus === 'refused' ? 'teve o pagamento recusado e não voltou' : 'preencheu os dados e não pagou'
