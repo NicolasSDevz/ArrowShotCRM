@@ -49,7 +49,7 @@ export function StoreMembersTable({
   const newLink = async (m: StoreMember) => {
     setBusy(m.id)
     try {
-      const { accessUrl } = await storeAccessLink(m.id)
+      const { accessUrl } = await storeAccessLink(m.id, enrollments.find((e) => e.uid === m.id && e.active)?.productId)
       await copyText(accessUrl, `Link de acesso de ${m.name} copiado`)
     } catch (err) {
       toast.error((err as Error).message)

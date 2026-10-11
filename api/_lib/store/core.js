@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto'
 import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, listDocs, createDocIfMissing, incrementField } from '../firebaseAdmin.js'
 import { emitInvoice, cancelInvoice } from './invoice.js'
 import { trackOrderEvent } from './metaCapi.js'
-import { mpConfigured, getPayment, orderStatusFromMp } from './mercadoPago.js'
+import { mpConfigured, getPayment, orderStatusFromMp, refundPayment } from './mercadoPago.js'
 import { sendPushToUsers } from '../webPush.js'
 
 export const nowIso = () => new Date().toISOString()
@@ -86,11 +86,12 @@ export async function rateLimit(key, max, windowMs) {
 }
 
 /** Aviso no sino do CRM para admins e gerentes ativos e, nos aparelhos em que
- *  ativaram, notificação push ("Pix para conferir: ..." vira título + texto). */
-export async function notifyStaff(type, message, actorName = 'Loja') {
+ *  ativaram, notificação push ("Pix para conferir: ..." vira título + texto).
+ *  privateTo: produto privado, o aviso vai só pra dona dele. */
+export async function notifyStaff(type, message, actorName = 'Loja', { privateTo = null } = {}) {
   try {
     const users = await listDocs('users')
-    const staff = users.filter((u) => u.active !== false && (u.role === 'admin' || u.role === 'manager'))
+    const staff = users.filter((u) => u.active !== false && (u.role === 'admin' || u.role === 'manager') && (!privateTo || u.id === privateTo))
     // Venda aprovada só vai pro celular (push); o sino fica pro que pede ação.
     if (!PUSH_ONLY.has(type)) await Promise.all(
       staff.map((u) =>
@@ -103,6 +104,49 @@ export async function notifyStaff(type, message, actorName = 'Loja') {
     await sendPushToUsers(staff.map((u) => u.id), { title, body, url: '/loja', tag: `${PUSH_TAG[type] || type}-${Date.now()}` })
   } catch (err) {
     console.warn('[loja] falha ao notificar a equipe:', err?.message)
+  }
+}
+
+/* ------------------------------ privados ------------------------------ */
+
+/** Quem pode ver um produto/pedido/cupom privado: só a dona (privateTo). */
+export function visibleTo(doc, uid) {
+  return !doc?.privateTo || doc.privateTo === uid
+}
+
+/* --------------------------- áreas de membros --------------------------- */
+
+/** Caminho da área de membros de um produto: /membros (principal) ou /m/{slug}. */
+export async function membersPathFor(productId) {
+  const product = productId ? await getProduct(productId) : null
+  const areaId = product?.membersAreaId
+  if (!areaId || !/^[A-Za-z0-9_-]{1,64}$/.test(areaId)) return '/membros'
+  const snap = await getDoc(`storeMemberAreas/${areaId}`)
+  const slug = snap.exists ? snap.data().slug : null
+  return slug && /^[a-z0-9-]{2,40}$/.test(slug) ? `/m/${slug}` : '/membros'
+}
+
+/** Área pelo endereço (/m/{slug}). null = não existe. */
+export async function memberAreaBySlug(slug) {
+  if (!slug || !/^[a-z0-9-]{2,40}$/.test(slug)) return null
+  const rows = await queryDocs('storeMemberAreas', [['slug', slug]])
+  return rows[0] || null
+}
+
+/* -------------------------- carrinho abandonado -------------------------- */
+
+export function abandonedId(productId, email) {
+  return `${productId}_${sha256(normalizeEmail(email)).slice(0, 20)}`
+}
+
+/** Comprou: o carrinho abandonado daquele produto vira "recuperado". */
+async function markRecovered(order) {
+  for (const pid of order.productIds || [order.productId]) {
+    const path = `storeAbandoned/${abandonedId(pid, order.buyer?.email)}`
+    const snap = await getDoc(path).catch(() => null)
+    if (snap?.exists && !snap.data().recoveredAt) {
+      await updateDoc(path, { recoveredAt: nowIso(), orderId: order.id, orderStatus: 'approved', updatedAt: nowIso() }).catch(() => {})
+    }
   }
 }
 
@@ -263,11 +307,12 @@ export async function revokeAccess(uid, productId) {
   await updateDoc(`storeEnrollments/${uid}_${productId}`, { active: false, revokedAt: nowIso() })
 }
 
-/** Gera um link de acesso novo (o código em claro só existe na URL). */
-export async function createAccessLink(origin, uid) {
+/** Gera um link de acesso novo (o código em claro só existe na URL).
+ *  basePath: área de membros do produto (/membros ou /m/{slug}). */
+export async function createAccessLink(origin, uid, basePath = '/membros') {
   const code = randomToken(24)
   await setDoc(`storeAccessCodes/${sha256(code)}`, { uid, createdAt: nowIso(), revoked: false })
-  return `${origin}/membros/entrar?code=${code}`
+  return `${origin}${basePath}/entrar?code=${code}`
 }
 
 /** Link de acesso vale por 30 dias a partir do primeiro uso (depois o aluno entra
@@ -399,7 +444,7 @@ async function deliver(origin, order) {
   for (const item of order.items || []) {
     await grantAccess({ uid, email: order.buyer.email, productId: item.productId, orderId })
   }
-  const accessUrl = await createAccessLink(origin, uid)
+  const accessUrl = await createAccessLink(origin, uid, await membersPathFor(order.productId).catch(() => '/membros'))
   if (order.couponId) await incrementField(`storeCoupons/${order.couponId}`, 'uses', 1).catch((err) => console.warn('[loja] cupom:', err?.message))
   const emailSent = await sendAccessEmail({
     to: order.buyer.email,
@@ -410,14 +455,16 @@ async function deliver(origin, order) {
   })
   const patch = { fulfilledAt: nowIso(), memberUid: uid, accessUrl, emailSent }
   await updateDoc(`storeOrders/${orderId}`, patch)
+  await markRecovered(order)
   if (!order.test) {
     const total = (order.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     const product = await getProduct(order.productId).catch(() => null)
-    await notifyStaff('store_sale', `Venda aprovada: ${order.buyer.name} comprou ${order.items.map((i) => i.name).join(' + ')} por ${total}.`)
+    await notifyStaff('store_sale', `Venda aprovada: ${order.buyer.name} comprou ${order.items.map((i) => i.name).join(' + ')} por ${total}.`, 'Loja', { privateTo: order.privateTo })
     const capi = await trackOrderEvent({ ...order, ...patch }, product, 'Purchase').catch((err) => ({ ok: false, error: err?.message }))
     if (capi && !capi.ok) await notifyCapiFailure(order, capi.error)
     // Nota fiscal automática (se ligada em Loja > Nota fiscal). Erro não trava a venda.
-    await emitInvoice(orderId).catch((err) => console.warn('[loja] nota fiscal falhou:', err?.message))
+    // Produto privado não emite nota no CNPJ da empresa.
+    if (!order.privateTo) await emitInvoice(orderId).catch((err) => console.warn('[loja] nota fiscal falhou:', err?.message))
   }
   return { ...order, ...patch }
 }
@@ -425,7 +472,7 @@ async function deliver(origin, order) {
 /* ------------------------ Meta (API de Conversões) ------------------------ */
 
 async function notifyCapiFailure(order, error) {
-  await notifyStaff('store_capi_error', `Venda não marcada no Meta: a venda de ${order.buyer?.name || 'um cliente'} não foi enviada pela API de Conversões (${String(error || 'erro desconhecido').slice(0, 160)}). O sistema tenta de novo todo dia; confira o token do pixel na Loja.`)
+  await notifyStaff('store_capi_error', `Venda não marcada no Meta: a venda de ${order.buyer?.name || 'um cliente'} não foi enviada pela API de Conversões (${String(error || 'erro desconhecido').slice(0, 160)}). O sistema tenta de novo todo dia; confira o token do pixel na Loja.`, 'Loja', { privateTo: order.privateTo })
 }
 
 /** Reenvia ao Meta as vendas dos últimos 7 dias que ele recusou (rodado pelo cron). */
@@ -447,6 +494,24 @@ export async function retryFailedCapi(limit = 40) {
     await notifyStaff('store_capi_error', `Vendas não marcadas no Meta: ${stillFailing.length} venda(s) continuam sendo recusadas pela API de Conversões (${String(stillFailing[0] || '').slice(0, 160)}). Confira o token do pixel na Loja.`)
   }
   return { pending: due.length, fixed, failing: stillFailing.length }
+}
+
+/* ------------------------------ reembolso ------------------------------ */
+
+/** Devolve o dinheiro (Mercado Pago) e tira o acesso. Pix direto: o dinheiro volta
+ *  pelo app do banco (aqui só registra). Usado pela equipe e pelo reembolso automático. */
+export async function refundOrder(orderId, by, extra = {}) {
+  const snap = await getDoc(`storeOrders/${orderId}`)
+  if (!snap.exists) throw new Error('Pedido não encontrado')
+  const order = { id: orderId, ...snap.data() }
+  if (order.status !== 'approved') throw new Error('Só dá pra reembolsar pedido aprovado')
+  if (order.mpPaymentId && mpConfigured()) await refundPayment(order.mpPaymentId)
+  await updateDoc(`storeOrders/${orderId}`, { status: 'refunded', refundedAt: nowIso(), refundedBy: by, updatedAt: nowIso(), ...extra })
+  await cancelInvoice(orderId).catch((err) => console.warn('[loja] cancelar nota falhou:', err?.message))
+  for (const pid of order.productIds || [order.productId]) {
+    if (order.memberUid) await revokeAccess(order.memberUid, pid).catch(() => {})
+  }
+  return order
 }
 
 /* ------------------------- Mercado Pago (status) ------------------------- */
@@ -477,7 +542,7 @@ export async function syncOrderWithMp(origin, orderId, order, { force = false } 
         await cancelInvoice(orderId).catch((err) => console.warn('[loja] cancelar nota falhou:', err?.message))
         const total = (order.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
         const why = p.status === 'charged_back' ? 'chargeback (contestação no cartão)' : 'reembolso feito no Mercado Pago'
-        await notifyStaff('store_refund', `Estorno: ${order.buyer?.name} teve ${total} devolvido por ${why}. O acesso foi removido.`)
+        await notifyStaff('store_refund', `Estorno: ${order.buyer?.name} teve ${total} devolvido por ${why}. O acesso foi removido.`, 'Loja', { privateTo: order.privateTo })
       }
     }
   }

@@ -8,12 +8,12 @@ import { productImages } from '../../../types/store'
 /** /membros/curso/:productId — banner do curso, progresso e módulos em cartões. */
 export function MembersCoursePage() {
   const { productId } = useParams()
-  const { loading: membersLoading } = useMembers()
+  const { loading: membersLoading, base } = useMembers()
   const { product, enrollment, modules, lessons, completed, percent, progress, loading } = useCourse(productId)
   const accent = useAccent(product)
 
   if (membersLoading) return null
-  if (!product) return <Navigate to="/membros" replace />
+  if (!product) return <Navigate to={base} replace />
   const color = accent
   const imgs = productImages(product)
   const firstLesson = lessons.find((l) => !releaseDate(enrollment, Math.max(l.releaseDays || 0, modules.find((m) => m.id === l.moduleId)?.releaseDays || 0)))
@@ -31,7 +31,7 @@ export function MembersCoursePage() {
           {product.description && <p className="mt-2 max-w-2xl text-[var(--m-text2)]">{product.description}</p>}
           <div className="mt-4 flex flex-wrap items-center gap-4">
             {resumeId && (
-              <Link to={`/membros/curso/${product.id}/aula/${resumeId}`} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 font-semibold text-white" style={{ background: color }}>
+              <Link to={`${base}/curso/${product.id}/aula/${resumeId}`} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 font-semibold text-white" style={{ background: color }}>
                 <Play size={18} fill="currentColor" aria-hidden="true" /> {progress?.lastLessonId ? 'Continuar de onde parei' : 'Começar o curso'}
               </Link>
             )}
@@ -91,7 +91,7 @@ export function MembersCoursePage() {
                     {locked || !target ? (
                       <div className="group block opacity-80" aria-disabled="true">{card}</div>
                     ) : (
-                      <Link to={`/membros/curso/${product.id}/aula/${target.id}`} className="group block">{card}</Link>
+                      <Link to={`${base}/curso/${product.id}/aula/${target.id}`} className="group block">{card}</Link>
                     )}
                   </li>
                 )

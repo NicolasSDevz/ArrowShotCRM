@@ -40,6 +40,24 @@ function ColorInput({ label, value, onChange }: { label: string; value: string; 
   )
 }
 
+/** Cor opcional: vazio segue a cor indicada em `fallback` (mostra "Padrão"). */
+function PartColor({ label, value, fallback, onChange }: { label: string; value?: string; fallback: string; onChange: (v: string | undefined) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <input type="color" value={value || fallback} onChange={(e) => onChange(e.target.value)} className="h-9 w-10 shrink-0 cursor-pointer rounded-lg border border-slate-200" aria-label={label} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium text-slate-700">{label}</p>
+        <p className="truncate text-[11px] text-slate-400">{value ? value.toUpperCase() : 'Padrão'}</p>
+      </div>
+      {value && (
+        <button type="button" onClick={() => onChange(undefined)} className="shrink-0 rounded-md px-1.5 py-1 text-[11px] text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          Limpar
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** Modelos prontos: trocam fundo, cartões, texto, botão e contador de uma vez. */
 const PRESETS: { name: string; bg: string; card: string; text: string; primary: string; btnText: string; timer: string }[] = [
   { name: 'Claro', bg: '#f1f5f9', card: '#ffffff', text: '#0f172a', primary: '#2563eb', btnText: '#ffffff', timer: '#e55858' },
@@ -120,6 +138,10 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
   const setDesign = (patch: Partial<StoreCheckoutDesign>) => onChange({ design: { ...d, ...patch } })
   const setDesktop = (patch: NonNullable<StoreCheckoutDesign['desktop']>) => setDesign({ desktop: { ...d.desktop, ...patch } })
   const setMobile = (patch: NonNullable<StoreCheckoutDesign['mobile']>) => setDesign({ mobile: { ...d.mobile, ...patch } })
+  const colors = d.colors ?? {}
+  // Firestore não aceita undefined: cor limpa sai do objeto.
+  const setColors = (patch: Partial<NonNullable<StoreCheckoutDesign['colors']>>) =>
+    setDesign({ colors: Object.fromEntries(Object.entries({ ...colors, ...patch }).filter(([, v]) => !!v)) })
   const setCountdown = (patch: Partial<StoreCountdownConfig>) => onChange({ countdown: { ...c.countdown, ...patch } })
   const pickTab = (t: Tab) => {
     setTab(t)
@@ -205,7 +227,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
 
       <EditorSection collapsible defaultOpen={openAll} title="Cores e fonte">
         <div className="grid grid-cols-2 gap-3">
-          <ColorInput label="Cor principal (botões)" value={c.primaryColor} onChange={(v) => onChange({ primaryColor: v })} />
+          <ColorInput label="Cor principal" value={c.primaryColor} onChange={(v) => onChange({ primaryColor: v })} />
           <ColorInput label="Texto do botão" value={d.buttonTextColor || '#ffffff'} onChange={(v) => setDesign({ buttonTextColor: v })} />
           <ColorInput label="Fundo da página" value={c.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
           <ColorInput label="Fundo dos cartões" value={d.cardColor || '#ffffff'} onChange={(v) => setDesign({ cardColor: v })} />
@@ -231,6 +253,30 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
             { value: 'round', content: 'Redondos', title: 'Bem arredondados' },
           ]}
         />
+      </EditorSection>
+
+      <EditorSection collapsible defaultOpen={openAll} title="Cor de cada parte" hint="Em branco segue a cor principal. Assim o order bump, o preço e o botão de pagar podem ter cores diferentes.">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Botão e destaques</p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+          <PartColor label="Botão de pagar" value={colors.button} fallback={c.primaryColor} onChange={(v) => setColors({ button: v })} />
+          <PartColor label="Preço" value={colors.price} fallback={c.primaryColor} onChange={(v) => setColors({ price: v })} />
+          <PartColor label="Títulos" value={colors.title} fallback={d.textColor || '#0f172a'} onChange={(v) => setColors({ title: v })} />
+          <PartColor label="Ícones (selos e benefícios)" value={colors.icon} fallback={c.primaryColor} onChange={(v) => setColors({ icon: v })} />
+          <PartColor label="Pix / Cartão escolhido" value={colors.method} fallback={c.primaryColor} onChange={(v) => setColors({ method: v })} />
+        </div>
+        <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Order bump</p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+          <PartColor label="Borda e chamada" value={colors.bumpBorder} fallback={c.primaryColor} onChange={(v) => setColors({ bumpBorder: v })} />
+          <PartColor label="Fundo da caixa" value={colors.bumpBg} fallback={d.cardColor || '#ffffff'} onChange={(v) => setColors({ bumpBg: v })} />
+          <PartColor label="Texto" value={colors.bumpText} fallback={d.textColor || '#0f172a'} onChange={(v) => setColors({ bumpText: v })} />
+          <PartColor label="Faixa da caixinha" value={colors.bumpCtaBg} fallback="#f8fafc" onChange={(v) => setColors({ bumpCtaBg: v })} />
+          <PartColor label="Texto da caixinha" value={colors.bumpCtaText} fallback="#1e293b" onChange={(v) => setColors({ bumpCtaText: v })} />
+        </div>
+        {Object.values(colors).some(Boolean) && (
+          <button type="button" onClick={() => setDesign({ colors: {} })} className="self-start text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline">
+            Voltar tudo pra cor principal
+          </button>
+        )}
       </EditorSection>
 
       <EditorSection collapsible defaultOpen={openAll} title="Textos e botão">

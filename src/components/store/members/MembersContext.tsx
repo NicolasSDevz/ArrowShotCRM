@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { onAuthStateChanged, signInWithCustomToken, signOut, type User } from 'firebase/auth'
 import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore'
 import { membersAuth, membersDb } from '../../../firebase/membersApp'
-import { defaultMembersTheme, type StoreEnrollment, type StoreMember, type StoreMembersTheme, type StoreProduct } from '../../../types/store'
+import { defaultMembersTheme, membersBasePath, type StoreEnrollment, type StoreMember, type StoreMembersTheme, type StoreProduct } from '../../../types/store'
 import { fetchMembersTheme } from '../../../services/storeApi'
 
 interface MembersValue {
@@ -14,42 +14,52 @@ interface MembersValue {
   signInWithToken: (token: string) => Promise<void>
   logout: () => Promise<void>
   theme: StoreMembersTheme
+  /** Endereço da área aberta: /membros (principal) ou /m/{slug}. Todos os links usam isto. */
+  base: string
+  /** slug da área (null = principal). */
+  area: string | null
 }
 
 const Ctx = createContext<MembersValue | undefined>(undefined)
 
-/** Sessão do aluno (app Firebase "members", separado do CRM) + produtos que ele comprou. */
-export function MembersProvider({ children }: { children: ReactNode }) {
+/** Sessão do aluno (app Firebase "members", separado do CRM) + produtos que ele comprou.
+ *  Cada área de membros (/membros ou /m/{slug}) mostra só os cursos dela: o login é o
+ *  mesmo, mas quem comprou flores e marketing vê cada um na sua área. */
+export function MembersProvider({ area = null, children }: { area?: string | null; children: ReactNode }) {
+  const cacheKey = area ? `members-theme:${area}` : 'members-theme'
   const [user, setUser] = useState<User | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [member, setMember] = useState<StoreMember | null>(null)
   const [enrollments, setEnrollments] = useState<StoreEnrollment[]>([])
-  const [products, setProducts] = useState<StoreProduct[]>([])
+  const [allProducts, setAllProducts] = useState<StoreProduct[]>([])
   const [dataReady, setDataReady] = useState(false)
   // Tema: guardado no navegador para a tela já abrir com a cara certa, e atualizado pela API.
-  const [theme, setTheme] = useState<StoreMembersTheme>(() => {
+  const [theme, setTheme] = useState<StoreMembersTheme & { areaId?: string | null }>(() => {
     try {
-      const cached = localStorage.getItem('members-theme')
+      const cached = localStorage.getItem(cacheKey)
       if (cached) return { ...defaultMembersTheme(), ...JSON.parse(cached) }
     } catch {
       /* segue com o padrão */
     }
     return defaultMembersTheme()
   })
+  // Área extra: o id dela vem com o tema (sem ele não dá pra saber quais cursos mostrar).
+  const [areaReady, setAreaReady] = useState(() => !area || theme.areaId !== undefined)
 
   useEffect(() => {
-    fetchMembersTheme()
+    fetchMembersTheme(area)
       .then((t) => {
         const full = { ...defaultMembersTheme(), ...t }
         setTheme(full)
+        setAreaReady(true)
         try {
-          localStorage.setItem('members-theme', JSON.stringify(full))
+          localStorage.setItem(cacheKey, JSON.stringify(full))
         } catch {
           /* sem cache */
         }
       })
-      .catch(() => {})
-  }, [])
+      .catch(() => setAreaReady(true))
+  }, [area, cacheKey])
 
   useEffect(
     () =>
@@ -64,7 +74,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setMember(null)
       setEnrollments([])
-      setProducts([])
+      setAllProducts([])
       setDataReady(true)
       return
     }
@@ -85,7 +95,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
             return p?.exists() ? ({ id: p.id, ...p.data() } as StoreProduct) : null
           })
         )
-        setProducts(loaded.filter((p): p is StoreProduct => !!p))
+        setAllProducts(loaded.filter((p): p is StoreProduct => !!p))
         setDataReady(true)
       },
       () => setDataReady(true)
@@ -96,17 +106,23 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
+  // Só os cursos desta área (principal = os sem área).
+  const areaId = area ? theme.areaId ?? '__carregando__' : null
+  const products = useMemo(() => allProducts.filter((p) => (p.membersAreaId || null) === areaId), [allProducts, areaId])
+
   const value: MembersValue = {
     user,
     member,
     enrollments,
     products,
-    loading: !authReady || !dataReady,
+    loading: !authReady || !dataReady || !areaReady,
     signInWithToken: async (token) => {
       await signInWithCustomToken(membersAuth, token)
     },
     logout: () => signOut(membersAuth),
     theme,
+    base: membersBasePath(area),
+    area,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

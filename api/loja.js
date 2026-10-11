@@ -6,6 +6,7 @@
 // Públicas (checkout):
 //   GET  checkout&slug=           dados da página de pagamento
 //   POST coupon     { slug, code }
+//   POST checkout-lead { slug, buyer, amount, utm }  carrinho abandonado (preencheu e não pagou)
 //   POST order      { slug, bumpIds, coupon, buyer, method: pix|card|test, card, utm }
 //   GET  order&id=&key=           status do pedido (consulta o MP e libera o acesso)
 //   POST webhook                  notificação do Mercado Pago
@@ -15,8 +16,9 @@
 //   POST member-send-link { email }             manda um link de acesso novo por e-mail
 //   POST member-password { password }          (Bearer do aluno)
 //   GET  member-orders                          compras do aluno e prazo de garantia
-//   GET  members-catalog                        produtos no ar para mostrar bloqueados na área (cache de 5 min)
-//   POST member-refund-request { orderId, reason }  pede reembolso (avisa a equipe)
+//   GET  members-catalog&area=                  produtos no ar da área, para mostrar bloqueados (cache de 5 min)
+//   GET  members-theme&area=                    visual da área (vazio = principal, /membros; senão /m/{slug})
+//   POST member-refund-request { orderId, reason }  pede reembolso (avisa a equipe; com reembolso automático, devolve na hora)
 // Equipe (Bearer de usuário interno):
 //   GET  admin-status                          → gateway e e-mail configurados?
 //   POST admin-grant   { email, name, productId } → { accessUrl }
@@ -33,6 +35,8 @@
 //   POST admin-capi-test  { pixelId, testCode } manda um Purchase de teste
 //   POST admin-invoice-emit  { orderId }   emite/reemite a nota do pedido
 //   POST admin-invoice-sync  { orderIds }  atualiza notas em processamento
+//   POST admin-set-private { productId, private }  produto "só eu vejo" (leva pedidos, cupons e carrinhos)
+//   POST admin-abandoned { id, op: contacted|uncontacted|delete }  carrinho abandonado
 //   GET  admin-push-key                      chave pública das notificações push (null = não configurado)
 //   POST admin-push-subscribe { subscription }  liga as notificações neste aparelho
 //   POST admin-push-unsubscribe { endpoint }    desliga neste aparelho
@@ -41,7 +45,7 @@
 //   POST invoice-webhook { ref }
 
 import { requireInternalUser, AuthError } from './_lib/auth.js'
-import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, incrementField, createCustomToken, verifyIdTokenWithClaims } from './_lib/firebaseAdmin.js'
+import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, listDocs, incrementField, createCustomToken, verifyIdTokenWithClaims } from './_lib/firebaseAdmin.js'
 import {
   mpConfigured,
   mpPublicKey,
@@ -79,6 +83,11 @@ import {
   syncOrderWithMp,
   reconcilePendingOrders,
   sendLoginLinkEmail,
+  visibleTo,
+  membersPathFor,
+  memberAreaBySlug,
+  abandonedId,
+  refundOrder,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
 import { fetchPdf, stampPdf } from './_lib/store/protectedPdf.js'
@@ -113,22 +122,39 @@ async function actionCheckout(req) {
   return data
 }
 
+const THEME_FIELDS = [
+  'brandName', 'logoUrl', 'mode', 'primaryColor', 'backgroundColor', 'cardColor', 'font', 'loginLayout', 'loginBgUrl', 'loginTitle', 'loginText',
+  'loginButtonText', 'loginHelpText', 'supportWhatsapp', 'loginMode', 'loginPrimaryColor', 'loginBackgroundColor', 'loginCardColor', 'loginLogoUrl', 'loginOverlay',
+  'homeBannerUrl', 'homeBannerMobileUrl', 'homeTitle', 'homeText', 'homeButtonText', 'homeGreeting', 'homeBannerHeight', 'homeOverlay', 'homeAlign',
+  'cardShape', 'cardProgress', 'continueTitle', 'coursesTitle', 'catalogTitle', 'showCatalog', 'textColor', 'headerColor', 'radius', 'footerText',
+]
+
+/** Área de membros pelo endereço: ?area= vazio = principal (/membros); senão /m/{slug}. */
+async function areaFromQuery(req) {
+  const slug = String(req.query.area || '')
+  if (!slug) return { id: null, theme: (await getDoc('storeSettings/membersTheme')).data() || {} }
+  const area = await memberAreaBySlug(slug)
+  if (!area) throw new HttpError(404, 'Área de membros não encontrada')
+  return { id: area.id, theme: area }
+}
+
 /** Visual da área de membros (a tela de login é pública, por isso vem pela API). */
-async function actionMembersTheme() {
-  const snap = await getDoc('storeSettings/membersTheme')
-  const t = snap.exists ? snap.data() : {}
-  const pick = ['brandName', 'logoUrl', 'mode', 'primaryColor', 'backgroundColor', 'cardColor', 'font', 'loginLayout', 'loginBgUrl', 'loginTitle', 'loginText', 'loginButtonText', 'loginHelpText', 'supportWhatsapp', 'loginMode', 'loginPrimaryColor', 'loginBackgroundColor', 'loginCardColor', 'loginLogoUrl', 'loginOverlay']
-  return Object.fromEntries(pick.filter((k) => t[k] !== undefined).map((k) => [k, t[k]]))
+async function actionMembersTheme(req) {
+  const { id, theme: t } = await areaFromQuery(req)
+  return { ...Object.fromEntries(THEME_FIELDS.filter((k) => t[k] !== undefined).map((k) => [k, t[k]])), areaId: id }
 }
 
 /** Produtos no ar para a vitrine da área de membros: quem não comprou vê bloqueado,
  *  com botão de comprar. Público (só o que o checkout já mostra) e com cache na
- *  Vercel, para não virar uma leitura no Firestore a cada aluno que abre a área. */
+ *  Vercel, para não virar uma leitura no Firestore a cada aluno que abre a área.
+ *  Cada área mostra só os cursos dela. */
 async function actionMembersCatalog(req) {
-  const [rows, links] = await Promise.all([queryDocs('storeProducts', [['status', 'active']]), getDoc('storeSettings/links')])
+  const [area, rows, links] = await Promise.all([areaFromQuery(req), queryDocs('storeProducts', [['status', 'active']]), getDoc('storeSettings/links')])
+  if (area.theme.showCatalog === false) return { products: [] }
   const domain = links.exists ? links.data().checkoutDomain : null
   const origin = publicOrigin(req)
   const products = rows
+    .filter((p) => (p.membersAreaId || null) === area.id)
     .filter((p) => p.members?.showInCatalog !== false)
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'))
     .map((p) => ({
@@ -230,6 +256,7 @@ async function actionOrder(req) {
     supportEmail: product.supportEmail || null,
     utm: cleanUtm(body.utm),
     tracking: trackingFromRequest(req, body.tracking),
+    privateTo: product.privateTo || null,
     createdAt: nowIso(),
     updatedAt: nowIso(),
   }
@@ -305,8 +332,10 @@ async function actionOrder(req) {
   if (order.status === 'approved') accessUrl = (await fulfillOrder(origin, orderId))?.accessUrl || null
   if (order.method === 'pix_manual') {
     const total = (amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    await notifyStaff('store_pix_pending', `Pix para conferir: ${buyer.name} gerou um Pix de ${total} (${description}) na ${order.pixAccountLabel || 'conta principal'}. Confira no banco e confirme na Loja, aba Vendas.`)
+    await notifyStaff('store_pix_pending', `Pix para conferir: ${buyer.name} gerou um Pix de ${total} (${description}) na ${order.pixAccountLabel || 'conta principal'}. Confira no banco e confirme na Loja, aba Vendas.`, 'Loja', { privateTo: order.privateTo })
   }
+  // Gerou o pedido e não pagou (Pix em aberto, cartão recusado): fica no carrinho abandonado com o pedido junto.
+  if (order.status !== 'approved') await saveAbandoned(product, buyer, { amount, utm: order.utm, orderId, orderStatus: order.status }).catch((err) => console.warn('[loja] carrinho:', err?.message))
 
   return {
     orderId,
@@ -317,6 +346,55 @@ async function actionOrder(req) {
     pix,
     accessUrl,
   }
+}
+
+/* -------------------------- carrinho abandonado -------------------------- */
+
+/** Grava (ou atualiza) o carrinho de quem preencheu os dados e ainda não pagou.
+ *  Um por pessoa e produto. Quem já comprou há pouco não volta pra lista. */
+async function saveAbandoned(product, buyer, extra = {}) {
+  const path = `storeAbandoned/${abandonedId(product.id, buyer.email)}`
+  const snap = await getDoc(path)
+  const prev = snap.exists ? snap.data() : null
+  if (prev?.recoveredAt && Date.now() - new Date(prev.recoveredAt).getTime() < 30 * 60_000) return
+  const now = nowIso()
+  const fresh = !prev || !!prev.recoveredAt
+  await setDoc(path, {
+    productId: product.id,
+    productName: product.name,
+    name: buyer.name || prev?.name || '',
+    email: buyer.email,
+    phone: buyer.phone || prev?.phone || null,
+    amount: Number(extra.amount ?? prev?.amount ?? product.price) || 0,
+    utm: extra.utm && Object.keys(extra.utm).length ? extra.utm : prev?.utm || {},
+    orderId: extra.orderId ?? (fresh ? null : prev?.orderId ?? null),
+    orderStatus: extra.orderStatus ?? (fresh ? null : prev?.orderStatus ?? null),
+    createdAt: fresh ? now : prev.createdAt,
+    updatedAt: now,
+    recoveredAt: null,
+    contactedAt: fresh ? null : prev?.contactedAt ?? null,
+    contactedBy: fresh ? null : prev?.contactedBy ?? null,
+    privateTo: product.privateTo || null,
+  })
+}
+
+/** O checkout manda nome e contato assim que a pessoa preenche (antes de pagar). */
+async function actionCheckoutLead(req) {
+  const body = req.body || {}
+  const product = await loadActiveProduct(String(body.slug || ''))
+  const raw = body.buyer || {}
+  const email = normalizeEmail(raw.email)
+  if (!isValidEmail(email)) return { ok: true }
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'sem-ip'
+  if (!(await rateLimit(`lead:${ip}`, 20, 15 * 60_000))) return { ok: true }
+  const buyer = {
+    name: String(raw.name || '').trim().slice(0, 120),
+    email,
+    phone: String(raw.phone || '').replace(/[^\d+]/g, '').slice(0, 20) || null,
+  }
+  const amount = Math.max(0, Math.min(Number(body.amount) || product.price, 10_000_000))
+  await saveAbandoned(product, buyer, { amount: Math.round(amount), utm: cleanUtm(body.utm) })
+  return { ok: true }
 }
 
 async function actionOrderStatus(req) {
@@ -392,7 +470,10 @@ async function actionMemberSendLink(req) {
   const uid = memberUidFor(email)
   const snap = await getDoc(`storeMembers/${uid}`)
   if (snap.exists) {
-    await sendLoginLinkEmail({ to: email, name: snap.data().name, accessUrl: await createAccessLink(publicOrigin(req), uid) })
+    // O link volta pra área em que a pessoa pediu (/membros ou /m/{slug}).
+    const area = req.body?.area ? await memberAreaBySlug(String(req.body.area)) : null
+    const base = area ? `/m/${area.slug}` : '/membros'
+    await sendLoginLinkEmail({ to: email, name: snap.data().name, accessUrl: await createAccessLink(publicOrigin(req), uid, base) })
   }
   return { ok: true, email: true }
 }
@@ -433,13 +514,15 @@ async function actionMemberPassword(req) {
   return { ok: true }
 }
 
-/** Compras do aluno logado (para a tela Meu perfil e o pedido de reembolso). */
-async function memberOrders(uid) {
+/** Compras do aluno logado (para a tela Meu perfil e o pedido de reembolso).
+ *  areaId: só as compras dos cursos daquela área (undefined = todas). */
+async function memberOrders(uid, areaId) {
   const rows = await queryDocs('storeOrders', [['memberUid', uid]])
   const out = []
   for (const o of rows) {
     if (o.test) continue
     const product = await getProduct(o.productId)
+    if (areaId !== undefined && (product?.membersAreaId || null) !== areaId) continue
     const days = Number(product?.checkout?.guaranteeDays) || 0
     const base = o.approvedAt ? new Date(o.approvedAt) : null
     const deadline = base && days ? new Date(base.getTime() + days * 86400_000) : null
@@ -453,6 +536,8 @@ async function memberOrders(uid) {
       canRequestRefund: o.status === 'approved' && !o.refundRequest && !!deadline && deadline.getTime() > Date.now(),
       refundRequestedAt: o.refundRequest?.requestedAt || null,
       supportEmail: product?.supportEmail || o.supportEmail || null,
+      // Reembolso na hora: produto com reembolso automático e pago pelo Mercado Pago (ou de graça).
+      autoRefund: product?.autoRefund === true && (!!o.mpPaymentId || !(o.amount > 0)),
     })
   }
   return out.sort((a, b) => String(b.approvedAt).localeCompare(String(a.approvedAt)))
@@ -496,7 +581,8 @@ async function actionMemberFile(req) {
 
 async function actionMemberOrders(req) {
   const uid = await requireMember(req)
-  return { orders: await memberOrders(uid) }
+  const area = req.query.area !== undefined ? await areaFromQuery(req) : null
+  return { orders: await memberOrders(uid, area ? area.id : undefined) }
 }
 
 async function actionMemberRefundRequest(req) {
@@ -506,17 +592,53 @@ async function actionMemberRefundRequest(req) {
   const mine = (await memberOrders(uid)).find((o) => o.orderId === orderId)
   if (!mine) throw new HttpError(404, 'Compra não encontrada')
   if (!mine.canRequestRefund) throw new HttpError(400, mine.refundRequestedAt ? 'O reembolso desta compra já foi pedido' : 'O prazo de garantia desta compra já acabou')
-  await updateDoc(`storeOrders/${orderId}`, { refundRequest: { reason, requestedAt: nowIso() }, updatedAt: nowIso() })
+  const refundRequest = { reason, requestedAt: nowIso() }
   const snap = await getDoc(`storeOrders/${orderId}`)
   const o = snap.data()
   const total = (o.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-  await notifyStaff('store_refund_request', `Pedido de reembolso: ${o.buyer?.name} pediu reembolso de ${o.items.map((i) => i.name).join(' + ')} (${total}).${reason ? ` Motivo: ${reason}` : ''}`)
-  return { ok: true }
+  const what = o.items.map((i) => i.name).join(' + ')
+
+  // Reembolso automático (ligado no produto): dentro da garantia o dinheiro volta na hora.
+  if (mine.autoRefund) {
+    try {
+      await refundOrder(orderId, 'Reembolso automático (garantia)', { refundRequest, autoRefundedAt: nowIso() })
+      await notifyStaff('store_refund', `Reembolso automático: ${o.buyer?.name} pediu e recebeu de volta ${total} (${what}). O acesso foi removido.${reason ? ` Motivo: ${reason}` : ''}`, 'Loja', { privateTo: o.privateTo })
+      return { ok: true, refunded: true }
+    } catch (err) {
+      // MP recusou (ex.: saldo insuficiente): vira pedido manual pra equipe resolver.
+      console.warn('[loja] reembolso automático falhou:', orderId, err?.message)
+    }
+  }
+
+  await updateDoc(`storeOrders/${orderId}`, { refundRequest, updatedAt: nowIso() })
+  await notifyStaff('store_refund_request', `Pedido de reembolso: ${o.buyer?.name} pediu reembolso de ${what} (${total}).${reason ? ` Motivo: ${reason}` : ''}`, 'Loja', { privateTo: o.privateTo })
+  return { ok: true, refunded: false }
 }
 
 /* ------------------------------- equipe ------------------------------- */
 
+/* Produtos privados: as regras do Firestore só deixam ler privateTo == null ou == você,
+ * e o CRM consulta cada lado separado. Documento antigo sem o campo não aparece em
+ * nenhuma das duas consultas, então ganha privateTo: null uma vez (marca em storeSettings). */
+const PRIVACY_COLLECTIONS = ['storeProducts', 'storeOrders', 'storeCoupons']
+
+async function ensurePrivacyField() {
+  const flag = await getDoc('storeSettings/migrations')
+  if (flag.exists && flag.data().privateTo === true) return
+  for (const col of PRIVACY_COLLECTIONS) {
+    const rows = await listDocs(col)
+    await Promise.all(rows.filter((r) => r.privateTo === undefined).map((r) => updateDoc(`${col}/${r.id}`, { privateTo: null })))
+  }
+  await setDoc('storeSettings/migrations', { ...(flag.exists ? flag.data() : {}), privateTo: true, privateToAt: nowIso() })
+}
+
+/** Produto, pedido ou cupom privado de outra pessoa: responde como se não existisse. */
+function assertVisible(doc, user, what = 'Pedido') {
+  if (!doc || !visibleTo(doc, user.uid)) throw new HttpError(404, `${what} não encontrado`)
+}
+
 async function actionAdminStatus() {
+  await ensurePrivacyField().catch((err) => console.warn('[loja] migração privateTo:', err?.message))
   return {
     mercadoPago: mpConfigured(),
     pixManual: (await getPaymentSettings()).manualReady,
@@ -531,24 +653,29 @@ async function actionAdminGrant(req, user) {
   const productId = String(req.body?.productId || '')
   if (!isValidEmail(email)) throw new HttpError(400, 'E-mail inválido')
   const product = await getProduct(productId)
-  if (!product) throw new HttpError(404, 'Produto não encontrado')
+  assertVisible(product, user, 'Produto')
   const uid = await ensureMember({ email, name })
   await grantAccess({ uid, email, productId, source: 'manual', grantedBy: user.name })
-  return { uid, accessUrl: await createAccessLink(publicOrigin(req), uid) }
+  return { uid, accessUrl: await createAccessLink(publicOrigin(req), uid, await membersPathFor(productId)) }
 }
 
-async function actionAdminLink(req) {
+/** Link de acesso novo. productId (opcional) escolhe a área de membros do link. */
+async function actionAdminLink(req, user) {
   const uid = String(req.body?.uid || '')
   if (!/^m_[a-f0-9]{26}$/.test(uid)) throw new HttpError(400, 'Aluno inválido')
   const snap = await getDoc(`storeMembers/${uid}`)
   if (!snap.exists) throw new HttpError(404, 'Aluno não encontrado')
-  return { accessUrl: await createAccessLink(publicOrigin(req), uid) }
+  const productId = String(req.body?.productId || '')
+  if (productId) assertVisible(await getProduct(productId), user, 'Produto')
+  return { accessUrl: await createAccessLink(publicOrigin(req), uid, productId ? await membersPathFor(productId) : '/membros') }
 }
 
-async function actionAdminRevoke(req) {
+async function actionAdminRevoke(req, user) {
   const uid = String(req.body?.uid || '')
   const productId = String(req.body?.productId || '')
   if (!/^m_[a-f0-9]{26}$/.test(uid) || !productId) throw new HttpError(400, 'Dados inválidos')
+  const product = await getProduct(productId)
+  if (product) assertVisible(product, user, 'Produto')
   await revokeAccess(uid, productId)
   return { ok: true }
 }
@@ -589,6 +716,7 @@ async function actionAdminDeleteOrder(req, user) {
   const snap = await getDoc(`storeOrders/${orderId}`)
   if (!snap.exists) throw new HttpError(404, 'Pedido não encontrado')
   const order = snap.data()
+  assertVisible(order, user)
   if (order.invoice?.status === 'autorizado') throw new HttpError(400, 'Esse pedido tem nota fiscal emitida. Cancele a nota antes de excluir.')
 
   // Acessos liberados por este pedido (outro pedido do mesmo aluno continua valendo).
@@ -628,14 +756,10 @@ async function actionAdminRefund(req, user) {
   const snap = await getDoc(`storeOrders/${orderId}`)
   if (!snap.exists) throw new HttpError(404, 'Pedido não encontrado')
   const order = snap.data()
+  assertVisible(order, user)
   if (order.status !== 'approved') throw new HttpError(400, 'Só dá pra reembolsar pedido aprovado')
-  if (order.mpPaymentId && mpConfigured()) await refundPayment(order.mpPaymentId)
-  await updateDoc(`storeOrders/${orderId}`, { status: 'refunded', refundedAt: nowIso(), refundedBy: user.name, updatedAt: nowIso() })
   // Pix direto: o dinheiro é devolvido pela equipe no app do banco (o sistema só registra e remove o acesso).
-  await cancelInvoice(orderId).catch((err) => console.warn('[loja] cancelar nota falhou:', err?.message))
-  for (const pid of order.productIds || []) {
-    if (order.memberUid) await revokeAccess(order.memberUid, pid).catch(() => {})
-  }
+  await refundOrder(orderId, user.name)
   return { ok: true }
 }
 
@@ -644,6 +768,7 @@ async function actionAdminConfirm(req, user) {
   const snap = await getDoc(`storeOrders/${orderId}`)
   if (!snap.exists) throw new HttpError(404, 'Pedido não encontrado')
   const order = snap.data()
+  assertVisible(order, user)
   // Pix direto expirado (7 dias sem confirmação) ainda pode ser confirmado se o dinheiro caiu.
   const expiredPix = order.status === 'refused' && !!order.expiredAt
   if (order.status !== 'pending' && !expiredPix) throw new HttpError(400, 'Esse pedido não está aguardando pagamento')
@@ -656,6 +781,8 @@ async function actionAdminConfirm(req, user) {
 /** Confere no Mercado Pago os pedidos pendentes (o CRM chama ao abrir as Vendas;
  *  cobre webhook que não chegou). Limitado a 1x a cada 2 min. */
 async function actionAdminReconcile(req) {
+  // O app do celular não chama admin-status: a migração do privateTo roda aqui também.
+  await ensurePrivacyField().catch((err) => console.warn('[loja] migração privateTo:', err?.message))
   if (!(await rateLimit('admin-reconcile', 1, 2 * 60_000))) return { skipped: true }
   return reconcilePendingOrders(publicOrigin(req), 25)
 }
@@ -664,6 +791,7 @@ async function actionAdminCancel(req, user) {
   const orderId = String(req.body?.orderId || '')
   const snap = await getDoc(`storeOrders/${orderId}`)
   if (!snap.exists) throw new HttpError(404, 'Pedido não encontrado')
+  assertVisible(snap.data(), user)
   if (snap.data().status !== 'pending') throw new HttpError(400, 'Esse pedido não está aguardando pagamento')
   await updateDoc(`storeOrders/${orderId}`, { status: 'refused', cancelledBy: user.name, updatedAt: nowIso() })
   return { ok: true }
@@ -717,10 +845,51 @@ async function actionAdminInvoiceToken(req, user) {
   return { ok: true }
 }
 
-async function actionAdminInvoiceEmit(req) {
+async function actionAdminInvoiceEmit(req, user) {
   const orderId = String(req.body?.orderId || '')
   if (!/^ord_[A-Za-z0-9]{6,40}$/.test(orderId)) throw new HttpError(400, 'Pedido inválido')
+  const snap = await getDoc(`storeOrders/${orderId}`)
+  assertVisible(snap.exists ? snap.data() : null, user)
+  if (snap.data().privateTo) throw new HttpError(400, 'Produto privado não emite nota no CNPJ da empresa')
   return { invoice: await emitInvoice(orderId, { force: true }) }
+}
+
+/* ------------------------------- privados ------------------------------- */
+
+/** Liga/desliga "só eu vejo" num produto. Leva junto os pedidos, cupons e carrinhos
+ *  dele, pra que nada do produto apareça pro resto da equipe. */
+async function actionAdminSetPrivate(req, user) {
+  const productId = String(req.body?.productId || '')
+  const on = req.body?.private === true
+  const product = await getProduct(productId)
+  assertVisible(product, user, 'Produto')
+  const privateTo = on ? user.uid : null
+  await updateDoc(`storeProducts/${productId}`, { privateTo, updatedAt: new Date(), updatedBy: user.uid })
+  const [orders, coupons, carts] = await Promise.all([
+    queryDocs('storeOrders', [['productId', productId]]),
+    queryDocs('storeCoupons', [['productId', productId]]),
+    queryDocs('storeAbandoned', [['productId', productId]]),
+  ])
+  await Promise.all([
+    ...orders.map((o) => updateDoc(`storeOrders/${o.id}`, { privateTo })),
+    ...coupons.map((c) => updateDoc(`storeCoupons/${c.id}`, { privateTo })),
+    ...carts.map((c) => updateDoc(`storeAbandoned/${c.id}`, { privateTo })),
+  ])
+  return { ok: true, privateTo, moved: { orders: orders.length, coupons: coupons.length, carts: carts.length } }
+}
+
+/** Carrinho abandonado: marcar como contatado (ou desmarcar) e apagar. */
+async function actionAdminAbandoned(req, user) {
+  const id = String(req.body?.id || '')
+  if (!/^[A-Za-z0-9_-]{5,100}$/.test(id)) throw new HttpError(400, 'Carrinho inválido')
+  const snap = await getDoc(`storeAbandoned/${id}`)
+  assertVisible(snap.exists ? snap.data() : null, user, 'Carrinho')
+  const op = String(req.body?.op || '')
+  if (op === 'delete') await deleteDoc(`storeAbandoned/${id}`)
+  else if (op === 'contacted') await updateDoc(`storeAbandoned/${id}`, { contactedAt: nowIso(), contactedBy: user.name })
+  else if (op === 'uncontacted') await updateDoc(`storeAbandoned/${id}`, { contactedAt: null, contactedBy: null })
+  else throw new HttpError(400, 'Ação inválida')
+  return { ok: true }
 }
 
 async function actionAdminInvoiceSync(req) {
@@ -769,6 +938,7 @@ const PUBLIC = {
   'GET members-theme': actionMembersTheme,
   'GET members-catalog': actionMembersCatalog,
   'POST coupon': actionCoupon,
+  'POST checkout-lead': actionCheckoutLead,
   'POST order': actionOrder,
   'GET order': actionOrderStatus,
   'POST webhook': actionWebhook,
@@ -808,6 +978,8 @@ const ADMIN = {
   'POST admin-capi-token': actionAdminCapiToken,
   'POST admin-capi-test': actionAdminCapiTest,
   'POST admin-invoice-emit': actionAdminInvoiceEmit,
+  'POST admin-set-private': actionAdminSetPrivate,
+  'POST admin-abandoned': actionAdminAbandoned,
   'POST admin-invoice-sync': actionAdminInvoiceSync,
   'GET admin-push-key': actionAdminPushKey,
   'POST admin-push-subscribe': actionAdminPushSubscribe,

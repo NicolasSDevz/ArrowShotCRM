@@ -48,6 +48,19 @@ import { MembersLessonPage } from './pages/store/members/MembersLessonPage'
 
 /** Domínio curto do checkout (pay., checkout., compra. ou loja.): o link fica
  *  pay.seudominio.com.br/nome-do-produto, sem o /pay. Mesmo app, mesma API. */
+/** Telas do aluno, iguais em todas as áreas de membros. Função (e não componente)
+ *  porque o <Routes> só aceita <Route> direto. */
+function membersRoutes() {
+  return [
+    <Route key="home" index element={<MembersHomePage />} />,
+    <Route key="login" path="login" element={<MembersLoginPage />} />,
+    <Route key="entrar" path="entrar" element={<MembersEnterPage />} />,
+    <Route key="perfil" path="perfil" element={<MembersProfilePage />} />,
+    <Route key="curso" path="curso/:productId" element={<MembersCoursePage />} />,
+    <Route key="aula" path="curso/:productId/aula/:lessonId" element={<MembersLessonPage />} />,
+  ]
+}
+
 const CHECKOUT_HOST = typeof window !== 'undefined' && /^(pay|checkout|compra|loja)\./i.test(window.location.hostname)
 
 function App() {
@@ -73,14 +86,9 @@ function App() {
           <Route path="/pay/:slug/obrigado" element={<CheckoutThanksPage />} />
           {CHECKOUT_HOST && <Route path="/:slug" element={<CheckoutPage />} />}
           {CHECKOUT_HOST && <Route path="/:slug/obrigado" element={<CheckoutThanksPage />} />}
-          <Route path="/membros" element={<MembersLayout />}>
-            <Route index element={<MembersHomePage />} />
-            <Route path="login" element={<MembersLoginPage />} />
-            <Route path="entrar" element={<MembersEnterPage />} />
-            <Route path="perfil" element={<MembersProfilePage />} />
-            <Route path="curso/:productId" element={<MembersCoursePage />} />
-            <Route path="curso/:productId/aula/:lessonId" element={<MembersLessonPage />} />
-          </Route>
+          {/* Área de membros principal em /membros; as extras (ex.: outro negócio) em /m/{slug} */}
+          <Route path="/membros" element={<MembersLayout />}>{membersRoutes()}</Route>
+          <Route path="/m/:area" element={<MembersLayout />}>{membersRoutes()}</Route>
           {/* App do celular: só a Loja, sem o menu do CRM */}
           <Route
             path="/app"

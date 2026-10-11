@@ -98,8 +98,9 @@ async function staffToken() {
   return user.getIdToken()
 }
 
-/* área de membros: visual (público) */
-export const fetchMembersTheme = () => call<Partial<import('../types/store').StoreMembersTheme>>('members-theme')
+/* área de membros: visual (público). area = slug de /m/{slug}; vazio = principal (/membros). */
+export const fetchMembersTheme = (area?: string | null) =>
+  call<Partial<import('../types/store').StoreMembersTheme> & { areaId: string | null }>('members-theme', { params: area ? { area } : {} })
 
 /** Produtos no ar para mostrar bloqueados na área de membros (com botão de comprar). */
 export interface MembersCatalogItem {
@@ -111,17 +112,19 @@ export interface MembersCatalogItem {
   comparePrice: number | null
   buyUrl: string
 }
-export const fetchMembersCatalog = () => call<{ products: MembersCatalogItem[] }>('members-catalog')
+export const fetchMembersCatalog = (area?: string | null) => call<{ products: MembersCatalogItem[] }>('members-catalog', { params: area ? { area } : {} })
 
 /* checkout público */
 export const fetchCheckout = (slug: string) => call<PublicCheckout>('checkout', { params: { slug } })
 export const checkCoupon = (slug: string, code: string) => call<{ code: string; percent: number }>('coupon', { body: { slug, code } })
 export const createOrder = (body: unknown) => call<OrderResult>('order', { body })
+/** Nome e contato de quem está no checkout (vira carrinho abandonado se não pagar). */
+export const sendCheckoutLead = (body: unknown) => call<{ ok: true }>('checkout-lead', { body })
 export const fetchOrderStatus = (id: string, key: string) => call<OrderStatus>('order', { params: { id, key } })
 
 /* alunos */
 /** Pede um link de acesso novo por e-mail. email: false = o envio de e-mail não está configurado. */
-export const memberSendLink = (email: string) => call<{ ok: true; email: boolean }>('member-send-link', { body: { email } })
+export const memberSendLink = (email: string, area?: string | null) => call<{ ok: true; email: boolean }>('member-send-link', { body: { email, area: area || null } })
 export const memberEnter = (code: string) => call<{ token: string; hasPassword: boolean }>('member-enter', { body: { code } })
 export const memberLogin = (email: string, password: string) => call<{ token: string; hasPassword: boolean }>('member-login', { body: { email, password } })
 export interface MemberOrder {
@@ -134,10 +137,13 @@ export interface MemberOrder {
   canRequestRefund: boolean
   refundRequestedAt: string | null
   supportEmail: string | null
+  /** O dinheiro volta na hora ao pedir (reembolso automático do produto). */
+  autoRefund?: boolean
 }
-export async function memberOrders() {
+/** area: só as compras dos cursos da área aberta ('' = principal). */
+export async function memberOrders(area: string) {
   const token = await membersAuth.currentUser?.getIdToken()
-  return call<{ orders: MemberOrder[] }>('member-orders', { token })
+  return call<{ orders: MemberOrder[] }>('member-orders', { token, params: { area } })
 }
 /** Baixa um PDF protegido (vem carimbado com os dados do aluno). */
 export async function memberDownloadFile(productId: string, lessonId: string, index: number, fallbackName: string) {
@@ -164,7 +170,7 @@ export async function storeSealFile(url: string) {
 }
 export async function memberRefundRequest(orderId: string, reason: string) {
   const token = await membersAuth.currentUser?.getIdToken()
-  return call<{ ok: true }>('member-refund-request', { body: { orderId, reason }, token })
+  return call<{ ok: true; refunded: boolean }>('member-refund-request', { body: { orderId, reason }, token })
 }
 export async function memberSetPassword(password: string) {
   const token = await membersAuth.currentUser?.getIdToken()
@@ -178,8 +184,16 @@ export async function storeAdminStatus() {
 export async function storeGrantAccess(email: string, name: string, productId: string) {
   return call<{ uid: string; accessUrl: string }>('admin-grant', { body: { email, name, productId }, token: await staffToken() })
 }
-export async function storeAccessLink(uid: string) {
-  return call<{ accessUrl: string }>('admin-link', { body: { uid }, token: await staffToken() })
+/** productId: o link abre na área de membros desse produto. */
+export async function storeAccessLink(uid: string, productId?: string) {
+  return call<{ accessUrl: string }>('admin-link', { body: { uid, productId: productId || null }, token: await staffToken() })
+}
+/** Liga/desliga "só eu vejo" (leva pedidos, cupons e carrinhos do produto junto). */
+export async function storeSetPrivate(productId: string, isPrivate: boolean) {
+  return call<{ ok: true; privateTo: string | null; moved: { orders: number; coupons: number; carts: number } }>('admin-set-private', { body: { productId, private: isPrivate }, token: await staffToken() })
+}
+export async function storeAbandonedAction(id: string, op: 'contacted' | 'uncontacted' | 'delete') {
+  return call<{ ok: true }>('admin-abandoned', { body: { id, op }, token: await staffToken() })
 }
 export async function storeRevokeAccess(uid: string, productId: string) {
   return call<{ ok: true }>('admin-revoke', { body: { uid, productId }, token: await staffToken() })

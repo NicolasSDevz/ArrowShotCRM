@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { memberOrders, memberRefundRequest, type MemberOrder } from '../../../services/storeApi'
+import { useMembers } from './MembersContext'
 import { formatCents } from '../../../types/store'
 
 const STATUS: Record<MemberOrder['status'], string> = {
@@ -11,6 +12,7 @@ const STATUS: Record<MemberOrder['status'], string> = {
 
 /** "Minhas compras" no perfil do aluno, com o pedido de reembolso dentro da garantia. */
 export function MyPurchases() {
+  const { area } = useMembers()
   const [orders, setOrders] = useState<MemberOrder[] | null>(null)
   const [error, setError] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
@@ -19,7 +21,7 @@ export function MyPurchases() {
   const [status, setStatus] = useState('')
 
   const load = () =>
-    memberOrders()
+    memberOrders(area ?? '')
       .then((r) => setOrders(r.orders))
       .catch((err: Error) => setError(err.message))
 
@@ -31,8 +33,12 @@ export function MyPurchases() {
     setBusy(true)
     setStatus('')
     try {
-      await memberRefundRequest(orderId, reason)
-      setStatus('Pedido de reembolso enviado. A equipe vai analisar e devolver o valor pelo mesmo meio de pagamento.')
+      const r = await memberRefundRequest(orderId, reason)
+      setStatus(
+        r.refunded
+          ? 'Reembolso feito. O valor volta pelo mesmo meio de pagamento (no cartão pode levar até 2 faturas para aparecer).'
+          : 'Pedido de reembolso enviado. A equipe vai analisar e devolver o valor pelo mesmo meio de pagamento.'
+      )
       setOpenId(null)
       setReason('')
       await load()
@@ -78,7 +84,7 @@ export function MyPurchases() {
                 </label>
                 <div className="flex gap-2">
                   <button disabled={busy} onClick={() => send(o.orderId)} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-60">
-                    {busy ? 'Enviando...' : 'Confirmar pedido de reembolso'}
+                    {busy ? 'Enviando...' : o.autoRefund ? 'Confirmar reembolso' : 'Confirmar pedido de reembolso'}
                   </button>
                   <button onClick={() => setOpenId(null)} className="rounded-lg px-3 py-1.5 text-xs text-[var(--m-muted)] hover:bg-[var(--m-soft)]">Cancelar</button>
                 </div>

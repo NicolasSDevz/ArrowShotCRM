@@ -15,7 +15,7 @@ import { Spinner } from '../../../components/ui/FullPageSpinner'
 export function MembersLessonPage() {
   const { productId, lessonId } = useParams()
   const navigate = useNavigate()
-  const { member, loading: membersLoading } = useMembers()
+  const { member, loading: membersLoading, base } = useMembers()
   const { product, enrollment, modules, lessons, completed, percent, progress, loading, setCompleted, setLastLesson, rate } = useCourse(productId)
   const [announce, setAnnounce] = useState('')
   const [openModule, setOpenModule] = useState<string | null>(null)
@@ -43,9 +43,9 @@ export function MembersLessonPage() {
   }, [lesson, setLastLesson])
 
   if (membersLoading) return null
-  if (!product) return <Navigate to="/membros" replace />
+  if (!product) return <Navigate to={base} replace />
   if (loading) return <div className="p-10"><Spinner className="h-6 w-6" /></div>
-  if (!lesson) return <Navigate to={`/membros/curso/${product.id}`} replace />
+  if (!lesson) return <Navigate to={`${base}/curso/${product.id}`} replace />
 
   const color = accent
   const locked = lockOf(lesson)
@@ -60,7 +60,7 @@ export function MembersLessonPage() {
   const toggleDone = async () => {
     await setCompleted(lesson.id, !done)
     setAnnounce(done ? 'Aula marcada como não concluída' : 'Aula concluída')
-    if (!done && next && !lockOf(next)) navigate(`/membros/curso/${product.id}/aula/${next.id}`)
+    if (!done && next && !lockOf(next)) navigate(`${base}/curso/${product.id}/aula/${next.id}`)
   }
 
   return (
@@ -68,7 +68,7 @@ export function MembersLessonPage() {
       <p className="sr-only" aria-live="polite">{announce}</p>
       <div className="min-w-0">
         <nav aria-label="Caminho" className="mb-3 flex items-center gap-1 text-sm text-[var(--m-muted)]">
-          <Link to={`/membros/curso/${product.id}`} className="hover:text-[var(--m-text)]">{product.name}</Link>
+          <Link to={`${base}/curso/${product.id}`} className="hover:text-[var(--m-text)]">{product.name}</Link>
           <ChevronRight size={14} aria-hidden="true" />
           <span>{module?.title}</span>
         </nav>
@@ -155,12 +155,12 @@ export function MembersLessonPage() {
           </div>
           <div className="ml-auto flex gap-2">
             {prev && (
-              <Link to={`/membros/curso/${product.id}/aula/${prev.id}`} className="flex items-center gap-1 rounded-lg border border-[var(--m-border)] px-3 py-2 text-sm hover:bg-[var(--m-soft)]">
+              <Link to={`${base}/curso/${product.id}/aula/${prev.id}`} className="flex items-center gap-1 rounded-lg border border-[var(--m-border)] px-3 py-2 text-sm hover:bg-[var(--m-soft)]">
                 <ChevronLeft size={16} aria-hidden="true" /> Anterior
               </Link>
             )}
             {next && (
-              <Link to={`/membros/curso/${product.id}/aula/${next.id}`} className="flex items-center gap-1 rounded-lg border border-[var(--m-border)] px-3 py-2 text-sm hover:bg-[var(--m-soft)]">
+              <Link to={`${base}/curso/${product.id}/aula/${next.id}`} className="flex items-center gap-1 rounded-lg border border-[var(--m-border)] px-3 py-2 text-sm hover:bg-[var(--m-soft)]">
                 Próxima <ChevronRight size={16} aria-hidden="true" />
               </Link>
             )}
@@ -244,7 +244,7 @@ export function MembersLessonPage() {
                       return (
                         <li key={l.id}>
                           <Link
-                            to={`/membros/curso/${product.id}/aula/${l.id}`}
+                            to={`${base}/curso/${product.id}/aula/${l.id}`}
                             aria-current={current ? 'page' : undefined}
                             className={`flex items-center gap-2.5 px-4 py-2.5 text-sm ${current ? 'bg-[var(--m-soft2)] text-[var(--m-text)]' : 'text-[var(--m-text2)] hover:bg-[var(--m-soft)]'}`}
                           >

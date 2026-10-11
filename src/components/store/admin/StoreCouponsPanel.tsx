@@ -29,7 +29,7 @@ export function StoreCouponsPanel({ coupons, products }: { coupons: StoreCoupon[
     setBusy(true)
     try {
       await createStoreCoupon(
-        { code, percent: pct, productId: productId || null, active: true, maxUses: maxUses ? Number(maxUses) : null, uses: 0, expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : null },
+        { code, percent: pct, productId: productId || null, privateTo: products.find((p) => p.id === productId)?.privateTo ?? null, active: true, maxUses: maxUses ? Number(maxUses) : null, uses: 0, expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : null },
         profile.id
       )
       setCode('')

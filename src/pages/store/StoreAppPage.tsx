@@ -1,7 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { AlertCircle, Ban, Banknote, CheckCircle2, Copy, Home, LogOut, Receipt, RotateCcw, Settings, Store, Trash2 } from 'lucide-react'
+import { AlertCircle, Ban, Banknote, BarChart3, CheckCircle2, Copy, Home, LogOut, Receipt, RotateCcw, Settings, ShoppingCart, Store, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { useStoreOrders } from '../../hooks/useStore'
+import { useStoreAbandoned, useStoreOrders, useStoreProducts } from '../../hooks/useStore'
+import { StoreOverview } from '../../components/store/admin/StoreOverview'
+import { StoreAbandonedPanel } from '../../components/store/admin/StoreAbandonedPanel'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Field'
 import { FullPageSpinner } from '../../components/ui/FullPageSpinner'
@@ -9,7 +11,7 @@ import { PushNotificationsCard } from '../../components/notifications/PushNotifi
 import { OrderStatusBadge, useOrderActions, useReconcilePending } from '../../components/store/admin/StoreOrdersTable'
 import { formatCents, STORE_METHOD_LABEL, type StoreOrder, type StoreOrderStatus } from '../../types/store'
 
-type Tab = 'home' | 'sales' | 'settings'
+type Tab = 'home' | 'sales' | 'metrics' | 'carts' | 'settings'
 
 const DAY = 86_400_000
 const startOfToday = () => {
@@ -25,6 +27,8 @@ const needsAction = (o: StoreOrder) =>
  *  Loja, vendas e o que precisa de ação. O CRM completo fica no computador. */
 export function StoreAppPage() {
   const { data: orders, loading } = useStoreOrders()
+  const { data: products } = useStoreProducts()
+  const { data: abandoned } = useStoreAbandoned()
   const [tab, setTab] = useState<Tab>('home')
   useReconcilePending(orders)
 
@@ -33,6 +37,8 @@ export function StoreAppPage() {
   const tabs: { key: Tab; label: string; icon: ReactNode }[] = [
     { key: 'home', label: 'Resumo', icon: <Home size={20} /> },
     { key: 'sales', label: 'Vendas', icon: <Receipt size={20} /> },
+    { key: 'metrics', label: 'Métricas', icon: <BarChart3 size={20} /> },
+    { key: 'carts', label: 'Carrinhos', icon: <ShoppingCart size={20} /> },
     { key: 'settings', label: 'Ajustes', icon: <Settings size={20} /> },
   ]
   const pending = orders.filter(needsAction).length
@@ -47,6 +53,8 @@ export function StoreAppPage() {
       <main className="flex-1 px-4 py-4" style={{ paddingBottom: 'calc(88px + env(safe-area-inset-bottom))' }}>
         {tab === 'home' && <HomeTab orders={orders} onSeeAll={() => setTab('sales')} />}
         {tab === 'sales' && <SalesTab orders={orders} />}
+        {tab === 'metrics' && <StoreOverview orders={orders} products={products} abandoned={abandoned} compact />}
+        {tab === 'carts' && <StoreAbandonedPanel carts={abandoned} compact />}
         {tab === 'settings' && <SettingsTab />}
       </main>
 

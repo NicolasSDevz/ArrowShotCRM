@@ -9,6 +9,7 @@ import {
   CopyPlus,
   ExternalLink,
   FileText,
+  Lock,
   MessageSquare,
   Package,
   Palette,
@@ -16,13 +17,14 @@ import {
   Plus,
   Receipt,
   ShoppingBag,
+  ShoppingCart,
   Store,
   Ticket,
   Users,
   Wallet,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { useStoreComments, useStoreCoupons, useStoreEnrollments, useStoreMembers, useStoreOrders, useStoreProducts, useStoreProgress } from '../../hooks/useStore'
+import { useStoreAbandoned, useStoreComments, useStoreCoupons, useStoreEnrollments, useStoreMembers, useStoreOrders, useStoreProducts, useStoreProgress } from '../../hooks/useStore'
 import { createStoreProduct } from '../../services/storeService'
 import { storeAdminStatus } from '../../services/storeApi'
 import { Tabs } from '../../components/ui/Tabs'
@@ -41,6 +43,7 @@ import { StorePaymentSettingsPanel } from '../../components/store/admin/StorePay
 import { StoreInvoicePanel } from '../../components/store/admin/StoreInvoicePanel'
 import { DuplicateProductModal } from '../../components/store/admin/DuplicateProductModal'
 import { StoreMembersThemePanel } from '../../components/store/admin/StoreMembersThemePanel'
+import { StoreAbandonedPanel } from '../../components/store/admin/StoreAbandonedPanel'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { formatCents, type StoreOrder, type StoreProduct } from '../../types/store'
 
@@ -54,11 +57,12 @@ const STATUS_LABEL: Record<StoreProduct['status'], { text: string; cls: string }
 export function StorePage() {
   const { data: products, loading } = useStoreProducts()
   const { data: orders } = useStoreOrders()
-  const { data: members } = useStoreMembers()
-  const { data: enrollments } = useStoreEnrollments()
-  const { data: progress } = useStoreProgress()
+  const { data: allMembers } = useStoreMembers()
+  const { data: allEnrollments } = useStoreEnrollments()
+  const { data: allProgress } = useStoreProgress()
   const { data: coupons } = useStoreCoupons()
-  const { data: comments } = useStoreComments()
+  const { data: allComments } = useStoreComments()
+  const { data: abandoned } = useStoreAbandoned()
   const [status, setStatus] = useState<Awaited<ReturnType<typeof storeAdminStatus>> | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -68,11 +72,22 @@ export function StorePage() {
 
   if (loading) return <FullPageSpinner />
 
+  // Produto privado de outra pessoa não vem do banco; o que é derivado dele (alunos,
+  // acessos, progresso, comentários) é tirado aqui pela lista de produtos visíveis.
+  const visible = new Set(products.map((p) => p.id))
+  const enrollments = allEnrollments.filter((e) => visible.has(e.productId))
+  const progress = allProgress.filter((p) => visible.has(p.productId))
+  const comments = allComments.filter((c) => visible.has(c.productId))
+  const enrolledAnywhere = new Set(allEnrollments.map((e) => e.uid))
+  const enrolledVisible = new Set(enrollments.map((e) => e.uid))
+  const members = allMembers.filter((m) => enrolledVisible.has(m.id) || !enrolledAnywhere.has(m.id))
+
   const lessonCounts = Object.fromEntries(products.map((p) => [p.id, p.lessonCount ?? 0]))
   const pendingComments = comments.filter((c) => c.status === 'pending').length
   const pixToConfirm = orders.filter((o) => o.status === 'pending' && o.method === 'pix_manual').length
   const refundRequests = orders.filter((o) => o.status === 'approved' && o.refundRequest).length
   const salesBadges = [pixToConfirm && `${pixToConfirm} Pix para confirmar`, refundRequests && `${refundRequests} reembolso pedido`].filter(Boolean).join(', ')
+  const openCarts = abandoned.filter((a) => !a.recoveredAt && !a.contactedAt && Date.now() - new Date(a.updatedAt).getTime() > 15 * 60_000).length
 
   // Resumo do topo: últimos 30 dias, sem pedidos de teste.
   const since = Date.now() - 30 * 86_400_000
@@ -138,10 +153,11 @@ export function StorePage() {
         <Tabs
           label="Seções da loja"
           tabs={[
-            { icon: <BarChart3 size={ico} />, label: 'Visão geral', content: <StoreOverview orders={orders} products={products} /> },
+            { icon: <BarChart3 size={ico} />, label: 'Visão geral', content: <StoreOverview orders={orders} products={products} abandoned={abandoned} /> },
             { icon: <Package size={ico} />, label: `Produtos (${products.length})`, content: <ProductsGrid products={products} orders={orders} onCreate={() => setCreating(true)} /> },
             { icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel /> },
             { icon: <Receipt size={ico} />, label: salesBadges ? `Vendas (${salesBadges})` : 'Vendas', content: <StoreOrdersTable orders={orders} products={products} /> },
+            { icon: <ShoppingCart size={ico} />, label: openCarts ? `Abandonados (${openCarts})` : 'Abandonados', content: <StoreAbandonedPanel carts={abandoned} /> },
             { icon: <Users size={ico} />, label: `Alunos (${members.length})`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} /> },
             { icon: <Ticket size={ico} />, label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} /> },
             { icon: <MessageSquare size={ico} />, label: pendingComments ? `Comentários (${pendingComments} novos)` : 'Comentários', content: <StoreCommentsPanel comments={comments} products={products} />, secondary: true },
@@ -252,6 +268,11 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
                     </div>
                   )}
                   <Badge className={`absolute left-3 top-3 shadow-sm ${STATUS_LABEL[p.status].cls}`}>{STATUS_LABEL[p.status].text}</Badge>
+                  {p.privateTo && (
+                    <Badge className="absolute right-3 top-3 gap-1 bg-navy-950/80 text-white shadow-sm" title="Só você vê este produto">
+                      <Lock size={11} aria-hidden="true" /> Só eu vejo
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex flex-1 flex-col gap-3 p-4">
                   <h3 className="line-clamp-2 font-semibold leading-snug text-slate-800 group-hover:text-brand-700">{p.name}</h3>
@@ -294,6 +315,7 @@ function NewProductModal({ open, onClose }: { open: boolean; onClose: () => void
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
+  const [onlyMe, setOnlyMe] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const submit = async (e: FormEvent) => {
@@ -302,10 +324,11 @@ function NewProductModal({ open, onClose }: { open: boolean; onClose: () => void
     const value = parseCurrencyToNumber(price) ?? 0
     setBusy(true)
     try {
-      const id = await createStoreProduct(name.trim(), Math.round(value * 100), profile.id)
+      const id = await createStoreProduct(name.trim(), Math.round(value * 100), profile.id, onlyMe)
       onClose()
       setName('')
       setPrice('')
+      setOnlyMe(false)
       navigate(`/loja/produtos/${id}`)
     } catch (err) {
       toast.error((err as Error).message)
@@ -319,6 +342,13 @@ function NewProductModal({ open, onClose }: { open: boolean; onClose: () => void
       <form onSubmit={submit} className="space-y-3">
         <Field label="Nome do produto" required><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Método de Tráfego para Limpeza" autoFocus /></Field>
         <Field label="Preço" required><Input inputMode="numeric" value={price} onChange={(e) => setPrice(maskCurrencyInput(e.target.value))} placeholder="R$ 0,00" /></Field>
+        <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+          <input type="checkbox" checked={onlyMe} onChange={(e) => setOnlyMe(e.target.checked)} className="mt-0.5 h-4 w-4" />
+          <span>
+            <span className="flex items-center gap-1.5 font-medium"><Lock size={13} aria-hidden="true" /> Só eu vejo</span>
+            <span className="block text-xs text-slate-400">O produto, as vendas, os cupons, os carrinhos e os alunos dele ficam escondidos do resto da equipe, e só você recebe os avisos. Dá pra mudar depois no produto.</span>
+          </span>
+        </label>
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button type="submit" loading={busy}>Criar e configurar</Button>

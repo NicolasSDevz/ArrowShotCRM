@@ -111,6 +111,8 @@ export interface StoreCheckoutDesign {
   /** Cantos dos cartões e botões. */
   radius?: 'square' | 'soft' | 'round'
   titleAlign?: 'left' | 'center'
+  /** Cor própria de cada parte do checkout. Vazio = segue a cor principal (ou a do texto). */
+  colors?: StoreCheckoutColors
   desktop?: {
     /** Largura da página no computador. */
     width?: 'narrow' | 'normal' | 'wide'
@@ -129,6 +131,28 @@ export interface StoreCheckoutDesign {
     /** Botão "Comprar" fixo no rodapé da tela enquanto rola. */
     stickyButton?: boolean
   }
+}
+
+export interface StoreCheckoutColors {
+  /** Botão de pagar (e o botão fixo do celular). */
+  button?: string
+  /** Preço no topo. */
+  price?: string
+  /** Títulos dos cartões (Seus dados, Pagamento...). */
+  title?: string
+  /** Ícones dos selos e dos benefícios. */
+  icon?: string
+  /** Borda da forma de pagamento escolhida (Pix / Cartão). */
+  method?: string
+  /** Order bump: borda e chamada. */
+  bumpBorder?: string
+  /** Order bump: fundo da caixa. */
+  bumpBg?: string
+  /** Order bump: texto (nome, descrição e preço). */
+  bumpText?: string
+  /** Order bump: faixa da caixinha de marcar. */
+  bumpCtaBg?: string
+  bumpCtaText?: string
 }
 
 export interface StoreCheckoutConfig {
@@ -202,6 +226,15 @@ export interface StoreProduct extends BaseDoc {
   members: StoreMembersConfig
   /** Total de aulas (mantido pelo editor de conteúdo) — usado no % dos alunos. */
   lessonCount?: number
+  /** Produto privado: só esta pessoa (uid) vê o produto, as vendas, os cupons e os
+   *  carrinhos abandonados dele, e só ela recebe os avisos. null = toda a equipe vê.
+   *  Muda só pelo servidor (storeSetPrivate), que leva junto pedidos e cupons. */
+  privateTo?: string | null
+  /** Área de membros onde o curso aparece. Vazio = área principal (/membros). */
+  membersAreaId?: string | null
+  /** Reembolso automático: o aluno pede dentro da garantia e o dinheiro volta na hora
+   *  (só cartão e Pix do Mercado Pago; Pix direto na conta continua manual). */
+  autoRefund?: boolean
 }
 
 export interface StoreModule {
@@ -298,6 +331,8 @@ export interface StoreOrder {
   approvedAt?: string
   refundedAt?: string
   refundedBy?: string
+  /** Copiado do produto: pedido de produto privado (ver StoreProduct.privateTo). */
+  privateTo?: string | null
   /** Pix direto que ninguém confirmou em 7 dias (ainda dá pra confirmar se o dinheiro caiu). */
   expiredAt?: string
   /** Resultado do envio da venda pela API de Conversões do Meta. */
@@ -312,6 +347,33 @@ export interface StoreCoupon extends BaseDoc {
   maxUses?: number | null
   uses?: number
   expiresAt?: string | null
+  /** Cupom de produto privado (some para o resto da equipe). */
+  privateTo?: string | null
+}
+
+/** Carrinho abandonado: a pessoa preencheu nome e contato no checkout e não pagou.
+ *  storeAbandoned/{productId}_{hash do e-mail}. Some quando a compra é aprovada. */
+export interface StoreAbandoned {
+  id: string
+  productId: string
+  productName: string
+  name: string
+  email: string
+  phone?: string | null
+  /** Valor que estava no carrinho (centavos). */
+  amount: number
+  utm?: Record<string, string>
+  /** Chegou a gerar um pedido (Pix sem pagar, cartão recusado). */
+  orderId?: string | null
+  orderStatus?: StoreOrderStatus | null
+  createdAt: string
+  updatedAt: string
+  /** Comprou depois: fica registrado como recuperado. */
+  recoveredAt?: string | null
+  /** A equipe marcou como contatado (WhatsApp/e-mail). */
+  contactedAt?: string | null
+  contactedBy?: string | null
+  privateTo?: string | null
 }
 
 export interface StoreMember {
@@ -450,6 +512,68 @@ export interface StoreMembersTheme {
   loginButtonText: string
   loginHelpText?: string
   supportWhatsapp?: string
+
+  /* --- Início da área (banner principal: é da área, não de um produto) --- */
+  /** Banner do topo do Início. Vazio = banner do primeiro curso do aluno (como antes). */
+  homeBannerUrl?: string | null
+  /** Banner só do celular (vazio = o de cima). */
+  homeBannerMobileUrl?: string | null
+  /** Título e texto do banner. Vazio = os do curso em destaque. */
+  homeTitle?: string
+  homeText?: string
+  /** Botão do banner: abre o curso em destaque. Texto vazio = "Começar"/"Continuar". */
+  homeButtonText?: string
+  /** Mostrar o "Olá, Maria!" em cima do título. Padrão: sim. */
+  homeGreeting?: boolean
+  homeBannerHeight?: 'small' | 'medium' | 'large'
+  /** Escurecer o banner (0 a 80%). */
+  homeOverlay?: number
+  /** Título e texto alinhados à esquerda ou no centro do banner. */
+  homeAlign?: 'left' | 'center'
+
+  /* --- Cursos --- */
+  /** Formato das capas: vertical (estilo Netflix), quadrada ou deitada. */
+  cardShape?: 'portrait' | 'square' | 'landscape'
+  /** Barrinha de progresso embaixo de cada capa. Padrão: sim. */
+  cardProgress?: boolean
+  /** Títulos das seções do Início (vazio = padrão). */
+  continueTitle?: string
+  coursesTitle?: string
+  catalogTitle?: string
+  /** Mostrar os outros cursos desta área bloqueados, com botão de comprar. Padrão: sim. */
+  showCatalog?: boolean
+
+  /* --- Cores e acabamento extras --- */
+  /** Cor dos textos (vazio = a do modo claro/escuro). */
+  textColor?: string | null
+  /** Cor do topo (menu). Vazio = fundo da área. */
+  headerColor?: string | null
+  /** Cantos de botões e capas. */
+  radius?: 'square' | 'soft' | 'round'
+  /** Texto do rodapé (ex.: CNPJ, contato). */
+  footerText?: string
+}
+
+/** Área de membros extra (storeMemberAreas/{id}): visual próprio, endereço próprio
+ *  (/m/{slug}) e só os cursos ligados a ela. A principal continua em
+ *  storeSettings/membersTheme, no endereço /membros. */
+export interface StoreMemberArea extends StoreMembersTheme {
+  id: string
+  /** Nome interno (só no CRM). */
+  name: string
+  /** Final do endereço: /m/{slug}. */
+  slug: string
+  /** Área privada: só esta pessoa vê no CRM (como os produtos privados). */
+  privateTo?: string | null
+  createdBy?: string
+  updatedBy?: string
+}
+
+export const MAIN_MEMBERS_AREA = 'principal'
+
+/** Caminho base de uma área: a principal fica em /membros, as outras em /m/{slug}. */
+export function membersBasePath(slug?: string | null) {
+  return slug ? `/m/${slug}` : '/membros'
 }
 
 export function defaultMembersTheme(): StoreMembersTheme {
@@ -495,7 +619,9 @@ export function membersThemeVars(t: StoreMembersTheme): Record<string, string> {
     '--m-bg': t.backgroundColor || base.bg,
     '--m-card': t.cardColor || base.card,
     '--m-card2': base.card2,
-    '--m-text': base.text,
+    '--m-text': t.textColor || base.text,
+    '--m-header': t.headerColor || `color-mix(in srgb, ${t.backgroundColor || base.bg} 90%, transparent)`,
+    '--m-radius': t.radius === 'square' ? '4px' : t.radius === 'round' ? '18px' : '10px',
     '--m-text2': base.text2,
     '--m-muted': base.muted,
     '--m-faint': base.faint,

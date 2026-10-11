@@ -11,13 +11,14 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
   type DocumentData,
   type FirestoreError,
   type Query,
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from 'firebase/storage'
-import { db, storage } from '../firebase/config'
+import { auth, db, storage } from '../firebase/config'
 import { collectionService } from './firestore'
 import { compressImageToDataUrl } from '../utils/imageToDataUrl'
 import {
@@ -35,6 +36,8 @@ import {
   type StorePaymentSettings,
   type StoreInvoiceSettings,
   type StoreMembersTheme,
+  type StoreMemberArea,
+  type StoreAbandoned,
 } from '../types/store'
 
 /** Telas da equipe (aba Loja do CRM). O que é dinheiro/acesso (pedidos,
@@ -47,6 +50,43 @@ type OnError = (err: FirestoreError) => void
 
 function listen<T>(q: Query<DocumentData>, onData: (items: T[]) => void, onError?: OnError) {
   return onSnapshot(q, (snap) => onData(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as T)), onError)
+}
+
+/** Data de criação em milissegundos (Timestamp do Firestore ou texto ISO). */
+function createdMs(x: { createdAt?: unknown }) {
+  const v = x.createdAt as { toMillis?: () => number } | string | undefined
+  if (!v) return Date.now() // recém-criado: serverTimestamp ainda não voltou
+  return typeof v === 'string' ? new Date(v).getTime() : v.toMillis?.() ?? 0
+}
+
+/* Produtos privados ("só eu vejo"): as regras só deixam ler o que é da equipe
+ * (privateTo == null) ou seu (privateTo == você). Uma consulta que pudesse trazer
+ * o privado de outra pessoa seria recusada inteira, então são duas, juntadas aqui,
+ * mais novos primeiro. */
+function listenVisible<T extends { id: string; createdAt?: unknown }>(name: string, onData: (items: T[]) => void, onError?: OnError) {
+  const uid = auth.currentUser?.uid
+  let shared: T[] | null = null
+  let mine: T[] = []
+  const emit = () => {
+    if (shared === null) return
+    onData([...shared, ...mine].sort((a, b) => createdMs(b) - createdMs(a)))
+  }
+  const stopShared = listen<T>(query(collection(db, name), where('privateTo', '==', null)), (items) => { shared = items; emit() }, onError)
+  const stopMine = uid ? listen<T>(query(collection(db, name), where('privateTo', '==', uid)), (items) => { mine = items; emit() }, onError) : () => {}
+  return () => {
+    stopShared()
+    stopMine()
+  }
+}
+
+/** Uma vez só (sem ficar ouvindo): o que a equipe vê + o que é seu. */
+async function getVisible(name: string) {
+  const uid = auth.currentUser?.uid
+  const [shared, mine] = await Promise.all([
+    getDocs(query(collection(db, name), where('privateTo', '==', null))),
+    uid ? getDocs(query(collection(db, name), where('privateTo', '==', uid))) : Promise.resolve(null),
+  ])
+  return [...shared.docs, ...(mine?.docs ?? [])]
 }
 
 /* ------------------------------ produtos ------------------------------ */
@@ -63,14 +103,17 @@ export function slugify(text: string) {
 }
 
 export function subscribeStoreProducts(onData: (items: StoreProduct[]) => void, onError?: OnError) {
-  return products.subscribe([orderBy('createdAt', 'desc')], onData, onError)
+  return listenVisible<StoreProduct>('storeProducts', onData, onError)
 }
 
-export async function createStoreProduct(name: string, price: number, userId: string) {
+/** onlyMe: nasce privado (só quem criou vê). */
+export async function createStoreProduct(name: string, price: number, userId: string, onlyMe = false) {
   return products.create(
     {
       name,
       slug: slugify(name),
+      privateTo: onlyMe ? userId : null,
+      membersAreaId: null,
       status: 'draft',
       description: '',
       imageUrl: null,
@@ -138,7 +181,9 @@ export async function duplicateStoreProduct(source: StoreProduct, name: string, 
 }
 
 export async function updateStoreProduct(id: string, data: Partial<StoreProduct>, userId: string) {
-  await products.update(id, data, userId)
+  // privateTo muda só pelo servidor (storeSetPrivate); as regras recusam se vier aqui diferente.
+  const { privateTo: _p, ...rest } = data
+  await products.update(id, rest, userId)
   if ('imageUrl' in data || 'checkout' in data || 'members' in data) cleanupStoreImages(id)
 }
 
@@ -204,15 +249,18 @@ export async function swapStoreOrder(productId: string, sub: 'modules' | 'lesson
 /* ------------------------------- cupons ------------------------------- */
 
 export function subscribeStoreCoupons(onData: (items: StoreCoupon[]) => void, onError?: OnError) {
-  return coupons.subscribe([orderBy('createdAt', 'desc')], onData, onError)
+  return listenVisible<StoreCoupon>('storeCoupons', onData, onError)
 }
 
+/** Cupom de produto privado nasce privado também (some pro resto da equipe). */
 export function createStoreCoupon(data: Omit<StoreCoupon, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'>, userId: string) {
-  return coupons.create({ ...data, code: data.code.trim().toUpperCase() }, userId)
+  return coupons.create({ ...data, privateTo: data.privateTo ?? null, code: data.code.trim().toUpperCase() }, userId)
 }
 
+/** privateTo nunca vai junto: quem muda é o servidor (as regras recusam). */
 export function updateStoreCoupon(id: string, data: Partial<StoreCoupon>, userId: string) {
-  return coupons.update(id, data, userId)
+  const { privateTo: _p, ...rest } = data
+  return coupons.update(id, rest, userId)
 }
 
 export function deleteStoreCoupon(id: string) {
@@ -222,7 +270,11 @@ export function deleteStoreCoupon(id: string) {
 /* ---------------------- pedidos, alunos e progresso ---------------------- */
 
 export function subscribeStoreOrders(onData: (items: StoreOrder[]) => void, onError?: OnError) {
-  return listen<StoreOrder>(query(collection(db, 'storeOrders'), orderBy('createdAt', 'desc'), limit(1000)), onData, onError)
+  return listenVisible<StoreOrder>('storeOrders', onData, onError)
+}
+
+export function subscribeStoreAbandoned(onData: (items: StoreAbandoned[]) => void, onError?: OnError) {
+  return listenVisible<StoreAbandoned>('storeAbandoned', onData, onError)
 }
 
 export function subscribeStoreMembers(onData: (items: StoreMember[]) => void, onError?: OnError) {
@@ -302,6 +354,42 @@ export async function saveStoreMembersTheme(data: StoreMembersTheme, userId: str
   cleanupStoreImages('tema')
 }
 
+/* ----------------------- áreas de membros extras ----------------------- */
+
+export function subscribeStoreMemberAreas(onData: (items: StoreMemberArea[]) => void, onError?: OnError) {
+  return listenVisible<StoreMemberArea>('storeMemberAreas', onData, onError)
+}
+
+/** Cria uma área nova com o visual de partida (cópia do tema passado). */
+export async function createStoreMemberArea(name: string, slug: string, base: StoreMembersTheme, onlyMe: boolean, userId: string) {
+  const ref = await addDoc(collection(db, 'storeMemberAreas'), {
+    ...base,
+    brandName: name,
+    name,
+    slug,
+    privateTo: onlyMe ? userId : null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    createdBy: userId,
+    updatedBy: userId,
+  })
+  return ref.id
+}
+
+export async function saveStoreMemberArea(id: string, data: Partial<StoreMemberArea>, userId: string) {
+  const { id: _id, createdBy: _c, ...rest } = data as StoreMemberArea & { createdAt?: unknown }
+  delete (rest as { createdAt?: unknown }).createdAt
+  await updateDoc(doc(db, 'storeMemberAreas', id), { ...rest, updatedAt: serverTimestamp(), updatedBy: userId })
+  cleanupStoreImages(`area-${id}`)
+}
+
+/** Exclui a área; os cursos dela voltam pra área principal (senão sumiriam das duas). */
+export async function deleteStoreMemberArea(id: string) {
+  const prods = await getVisible('storeProducts')
+  await Promise.all(prods.filter((p) => p.data().membersAreaId === id).map((p) => updateDoc(p.ref, { membersAreaId: null, updatedAt: serverTimestamp(), updatedBy: auth.currentUser?.uid ?? '' })))
+  await deleteDoc(doc(db, 'storeMemberAreas', id))
+}
+
 /* -------------------------------- imagens -------------------------------- */
 
 /** Sobe uma imagem da loja (capa, banner, imagens do checkout) para o Storage
@@ -348,9 +436,9 @@ export async function cleanupStoreImages(folder: string) {
     const { items } = await listAll(ref(storage, `store/${folder}`))
     const candidates = items.filter((i) => !pendingUploads.has(i.fullPath))
     if (!candidates.length) return
-    const [prods, settings] = await Promise.all([getDocs(collection(db, 'storeProducts')), getDocs(collection(db, 'storeSettings'))])
-    const mods = await Promise.all(prods.docs.map((p) => getDocs(collection(db, 'storeProducts', p.id, 'modules'))))
-    const used = JSON.stringify([...prods.docs, ...settings.docs, ...mods.flatMap((m) => m.docs)].map((d) => d.data()))
+    const [prods, settings, areas] = await Promise.all([getVisible('storeProducts'), getDocs(collection(db, 'storeSettings')), getVisible('storeMemberAreas')])
+    const mods = await Promise.all(prods.map((p) => getDocs(collection(db, 'storeProducts', p.id, 'modules'))))
+    const used = JSON.stringify([...prods, ...settings.docs, ...areas, ...mods.flatMap((m) => m.docs)].map((d) => d.data()))
     const stale = candidates.filter((i) => !used.includes(encodeURIComponent(i.fullPath)))
     await Promise.all(stale.map((i) => deleteObject(i).catch(() => {})))
   } catch (err) {

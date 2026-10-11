@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, BadgeCheck, Check, CreditCard, Headphones, Infinity as InfinityIcon, Lock, QrCode, ShieldCheck, Star, Ticket, UserCheck, Zap, type LucideIcon } from 'lucide-react'
-import { checkCoupon, createOrder, type PublicCheckout } from '../../services/storeApi'
+import { checkCoupon, createOrder, sendCheckoutLead, type PublicCheckout } from '../../services/storeApi'
 import { maskDocument, maskPhone } from '../../utils/masks'
 import { trackMetaPixel } from '../../utils/metaPixel'
 import { checkoutSeals, formatCents, sealCopy, type StoreSealKey } from '../../types/store'
@@ -62,6 +62,22 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const pixPct = data.pixDiscountPercent || 0
   const pixOff = method === 'pix' && pixPct ? Math.round(subtotal * (pixPct / 100)) : 0
   const total = subtotal - pixOff
+
+  // Carrinho abandonado: com nome e e-mail válidos, manda o contato (1,5 s depois de parar
+  // de digitar). Se a pessoa não pagar, aparece em Loja > Abandonados pra chamar no WhatsApp.
+  const sentLead = useRef('')
+  useEffect(() => {
+    if (preview) return
+    const cleanEmail = email.trim().toLowerCase()
+    if (name.trim().length < 3 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) return
+    const key = `${name.trim()}|${cleanEmail}|${phone.replace(/\D/g, '')}`
+    if (key === sentLead.current) return
+    const t = setTimeout(() => {
+      sentLead.current = key
+      sendCheckoutLead({ slug: data.slug, buyer: { name: name.trim(), email: cleanEmail, phone }, amount: total, utm: readUtms() }).catch(() => {})
+    }, 1500)
+    return () => clearTimeout(t)
+  }, [preview, name, email, phone, total, data.slug])
 
   useEffect(() => {
     if (!preview && c.fbPixelId) trackMetaPixel('InitiateCheckout', { value: data.price / 100, currency: 'BRL', content_name: data.name })
@@ -128,7 +144,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
       containerId: brickId,
       amountCents: total,
       maxInstallments: data.maxInstallments,
-      color: c.primaryColor,
+      color: c.design?.colors?.button || c.primaryColor,
       onSubmit: (d) => submitCardRef.current(d),
       onError: (m) => setError(m),
     })
@@ -141,7 +157,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
       cancelled = true
       controller?.unmount()
     }
-  }, [preview, method, total, data.gateway.publicKey, data.maxInstallments, c.primaryColor, brickId])
+  }, [preview, method, total, data.gateway.publicKey, data.maxInstallments, c.primaryColor, c.design?.colors?.button, brickId])
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -188,7 +204,17 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const cardBg = d.cardColor || '#ffffff'
   const textColor = readableOn(d.textColor || '#0f172a', cardBg)
   const pageText = readableOn(d.textColor || '#0f172a', c.backgroundColor)
-  const btnText = readableOn(d.buttonTextColor || '#ffffff', color, 2.5)
+  // Cada parte pode ter a sua cor; vazio segue a cor principal.
+  const k = d.colors ?? {}
+  const btnColor = k.button || color
+  const btnText = readableOn(d.buttonTextColor || '#ffffff', btnColor, 2.5)
+  const priceColor = k.price || color
+  const iconColor = k.icon || color
+  const methodColor = k.method || color
+  const titleStyle = k.title ? { color: readableOn(k.title, cardBg) } : undefined
+  const bumpColor = k.bumpBorder || color
+  const bumpCtaBg = k.bumpCtaBg || '#f8fafc'
+  const bumpCtaText = readableOn(k.bumpCtaText || '#1e293b', bumpCtaBg)
   const radius = d.radius === 'square' ? '4px' : d.radius === 'round' ? '22px' : '12px'
   const cardStyle = { background: cardBg, color: textColor, borderRadius: radius }
   const btnAnim = d.buttonAnimation && d.buttonAnimation !== 'none' ? `lf-anim lf-anim-${d.buttonAnimation}` : ''
@@ -213,11 +239,11 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   // Lateral: um cartão por selo, todos do mesmo tamanho, um embaixo do outro.
   const sealCards = sealsAt !== 'button' && seals.map((x, i) => (
     <section key={`seal-${i}`} className="flex min-h-[92px] items-center gap-4 p-5 shadow-sm" style={cardStyle}>
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in srgb, ${color} 14%, transparent)` }} aria-hidden="true">
-        <x.icon size={24} style={{ color }} />
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in srgb, ${iconColor} 14%, transparent)` }} aria-hidden="true">
+        <x.icon size={24} style={{ color: iconColor }} />
       </span>
       <div className="min-w-0">
-        <h2 className="font-semibold leading-snug">{x.title}</h2>
+        <h2 className="font-semibold leading-snug" style={titleStyle}>{x.title}</h2>
         {x.text && <p className="mt-0.5 text-sm leading-snug opacity-70">{x.text}</p>}
       </div>
     </section>
@@ -227,7 +253,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5" aria-label="Garantias da compra">
       {seals.map((x, i) => (
         <li key={i} className="flex items-center gap-1.5 text-xs font-semibold opacity-80">
-          <x.icon size={14} style={{ color }} aria-hidden="true" />
+          <x.icon size={14} style={{ color: iconColor }} aria-hidden="true" />
           {x.title}
         </li>
       ))}
@@ -245,9 +271,16 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
       <label
         key={b.productId}
         className={`block cursor-pointer border-2 border-dashed p-4 ${!on && b.animation && !['none', 'arrow', 'blink'].includes(b.animation) ? `ob-anim ob-${b.animation}` : ''}`}
-        style={{ borderColor: on ? color : '#cbd5e1', background: on ? `color-mix(in srgb, ${color} 8%, transparent)` : 'transparent', borderRadius: radius, ['--ob' as string]: color }}
+        style={{
+          // Com fundo próprio a borda fica cheia mesmo desmarcado (senão o cinza some no fundo colorido).
+          borderColor: on || k.bumpBg ? bumpColor : '#cbd5e1',
+          background: k.bumpBg || (on ? `color-mix(in srgb, ${bumpColor} 8%, transparent)` : 'transparent'),
+          color: k.bumpText ? readableOn(k.bumpText, k.bumpBg || cardBg) : undefined,
+          borderRadius: radius,
+          ['--ob' as string]: bumpColor,
+        }}
       >
-        <p className={`text-sm font-bold uppercase tracking-wide ${!on && b.animation === 'blink' ? 'ob-anim ob-blink' : ''}`} style={{ color }}>{b.headline}</p>
+        <p className={`text-sm font-bold uppercase tracking-wide ${!on && b.animation === 'blink' ? 'ob-anim ob-blink' : ''}`} style={{ color: bumpColor }}>{b.headline}</p>
         <div className="mt-2 flex gap-3">
           {b.imageUrl && <img src={b.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />}
           <div className="min-w-0 text-sm opacity-90">
@@ -259,14 +292,14 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
             </p>
           </div>
         </div>
-        <span className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
-          {!on && b.animation === 'arrow' && <ArrowRight size={18} className="ob-anim ob-arrow shrink-0" style={{ color }} aria-hidden="true" />}
+        <span className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold" style={{ background: bumpCtaBg, color: bumpCtaText }}>
+          {!on && b.animation === 'arrow' && <ArrowRight size={18} className="ob-anim ob-arrow shrink-0" style={{ color: bumpColor }} aria-hidden="true" />}
           <input
             type="checkbox"
             checked={on}
             onChange={() => setBumps((prev) => (on ? prev.filter((x) => x !== b.productId) : [...prev, b.productId]))}
             className="h-5 w-5"
-            style={{ accentColor: color }}
+            style={{ accentColor: bumpColor }}
           />
           {b.cta}
         </span>
@@ -285,6 +318,14 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     )
   }
 
+  // Lateral vazia no computador (ex.: selos só no botão e sem benefícios): o formulário
+  // fica sozinho e centralizado, em vez de colado à esquerda com um buraco à direita.
+  const showSideImages = !(mobile && mb.hideSideImages) && c.sideImages.length > 0
+  const showTestimonials = !(mobile && mb.hideTestimonials) && c.testimonials.length > 0
+  const hasSide = cdPos === 'side' || data.bumps.some((b) => bumpPos(b) === 'side') || showSideImages || c.benefits.length > 0 || (sealsAt !== 'button' && seals.length > 0) || showTestimonials
+  const layout = !mobile && !hasSide ? 'single' : side
+  const pageWidth = layout === 'single' ? 'max-w-2xl' : width
+
   const countdownBox = cd && secondsLeft !== null && (
     <div className="px-4 py-3 text-center" style={{ background: cd.color, color: cd.textColor, borderRadius: radius }} role="timer" aria-label={`${cd.text}: ${formatClock(secondsLeft)}`}>
       <span className="block text-3xl font-bold tabular-nums">{formatClock(secondsLeft)}</span>
@@ -299,10 +340,10 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
       {!(mobile && mb.hideSideImages) && c.sideImages.map((src, i) => <img key={i} src={src} alt="" className="w-full" style={{ borderRadius: radius }} />)}
       {c.benefits.length > 0 && (
         <section className="p-5 shadow-sm" style={cardStyle}>
-          <h2 className="mb-3 text-base font-semibold">O que você recebe</h2>
+          <h2 className="mb-3 text-base font-semibold" style={titleStyle}>O que você recebe</h2>
           <ul className="space-y-2 text-sm opacity-90">
             {c.benefits.map((b, i) => (
-              <li key={i} className="flex gap-2"><Check size={18} className="shrink-0" style={{ color }} aria-hidden="true" />{b}</li>
+              <li key={i} className="flex gap-2"><Check size={18} className="shrink-0" style={{ color: iconColor }} aria-hidden="true" />{b}</li>
             ))}
           </ul>
         </section>
@@ -328,9 +369,9 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
             <section className={`flex items-center gap-4 p-4 shadow-sm ${d.titleAlign === 'center' ? 'flex-col text-center' : ''}`} style={cardStyle}>
               {data.imageUrl && <img src={data.imageUrl} alt="" className="h-20 w-20 shrink-0 object-cover" style={{ borderRadius: radius }} />}
               <div className="min-w-0">
-                <h1 className="text-xl font-bold leading-tight">{c.headline || data.name}</h1>
+                <h1 className="text-xl font-bold leading-tight" style={titleStyle}>{c.headline || data.name}</h1>
                 {c.subheadline && <p className="mt-1 text-sm opacity-70">{c.subheadline}</p>}
-                <p className="mt-2 text-lg font-bold" style={{ color }}>
+                <p className="mt-2 text-lg font-bold" style={{ color: priceColor }}>
                   {data.comparePrice && data.comparePrice > data.price && (
                     <span className="mr-2 text-sm font-normal line-through opacity-50" style={{ color: textColor }}>{formatCents(data.comparePrice)}</span>
                   )}
@@ -349,7 +390,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
 
             {/* Dados */}
             <section className="space-y-3 p-5 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-dados`}>
-              <h2 id={`${uid}-dados`} className="text-base font-semibold">Seus dados</h2>
+              <h2 id={`${uid}-dados`} className="text-base font-semibold" style={titleStyle}>Seus dados</h2>
               <label className="block">
                 <span className={labelCls}>Nome completo</span>
                 <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
@@ -390,11 +431,11 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
 
             {/* Pagamento */}
             <section className="space-y-4 p-5 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-pag`}>
-              <h2 id={`${uid}-pag`} className="text-base font-semibold">Pagamento</h2>
+              <h2 id={`${uid}-pag`} className="text-base font-semibold" style={titleStyle}>Pagamento</h2>
               {methods.length === 0 ? (
                 <p className="text-sm text-amber-700">Nenhuma forma de pagamento disponível. Fale com o vendedor.</p>
               ) : (
-                <div role="radiogroup" aria-label="Forma de pagamento" className="flex flex-wrap gap-2">
+                <div role="radiogroup" aria-label="Forma de pagamento" className={`grid gap-2 ${methods.length > 1 ? 'grid-cols-2' : ''}`}>
                   {methods.map((m) => (
                     <button
                       key={m}
@@ -402,8 +443,8 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                       role="radio"
                       aria-checked={method === m}
                       onClick={() => setMethod(m)}
-                      className={`flex items-center gap-2 rounded-lg border-2 px-4 py-2.5 text-sm font-medium ${method === m ? '' : 'border-black/10 opacity-70'}`}
-                      style={method === m ? { borderColor: color } : undefined}
+                      className={`flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-3 text-sm font-medium ${method === m ? '' : 'border-black/10 opacity-70'}`}
+                      style={method === m ? { borderColor: methodColor, background: `color-mix(in srgb, ${methodColor} 6%, transparent)` } : undefined}
                     >
                       {m === 'pix' ? <QrCode size={18} /> : m === 'card' ? <CreditCard size={18} /> : <Check size={18} />}
                       {m === 'pix' ? 'Pix' : m === 'card' ? 'Cartão de crédito' : 'Modo teste'}
@@ -472,7 +513,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                   type="submit"
                   disabled={busy}
                   className={`flex h-14 w-full items-center justify-center gap-2 text-lg font-bold shadow-md transition hover:brightness-110 disabled:opacity-60 ${btnAnim}`}
-                  style={{ background: color, color: btnText, borderRadius: radius }}
+                  style={{ background: btnColor, color: btnText, borderRadius: radius }}
                 >
                   <Lock size={18} /> {submitLabel}
                 </button>
@@ -495,10 +536,12 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
         </div>
       )}
 
-      <div className={`mx-auto px-4 py-6 ${width} ${sticky ? 'pb-24' : ''}`}>
+      <div className={`mx-auto px-4 py-6 ${pageWidth} ${sticky ? 'pb-24' : ''}`}>
         {header && <img src={header} alt="" className="mb-5 w-full object-cover" style={{ borderRadius: radius }} />}
 
-        {side === 'below' ? (
+        {layout === 'single' ? (
+          form
+        ) : side === 'below' ? (
           <div className="space-y-6">
             {mobile && mb.sideFirst ? <>{sideColumn}{form}</> : <>{form}{sideColumn}</>}
           </div>
@@ -521,7 +564,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
             onClick={() => formRef.current?.requestSubmit()}
             disabled={busy}
             className={`flex h-12 w-full items-center justify-center gap-2 font-bold disabled:opacity-60 ${btnAnim}`}
-            style={{ background: color, color: btnText, borderRadius: radius }}
+            style={{ background: btnColor, color: btnText, borderRadius: radius }}
           >
             <Lock size={16} /> {submitLabel} · {formatCents(total)}
           </button>

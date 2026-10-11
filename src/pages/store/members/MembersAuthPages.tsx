@@ -21,10 +21,10 @@ function AuthCard({ title, children }: { title: string; children: React.ReactNod
 
 /** /membros/login — e-mail e senha (a senha é criada pelo aluno no primeiro acesso). */
 export function MembersLoginPage() {
-  const { user, loading, signInWithToken, theme } = useMembers()
+  const { user, loading, signInWithToken, theme, base, area } = useMembers()
   const navigate = useNavigate()
 
-  if (!loading && user) return <Navigate to="/membros" replace />
+  if (!loading && user) return <Navigate to={base} replace />
 
   return (
     <MembersLoginView
@@ -32,9 +32,9 @@ export function MembersLoginPage() {
       onLogin={async (email, password) => {
         const { token } = await memberLogin(email, password)
         await signInWithToken(token)
-        navigate('/membros', { replace: true })
+        navigate(base, { replace: true })
       }}
-      onSendLink={async (email) => (await memberSendLink(email)).email}
+      onSendLink={async (email) => (await memberSendLink(email, area)).email}
     />
   )
 }
@@ -42,7 +42,7 @@ export function MembersLoginPage() {
 /** /membros/entrar?code= — link de acesso que sai na compra ou que a equipe gera no CRM. */
 export function MembersEnterPage() {
   const [params] = useSearchParams()
-  const { signInWithToken } = useMembers()
+  const { signInWithToken, base } = useMembers()
   const navigate = useNavigate()
   const [error, setError] = useState('')
   const started = useRef(false)
@@ -54,17 +54,17 @@ export function MembersEnterPage() {
     memberEnter(code)
       .then(async ({ token, hasPassword }) => {
         await signInWithToken(token)
-        navigate(hasPassword ? '/membros' : '/membros?bemvindo=1', { replace: true })
+        navigate(hasPassword ? base : `${base}?bemvindo=1`, { replace: true })
       })
       .catch((err: Error) => setError(err.message))
-  }, [params, signInWithToken, navigate])
+  }, [params, signInWithToken, navigate, base])
 
   return (
     <AuthCard title={error ? 'Não deu certo' : 'Entrando...'}>
       {error ? (
         <>
           <p role="alert" className="text-sm text-red-400">{error}</p>
-          <Link to="/membros/login" className="mt-4 inline-block text-sm text-[var(--m-primary)] hover:underline">Entrar com e-mail e senha ou pedir um link novo</Link>
+          <Link to={`${base}/login`} className="mt-4 inline-block text-sm text-[var(--m-primary)] hover:underline">Entrar com e-mail e senha ou pedir um link novo</Link>
         </>
       ) : (
         <p className="flex items-center gap-2 text-sm text-[var(--m-muted)]" aria-live="polite"><Spinner className="h-4 w-4" /> Liberando o seu acesso</p>

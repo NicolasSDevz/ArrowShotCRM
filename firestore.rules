@@ -559,16 +559,51 @@ service cloud.firestore {
     // (/api/loja, service account). A equipe (admin/gerente) cuida de
     // produtos, aulas e cupons; o aluno lê o que comprou e grava o próprio
     // progresso e comentários.
+    // Privado ("só eu vejo"): privateTo = uid da dona. null = toda a equipe.
+    // Leitura compara o campo direto (o CRM consulta privateTo == null e == você
+    // separado, e as regras precisam provar cada consulta). Mudar privateTo só pelo
+    // servidor (/api/loja admin-set-private), que leva pedidos e cupons junto.
+    function mineOrShared(data) {
+      return data.privateTo == null || data.privateTo == request.auth.uid;
+    }
+    // Documento único (update/delete): doc antigo sem o campo conta como da equipe.
+    function ownOrShared(data) {
+      return data.get('privateTo', null) == null || data.get('privateTo', null) == request.auth.uid;
+    }
+    function keepsPrivacy() {
+      return request.resource.data.get('privateTo', null) == resource.data.get('privateTo', null);
+    }
+    function newPrivacyOk() {
+      return request.resource.data.get('privateTo', null) == null || request.resource.data.privateTo == request.auth.uid;
+    }
+    function productMineOrShared(productId) {
+      return ownOrShared(get(/databases/$(database)/documents/storeProducts/$(productId)).data);
+    }
+
     match /storeProducts/{productId} {
-      allow read: if isAdminOrManager() || memberEnrolled(productId);
-      allow create: if isAdminOrManager() && createdBySelf() && updatedBySelf();
-      allow update: if isAdminOrManager() && updatedBySelf();
-      allow delete: if isAdminOrManager();
+      allow read: if (isAdminOrManager() && mineOrShared(resource.data)) || memberEnrolled(productId);
+      allow create: if isAdminOrManager() && createdBySelf() && updatedBySelf() && newPrivacyOk();
+      allow update: if isAdminOrManager() && updatedBySelf() && ownOrShared(resource.data) && keepsPrivacy();
+      allow delete: if isAdminOrManager() && ownOrShared(resource.data);
 
       match /{sub}/{itemId} {
-        allow read: if (sub == 'modules' || sub == 'lessons') && (isAdminOrManager() || memberEnrolled(productId));
-        allow write: if (sub == 'modules' || sub == 'lessons') && isAdminOrManager();
+        allow read: if (sub == 'modules' || sub == 'lessons') && ((isAdminOrManager() && productMineOrShared(productId)) || memberEnrolled(productId));
+        allow write: if (sub == 'modules' || sub == 'lessons') && isAdminOrManager() && productMineOrShared(productId);
       }
+    }
+
+    // Áreas de membros extras (/m/{slug}). A principal é storeSettings/membersTheme.
+    match /storeMemberAreas/{areaId} {
+      allow read: if isAdminOrManager() && mineOrShared(resource.data);
+      allow create: if isAdminOrManager() && createdBySelf() && updatedBySelf() && newPrivacyOk();
+      allow update: if isAdminOrManager() && updatedBySelf() && ownOrShared(resource.data) && newPrivacyOk();
+      allow delete: if isAdminOrManager() && ownOrShared(resource.data);
+    }
+
+    // Carrinhos abandonados: gravados só pelo servidor (checkout e /api/loja).
+    match /storeAbandoned/{cartId} {
+      allow read: if isAdminOrManager() && mineOrShared(resource.data);
+      allow write: if false;
     }
 
     // Recebimento (Pix direto na conta): só admin/gerente; o backend lê via service account.
@@ -581,14 +616,14 @@ service cloud.firestore {
     }
 
     match /storeCoupons/{couponId} {
-      allow read: if isAdminOrManager();
-      allow create: if isAdminOrManager() && createdBySelf() && updatedBySelf();
-      allow update: if isAdminOrManager() && updatedBySelf();
-      allow delete: if isAdminOrManager();
+      allow read: if isAdminOrManager() && mineOrShared(resource.data);
+      allow create: if isAdminOrManager() && createdBySelf() && updatedBySelf() && newPrivacyOk();
+      allow update: if isAdminOrManager() && updatedBySelf() && ownOrShared(resource.data) && keepsPrivacy();
+      allow delete: if isAdminOrManager() && ownOrShared(resource.data);
     }
 
     match /storeOrders/{orderId} {
-      allow read: if isAdminOrManager();
+      allow read: if isAdminOrManager() && mineOrShared(resource.data);
       allow write: if false;
     }
 

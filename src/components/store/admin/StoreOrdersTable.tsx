@@ -100,7 +100,7 @@ export function useOrderActions() {
   // Link novo na hora: o salvo no pedido vence 30 dias depois do primeiro uso.
   const copyAccess = async (o: StoreOrder) => {
     try {
-      const url = o.memberUid ? (await storeAccessLink(o.memberUid)).accessUrl : o.accessUrl!
+      const url = o.memberUid ? (await storeAccessLink(o.memberUid, o.productId)).accessUrl : o.accessUrl!
       await copyText(url, 'Link de acesso copiado')
     } catch (err) {
       toast.error((err as Error).message)
