@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import toast from 'react-hot-toast'
-import { Eye, ExternalLink, Home, LayoutDashboard, Lock, LogIn, Moon, Plus, Sun, Trash2, Users } from 'lucide-react'
+import { Eye, ExternalLink, Home, LayoutDashboard, Lock, LogIn, Moon, Plus, Sun, Trash2 } from 'lucide-react'
 import { storePreviewAsMember } from '../../../services/storeApi'
 import { useAuth } from '../../../context/AuthContext'
 import { auth } from '../../../firebase/config'
@@ -169,7 +169,7 @@ export function StoreMembersThemePanel() {
     if (!profile || !area) return
     try {
       await saveStoreMemberArea(area.id, { privateTo: area.privateTo ? null : profile.id }, profile.id)
-      toast.success(area.privateTo ? 'A equipe volta a ver esta área' : 'Agora só você vê esta área no CRM')
+      toast.success(area.privateTo ? 'Visível pra equipe' : 'Privada')
     } catch (err) {
       toast.error((err as Error).message)
     }
@@ -436,9 +436,18 @@ export function StoreMembersThemePanel() {
         {area && (
           <div className="flex w-full flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs">
             <span className="text-slate-500">Os cursos entram nesta área pelo produto (aba Área de membros).</span>
-            {canPrivate && <button type="button" onClick={togglePrivate} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-slate-600 hover:bg-slate-100">
-              {area.privateTo ? <><Users size={13} aria-hidden="true" /> Mostrar para a equipe</> : <><Lock size={13} aria-hidden="true" /> Só eu vejo</>}
-            </button>}
+            {canPrivate && (
+              <button
+                type="button"
+                onClick={togglePrivate}
+                title={area.privateTo ? 'Privada: só você vê. Clique pra mostrar pra equipe.' : 'Deixar a área privada'}
+                aria-label={area.privateTo ? 'Área privada. Mostrar para a equipe' : 'Deixar a área privada'}
+                aria-pressed={!!area.privateTo}
+                className={`ml-auto flex h-7 w-7 items-center justify-center rounded-lg ${area.privateTo ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}
+              >
+                <Lock size={13} />
+              </button>
+            )}
             <button type="button" onClick={removeArea} className={`${canPrivate ? '' : 'ml-auto '}inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-red-600 hover:bg-red-50`}>
               <Trash2 size={13} aria-hidden="true" /> Excluir área
             </button>
@@ -585,12 +594,9 @@ function NewAreaModal({ open, onClose, taken, base, onCreated }: { open: boolean
           </div>
         </Field>
         {canPrivate && (
-          <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
-            <input type="checkbox" checked={onlyMe} onChange={(e) => setOnlyMe(e.target.checked)} className="mt-0.5 h-4 w-4" />
-            <span>
-              <span className="flex items-center gap-1.5 font-medium"><Lock size={13} aria-hidden="true" /> Só eu vejo no CRM</span>
-              <span className="block text-xs text-slate-400">O resto da equipe não vê esta área na Loja.</span>
-            </span>
+          <label className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+            <input type="checkbox" checked={onlyMe} onChange={(e) => setOnlyMe(e.target.checked)} className="h-3.5 w-3.5" />
+            <Lock size={11} aria-hidden="true" /> Privada
           </label>
           )}
         <div className="flex justify-end gap-2 pt-1">

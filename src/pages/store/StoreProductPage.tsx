@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { subscribeStoreLinks, subscribeStorePaymentSettings } from '../../services/storeService'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Copy, CopyPlus, ExternalLink, Lock, Save, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Copy, CopyPlus, ExternalLink, Lock, Save, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { auth } from '../../firebase/config'
 import { useStoreMemberAreas, useStoreProducts } from '../../hooks/useStore'
@@ -124,14 +124,11 @@ export function StoreProductPage() {
   }
 
   const togglePrivate = async (on: boolean) => {
-    const msg = on
-      ? 'O produto, as vendas, os cupons, os carrinhos e os alunos dele somem para o resto da equipe, e só você recebe os avisos de venda. A nota fiscal automática não é emitida para ele.'
-      : 'Toda a equipe (admins e gerentes) volta a ver o produto, as vendas e os alunos dele, e recebe os avisos.'
-    if (!(await askConfirm({ title: on ? 'Deixar só você vendo?' : 'Mostrar para a equipe?', message: msg, confirmLabel: on ? 'Só eu vejo' : 'Mostrar para a equipe' }))) return
+    if (!(await askConfirm({ title: on ? 'Deixar privado?' : 'Mostrar para a equipe?', message: on ? 'Produto, vendas e alunos ficam só com você. Sem nota fiscal automática.' : 'A equipe volta a ver o produto e as vendas.', confirmLabel: on ? 'Deixar privado' : 'Mostrar' }))) return
     setPrivBusy(true)
     try {
       const r = await storeSetPrivate(server.id, on)
-      toast.success(on ? `Agora só você vê (${r.moved.orders} vendas junto)` : 'A equipe volta a ver este produto')
+      toast.success(on ? `Privado (${r.moved.orders} vendas junto)` : 'Visível pra equipe')
     } catch (err) {
       toast.error((err as Error).message)
     } finally {
@@ -218,21 +215,6 @@ export function StoreProductPage() {
           hint={`O aluno pede em Meu perfil e o dinheiro volta na hora pelo Mercado Pago, com o acesso removido (garantia de ${draft.checkout.guaranteeDays || 0} dias, muda na Configuração de tela). Pix direto na conta continua manual: o pedido chega pra você devolver pelo banco.`}
         />
       </section>
-      {(canUsePrivate(auth.currentUser?.email) || server.privateTo) && (
-      <section className={`${card} lg:col-span-2`}>
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold text-slate-800"><Lock size={15} aria-hidden="true" /> Quem vê este produto</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="min-w-0 flex-1 text-sm text-slate-600">
-            {server.privateTo
-              ? 'Só você. O resto da equipe não vê o produto, as vendas, os cupons, os carrinhos nem os alunos dele, e os avisos de venda chegam só pra você.'
-              : 'Toda a equipe da Loja (admins e gerentes) vê este produto e as vendas dele.'}
-          </p>
-          <Button variant="secondary" loading={privBusy} icon={server.privateTo ? <Users size={15} /> : <Lock size={15} />} onClick={() => togglePrivate(!server.privateTo)}>
-            {server.privateTo ? 'Mostrar para a equipe' : 'Só eu vejo'}
-          </Button>
-        </div>
-      </section>
-      )}
     </div>
   )
 
@@ -322,6 +304,20 @@ export function StoreProductPage() {
           <h1 className="truncate text-xl font-bold text-slate-900">{server.name}</h1>
           <p className="text-xs text-slate-500">{server.status === 'active' ? 'No ar' : server.status === 'draft' ? 'Rascunho' : 'Arquivado'}</p>
         </div>
+        {/* Só eu vejo: cadeado discreto, só aparece pra quem pode usar (ver PRIVATE_OWNER_EMAILS). */}
+        {canUsePrivate(auth.currentUser?.email) && (
+          <button
+            type="button"
+            disabled={privBusy}
+            onClick={() => togglePrivate(!server.privateTo)}
+            title={server.privateTo ? 'Privado: só você vê. Clique pra mostrar pra equipe.' : 'Deixar privado (só você vê)'}
+            aria-label={server.privateTo ? 'Produto privado. Mostrar para a equipe' : 'Deixar o produto privado'}
+            aria-pressed={!!server.privateTo}
+            className={`flex h-[38px] w-[38px] items-center justify-center rounded-lg transition disabled:opacity-50 ${server.privateTo ? 'bg-slate-800 text-white hover:bg-slate-700' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}
+          >
+            <Lock size={15} />
+          </button>
+        )}
         <Button
           variant="secondary"
           icon={<CopyPlus size={15} />}

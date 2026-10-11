@@ -270,9 +270,9 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
                   )}
                   <Badge className={`absolute left-3 top-3 shadow-sm ${STATUS_LABEL[p.status].cls}`}>{STATUS_LABEL[p.status].text}</Badge>
                   {p.privateTo && (
-                    <Badge className="absolute right-3 top-3 gap-1 bg-navy-950/80 text-white shadow-sm" title="Só você vê este produto">
-                      <Lock size={11} aria-hidden="true" /> Só eu vejo
-                    </Badge>
+                    <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white" title="Privado: só você vê" aria-label="Privado">
+                      <Lock size={11} aria-hidden="true" />
+                    </span>
                   )}
                 </div>
                 <div className="flex flex-1 flex-col gap-3 p-4">
@@ -346,12 +346,9 @@ function NewProductModal({ open, onClose }: { open: boolean; onClose: () => void
         <Field label="Nome do produto" required><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Método de Tráfego para Limpeza" autoFocus /></Field>
         <Field label="Preço" required><Input inputMode="numeric" value={price} onChange={(e) => setPrice(maskCurrencyInput(e.target.value))} placeholder="R$ 0,00" /></Field>
         {canPrivate && (
-          <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
-            <input type="checkbox" checked={onlyMe} onChange={(e) => setOnlyMe(e.target.checked)} className="mt-0.5 h-4 w-4" />
-            <span>
-              <span className="flex items-center gap-1.5 font-medium"><Lock size={13} aria-hidden="true" /> Só eu vejo</span>
-              <span className="block text-xs text-slate-400">O produto, as vendas, os cupons, os carrinhos e os alunos dele ficam escondidos do resto da equipe, e só você recebe os avisos. Dá pra mudar depois no produto.</span>
-            </span>
+          <label className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+            <input type="checkbox" checked={onlyMe} onChange={(e) => setOnlyMe(e.target.checked)} className="h-3.5 w-3.5" />
+            <Lock size={11} aria-hidden="true" /> Privado
           </label>
           )}
         <div className="flex justify-end gap-2 pt-1">
