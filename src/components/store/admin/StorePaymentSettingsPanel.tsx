@@ -5,7 +5,7 @@ import { Button } from '../../ui/Button'
 import { Field, Input, Select } from '../../ui/Field'
 import { saveStorePaymentSettings, subscribeStorePaymentSettings } from '../../../services/storeService'
 import { ChevronDown, Landmark, Plus, Trash2 } from 'lucide-react'
-import { PIX_KEY_TYPE_LABEL, type PixKeyType, type StorePaymentSettings, type StorePixAccount, type StoreProduct } from '../../../types/store'
+import { PIX_KEY_TYPE_LABEL, type PixKeyType, type StorePaymentSettings, type StorePixAccount } from '../../../types/store'
 import { StoreMpAccountsSection } from './StoreMpAccountsSection'
 
 const EMPTY: StorePaymentSettings = { pixManual: false, pixKey: '', pixKeyType: 'cnpj', pixName: '', pixCity: '', whatsapp: '', pixAccounts: [] }
@@ -14,7 +14,7 @@ const newAccount = (): StorePixAccount => ({ id: `pix_${Date.now().toString(36)}
 
 /** Recebimento: contas do Mercado Pago (Pix e cartão, uma por produto) e, opcional,
  *  Pix direto na conta (sem taxa, confirmação manual). */
-export function StorePaymentSettingsPanel({ mercadoPago, principalReady, products }: { mercadoPago: boolean; principalReady: boolean; products: StoreProduct[] }) {
+export function StorePaymentSettingsPanel({ mercadoPago, principalReady }: { mercadoPago: boolean; principalReady: boolean }) {
   const { profile } = useAuth()
   const [form, setForm] = useState<StorePaymentSettings>(EMPTY)
   const [loaded, setLoaded] = useState(false)
@@ -61,15 +61,15 @@ export function StorePaymentSettingsPanel({ mercadoPago, principalReady, product
 
   return (
     <div className="space-y-5">
-    <StoreMpAccountsSection principalReady={principalReady} products={products} />
+    <StoreMpAccountsSection principalReady={principalReady} />
 
     {/* Pix direto: opcional e menos usado (vocês estão no Pix do Mercado Pago), então fica recolhido. */}
     <details className="group rounded-2xl border border-slate-200 bg-white" open={form.pixManual || undefined}>
       <summary className="flex cursor-pointer list-none items-center gap-3 p-5">
         <Landmark size={16} className="shrink-0 text-slate-500" aria-hidden="true" />
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold text-slate-800">Pix direto na conta (sem taxa)</span>
-          <span className="block text-sm text-slate-500">{form.pixManual ? 'Ligado: o Pix sai pela chave do banco e alguém confirma à mão.' : 'Desligado: o Pix vai pelo Mercado Pago, com liberação automática.'}</span>
+          <span className="block text-sm font-semibold text-slate-700">Avançado: Pix direto no banco</span>
+          <span className="block text-xs text-slate-500">{form.pixManual ? 'Ligado: o Pix sai pela chave do banco (sem taxa) e alguém confirma à mão. Passa por cima do Pix do Mercado Pago.' : 'Desligado. O Pix vai pelo Mercado Pago de cada conta, com liberação automática.'}</span>
         </span>
         <ChevronDown size={16} className="shrink-0 text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
       </summary>

@@ -487,6 +487,8 @@ export interface StorePaymentSettings {
   whatsapp?: string
   /** Contas Pix extras; cada produto escolhe em qual conta cai (vazio = principal). */
   pixAccounts?: StorePixAccount[]
+  /** Nome da conta principal do Mercado Pago (a da Vercel), ex.: "Nicolas". Vazio = "Conta principal". */
+  mpPrincipalLabel?: string
 }
 
 export interface StorePixAccount {

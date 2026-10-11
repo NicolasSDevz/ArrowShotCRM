@@ -1,26 +1,29 @@
-import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
-import { CheckCircle2, CreditCard, Lock, Pencil, Plus, Trash2, XCircle } from 'lucide-react'
+import { CreditCard, Lock, Pencil, Plus, QrCode, Trash2, Wallet } from 'lucide-react'
 import { auth } from '../../../firebase/config'
+import { useAuth } from '../../../context/AuthContext'
 import { useStoreMpAccounts } from '../../../hooks/useStore'
 import { storeDeleteMpAccount, storeSaveMpAccount } from '../../../services/storeApi'
+import { saveMpPrincipalLabel, subscribeStorePaymentSettings } from '../../../services/storeService'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { Button } from '../../ui/Button'
 import { Modal } from '../../ui/Modal'
 import { Field, Input } from '../../ui/Field'
-import { canUsePrivate, type StoreMpAccount, type StoreProduct } from '../../../types/store'
+import { canUsePrivate, type StoreMpAccount } from '../../../types/store'
 
-/** Contas do Mercado Pago (Pix e cartão): a principal (Vercel) e as cadastradas aqui.
- *  Cada produto escolhe a sua na aba Geral; o quadro de baixo mostra pra onde vai cada um. */
-export function StoreMpAccountsSection({ principalReady, products }: { principalReady: boolean; products: StoreProduct[] }) {
+/** Contas de recebimento: cada uma é uma conta do Mercado Pago e recebe o Pix e o
+ *  cartão dos produtos ligados a ela (o produto escolhe na aba Geral). A principal
+ *  é a da Vercel; as outras são cadastradas aqui. */
+export function StoreMpAccountsSection({ principalReady }: { principalReady: boolean }) {
   const { data: accounts } = useStoreMpAccounts()
   const [editing, setEditing] = useState<StoreMpAccount | 'new' | null>(null)
-  const countFor = (id: string | null) => products.filter((p) => (p.mpAccountId || null) === id && p.status !== 'archived').length
-  const labelOf = (id?: string | null) => (id ? accounts.find((a) => a.id === id)?.label ?? 'Conta removida' : 'Conta principal')
+  const [renaming, setRenaming] = useState(false)
+  const [principalLabel, setPrincipalLabel] = useState('')
+  useEffect(() => subscribeStorePaymentSettings((s) => setPrincipalLabel(s?.mpPrincipalLabel || '')), [])
 
   const remove = async (a: StoreMpAccount) => {
-    if (!(await askConfirm({ title: `Excluir a conta "${a.label}"?`, message: 'O token sai do sistema. Os pedidos já feitos continuam registrados.', confirmLabel: 'Excluir conta', danger: true }))) return
+    if (!(await askConfirm({ title: `Excluir a conta "${a.label}"?`, message: 'Os pedidos já feitos continuam registrados. Produtos ligados a ela precisam ser trocados antes.', confirmLabel: 'Excluir conta', danger: true }))) return
     try {
       await storeDeleteMpAccount(a.id)
       toast.success('Conta excluída')
@@ -29,66 +32,102 @@ export function StoreMpAccountsSection({ principalReady, products }: { principal
     }
   }
 
-  const live = products.filter((p) => p.status !== 'archived')
-
   return (
     <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-[15px] font-semibold text-slate-800"><CreditCard size={16} className="text-brand-600" aria-hidden="true" /> Mercado Pago: Pix e cartão</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Cada produto escolhe em qual conta cai o dinheiro (aba Geral do produto). O Pix e o cartão daquele produto vão juntos pra mesma conta.</p>
+          <h2 className="text-[15px] font-semibold text-slate-800">Contas de recebimento</h2>
+          <p className="mt-0.5 text-sm text-slate-500">Cada conta recebe o Pix e o cartão dos produtos dela. No produto, aba Geral, escolha a conta.</p>
         </div>
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => setEditing('new')}>Adicionar conta</Button>
+        <Button size="sm" icon={<Plus size={14} />} onClick={() => setEditing('new')}>Nova conta</Button>
       </div>
 
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <li className="flex flex-col gap-1.5 rounded-xl border border-slate-200 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold text-slate-800">Conta principal</p>
-            {principalReady ? (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700"><CheckCircle2 size={13} aria-hidden="true" /> Conectada</span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400"><XCircle size={13} aria-hidden="true" /> Não configurada</span>
-            )}
-          </div>
-          <p className="text-xs text-slate-500">Configurada na Vercel. Recebe os produtos sem conta escolhida.</p>
-          <p className="mt-auto pt-1 text-xs font-medium text-slate-600">{countFor(null)} {countFor(null) === 1 ? 'produto' : 'produtos'}</p>
-        </li>
+        <AccountCard
+          name={principalLabel || 'Conta principal'}
+          detail={principalReady ? 'Mercado Pago · conta padrão' : 'Mercado Pago não configurado na Vercel'}
+          ready={principalReady}
+          onEdit={() => setRenaming(true)}
+          editLabel="Mudar o nome da conta principal"
+        />
         {accounts.map((a) => (
-          <li key={a.id} className="flex flex-col gap-1.5 rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="flex min-w-0 items-center gap-1.5 font-semibold text-slate-800">
-                {a.privateTo && <Lock size={12} className="shrink-0 text-slate-400" aria-label="Privada" />}
-                <span className="truncate">{a.label}</span>
-              </p>
-              <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700"><CheckCircle2 size={13} aria-hidden="true" /> Conectada</span>
-            </div>
-            <p className="truncate text-xs text-slate-500">{a.mpEmail || a.mpNickname || 'Conta do Mercado Pago'}</p>
-            <div className="mt-auto flex items-center gap-1 pt-1">
-              <p className="flex-1 text-xs font-medium text-slate-600">{countFor(a.id)} {countFor(a.id) === 1 ? 'produto' : 'produtos'}</p>
-              <button type="button" onClick={() => setEditing(a)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`Editar a conta ${a.label}`}><Pencil size={14} /></button>
-              <button type="button" onClick={() => remove(a)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Excluir a conta ${a.label}`}><Trash2 size={14} /></button>
-            </div>
-          </li>
+          <AccountCard
+            key={a.id}
+            name={a.label}
+            isPrivate={!!a.privateTo}
+            detail={`Mercado Pago${a.mpEmail ? ` · ${a.mpEmail}` : ''}`}
+            ready
+            onEdit={() => setEditing(a)}
+            editLabel={`Editar a conta ${a.label}`}
+            onRemove={() => remove(a)}
+          />
         ))}
       </ul>
 
-      {live.length > 0 && (
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Pra onde vai cada produto</p>
-          <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
-            {live.map((p) => (
-              <li key={p.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                <Link to={`/loja/produtos/${p.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-700 hover:text-brand-700 hover:underline">{p.name}</Link>
-                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${p.mpAccountId ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-600'}`}>{labelOf(p.mpAccountId)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <MpAccountModal account={editing} onClose={() => setEditing(null)} />
+      <RenamePrincipalModal open={renaming} current={principalLabel} onClose={() => setRenaming(false)} />
     </section>
+  )
+}
+
+function AccountCard({ name, detail, ready, isPrivate, onEdit, editLabel, onRemove }: { name: string; detail: string; ready: boolean; isPrivate?: boolean; onEdit: () => void; editLabel: string; onRemove?: () => void }) {
+  const chip = (on: boolean) => `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`
+  return (
+    <li className="flex flex-col gap-2 rounded-xl border border-slate-200 p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600" aria-hidden="true"><Wallet size={17} /></span>
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 font-semibold text-slate-800">
+            {isPrivate && <Lock size={12} className="shrink-0 text-slate-400" aria-label="Privada" />}
+            <span className="truncate">{name}</span>
+          </p>
+          <p className="truncate text-xs text-slate-500">{detail}</p>
+        </div>
+        <button type="button" onClick={onEdit} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={editLabel}><Pencil size={14} /></button>
+        {onRemove && <button type="button" onClick={onRemove} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Excluir ${name}`}><Trash2 size={14} /></button>}
+      </div>
+      <div className="flex gap-1.5">
+        <span className={chip(ready)}><QrCode size={12} aria-hidden="true" /> Pix</span>
+        <span className={chip(ready)}><CreditCard size={12} aria-hidden="true" /> Cartão</span>
+      </div>
+    </li>
+  )
+}
+
+function RenamePrincipalModal({ open, current, onClose }: { open: boolean; current: string; onClose: () => void }) {
+  const { profile } = useAuth()
+  const [label, setLabel] = useState(current)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    if (open) setLabel(current)
+  }, [open, current])
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!profile) return
+    setBusy(true)
+    try {
+      await saveMpPrincipalLabel(label, profile.id)
+      toast.success('Nome salvo')
+      onClose()
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Conta principal">
+      <form onSubmit={submit} className="space-y-3">
+        <p className="text-sm text-slate-500">É a conta do Mercado Pago configurada na Vercel. Dê um nome pra reconhecer, ex.: o nome de quem recebe.</p>
+        <Field label="Nome"><Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex.: Nicolas" autoFocus /></Field>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button type="submit" loading={busy}>Salvar</Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
@@ -99,25 +138,24 @@ function MpAccountModal({ account, onClose }: { account: StoreMpAccount | 'new' 
   const [accessToken, setAccessToken] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [openedFor, setOpenedFor] = useState<string | null>(null)
   const canPrivate = canUsePrivate(auth.currentUser?.email)
 
   // Abriu (ou trocou de conta): preenche com o que está salvo. O token nunca volta pra tela.
-  const key = account === 'new' ? 'new' : account?.id ?? null
-  if (key !== openedFor) {
-    setOpenedFor(key)
+  useEffect(() => {
+    if (!account) return
     setLabel(editing?.label ?? '')
     setPublicKey(editing?.publicKey ?? '')
     setAccessToken('')
     setIsPrivate(!!editing?.privateTo)
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account])
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true)
     try {
       await storeSaveMpAccount({ id: editing?.id, label: label.trim(), publicKey: publicKey.trim(), accessToken: accessToken.trim() || undefined, private: isPrivate })
-      toast.success(editing ? 'Conta atualizada' : 'Conta conectada. Agora escolha ela nos produtos (aba Geral).')
+      toast.success(editing ? 'Conta atualizada' : 'Conta criada. Agora escolha ela nos produtos (aba Geral).')
       onClose()
     } catch (err) {
       toast.error((err as Error).message)
@@ -127,19 +165,23 @@ function MpAccountModal({ account, onClose }: { account: StoreMpAccount | 'new' 
   }
 
   return (
-    <Modal open={!!account} onClose={onClose} title={editing ? `Editar ${editing.label}` : 'Conectar conta do Mercado Pago'}>
+    <Modal open={!!account} onClose={onClose} title={editing ? `Editar ${editing.label}` : 'Nova conta de recebimento'}>
       <form onSubmit={submit} className="space-y-3">
-        <ol className="list-decimal space-y-0.5 rounded-xl bg-slate-50 p-3 pl-7 text-xs text-slate-600">
-          <li>Entre no Mercado Pago com a conta que vai receber.</li>
-          <li>Vá em <b>Seu negócio &gt; Configurações &gt; Credenciais</b> (ou mercadopago.com.br/developers, Suas integrações).</li>
-          <li>Em <b>Credenciais de produção</b>, copie a <b>Public key</b> e o <b>Access token</b>.</li>
-        </ol>
-        <Field label="Apelido" required><Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex.: Bruno, Flores" autoFocus /></Field>
+        <p className="text-sm text-slate-500">Recebe o Pix e o cartão pelo Mercado Pago de quem vai receber.</p>
+        <Field label="Nome da conta" required><Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex.: Bruno" autoFocus /></Field>
+        <details className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600" open={!editing}>
+          <summary className="cursor-pointer font-medium text-slate-700">Onde pegar as chaves do Mercado Pago</summary>
+          <ol className="mt-2 list-decimal space-y-0.5 pl-5">
+            <li>Entre no Mercado Pago com a conta que vai receber.</li>
+            <li>Abra <b>mercadopago.com.br/developers</b>, Suas integrações (crie uma aplicação se não tiver).</li>
+            <li>Em <b>Credenciais de produção</b>, copie a <b>Public key</b> e o <b>Access token</b>.</li>
+          </ol>
+        </details>
         <Field label="Public key" required><Input value={publicKey} onChange={(e) => setPublicKey(e.target.value)} placeholder="APP_USR-..." /></Field>
         <Field label={editing ? 'Access token (só se for trocar)' : 'Access token'} required={!editing}>
-          <Input type="password" autoComplete="off" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} placeholder={editing ? 'Deixe em branco pra manter o atual' : 'APP_USR-...'} />
+          <Input type="password" autoComplete="off" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} placeholder={editing ? 'Em branco mantém o atual' : 'APP_USR-...'} />
         </Field>
-        <p className="text-[11px] text-slate-400">O token é conferido no Mercado Pago e guardado cifrado no servidor. Ninguém consegue ver ele de novo pelo CRM.</p>
+        <p className="text-[11px] text-slate-400">O token é conferido no Mercado Pago e guardado cifrado. Ninguém vê ele de novo pelo CRM.</p>
         {canPrivate && (
           <label className="inline-flex items-center gap-1.5 text-xs text-slate-400">
             <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} className="h-3.5 w-3.5" />
@@ -148,7 +190,7 @@ function MpAccountModal({ account, onClose }: { account: StoreMpAccount | 'new' 
         )}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" loading={busy}>{editing ? 'Salvar' : 'Conectar conta'}</Button>
+          <Button type="submit" loading={busy}>{editing ? 'Salvar' : 'Criar conta'}</Button>
         </div>
       </form>
     </Modal>

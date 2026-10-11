@@ -70,10 +70,20 @@ export function StoreProductPage() {
   const [saving, setSaving] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [pixAccounts, setPixAccounts] = useState<{ id: string; label: string }[]>([])
+  const [pixManual, setPixManual] = useState(false)
+  const [principalLabel, setPrincipalLabel] = useState('Conta principal')
 
   const [storeLinks, setStoreLinks] = useState<{ checkoutDomain?: string | null } | null>(null)
   useEffect(() => subscribeStoreLinks(setStoreLinks), [])
-  useEffect(() => subscribeStorePaymentSettings((s) => setPixAccounts((s?.pixAccounts ?? []).map((a) => ({ id: a.id, label: a.label })))), [])
+  useEffect(
+    () =>
+      subscribeStorePaymentSettings((s) => {
+        setPixAccounts((s?.pixAccounts ?? []).map((a) => ({ id: a.id, label: a.label })))
+        setPixManual(s?.pixManual === true)
+        setPrincipalLabel(s?.mpPrincipalLabel || 'Conta principal')
+      }),
+    []
+  )
 
   // O rascunho nasce do servidor uma vez; depois só muda pela tela (salvar grava tudo).
   useEffect(() => {
@@ -167,13 +177,13 @@ export function StoreProductPage() {
       </section>
       <section className={card}>
         <h2 className="text-[15px] font-semibold text-slate-800">Preço e pagamento</h2>
-        <Field label="Conta do Mercado Pago que recebe (Pix e cartão)">
+        <Field label="Conta de recebimento (Pix e cartão)">
           <Select value={draft.mpAccountId ?? ''} onChange={(e) => set({ mpAccountId: e.target.value || null })}>
-            <option value="">Conta principal</option>
-            {mpAccounts.map((a) => <option key={a.id} value={a.id}>{a.label}{a.mpEmail ? ` (${a.mpEmail})` : ''}</option>)}
+            <option value="">{principalLabel}</option>
+            {mpAccounts.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
           </Select>
         </Field>
-        {mpAccounts.length === 0 && <p className="-mt-1 text-xs text-slate-400">Pra cair em outra conta, conecte ela em Loja, aba Recebimento.</p>}
+        {mpAccounts.length === 0 && <p className="-mt-1 text-xs text-slate-400">Pra receber em outra conta, adicione ela em Loja, aba Recebimento.</p>}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Preço" required><Input inputMode="numeric" value={maskCurrencyInput(String(draft.price))} onChange={(e) => set({ price: Math.round((parseCurrencyToNumber(e.target.value) ?? 0) * 100) })} /></Field>
           <Field label="Preço riscado (opcional)"><Input inputMode="numeric" value={draft.comparePrice ? maskCurrencyInput(String(draft.comparePrice)) : ''} onChange={(e) => { const v = parseCurrencyToNumber(e.target.value); set({ comparePrice: v ? Math.round(v * 100) : null }) }} /></Field>
@@ -184,7 +194,7 @@ export function StoreProductPage() {
           </Select>
         </Field>
         <Toggle label="Aceitar Pix" checked={draft.paymentMethods.pix} onChange={(v) => set({ paymentMethods: { ...draft.paymentMethods, pix: v } })} />
-        {draft.paymentMethods.pix && pixAccounts.length > 0 && (
+        {draft.paymentMethods.pix && pixManual && pixAccounts.length > 0 && (
           <Field label="Conta Pix que recebe este produto">
             <Select value={draft.pixAccountId ?? ''} onChange={(e) => set({ pixAccountId: e.target.value || null })}>
               <option value="">Conta principal</option>
