@@ -329,15 +329,9 @@ export function subscribeStorePaymentSettings(onData: (s: StorePaymentSettings |
   return onSnapshot(doc(db, 'storeSettings', 'payments'), (s) => onData(s.exists() ? (s.data() as StorePaymentSettings) : null), onError)
 }
 
+/** Conta principal: nome e Pix direto (o resto do documento fica como está). */
 export function saveStorePaymentSettings(data: StorePaymentSettings, userId: string) {
-  // Sem o nome da conta principal: ele muda pelo cartão da conta (saveMpPrincipalLabel).
-  const { mpPrincipalLabel: _l, ...rest } = data
-  return setDoc(doc(db, 'storeSettings', 'payments'), { ...rest, updatedAt: serverTimestamp(), updatedBy: userId }, { merge: true })
-}
-
-/** Nome da conta principal do Mercado Pago (ex.: "Nicolas"). */
-export function saveMpPrincipalLabel(label: string, userId: string) {
-  return setDoc(doc(db, 'storeSettings', 'payments'), { mpPrincipalLabel: label.trim(), updatedAt: serverTimestamp(), updatedBy: userId }, { merge: true })
+  return setDoc(doc(db, 'storeSettings', 'payments'), { ...data, updatedAt: serverTimestamp(), updatedBy: userId }, { merge: true })
 }
 
 export function subscribeStoreInvoiceSettings(onData: (s: StoreInvoiceSettings | null) => void, onError?: OnError) {

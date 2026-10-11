@@ -467,10 +467,20 @@ export interface StoreMpAccount {
   mpUserId?: string
   mpNickname?: string
   mpEmail?: string
+  /** Avançado: Pix direto no banco desta conta (sem taxa; alguém confirma à mão). Ligado, passa por cima do Pix do MP. */
+  pixDirect?: StorePixDirect | null
   privateTo?: string | null
   createdAt?: string
   updatedAt?: string
   updatedBy?: string
+}
+
+export interface StorePixDirect {
+  enabled: boolean
+  pixKeyType: PixKeyType
+  pixKey: string
+  pixName: string
+  pixCity: string
 }
 
 /** storeSettings/payments — Pix direto na conta (ex.: Nubank), sem taxa. */

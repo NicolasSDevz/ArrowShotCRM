@@ -178,7 +178,7 @@ export async function memberSetPassword(password: string) {
 }
 
 /* equipe */
-export async function storeSaveMpAccount(body: { id?: string; label: string; publicKey: string; accessToken?: string; private: boolean }) {
+export async function storeSaveMpAccount(body: { id?: string; label: string; publicKey: string; accessToken?: string; private: boolean; pixDirect?: import('../types/store').StorePixDirect }) {
   return call<{ ok: true; id: string }>('admin-mp-account', { body, token: await staffToken() })
 }
 export async function storeDeleteMpAccount(id: string) {

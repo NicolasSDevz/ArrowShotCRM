@@ -122,10 +122,24 @@ async function loadActiveProduct(slug) {
   return product
 }
 
+/** Pix direto (no banco, confirmação manual) da conta de recebimento do produto.
+ *  Conta extra: o "Avançado: Pix direto" dela. Principal: o de storeSettings/payments
+ *  (com a conta Pix escolhida no produto, se houver). direct = null usa o Pix do MP. */
+async function pixSettingsFor(product, gw) {
+  const settings = await getPaymentSettings()
+  if (gw.acc.id) {
+    const d = gw.acc.pixDirect
+    const ok = d?.enabled === true && !!d.pixKey && !!d.pixName && !!d.pixCity
+    return { ...settings, manualReady: ok, direct: ok ? { ...d, label: gw.acc.label } : null }
+  }
+  return { ...settings, direct: settings.manualReady ? pixAccountFor(settings, product) : null }
+}
+
 async function actionCheckout(req) {
   const product = await loadActiveProduct(String(req.query.slug || ''))
-  const [bumps, settings, invoice] = await Promise.all([resolveBumps(product), getPaymentSettings(), getInvoiceSettings()])
-  const data = publicCheckout(product, bumps, await gatewayFor(product), settings)
+  const gw = await gatewayFor(product)
+  const [bumps, settings, invoice] = await Promise.all([resolveBumps(product), pixSettingsFor(product, gw), getInvoiceSettings()])
+  const data = publicCheckout(product, bumps, gw, settings)
   // Com nota fiscal ligada, o CPF/CNPJ do comprador vira obrigatório.
   if (invoice.enabled === true) data.checkout.askCpf = true
   return data
@@ -219,7 +233,7 @@ async function actionOrder(req) {
   }
   const method = body.method
   const gw = await gatewayFor(product)
-  const settings = await getPaymentSettings()
+  const settings = await pixSettingsFor(product, gw)
 
   // Itens: produto principal (com cupom) + order bumps escolhidos.
   const coupon = body.coupon ? await findCoupon(body.coupon, product.id) : null
@@ -281,10 +295,10 @@ async function actionOrder(req) {
     order.method = 'free'
     order.status = 'approved'
     order.approvedAt = nowIso()
-  } else if (method === 'pix' && settings.manualReady) {
+  } else if (method === 'pix' && settings.direct) {
     if (product.paymentMethods?.pix === false) throw new HttpError(400, 'Pix indisponível para este produto')
     // Pix direto na conta: sem gateway; a equipe confirma no CRM.
-    const account = pixAccountFor(settings, product)
+    const account = settings.direct
     const qrCode = buildPixCode({
       key: account.pixKey,
       keyType: account.pixKeyType,
@@ -937,7 +951,7 @@ async function actionAdminMpAccount(req, user) {
   if (b.private === true && !canUsePrivate(user.email)) throw new HttpError(403, 'Só o Nicolas pode deixar conta privada')
   const privateTo = b.private === true ? user.uid : null
   try {
-    const accId = await saveMpAccount({ id, label: b.label, publicKey: b.publicKey, accessToken: b.accessToken || null, privateTo, user })
+    const accId = await saveMpAccount({ id, label: b.label, publicKey: b.publicKey, accessToken: b.accessToken || null, privateTo, pixDirect: b.pixDirect || null, user })
     return { ok: true, id: accId }
   } catch (err) {
     throw new HttpError(400, err.message)

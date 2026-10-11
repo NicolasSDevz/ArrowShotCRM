@@ -25,7 +25,7 @@ export async function getMpAccount(id) {
   } catch {
     accessToken = null
   }
-  return { id, label: meta.data().label || 'Conta extra', accessToken, publicKey: meta.data().publicKey || null }
+  return { id, label: meta.data().label || 'Conta extra', accessToken, publicKey: meta.data().publicKey || null, pixDirect: meta.data().pixDirect || null }
 }
 
 /** Conta que recebe o produto. Conta extra apagada volta pra principal (melhor cobrar que travar a venda). */
@@ -39,7 +39,7 @@ export async function mpAccountForOrder(order) {
 }
 
 /** Cadastra ou atualiza uma conta extra. Token novo é conferido no MP antes de salvar. */
-export async function saveMpAccount({ id, label, publicKey, accessToken, privateTo, user }) {
+export async function saveMpAccount({ id, label, publicKey, accessToken, privateTo, pixDirect, user }) {
   const accId = id || `mp_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
   if (!ID_RE.test(accId)) throw new Error('Conta inválida')
   const prev = id ? await getDoc(`storeMpAccounts/${accId}`) : null
@@ -53,6 +53,18 @@ export async function saveMpAccount({ id, label, publicKey, accessToken, private
     ...(prev?.exists ? {} : { createdAt: new Date().toISOString(), createdBy: user.uid }),
   }
   if (!meta.label) throw new Error('Dê um apelido pra conta (ex.: Bruno, Flores)')
+  // Avançado: Pix direto no banco desta conta (sem taxa; alguém confirma o pagamento à mão).
+  if (pixDirect) {
+    const d = {
+      enabled: pixDirect.enabled === true,
+      pixKeyType: ['cpf', 'cnpj', 'email', 'phone', 'evp'].includes(pixDirect.pixKeyType) ? pixDirect.pixKeyType : 'cpf',
+      pixKey: String(pixDirect.pixKey || '').trim().slice(0, 80),
+      pixName: String(pixDirect.pixName || '').trim().slice(0, 60),
+      pixCity: String(pixDirect.pixCity || '').trim().slice(0, 40),
+    }
+    if (d.enabled && (!d.pixKey || !d.pixName || !d.pixCity)) throw new Error('Pix direto: preencha a chave, o nome do titular e a cidade')
+    meta.pixDirect = d
+  }
   if (!/^(APP_USR|TEST)-[\w-]{20,}$/.test(meta.publicKey)) throw new Error('Chave pública inválida (começa com APP_USR-)')
   if (accessToken) {
     const token = String(accessToken).trim()
