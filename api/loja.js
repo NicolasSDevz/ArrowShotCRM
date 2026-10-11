@@ -359,6 +359,11 @@ async function actionOrder(req) {
     const total = (amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     await notifyStaff('store_pix_pending', `Pix para conferir: ${buyer.name} gerou um Pix de ${total} (${description}) na ${order.pixAccountLabel || 'conta principal'}. Confira no banco e confirme na Loja, aba Vendas.`, 'Loja', { privateTo: order.privateTo })
   }
+  // Pix do Mercado Pago gerado (ainda não pago): aviso só no celular. O Pix direto já avisa como "Pix para conferir".
+  if (order.method === 'pix' && order.status === 'pending') {
+    const total = (amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    await notifyStaff('store_pix_generated', `Pix gerado: ${buyer.name} gerou um Pix de ${total} (${description}). Aviso quando for pago.`, 'Loja', { privateTo: order.privateTo })
+  }
   // Gerou o pedido e não pagou (Pix em aberto, cartão recusado): fica no carrinho abandonado com o pedido junto.
   if (order.status !== 'approved') await saveAbandoned(product, buyer, { amount, utm: order.utm, orderId, orderStatus: order.status }).catch((err) => console.warn('[loja] carrinho:', err?.message))
 
@@ -735,7 +740,7 @@ async function deleteMemberData(uid) {
   return { enrollments: enrollments.length, progress: progress.length, links: codes.length }
 }
 
-const STORE_NOTIFICATION_TYPES = ['store_sale', 'store_pix_pending', 'store_refund_request', 'store_refund', 'store_capi_error']
+const STORE_NOTIFICATION_TYPES = ['store_sale', 'store_pix_generated', 'store_pix_pending', 'store_refund_request', 'store_refund', 'store_capi_error']
 
 /** Exclui um pedido de teste (só admin): some das Vendas junto com os acessos que
  *  ele liberou, os avisos da venda e o uso do cupom. Aluno que fica sem nenhum

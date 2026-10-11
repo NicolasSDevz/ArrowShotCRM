@@ -69,8 +69,9 @@ export function pixAccountFor(settings, product) {
   return { id: '', label: 'Conta principal', pixKey: settings.pixKey, pixKeyType: settings.pixKeyType, pixName: settings.pixName, pixCity: settings.pixCity }
 }
 
-const PUSH_ONLY = new Set(['store_sale'])
-const PUSH_TAG = { store_sale: 'venda', store_pix_pending: 'pix', store_refund_request: 'reembolso', store_refund: 'estorno', store_capi_error: 'meta' }
+// Só no celular (o sino fica pro que pede ação): venda paga e Pix gerado.
+const PUSH_ONLY = new Set(['store_sale', 'store_pix_generated'])
+const PUSH_TAG = { store_sale: 'venda', store_pix_generated: 'pix-gerado', store_pix_pending: 'pix', store_refund_request: 'reembolso', store_refund: 'estorno', store_capi_error: 'meta' }
 
 /** Limite simples por chave (IP, e-mail) numa janela de tempo. false = passou do limite. */
 export async function rateLimit(key, max, windowMs) {
@@ -468,7 +469,9 @@ async function deliver(origin, order) {
   if (!order.test) {
     const total = (order.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     const product = await getProduct(order.productId).catch(() => null)
-    await notifyStaff('store_sale', `Venda aprovada: ${order.buyer.name} comprou ${order.items.map((i) => i.name).join(' + ')} por ${total}.`, 'Loja', { privateTo: order.privateTo })
+    // Título pelo jeito que pagou: "Pix pago" ou "Venda no cartão" (o resto continua "Venda aprovada").
+    const title = order.method === 'pix' || order.method === 'pix_manual' ? 'Pix pago' : order.method === 'card' ? 'Venda no cartão' : 'Venda aprovada'
+    await notifyStaff('store_sale', `${title}: ${order.buyer.name} comprou ${order.items.map((i) => i.name).join(' + ')} por ${total}.`, 'Loja', { privateTo: order.privateTo })
     const capi = await trackOrderEvent({ ...order, ...patch }, product, 'Purchase').catch((err) => ({ ok: false, error: err?.message }))
     if (capi && !capi.ok) await notifyCapiFailure(order, capi.error)
     // Nota fiscal automática (se ligada em Loja > Nota fiscal). Erro não trava a venda.
