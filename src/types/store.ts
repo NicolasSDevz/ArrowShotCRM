@@ -218,6 +218,8 @@ export interface StoreProduct extends BaseDoc {
   pixDiscountPercent?: number
   /** Conta Pix (direto na conta) deste produto. Vazio = conta principal. */
   pixAccountId?: string | null
+  /** Conta do Mercado Pago que recebe o Pix e o cartão deste produto. Vazio = conta principal (Vercel). */
+  mpAccountId?: string | null
   supportEmail?: string | null
   statementDescriptor?: string | null
   /** Sem Mercado Pago configurado, deixa comprar sem cobrar (para testar o fluxo). */
@@ -331,6 +333,8 @@ export interface StoreOrder {
   approvedAt?: string
   refundedAt?: string
   refundedBy?: string
+  /** Conta do Mercado Pago em que o pedido foi cobrado (vazio = principal). */
+  mpAccountId?: string | null
   /** Copiado do produto: pedido de produto privado (ver StoreProduct.privateTo). */
   privateTo?: string | null
   /** Pix direto que ninguém confirmou em 7 dias (ainda dá pra confirmar se o dinheiro caiu). */
@@ -452,6 +456,21 @@ export interface StoreInvoiceSettings {
   naturezaOperacao?: number
   /** Texto da nota. Aceita {produtos}, {pedido} e {cliente}. */
   discriminacao: string
+}
+
+/** storeMpAccounts/{id} — conta extra do Mercado Pago (o token fica cifrado no servidor). */
+export interface StoreMpAccount {
+  id: string
+  label: string
+  publicKey: string
+  /** Conta conferida no Mercado Pago quando o token foi salvo. */
+  mpUserId?: string
+  mpNickname?: string
+  mpEmail?: string
+  privateTo?: string | null
+  createdAt?: string
+  updatedAt?: string
+  updatedBy?: string
 }
 
 /** storeSettings/payments — Pix direto na conta (ex.: Nubank), sem taxa. */

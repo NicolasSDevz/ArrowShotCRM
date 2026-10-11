@@ -6,21 +6,30 @@
 // Mercado Pago > Seu negócio > Configurações > Gestão e administração >
 // Credenciais. Sem elas, o checkout só funciona em "modo teste" (produto com
 // testMode ligado), que libera o acesso sem cobrar — útil pra conferir o fluxo.
+//
+// Várias contas: além da principal (variáveis acima), a equipe cadastra outras no
+// CRM (Loja > Recebimento; ver mpAccounts.js) e cada produto escolhe a sua. Toda
+// função recebe a conta (acc = { id, accessToken, publicKey }); sem ela, usa a principal.
 
 const MP_BASE = 'https://api.mercadopago.com'
 const TIMEOUT_MS = 25_000
 
-export function mpConfigured() {
-  return Boolean(process.env.MP_ACCESS_TOKEN && process.env.MP_PUBLIC_KEY)
+/** Conta principal (variáveis da Vercel). */
+export function envMpAccount() {
+  return { id: null, label: 'Conta principal', accessToken: process.env.MP_ACCESS_TOKEN || null, publicKey: process.env.MP_PUBLIC_KEY || null }
 }
 
-export function mpPublicKey() {
-  return process.env.MP_PUBLIC_KEY || null
+export function mpConfigured(acc = envMpAccount()) {
+  return Boolean(acc?.accessToken && acc?.publicKey)
 }
 
-async function mpFetch(path, { method = 'GET', body, idempotencyKey } = {}) {
-  const token = process.env.MP_ACCESS_TOKEN
-  if (!token) throw new Error('MP_ACCESS_TOKEN não configurado no servidor')
+export function mpPublicKey(acc = envMpAccount()) {
+  return acc?.publicKey || null
+}
+
+async function mpFetch(acc, path, { method = 'GET', body, idempotencyKey } = {}) {
+  const token = (acc || envMpAccount()).accessToken
+  if (!token) throw new Error('Conta do Mercado Pago sem credencial (token) configurada')
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
   if (idempotencyKey) headers['X-Idempotency-Key'] = idempotencyKey
   const res = await fetch(`${MP_BASE}${path}`, {
@@ -54,9 +63,9 @@ function payerFrom(buyer) {
 }
 
 /** Cria um Pix. Devolve o pagamento do MP (point_of_interaction tem o QR). */
-export function createPixPayment({ orderId, amountCents, description, buyer, notificationUrl, expiresMinutes = 30 }) {
+export function createPixPayment(acc, { orderId, amountCents, description, buyer, notificationUrl, expiresMinutes = 30 }) {
   const expires = new Date(Date.now() + expiresMinutes * 60_000)
-  return mpFetch('/v1/payments', {
+  return mpFetch(acc, '/v1/payments', {
     method: 'POST',
     idempotencyKey: `pix-${orderId}`,
     body: {
@@ -73,8 +82,8 @@ export function createPixPayment({ orderId, amountCents, description, buyer, not
 
 /** Cobra no cartão com o token gerado no navegador pelo Card Payment Brick
  *  (o número do cartão nunca passa pelo nosso servidor). */
-export function createCardPayment({ orderId, amountCents, description, buyer, card, notificationUrl, statementDescriptor }) {
-  return mpFetch('/v1/payments', {
+export function createCardPayment(acc, { orderId, amountCents, description, buyer, card, notificationUrl, statementDescriptor }) {
+  return mpFetch(acc, '/v1/payments', {
     method: 'POST',
     idempotencyKey: `card-${orderId}`,
     body: {
@@ -95,16 +104,22 @@ export function createCardPayment({ orderId, amountCents, description, buyer, ca
   })
 }
 
-export function getPayment(paymentId) {
-  return mpFetch(`/v1/payments/${encodeURIComponent(paymentId)}`)
+export function getPayment(acc, paymentId) {
+  return mpFetch(acc, `/v1/payments/${encodeURIComponent(paymentId)}`)
 }
 
-export function refundPayment(paymentId) {
-  return mpFetch(`/v1/payments/${encodeURIComponent(paymentId)}/refunds`, {
+export function refundPayment(acc, paymentId) {
+  return mpFetch(acc, `/v1/payments/${encodeURIComponent(paymentId)}/refunds`, {
     method: 'POST',
     idempotencyKey: `refund-${paymentId}`,
     body: {},
   })
+}
+
+/** Confere um token (conta nova no CRM): devolve o id e o apelido da conta no MP. */
+export async function mpWhoAmI(accessToken) {
+  const me = await mpFetch({ accessToken }, '/users/me')
+  return { userId: String(me.id || ''), nickname: me.nickname || '', email: me.email || '' }
 }
 
 /** Status do MP → status do pedido. */

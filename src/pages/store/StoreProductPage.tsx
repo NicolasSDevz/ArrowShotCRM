@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { ArrowLeft, Copy, CopyPlus, ExternalLink, Lock, Save, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { auth } from '../../firebase/config'
-import { useStoreMemberAreas, useStoreProducts } from '../../hooks/useStore'
+import { useStoreMemberAreas, useStoreMpAccounts, useStoreProducts } from '../../hooks/useStore'
 import { storeSetPrivate } from '../../services/storeApi'
 import { deleteStoreProduct, updateStoreProduct } from '../../services/storeService'
 import { askConfirm } from '../../utils/confirmDialog'
@@ -63,6 +63,7 @@ export function StoreProductPage() {
   const { profile } = useAuth()
   const { data: products, loading } = useStoreProducts()
   const { data: areas } = useStoreMemberAreas()
+  const { data: mpAccounts } = useStoreMpAccounts()
   const server = products.find((p) => p.id === id)
   const [privBusy, setPrivBusy] = useState(false)
   const [draft, setDraft] = useState<StoreProduct | null>(null)
@@ -166,6 +167,13 @@ export function StoreProductPage() {
       </section>
       <section className={card}>
         <h2 className="text-[15px] font-semibold text-slate-800">Preço e pagamento</h2>
+        <Field label="Conta do Mercado Pago que recebe (Pix e cartão)">
+          <Select value={draft.mpAccountId ?? ''} onChange={(e) => set({ mpAccountId: e.target.value || null })}>
+            <option value="">Conta principal</option>
+            {mpAccounts.map((a) => <option key={a.id} value={a.id}>{a.label}{a.mpEmail ? ` (${a.mpEmail})` : ''}</option>)}
+          </Select>
+        </Field>
+        {mpAccounts.length === 0 && <p className="-mt-1 text-xs text-slate-400">Pra cair em outra conta, conecte ela em Loja, aba Recebimento.</p>}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Preço" required><Input inputMode="numeric" value={maskCurrencyInput(String(draft.price))} onChange={(e) => set({ price: Math.round((parseCurrencyToNumber(e.target.value) ?? 0) * 100) })} /></Field>
           <Field label="Preço riscado (opcional)"><Input inputMode="numeric" value={draft.comparePrice ? maskCurrencyInput(String(draft.comparePrice)) : ''} onChange={(e) => { const v = parseCurrencyToNumber(e.target.value); set({ comparePrice: v ? Math.round(v * 100) : null }) }} /></Field>

@@ -4,15 +4,17 @@ import { useAuth } from '../../../context/AuthContext'
 import { Button } from '../../ui/Button'
 import { Field, Input, Select } from '../../ui/Field'
 import { saveStorePaymentSettings, subscribeStorePaymentSettings } from '../../../services/storeService'
-import { Plus, Trash2 } from 'lucide-react'
-import { PIX_KEY_TYPE_LABEL, type PixKeyType, type StorePaymentSettings, type StorePixAccount } from '../../../types/store'
+import { ChevronDown, Landmark, Plus, Trash2 } from 'lucide-react'
+import { PIX_KEY_TYPE_LABEL, type PixKeyType, type StorePaymentSettings, type StorePixAccount, type StoreProduct } from '../../../types/store'
+import { StoreMpAccountsSection } from './StoreMpAccountsSection'
 
 const EMPTY: StorePaymentSettings = { pixManual: false, pixKey: '', pixKeyType: 'cnpj', pixName: '', pixCity: '', whatsapp: '', pixAccounts: [] }
 
 const newAccount = (): StorePixAccount => ({ id: `pix_${Date.now().toString(36)}`, label: '', pixKey: '', pixKeyType: 'cnpj', pixName: '', pixCity: '' })
 
-/** Pix direto na conta da empresa (ex.: Nubank): sem taxa, confirmação manual. */
-export function StorePaymentSettingsPanel({ mercadoPago }: { mercadoPago: boolean }) {
+/** Recebimento: contas do Mercado Pago (Pix e cartão, uma por produto) e, opcional,
+ *  Pix direto na conta (sem taxa, confirmação manual). */
+export function StorePaymentSettingsPanel({ mercadoPago, principalReady, products }: { mercadoPago: boolean; principalReady: boolean; products: StoreProduct[] }) {
   const { profile } = useAuth()
   const [form, setForm] = useState<StorePaymentSettings>(EMPTY)
   const [loaded, setLoaded] = useState(false)
@@ -58,10 +60,23 @@ export function StorePaymentSettingsPanel({ mercadoPago }: { mercadoPago: boolea
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
-      <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+    <div className="space-y-5">
+    <StoreMpAccountsSection principalReady={principalReady} products={products} />
+
+    {/* Pix direto: opcional e menos usado (vocês estão no Pix do Mercado Pago), então fica recolhido. */}
+    <details className="group rounded-2xl border border-slate-200 bg-white" open={form.pixManual || undefined}>
+      <summary className="flex cursor-pointer list-none items-center gap-3 p-5">
+        <Landmark size={16} className="shrink-0 text-slate-500" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-slate-800">Pix direto na conta (sem taxa)</span>
+          <span className="block text-sm text-slate-500">{form.pixManual ? 'Ligado: o Pix sai pela chave do banco e alguém confirma à mão.' : 'Desligado: o Pix vai pelo Mercado Pago, com liberação automática.'}</span>
+        </span>
+        <ChevronDown size={16} className="shrink-0 text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
+      </summary>
+    <div className="grid gap-5 border-t border-slate-100 p-5 lg:grid-cols-[1fr_340px]">
+      <form onSubmit={submit} className="space-y-4">
         <div>
-          <h2 className="text-[15px] font-semibold text-slate-800">Pix direto na conta (sem taxa)</h2>
+          <h2 className="sr-only">Pix direto na conta (sem taxa)</h2>
           <p className="mt-1 text-sm text-slate-500">
             O checkout gera o Pix com a chave da empresa (Nubank, Inter, qualquer banco) e o dinheiro cai direto na conta. Como o banco não avisa o sistema,
             o pedido fica aguardando até alguém da equipe conferir no app do banco e clicar em <strong>Confirmar pagamento</strong> na aba Vendas. Aí o acesso é liberado.
@@ -128,7 +143,7 @@ export function StorePaymentSettingsPanel({ mercadoPago }: { mercadoPago: boolea
         <Button type="submit" loading={busy} disabled={!loaded}>Salvar recebimento</Button>
       </form>
 
-      <aside className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
+      <aside className="space-y-3 self-start rounded-2xl bg-slate-50 p-5 text-sm text-slate-600">
         <h3 className="font-semibold text-slate-800">Como fica a rotina</h3>
         <ol className="list-decimal space-y-1.5 pl-4">
           <li>O cliente paga o Pix pelo checkout.</li>
@@ -139,6 +154,8 @@ export function StorePaymentSettingsPanel({ mercadoPago }: { mercadoPago: boolea
         </ol>
         <p className="text-xs text-slate-400">Cada Pix leva o código do pedido na descrição, o que ajuda a achar no extrato. Pedidos que não forem pagos podem ser cancelados na mesma aba.</p>
       </aside>
+    </div>
+    </details>
     </div>
   )
 }

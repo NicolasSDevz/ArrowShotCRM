@@ -37,6 +37,8 @@
 //   POST admin-invoice-sync  { orderIds }  atualiza notas em processamento
 //   POST admin-set-private { productId, private }  produto "só eu vejo" (leva pedidos, cupons e carrinhos)
 //   POST admin-abandoned { id, op: contacted|uncontacted|delete }  carrinho abandonado
+//   POST admin-mp-account { id?, label, publicKey, accessToken?, private }  conta do Mercado Pago (token cifrado)
+//   POST admin-mp-account-delete { id }
 //   POST admin-preview { area }   ver como aluno: libera os cursos da área pra quem é da equipe
 //   GET  admin-push-key                      chave pública das notificações push (null = não configurado)
 //   POST admin-push-subscribe { subscription }  liga as notificações neste aparelho
@@ -92,6 +94,7 @@ import {
   canUsePrivate,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
+import { getMpAccount, mpAccountForProduct, saveMpAccount, deleteMpAccount } from './_lib/store/mpAccounts.js'
 import { fetchPdf, stampPdf } from './_lib/store/protectedPdf.js'
 import { encryptToken, decryptToken } from './_lib/tokenCrypto.js'
 import { capiStatus, cleanPixelId, removeCapiToken, saveCapiToken, sendCapiTest, trackingFromRequest } from './_lib/store/metaCapi.js'
@@ -105,7 +108,11 @@ class HttpError extends Error {
   }
 }
 
-const gateway = () => ({ mercadoPago: mpConfigured(), publicKey: mpPublicKey() })
+/** Gateway do produto: a conta do Mercado Pago escolhida nele (ou a principal). */
+async function gatewayFor(product) {
+  const acc = await mpAccountForProduct(product)
+  return { mercadoPago: mpConfigured(acc), publicKey: mpPublicKey(acc), acc }
+}
 
 /* ------------------------------ checkout ------------------------------ */
 
@@ -118,7 +125,7 @@ async function loadActiveProduct(slug) {
 async function actionCheckout(req) {
   const product = await loadActiveProduct(String(req.query.slug || ''))
   const [bumps, settings, invoice] = await Promise.all([resolveBumps(product), getPaymentSettings(), getInvoiceSettings()])
-  const data = publicCheckout(product, bumps, gateway(), settings)
+  const data = publicCheckout(product, bumps, await gatewayFor(product), settings)
   // Com nota fiscal ligada, o CPF/CNPJ do comprador vira obrigatório.
   if (invoice.enabled === true) data.checkout.askCpf = true
   return data
@@ -211,7 +218,7 @@ async function actionOrder(req) {
     throw new HttpError(400, 'Informe seu CPF ou CNPJ')
   }
   const method = body.method
-  const gw = gateway()
+  const gw = await gatewayFor(product)
   const settings = await getPaymentSettings()
 
   // Itens: produto principal (com cupom) + order bumps escolhidos.
@@ -263,7 +270,9 @@ async function actionOrder(req) {
     updatedAt: nowIso(),
   }
   const origin = publicOrigin(req)
-  const notificationUrl = `${origin}/api/loja?action=webhook`
+  // acc: o webhook sabe em qual conta do Mercado Pago consultar o pagamento.
+  const notificationUrl = `${origin}/api/loja?action=webhook${gw.acc.id ? `&acc=${gw.acc.id}` : ''}`
+  order.mpAccountId = gw.acc.id || null
   const description = items.map((i) => i.name).join(' + ').slice(0, 250)
   let pix = null
 
@@ -297,7 +306,7 @@ async function actionOrder(req) {
   } else if (method === 'pix') {
     if (!gw.mercadoPago) throw new HttpError(400, 'Pagamento ainda não configurado. Fale com o vendedor.')
     if (product.paymentMethods?.pix === false) throw new HttpError(400, 'Pix indisponível para este produto')
-    const p = await createPixPayment({ orderId, amountCents: amount, description, buyer, notificationUrl })
+    const p = await createPixPayment(gw.acc, { orderId, amountCents: amount, description, buyer, notificationUrl })
     const td = p.point_of_interaction?.transaction_data || {}
     pix = { qrCode: td.qr_code || null, qrBase64: td.qr_code_base64 || null, ticketUrl: td.ticket_url || null, expiresAt: p.date_of_expiration || null }
     order.mpPaymentId = String(p.id)
@@ -310,7 +319,7 @@ async function actionOrder(req) {
     const card = body.card || {}
     if (!card.token || !card.paymentMethodId) throw new HttpError(400, 'Dados do cartão incompletos')
     const installments = Math.min(Number(card.installments) || 1, Number(product.maxInstallments) || 12)
-    const p = await createCardPayment({
+    const p = await createCardPayment(gw.acc, {
       orderId,
       amountCents: amount,
       description,
@@ -429,9 +438,10 @@ async function actionWebhook(req) {
   const body = req.body || {}
   const type = body.type || body.topic || req.query.type || req.query.topic
   const paymentId = body.data?.id || req.query['data.id'] || req.query.id
-  if (type !== 'payment' || !paymentId || !mpConfigured()) return { ok: true }
-  // Nunca confia no corpo: busca o pagamento direto no MP.
-  const p = await getPayment(paymentId)
+  const acc = await getMpAccount(String(req.query.acc || '') || null)
+  if (type !== 'payment' || !paymentId || !acc || !mpConfigured(acc)) return { ok: true }
+  // Nunca confia no corpo: busca o pagamento direto no MP (na conta do produto).
+  const p = await getPayment(acc, paymentId)
   const orderId = p.external_reference
   if (!orderId || !/^ord_/.test(orderId)) return { ok: true }
   const snap = await getDoc(`storeOrders/${orderId}`)
@@ -642,7 +652,9 @@ function assertVisible(doc, user, what = 'Pedido') {
 async function actionAdminStatus() {
   await ensurePrivacyField().catch((err) => console.warn('[loja] migração privateTo:', err?.message))
   return {
-    mercadoPago: mpConfigured(),
+    mercadoPago: mpConfigured() || (await listDocs('storeMpAccounts')).length > 0,
+    // Conta principal (variáveis da Vercel) configurada?
+    mpPrincipal: mpConfigured(),
     pixManual: (await getPaymentSettings()).manualReady,
     invoice: await invoiceStatus(),
     email: Boolean(process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM),
@@ -912,6 +924,36 @@ async function actionAdminPreview(req, user) {
   return { accessUrl: await createAccessLink(publicOrigin(req), uid, area ? `/m/${area.slug}` : '/membros'), courses: products.length }
 }
 
+/* ------------------------- contas do Mercado Pago ------------------------- */
+
+/** Cadastra/edita uma conta do Mercado Pago (token cifrado; só a chave pública fica visível). */
+async function actionAdminMpAccount(req, user) {
+  const b = req.body || {}
+  const id = b.id ? String(b.id) : null
+  if (id) {
+    const prev = await getDoc(`storeMpAccounts/${id}`)
+    assertVisible(prev.exists ? prev.data() : null, user, 'Conta')
+  }
+  if (b.private === true && !canUsePrivate(user.email)) throw new HttpError(403, 'Só o Nicolas pode deixar conta privada')
+  const privateTo = b.private === true ? user.uid : null
+  try {
+    const accId = await saveMpAccount({ id, label: b.label, publicKey: b.publicKey, accessToken: b.accessToken || null, privateTo, user })
+    return { ok: true, id: accId }
+  } catch (err) {
+    throw new HttpError(400, err.message)
+  }
+}
+
+async function actionAdminMpAccountDelete(req, user) {
+  const id = String(req.body?.id || '')
+  const prev = await getDoc(`storeMpAccounts/${id}`)
+  assertVisible(prev.exists ? prev.data() : null, user, 'Conta')
+  const using = (await listDocs('storeProducts')).filter((p) => p.mpAccountId === id)
+  if (using.length) throw new HttpError(400, `Essa conta recebe ${using.length} produto(s). Troque a conta neles antes de excluir.`)
+  await deleteMpAccount(id)
+  return { ok: true }
+}
+
 /** Carrinho abandonado: marcar como contatado (ou desmarcar) e apagar. */
 async function actionAdminAbandoned(req, user) {
   const id = String(req.body?.id || '')
@@ -1015,6 +1057,8 @@ const ADMIN = {
   'POST admin-set-private': actionAdminSetPrivate,
   'POST admin-abandoned': actionAdminAbandoned,
   'POST admin-preview': actionAdminPreview,
+  'POST admin-mp-account': actionAdminMpAccount,
+  'POST admin-mp-account-delete': actionAdminMpAccountDelete,
   'POST admin-invoice-sync': actionAdminInvoiceSync,
   'GET admin-push-key': actionAdminPushKey,
   'POST admin-push-subscribe': actionAdminPushSubscribe,

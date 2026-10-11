@@ -178,8 +178,14 @@ export async function memberSetPassword(password: string) {
 }
 
 /* equipe */
+export async function storeSaveMpAccount(body: { id?: string; label: string; publicKey: string; accessToken?: string; private: boolean }) {
+  return call<{ ok: true; id: string }>('admin-mp-account', { body, token: await staffToken() })
+}
+export async function storeDeleteMpAccount(id: string) {
+  return call<{ ok: true }>('admin-mp-account-delete', { body: { id }, token: await staffToken() })
+}
 export async function storeAdminStatus() {
-  return call<{ mercadoPago: boolean; pixManual: boolean; email: boolean; invoice: { enabled: boolean; hasToken: boolean; environment: string } }>('admin-status', { token: await staffToken() })
+  return call<{ mercadoPago: boolean; mpPrincipal?: boolean; pixManual: boolean; email: boolean; invoice: { enabled: boolean; hasToken: boolean; environment: string } }>('admin-status', { token: await staffToken() })
 }
 export async function storeGrantAccess(email: string, name: string, productId: string) {
   return call<{ uid: string; accessUrl: string }>('admin-grant', { body: { email, name, productId }, token: await staffToken() })

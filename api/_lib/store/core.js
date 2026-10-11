@@ -18,6 +18,7 @@ import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, listDocs, createDocIfM
 import { emitInvoice, cancelInvoice } from './invoice.js'
 import { trackOrderEvent } from './metaCapi.js'
 import { mpConfigured, getPayment, orderStatusFromMp, refundPayment } from './mercadoPago.js'
+import { mpAccountForOrder } from './mpAccounts.js'
 import { sendPushToUsers } from '../webPush.js'
 
 export const nowIso = () => new Date().toISOString()
@@ -513,7 +514,10 @@ export async function refundOrder(orderId, by, extra = {}) {
   if (!snap.exists) throw new Error('Pedido não encontrado')
   const order = { id: orderId, ...snap.data() }
   if (order.status !== 'approved') throw new Error('Só dá pra reembolsar pedido aprovado')
-  if (order.mpPaymentId && mpConfigured()) await refundPayment(order.mpPaymentId)
+  if (order.mpPaymentId) {
+    const acc = await mpAccountForOrder(order)
+    if (mpConfigured(acc)) await refundPayment(acc, order.mpPaymentId)
+  }
   await updateDoc(`storeOrders/${orderId}`, { status: 'refunded', refundedAt: nowIso(), refundedBy: by, updatedAt: nowIso(), ...extra })
   await cancelInvoice(orderId).catch((err) => console.warn('[loja] cancelar nota falhou:', err?.message))
   for (const pid of order.productIds || [order.productId]) {
@@ -527,10 +531,12 @@ export async function refundOrder(orderId, by, extra = {}) {
 /** Confere o pagamento no MP e atualiza o pedido. force = consulta mesmo com o
  *  pedido já aprovado e entregue (webhook: pode ser reembolso ou chargeback). */
 export async function syncOrderWithMp(origin, orderId, order, { force = false } = {}) {
-  if (!order.mpPaymentId || !mpConfigured()) return order
+  if (!order.mpPaymentId) return order
   if (order.status === 'refunded') return order
   if (!force && order.status === 'approved' && order.fulfilledAt) return order
-  const p = await getPayment(order.mpPaymentId)
+  const acc = await mpAccountForOrder(order)
+  if (!mpConfigured(acc)) return order
+  const p = await getPayment(acc, order.mpPaymentId)
   let status = orderStatusFromMp(p.status)
   // Aprovado só deixa de ser aprovado se o dinheiro voltou. Disputa aberta
   // (in_mediation) não tira o acesso: espera o resultado.

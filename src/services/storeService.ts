@@ -38,6 +38,7 @@ import {
   type StoreMembersTheme,
   type StoreMemberArea,
   type StoreAbandoned,
+  type StoreMpAccount,
 } from '../types/store'
 
 /** Telas da equipe (aba Loja do CRM). O que é dinheiro/acesso (pedidos,
@@ -196,7 +197,7 @@ export async function deleteStoreProduct(id: string) {
   }
   batch.delete(doc(db, 'storeProducts', id))
   await batch.commit()
-  cleanupStoreImages(id)
+  cleanupStoreImages(id, true)
 }
 
 /* --------------------------- módulos e aulas --------------------------- */
@@ -223,7 +224,7 @@ export async function deleteStoreModule(productId: string, id: string, lessons: 
   lessons.filter((l) => l.moduleId === id).forEach((l) => batch.delete(doc(db, 'storeProducts', productId, 'lessons', l.id)))
   batch.delete(doc(db, 'storeProducts', productId, 'modules', id))
   await batch.commit()
-  cleanupStoreImages(productId)
+  cleanupStoreImages(productId, true)
 }
 
 export function createStoreLesson(productId: string, data: Omit<StoreLesson, 'id'>) {
@@ -271,6 +272,10 @@ export function deleteStoreCoupon(id: string) {
 
 export function subscribeStoreOrders(onData: (items: StoreOrder[]) => void, onError?: OnError) {
   return listenVisible<StoreOrder>('storeOrders', onData, onError)
+}
+
+export function subscribeStoreMpAccounts(onData: (items: StoreMpAccount[]) => void, onError?: OnError) {
+  return listenVisible<StoreMpAccount>('storeMpAccounts', onData, onError)
 }
 
 export function subscribeStoreAbandoned(onData: (items: StoreAbandoned[]) => void, onError?: OnError) {
@@ -405,6 +410,7 @@ export async function uploadStoreImage(productId: string, key: string, file: Fil
     await Promise.race([upload, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))])
     const url = await getDownloadURL(r)
     pendingUploads.add(r.fullPath)
+    changedFolders.add(productId)
     return url
   } catch (err) {
     console.warn('Storage indisponível — salvando imagem da loja como data URI.', err)
@@ -428,10 +434,21 @@ function storagePathOf(url?: string | null) {
 /** O campo de imagem trocou ou removeu esta imagem: ela pode ser apagada no próximo salvar. */
 export function releaseStoreImage(url?: string | null) {
   const path = storagePathOf(url)
-  if (path) pendingUploads.delete(path)
+  if (path) {
+    pendingUploads.delete(path)
+    const folder = path.split('/')[1] // store/{pasta}/{arquivo}
+    if (folder) changedFolders.add(folder)
+  }
 }
 
-export async function cleanupStoreImages(folder: string) {
+/* Pastas em que alguma imagem foi enviada, trocada ou removida nesta sessão. A limpeza
+ * lê todos os produtos e módulos no Firestore; sem esta trava ela rodava a cada
+ * "Salvar" (mesmo sem mexer em imagem) e gastava leituras à toa. */
+const changedFolders = new Set<string>()
+
+export async function cleanupStoreImages(folder: string, force = false) {
+  if (!force && !changedFolders.has(folder)) return
+  changedFolders.delete(folder)
   try {
     const { items } = await listAll(ref(storage, `store/${folder}`))
     const candidates = items.filter((i) => !pendingUploads.has(i.fullPath))

@@ -607,6 +607,13 @@ service cloud.firestore {
       allow delete: if isAdminOrManager() && ownOrShared(resource.data);
     }
 
+    // Contas do Mercado Pago extras: a equipe vê apelido e chave pública; o token fica
+    // cifrado em storeSecrets e só o servidor grava (/api/loja admin-mp-account).
+    match /storeMpAccounts/{accountId} {
+      allow read: if isAdminOrManager() && mineOrShared(resource.data);
+      allow write: if false;
+    }
+
     // Carrinhos abandonados: gravados só pelo servidor (checkout e /api/loja).
     match /storeAbandoned/{cartId} {
       allow read: if isAdminOrManager() && mineOrShared(resource.data);

@@ -117,8 +117,10 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
                   {!a.recoveredAt && a.orderStatus === 'refused' && <Badge className="bg-red-50 text-red-700">Pagamento recusado</Badge>}
                   {a.contactedAt && !a.recoveredAt && <Badge className="bg-slate-100 text-slate-600">Chamado por {a.contactedBy}</Badge>}
                 </div>
-                {!a.recoveredAt && (
-                  <div className="mt-auto flex flex-wrap gap-1.5 pt-1">
+                {/* Lixeira em todos (inclusive recuperados: compra de teste apagada deixava o carrinho sem como sair). */}
+                <div className="mt-auto flex flex-wrap gap-1.5 pt-1">
+                  {!a.recoveredAt && (
+                  <>
                     {wa && (
                       <a
                         href={wa}
@@ -141,6 +143,8 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
                     >
                       {a.contactedAt ? <><Undo2 size={14} aria-hidden="true" /> Desmarcar</> : <><Check size={14} aria-hidden="true" /> Já chamei</>}
                     </button>
+                  </>
+                  )}
                     <button
                       type="button"
                       disabled={busy === a.id}
@@ -150,8 +154,7 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
                     >
                       <Trash2 size={14} />
                     </button>
-                  </div>
-                )}
+                </div>
               </li>
             )
           })}
