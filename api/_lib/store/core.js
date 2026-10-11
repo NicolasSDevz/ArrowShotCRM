@@ -13,7 +13,6 @@
 // do CRM: não tem doc em users/ e as regras tratam "member" à parte.
 
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
-import { randomUUID } from 'node:crypto'
 import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, listDocs, createDocIfMissing, incrementField } from '../firebaseAdmin.js'
 import { emitInvoice, cancelInvoice } from './invoice.js'
 import { trackOrderEvent } from './metaCapi.js'
@@ -69,8 +68,6 @@ export function pixAccountFor(settings, product) {
   return { id: '', label: 'Conta principal', pixKey: settings.pixKey, pixKeyType: settings.pixKeyType, pixName: settings.pixName, pixCity: settings.pixCity }
 }
 
-// Só no celular (o sino fica pro que pede ação): venda paga e Pix gerado.
-const PUSH_ONLY = new Set(['store_sale', 'store_pix_generated', 'store_card_refused', 'store_cart_abandoned'])
 const PUSH_TAG = { store_sale: 'venda', store_pix_generated: 'pix-gerado', store_card_refused: 'cartao-recusado', store_cart_abandoned: 'carrinho', store_pix_pending: 'pix', store_refund_request: 'reembolso', store_refund: 'estorno', store_capi_error: 'meta' }
 
 /** Limite simples por chave (IP, e-mail) numa janela de tempo. false = passou do limite. */
@@ -87,19 +84,13 @@ export async function rateLimit(key, max, windowMs) {
   return true
 }
 
-/** Aviso no sino do CRM para admins e gerentes ativos e, nos aparelhos em que
- *  ativaram, notificação push ("Pix para conferir: ..." vira título + texto).
+/** Aviso da Loja: só no celular (notificação push) de admins e gerentes ativos que
+ *  ativaram nos aparelhos. Nada vai pro sino do CRM. "Pix pago: ..." vira título + texto.
  *  privateTo: produto privado, o aviso vai só pra dona dele. */
-export async function notifyStaff(type, message, actorName = 'Loja', { privateTo = null } = {}) {
+export async function notifyStaff(type, message, _actorName = 'Loja', { privateTo = null } = {}) {
   try {
     const users = await listDocs('users')
     const staff = users.filter((u) => u.active !== false && (u.role === 'admin' || u.role === 'manager') && (!privateTo || u.id === privateTo))
-    // Venda aprovada só vai pro celular (push); o sino fica pro que pede ação.
-    if (!PUSH_ONLY.has(type)) await Promise.all(
-      staff.map((u) =>
-        setDoc(`notifications/${randomUUID()}`, { userId: u.id, type, message, actorName, read: false, createdAt: new Date() })
-      )
-    )
     const cut = message.indexOf(': ')
     const title = cut > 0 && cut < 40 ? message.slice(0, cut) : 'Loja'
     const body = cut > 0 && cut < 40 ? message.slice(cut + 2) : message
