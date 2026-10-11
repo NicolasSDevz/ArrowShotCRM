@@ -70,8 +70,8 @@ export function pixAccountFor(settings, product) {
 }
 
 // Só no celular (o sino fica pro que pede ação): venda paga e Pix gerado.
-const PUSH_ONLY = new Set(['store_sale', 'store_pix_generated'])
-const PUSH_TAG = { store_sale: 'venda', store_pix_generated: 'pix-gerado', store_pix_pending: 'pix', store_refund_request: 'reembolso', store_refund: 'estorno', store_capi_error: 'meta' }
+const PUSH_ONLY = new Set(['store_sale', 'store_pix_generated', 'store_card_refused', 'store_cart_abandoned'])
+const PUSH_TAG = { store_sale: 'venda', store_pix_generated: 'pix-gerado', store_card_refused: 'cartao-recusado', store_cart_abandoned: 'carrinho', store_pix_pending: 'pix', store_refund_request: 'reembolso', store_refund: 'estorno', store_capi_error: 'meta' }
 
 /** Limite simples por chave (IP, e-mail) numa janela de tempo. false = passou do limite. */
 export async function rateLimit(key, max, windowMs) {
@@ -158,6 +158,29 @@ async function markRecovered(order) {
       await updateDoc(path, { recoveredAt: nowIso(), orderId: order.id, orderStatus: 'approved', updatedAt: nowIso() }).catch(() => {})
     }
   }
+}
+
+/** Avisa no celular os carrinhos que ficaram 15 min sem pagar (uma vez cada). Roda junto
+ *  com o movimento da loja (checkout, pagamento, CRM aberto), no máximo 1x a cada 5 min,
+ *  e na rotina diária: o plano da Vercel não deixa agendar de 5 em 5 minutos. Carrinho
+ *  antigo (de antes deste aviso) não tem o campo notified e não é avisado. */
+export async function notifyAbandonedCarts({ force = false } = {}) {
+  if (!force && !(await rateLimit('sweep-carts', 1, 5 * 60_000))) return { skipped: true }
+  const rows = await queryDocs('storeAbandoned', [['notified', false]])
+  let sent = 0
+  for (const a of rows) {
+    if (a.recoveredAt) {
+      await updateDoc(`storeAbandoned/${a.id}`, { notified: true }).catch(() => {})
+      continue
+    }
+    if (Date.now() - new Date(a.updatedAt).getTime() < 15 * 60_000) continue
+    await updateDoc(`storeAbandoned/${a.id}`, { notified: true }).catch(() => {})
+    const total = (Number(a.amount || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    const how = a.orderStatus === 'pending' ? 'gerou o Pix e não pagou' : a.orderStatus === 'refused' ? 'teve o pagamento recusado e não voltou' : 'preencheu os dados e não pagou'
+    await notifyStaff('store_cart_abandoned', `Carrinho abandonado: ${a.name || a.email} ${how} (${a.productName}, ${total}). Chame na aba Abandonados.`, 'Loja', { privateTo: a.privateTo })
+    sent++
+  }
+  return { pending: rows.length, sent }
 }
 
 /* ------------------------------ produtos ------------------------------ */

@@ -20,7 +20,7 @@ import { getDoc, setDoc, queryDocs, listDocs, updateDoc } from '../_lib/firebase
 import { listAllTokenStatuses, markExpiryNotified } from '../_lib/metaTokenStore.js'
 import { computeAndStoreMetrics } from '../_lib/metricsStore.js'
 import { syncInvoice } from '../_lib/store/invoice.js'
-import { publicOrigin, reconcilePendingOrders, retryFailedCapi } from '../_lib/store/core.js'
+import { publicOrigin, reconcilePendingOrders, retryFailedCapi, notifyAbandonedCarts } from '../_lib/store/core.js'
 
 const WARN_WITHIN_DAYS = 7
 const RENOTIFY_AFTER_MS = 20 * 3600 * 1000
@@ -225,6 +225,7 @@ export default async function handler(req, res) {
     ['invoices', runInvoiceSync],
     ['storeOrders', runStoreReconcile],
     ['metaCapi', runCapiRetry],
+    ['abandonedCarts', () => notifyAbandonedCarts({ force: true })],
   ]) {
     try {
       results[key] = await run(req)

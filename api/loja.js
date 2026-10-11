@@ -92,6 +92,7 @@ import {
   abandonedId,
   refundOrder,
   canUsePrivate,
+  notifyAbandonedCarts,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
 import { getMpAccount, mpAccountForProduct, saveMpAccount, deleteMpAccount } from './_lib/store/mpAccounts.js'
@@ -359,6 +360,10 @@ async function actionOrder(req) {
     const total = (amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     await notifyStaff('store_pix_pending', `Pix para conferir: ${buyer.name} gerou um Pix de ${total} (${description}) na ${order.pixAccountLabel || 'conta principal'}. Confira no banco e confirme na Loja, aba Vendas.`, 'Loja', { privateTo: order.privateTo })
   }
+  if (order.method === 'card' && order.status === 'refused') {
+    const total = (amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    await notifyStaff('store_card_refused', `Cartão recusado: ${buyer.name} tentou pagar ${total} (${description}) e o cartão não passou (${cardRefusalReason(order.mpStatusDetail)}). Vale chamar no WhatsApp.`, 'Loja', { privateTo: order.privateTo })
+  }
   // Pix do Mercado Pago gerado (ainda não pago): aviso só no celular. O Pix direto já avisa como "Pix para conferir".
   if (order.method === 'pix' && order.status === 'pending') {
     const total = (amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -376,6 +381,24 @@ async function actionOrder(req) {
     pix,
     accessUrl,
   }
+}
+
+/** Motivo da recusa do cartão em português (status_detail do Mercado Pago). */
+function cardRefusalReason(detail) {
+  const map = {
+    cc_rejected_insufficient_amount: 'sem limite',
+    cc_rejected_bad_filled_security_code: 'código de segurança errado',
+    cc_rejected_bad_filled_date: 'validade errada',
+    cc_rejected_bad_filled_card_number: 'número do cartão errado',
+    cc_rejected_bad_filled_other: 'dado do cartão errado',
+    cc_rejected_call_for_authorize: 'o banco pediu autorização',
+    cc_rejected_card_disabled: 'cartão bloqueado',
+    cc_rejected_duplicated_payment: 'pagamento repetido',
+    cc_rejected_high_risk: 'recusado por segurança',
+    cc_rejected_max_attempts: 'tentativas demais',
+    cc_rejected_blacklist: 'recusado por segurança',
+  }
+  return map[detail] || 'recusado pelo banco'
 }
 
 /* -------------------------- carrinho abandonado -------------------------- */
@@ -402,6 +425,8 @@ async function saveAbandoned(product, buyer, extra = {}) {
     createdAt: fresh ? now : prev.createdAt,
     updatedAt: now,
     recoveredAt: null,
+    // Aviso de carrinho abandonado no celular (notifyAbandonedCarts): uma vez por carrinho.
+    notified: fresh ? false : prev?.notified ?? true,
     contactedAt: fresh ? null : prev?.contactedAt ?? null,
     contactedBy: fresh ? null : prev?.contactedBy ?? null,
     privateTo: product.privateTo || null,
@@ -740,7 +765,7 @@ async function deleteMemberData(uid) {
   return { enrollments: enrollments.length, progress: progress.length, links: codes.length }
 }
 
-const STORE_NOTIFICATION_TYPES = ['store_sale', 'store_pix_generated', 'store_pix_pending', 'store_refund_request', 'store_refund', 'store_capi_error']
+const STORE_NOTIFICATION_TYPES = ['store_sale', 'store_pix_generated', 'store_card_refused', 'store_cart_abandoned', 'store_pix_pending', 'store_refund_request', 'store_refund', 'store_capi_error']
 
 /** Exclui um pedido de teste (só admin): some das Vendas junto com os acessos que
  *  ele liberou, os avisos da venda e o uso do cupom. Aluno que fica sem nenhum
@@ -1085,8 +1110,12 @@ const ADMIN = {
   'POST admin-push-test': actionAdminPushTest,
 }
 
+// Rotas que disparam a conferência dos carrinhos abandonados (no máximo 1x a cada 5 min).
+const SWEEP_ROUTES = new Set(['POST checkout-lead', 'POST order', 'POST webhook', 'GET webhook', 'GET admin-status', 'POST admin-reconcile'])
+
 export default async function handler(req, res) {
   const route = `${req.method} ${req.query.action || ''}`
+  if (SWEEP_ROUTES.has(route)) await notifyAbandonedCarts().catch((err) => console.warn('[loja] carrinhos:', err?.message))
   try {
     if (PUBLIC[route]) {
       const out = await PUBLIC[route](req)
