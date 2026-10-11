@@ -690,6 +690,9 @@ async function actionAdminDeleteMember(req) {
 }
 
 async function deleteMemberData(uid) {
+  // Carrinhos abandonados do mesmo e-mail saem junto (senão o aluno apagado continua na lista).
+  const member = (await getDoc(`storeMembers/${uid}`)).data()
+  const carts = member?.email ? await queryDocs('storeAbandoned', [['email', normalizeEmail(member.email)]]) : []
   const [enrollments, progress, codes] = await Promise.all([
     queryDocs('storeEnrollments', [['uid', uid]]),
     queryDocs('storeProgress', [['uid', uid]]),
@@ -699,6 +702,7 @@ async function deleteMemberData(uid) {
     ...enrollments.map((e) => deleteDoc(`storeEnrollments/${e.id}`)),
     ...progress.map((p) => deleteDoc(`storeProgress/${p.id}`)),
     ...codes.map((c) => deleteDoc(`storeAccessCodes/${c.id}`)),
+    ...carts.map((c) => deleteDoc(`storeAbandoned/${c.id}`)),
     deleteDoc(`storeMemberSecrets/${uid}`),
   ])
   await deleteDoc(`storeMembers/${uid}`)
@@ -740,6 +744,10 @@ async function actionAdminDeleteOrder(req, user) {
   if (order.couponId && order.fulfilledAt) await incrementField(`storeCoupons/${order.couponId}`, 'uses', -1).catch(() => {})
   await deleteDoc(`storeLocks/fulfill_${orderId}`).catch(() => {})
   await deleteDoc(`storeOrders/${orderId}`)
+  // Carrinho abandonado desta compra (o mesmo e-mail nos produtos do pedido).
+  if (order.buyer?.email) {
+    await Promise.all((order.productIds || [order.productId]).map((pid) => deleteDoc(`storeAbandoned/${abandonedId(pid, order.buyer.email)}`).catch(() => {})))
+  }
 
   let memberDeleted = false
   if (uid && /^m_[a-f0-9]{26}$/.test(uid)) {
