@@ -89,6 +89,7 @@ import {
   memberAreaBySlug,
   abandonedId,
   refundOrder,
+  canUsePrivate,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
 import { fetchPdf, stampPdf } from './_lib/store/protectedPdf.js'
@@ -862,6 +863,7 @@ async function actionAdminInvoiceEmit(req, user) {
 async function actionAdminSetPrivate(req, user) {
   const productId = String(req.body?.productId || '')
   const on = req.body?.private === true
+  if (!canUsePrivate(user.email)) throw new HttpError(403, 'Só o Nicolas pode usar o Só eu vejo')
   const product = await getProduct(productId)
   assertVisible(product, user, 'Produto')
   const privateTo = on ? user.uid : null

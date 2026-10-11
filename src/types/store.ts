@@ -571,6 +571,14 @@ export interface StoreMemberArea extends StoreMembersTheme {
 
 export const MAIN_MEMBERS_AREA = 'principal'
 
+/** Quem pode usar o "Só eu vejo" (e-mail do login no CRM). O servidor (api/_lib/store/core.js)
+ *  e as regras do Firestore (canUsePrivate) conferem a mesma lista. */
+export const PRIVATE_OWNER_EMAILS = ['gestorarrowshot@gmail.com']
+
+export function canUsePrivate(email?: string | null) {
+  return PRIVATE_OWNER_EMAILS.includes(String(email || '').toLowerCase())
+}
+
 /** Caminho base de uma área: a principal fica em /membros, as outras em /m/{slug}. */
 export function membersBasePath(slug?: string | null) {
   return slug ? `/m/${slug}` : '/membros'

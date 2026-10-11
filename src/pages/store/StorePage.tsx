@@ -24,6 +24,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { auth } from '../../firebase/config'
 import { useStoreAbandoned, useStoreComments, useStoreCoupons, useStoreEnrollments, useStoreMembers, useStoreOrders, useStoreProducts, useStoreProgress } from '../../hooks/useStore'
 import { createStoreProduct } from '../../services/storeService'
 import { storeAdminStatus } from '../../services/storeApi'
@@ -45,7 +46,7 @@ import { DuplicateProductModal } from '../../components/store/admin/DuplicatePro
 import { StoreMembersThemePanel } from '../../components/store/admin/StoreMembersThemePanel'
 import { StoreAbandonedPanel } from '../../components/store/admin/StoreAbandonedPanel'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
-import { formatCents, type StoreOrder, type StoreProduct } from '../../types/store'
+import { canUsePrivate, formatCents, type StoreOrder, type StoreProduct } from '../../types/store'
 
 const STATUS_LABEL: Record<StoreProduct['status'], { text: string; cls: string }> = {
   active: { text: 'No ar', cls: 'bg-emerald-50 text-emerald-700' },
@@ -316,6 +317,8 @@ function NewProductModal({ open, onClose }: { open: boolean; onClose: () => void
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
   const [onlyMe, setOnlyMe] = useState(false)
+  // "Só eu vejo" é só pro Nicolas (as regras e o servidor conferem o e-mail também).
+  const canPrivate = canUsePrivate(auth.currentUser?.email)
   const [busy, setBusy] = useState(false)
 
   const submit = async (e: FormEvent) => {
@@ -342,13 +345,15 @@ function NewProductModal({ open, onClose }: { open: boolean; onClose: () => void
       <form onSubmit={submit} className="space-y-3">
         <Field label="Nome do produto" required><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Método de Tráfego para Limpeza" autoFocus /></Field>
         <Field label="Preço" required><Input inputMode="numeric" value={price} onChange={(e) => setPrice(maskCurrencyInput(e.target.value))} placeholder="R$ 0,00" /></Field>
-        <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
-          <input type="checkbox" checked={onlyMe} onChange={(e) => setOnlyMe(e.target.checked)} className="mt-0.5 h-4 w-4" />
-          <span>
-            <span className="flex items-center gap-1.5 font-medium"><Lock size={13} aria-hidden="true" /> Só eu vejo</span>
-            <span className="block text-xs text-slate-400">O produto, as vendas, os cupons, os carrinhos e os alunos dele ficam escondidos do resto da equipe, e só você recebe os avisos. Dá pra mudar depois no produto.</span>
-          </span>
-        </label>
+        {canPrivate && (
+          <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+            <input type="checkbox" checked={onlyMe} onChange={(e) => setOnlyMe(e.target.checked)} className="mt-0.5 h-4 w-4" />
+            <span>
+              <span className="flex items-center gap-1.5 font-medium"><Lock size={13} aria-hidden="true" /> Só eu vejo</span>
+              <span className="block text-xs text-slate-400">O produto, as vendas, os cupons, os carrinhos e os alunos dele ficam escondidos do resto da equipe, e só você recebe os avisos. Dá pra mudar depois no produto.</span>
+            </span>
+          </label>
+          )}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button type="submit" loading={busy}>Criar e configurar</Button>

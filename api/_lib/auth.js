@@ -42,7 +42,7 @@ export async function requireInternalUser(req) {
     throw new AuthError(403, 'Sem permissão — apenas a equipe interna pode gerenciar tokens do Meta Ads')
   }
 
-  return { uid: decoded.uid, name: profile.name || decoded.email || decoded.uid, role: profile.role }
+  return { uid: decoded.uid, email: String(decoded.email || '').toLowerCase(), name: profile.name || decoded.email || decoded.uid, role: profile.role }
 }
 
 /** Envolve um handler de API com a verificação acima, respondendo o erro

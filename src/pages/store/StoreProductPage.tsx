@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Copy, CopyPlus, ExternalLink, Lock, Save, Trash2, Users } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { auth } from '../../firebase/config'
 import { useStoreMemberAreas, useStoreProducts } from '../../hooks/useStore'
 import { storeSetPrivate } from '../../services/storeApi'
 import { deleteStoreProduct, updateStoreProduct } from '../../services/storeService'
@@ -18,7 +19,7 @@ import { CheckoutDesigner } from '../../components/store/admin/CheckoutDesigner'
 import { ContentEditor } from '../../components/store/admin/ContentEditor'
 import { copyText } from '../../components/store/admin/StoreOrdersTable'
 import { DuplicateProductModal } from '../../components/store/admin/DuplicateProductModal'
-import { defaultCheckoutConfig, defaultMembersConfig, formatCents, membersBasePath, type StoreProduct } from '../../types/store'
+import { canUsePrivate, defaultCheckoutConfig, defaultMembersConfig, formatCents, membersBasePath, type StoreProduct } from '../../types/store'
 
 const card = 'space-y-3 rounded-2xl border border-slate-200 bg-white p-5'
 
@@ -217,6 +218,7 @@ export function StoreProductPage() {
           hint={`O aluno pede em Meu perfil e o dinheiro volta na hora pelo Mercado Pago, com o acesso removido (garantia de ${draft.checkout.guaranteeDays || 0} dias, muda na Configuração de tela). Pix direto na conta continua manual: o pedido chega pra você devolver pelo banco.`}
         />
       </section>
+      {(canUsePrivate(auth.currentUser?.email) || server.privateTo) && (
       <section className={`${card} lg:col-span-2`}>
         <h2 className="flex items-center gap-2 text-[15px] font-semibold text-slate-800"><Lock size={15} aria-hidden="true" /> Quem vê este produto</h2>
         <div className="flex flex-wrap items-center gap-3">
@@ -230,6 +232,7 @@ export function StoreProductPage() {
           </Button>
         </div>
       </section>
+      )}
     </div>
   )
 

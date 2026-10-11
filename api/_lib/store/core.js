@@ -109,6 +109,14 @@ export async function notifyStaff(type, message, actorName = 'Loja', { privateTo
 
 /* ------------------------------ privados ------------------------------ */
 
+/** Quem pode usar o "Só eu vejo" (e-mail do login no CRM). Igual em src/types/store.ts
+ *  (PRIVATE_OWNER_EMAILS) e em firestore.rules (canUsePrivate). */
+export const PRIVATE_OWNER_EMAILS = ['gestorarrowshot@gmail.com']
+
+export function canUsePrivate(email) {
+  return PRIVATE_OWNER_EMAILS.includes(String(email || '').toLowerCase())
+}
+
 /** Quem pode ver um produto/pedido/cupom privado: só a dona (privateTo). */
 export function visibleTo(doc, uid) {
   return !doc?.privateTo || doc.privateTo === uid

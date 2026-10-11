@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { Eye, ExternalLink, Home, LayoutDashboard, Lock, LogIn, Moon, Plus, Sun, Trash2, Users } from 'lucide-react'
 import { storePreviewAsMember } from '../../../services/storeApi'
 import { useAuth } from '../../../context/AuthContext'
+import { auth } from '../../../firebase/config'
 import { useStoreMemberAreas } from '../../../hooks/useStore'
 import { Button } from '../../ui/Button'
 import { Modal } from '../../ui/Modal'
@@ -21,7 +22,7 @@ import {
   saveStoreMembersTheme,
   subscribeStoreMembersTheme,
 } from '../../../services/storeService'
-import { MAIN_MEMBERS_AREA, STORE_FONTS, defaultMembersTheme, membersBasePath, membersThemeVars, type StoreMembersTheme } from '../../../types/store'
+import { canUsePrivate, MAIN_MEMBERS_AREA, STORE_FONTS, defaultMembersTheme, membersBasePath, membersThemeVars, type StoreMembersTheme } from '../../../types/store'
 
 /** Cor com botão "limpar" (vazio = herda). */
 function Color({ label, value, onChange, fallback, hint }: { label: string; value: string; onChange: (v: string) => void; fallback: string; hint?: string }) {
@@ -96,6 +97,8 @@ export function StoreMembersThemePanel() {
   const [dirty, setDirty] = useState(false)
   const [creating, setCreating] = useState(false)
   const [previewing, setPreviewing] = useState(false)
+  // "Só eu vejo" é só pro Nicolas (as regras e o servidor conferem o e-mail também).
+  const canPrivate = canUsePrivate(auth.currentUser?.email)
   const loadedFor = useRef<string | null>(null)
   useGoogleFont(form.font)
 
@@ -433,10 +436,10 @@ export function StoreMembersThemePanel() {
         {area && (
           <div className="flex w-full flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs">
             <span className="text-slate-500">Os cursos entram nesta área pelo produto (aba Área de membros).</span>
-            <button type="button" onClick={togglePrivate} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-slate-600 hover:bg-slate-100">
+            {canPrivate && <button type="button" onClick={togglePrivate} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-slate-600 hover:bg-slate-100">
               {area.privateTo ? <><Users size={13} aria-hidden="true" /> Mostrar para a equipe</> : <><Lock size={13} aria-hidden="true" /> Só eu vejo</>}
-            </button>
-            <button type="button" onClick={removeArea} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-red-600 hover:bg-red-50">
+            </button>}
+            <button type="button" onClick={removeArea} className={`${canPrivate ? '' : 'ml-auto '}inline-flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-red-600 hover:bg-red-50`}>
               <Trash2 size={13} aria-hidden="true" /> Excluir área
             </button>
           </div>
@@ -540,6 +543,7 @@ function NewAreaModal({ open, onClose, taken, base, onCreated }: { open: boolean
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)
   const [onlyMe, setOnlyMe] = useState(false)
+  const canPrivate = canUsePrivate(auth.currentUser?.email)
   const [busy, setBusy] = useState(false)
   const autoSlug = (v: string) => v.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
 
@@ -580,13 +584,15 @@ function NewAreaModal({ open, onClose, taken, base, onCreated }: { open: boolean
             <Input value={slug} onChange={(e) => { setSlugTouched(true); setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')) }} placeholder="flores" aria-label="Final do endereço" />
           </div>
         </Field>
-        <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
-          <input type="checkbox" checked={onlyMe} onChange={(e) => setOnlyMe(e.target.checked)} className="mt-0.5 h-4 w-4" />
-          <span>
-            <span className="flex items-center gap-1.5 font-medium"><Lock size={13} aria-hidden="true" /> Só eu vejo no CRM</span>
-            <span className="block text-xs text-slate-400">O resto da equipe não vê esta área na Loja.</span>
-          </span>
-        </label>
+        {canPrivate && (
+          <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+            <input type="checkbox" checked={onlyMe} onChange={(e) => setOnlyMe(e.target.checked)} className="mt-0.5 h-4 w-4" />
+            <span>
+              <span className="flex items-center gap-1.5 font-medium"><Lock size={13} aria-hidden="true" /> Só eu vejo no CRM</span>
+              <span className="block text-xs text-slate-400">O resto da equipe não vê esta área na Loja.</span>
+            </span>
+          </label>
+          )}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button type="submit" loading={busy}>Criar área</Button>

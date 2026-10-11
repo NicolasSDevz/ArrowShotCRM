@@ -573,8 +573,15 @@ service cloud.firestore {
     function keepsPrivacy() {
       return request.resource.data.get('privateTo', null) == resource.data.get('privateTo', null);
     }
+    // Só o Nicolas usa o "Só eu vejo" (mesma lista em src/types/store.ts e api/_lib/store/core.js).
+    function canUsePrivate() {
+      return request.auth.token.get('email', '').lower() in ['gestorarrowshot@gmail.com'];
+    }
+    // Privado novo ou mudado: só pra si mesmo e só quem pode. Manter o que já estava sempre vale.
     function newPrivacyOk() {
-      return request.resource.data.get('privateTo', null) == null || request.resource.data.privateTo == request.auth.uid;
+      return request.resource.data.get('privateTo', null) == null
+        || (resource != null && request.resource.data.get('privateTo', null) == resource.data.get('privateTo', null))
+        || (request.resource.data.privateTo == request.auth.uid && canUsePrivate());
     }
     function productMineOrShared(productId) {
       return ownOrShared(get(/databases/$(database)/documents/storeProducts/$(productId)).data);
