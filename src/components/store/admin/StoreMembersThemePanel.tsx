@@ -428,6 +428,7 @@ export function StoreMembersThemePanel() {
         </div>
         <Button size="sm" variant="secondary" icon={<Plus size={14} />} onClick={() => setCreating(true)}>Nova área</Button>
         <Button size="sm" variant="secondary" icon={<Eye size={14} />} loading={previewing} onClick={viewAsMember}>Ver como aluno</Button>
+        {dirty && <Button size="sm" loading={busy} disabled={!loaded} onClick={() => submit()}>Salvar visual</Button>}
         <span className="ml-auto truncate text-xs text-slate-400">Endereço: {window.location.origin}{base}</span>
         {area && (
           <div className="flex w-full flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs">
@@ -461,8 +462,8 @@ export function StoreMembersThemePanel() {
           <div key={areaId} className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4" role="tabpanel">
             {tab === 'area' ? areaTab : tab === 'home' ? homeTab : login}
           </div>
-          {/* bg-white (não bg-white/95): só a cor cheia é trocada no modo escuro do CRM. Com a translúcida a barra ficava branca e o botão claro do modo escuro sumia nela. */}
-          <div className="sticky bottom-0 z-10 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          {/* Barra parada no fim do formulário (grudada no rodapé ela ficava por cima dos campos); com alteração, o Salvar aparece também lá em cima. */}
+          <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <Button type="submit" loading={busy} disabled={!loaded}>Salvar visual</Button>
             <a href={tab === 'login' ? `${base}/login` : base} target="_blank" rel="noreferrer" className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
               <ExternalLink size={15} aria-hidden="true" /> Abrir {tab === 'login' ? 'o login' : 'a área'}
