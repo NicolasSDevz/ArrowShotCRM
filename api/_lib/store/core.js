@@ -409,8 +409,13 @@ export function checkPassword(password, salt, hash) {
  *  - Resend: RESEND_API_KEY e STORE_EMAIL_FROM ("Nome <acesso@dominio>").
  *  Sem nenhum, o link aparece na página de obrigado e no CRM (aba Alunos) pra
  *  enviar pelo WhatsApp. */
+/** Conta do Gmail. Aceita também GMAIL_USE (nome cadastrado sem o R na Vercel). */
+function gmailUser() {
+  return (process.env.GMAIL_USER || process.env.GMAIL_USE || '').trim()
+}
+
 export function emailConfigured() {
-  return Boolean((process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) || (process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM))
+  return Boolean((gmailUser() && process.env.GMAIL_APP_PASSWORD) || (process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM))
 }
 
 let gmailTransport = null
@@ -418,7 +423,7 @@ let gmailTransport = null
 /** Manda um e-mail; true se saiu. Nunca lança erro (e-mail não trava venda). */
 export async function sendMail({ to, subject, html }) {
   try {
-    const user = process.env.GMAIL_USER
+    const user = gmailUser()
     const pass = process.env.GMAIL_APP_PASSWORD
     if (user && pass) {
       if (!gmailTransport) {
