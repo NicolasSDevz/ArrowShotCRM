@@ -386,6 +386,10 @@ export interface StoreMember {
   name: string
   phone?: string | null
   hasPassword: boolean
+  /** Entrou (ou vai entrar) com senha provisória: precisa criar a dele. */
+  mustChangePassword?: boolean
+  /** Até quando vale a senha provisória (ISO). */
+  tempPasswordUntil?: string | null
   createdAt: string
   lastAccessAt?: string | null
 }

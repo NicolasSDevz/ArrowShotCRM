@@ -30,9 +30,10 @@ export function MembersLoginPage() {
     <MembersLoginView
       theme={theme}
       onLogin={async (email, password) => {
-        const { token } = await memberLogin(email, password)
+        const { token, mustChangePassword } = await memberLogin(email, password)
         await signInWithToken(token)
-        navigate(base, { replace: true })
+        // Entrou com a senha provisória: vai direto criar a senha dele.
+        navigate(mustChangePassword ? `${base}/perfil` : base, { replace: true })
       }}
       onSendLink={async (email) => (await memberSendLink(email, area)).email}
     />
@@ -110,6 +111,11 @@ export function MembersProfilePage() {
       </dl>
       <form onSubmit={onSubmit} className="mt-6 space-y-3 rounded-xl border border-[var(--m-border)] bg-[var(--m-card)] p-5">
         <h2 className="font-semibold">{member?.hasPassword ? 'Trocar senha' : 'Criar senha'}</h2>
+        {member?.mustChangePassword && (
+          <p className="text-sm text-[var(--m-muted)]">
+            Você está usando uma senha provisória{member.tempPasswordUntil ? `, que vale até ${new Date(member.tempPasswordUntil).toLocaleDateString('pt-BR')}` : ''}. Crie a sua senha para continuar entrando depois disso.
+          </p>
+        )}
         <label className="block text-sm text-[var(--m-muted)]">
           Nova senha
           <input className={`${inputCls} mt-1`} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />

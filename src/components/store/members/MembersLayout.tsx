@@ -49,6 +49,13 @@ function Shell() {
           </div>
         </div>
       </header>
+      {member?.mustChangePassword && !pathname.startsWith(`${base}/perfil`) && (
+        <div role="status" className="border-b border-[var(--m-border2)] bg-[color-mix(in_srgb,var(--m-primary)_15%,transparent)] px-4 py-2.5 text-center text-sm">
+          Você entrou com uma senha provisória
+          {member.tempPasswordUntil ? `, que vale até ${new Date(member.tempPasswordUntil).toLocaleDateString('pt-BR')}` : ''}.{' '}
+          <Link to={`${base}/perfil`} className="font-semibold text-[var(--m-primary)] underline underline-offset-2">Criar minha senha</Link>
+        </div>
+      )}
       <div className="flex-1">
         <Outlet />
       </div>

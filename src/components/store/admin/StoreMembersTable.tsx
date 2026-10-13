@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
-import { Link2, Trash2, UserPlus, XCircle } from 'lucide-react'
+import { KeyRound, Link2, Trash2, UserPlus, XCircle } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { Field, Input, Select } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
@@ -9,6 +9,7 @@ import { Badge } from '../../ui/Badge'
 import { storeAccessLink, storeDeleteMember, storeGrantAccess, storeRevokeAccess } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { copyText } from './StoreOrdersTable'
+import { TempPasswordModal } from './TempPasswordModal'
 import type { StoreEnrollment, StoreMember, StoreProduct, StoreProgress } from '../../../types/store'
 
 /** Alunos: quem tem acesso a quê, progresso, link de acesso e liberação manual. */
@@ -18,6 +19,7 @@ export function StoreMembersTable({
   progress,
   products,
   lessonCounts,
+  emailOn = false,
 }: {
   members: StoreMember[]
   enrollments: StoreEnrollment[]
@@ -25,11 +27,15 @@ export function StoreMembersTable({
   products: StoreProduct[]
   /** total de aulas por produto (pra calcular %). */
   lessonCounts: Record<string, number>
+  /** E-mail automático (Resend) configurado? */
+  emailOn?: boolean
 }) {
   const [search, setSearch] = useState('')
   const [productId, setProductId] = useState('')
   const [grantOpen, setGrantOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [tempFor, setTempFor] = useState<StoreMember | null>(null)
+  const firstProductOf = (uid: string) => enrollments.find((e) => e.uid === uid && e.active)?.productId
 
   const productName = (id: string) => products.find((p) => p.id === id)?.name ?? 'Produto removido'
 
@@ -114,8 +120,16 @@ export function StoreMembersTable({
                     Aluno desde {new Date(m.createdAt).toLocaleDateString('pt-BR')}
                     {m.lastAccessAt ? `, último acesso em ${new Date(m.lastAccessAt).toLocaleDateString('pt-BR')}` : ', ainda não acessou'}
                     {m.hasPassword ? ', já criou senha' : ''}
+                    {!m.hasPassword && m.tempPasswordUntil
+                      ? new Date(m.tempPasswordUntil).getTime() > Date.now()
+                        ? `, senha provisória vale até ${new Date(m.tempPasswordUntil).toLocaleDateString('pt-BR')}`
+                        : ', senha provisória vencida'
+                      : ''}
                   </p>
                 </div>
+                <Button size="sm" variant="secondary" icon={<KeyRound size={14} />} disabled={busy === m.id} onClick={() => setTempFor(m)} aria-label={`Criar senha provisória para ${m.name}`}>
+                  Senha provisória
+                </Button>
                 <Button size="sm" variant="secondary" icon={<Link2 size={14} />} loading={busy === m.id} onClick={() => newLink(m)} aria-label={`Gerar e copiar link de acesso de ${m.name}`}>
                   Copiar link de acesso
                 </Button>
@@ -151,14 +165,32 @@ export function StoreMembersTable({
         </ul>
       )}
 
-      <GrantModal open={grantOpen} onClose={() => setGrantOpen(false)} products={products} />
+      <GrantModal
+        open={grantOpen}
+        onClose={() => setGrantOpen(false)}
+        products={products}
+        onTempPassword={(uid, name, email, phone) => setTempFor({ id: uid, name: name || email, email, phone: phone || null, hasPassword: false, createdAt: new Date().toISOString() })}
+      />
+      <TempPasswordModal member={tempFor} productId={tempFor ? firstProductOf(tempFor.id) : undefined} emailOn={emailOn} onClose={() => setTempFor(null)} />
     </div>
   )
 }
 
-function GrantModal({ open, onClose, products }: { open: boolean; onClose: () => void; products: StoreProduct[] }) {
+function GrantModal({
+  open,
+  onClose,
+  products,
+  onTempPassword,
+}: {
+  open: boolean
+  onClose: () => void
+  products: StoreProduct[]
+  onTempPassword: (uid: string, name: string, email: string, phone: string) => void
+}) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [uid, setUid] = useState('')
   const [productId, setProductId] = useState('')
   const [busy, setBusy] = useState(false)
   const [link, setLink] = useState('')
@@ -168,6 +200,8 @@ function GrantModal({ open, onClose, products }: { open: boolean; onClose: () =>
     setEmail('')
     setProductId('')
     setLink('')
+    setPhone('')
+    setUid('')
     onClose()
   }
 
@@ -175,8 +209,9 @@ function GrantModal({ open, onClose, products }: { open: boolean; onClose: () =>
     e.preventDefault()
     setBusy(true)
     try {
-      const { accessUrl } = await storeGrantAccess(email, name, productId || products[0].id)
+      const { accessUrl, uid: newUid } = await storeGrantAccess(email, name, productId || products[0].id, phone)
       setLink(accessUrl)
+      setUid(newUid)
       toast.success('Acesso liberado')
     } catch (err) {
       toast.error((err as Error).message)
@@ -193,6 +228,17 @@ function GrantModal({ open, onClose, products }: { open: boolean; onClose: () =>
           <Input readOnly value={link} aria-label="Link de acesso" onFocus={(e) => e.currentTarget.select()} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={close}>Fechar</Button>
+            <Button
+              variant="secondary"
+              icon={<KeyRound size={14} />}
+              onClick={() => {
+                const data = [uid, name, email, phone] as const
+                close()
+                onTempPassword(...data)
+              }}
+            >
+              Mandar senha provisória
+            </Button>
             <Button onClick={() => copyText(link, 'Link copiado')}>Copiar link</Button>
           </div>
         </div>
@@ -200,6 +246,7 @@ function GrantModal({ open, onClose, products }: { open: boolean; onClose: () =>
         <form onSubmit={submit} className="space-y-3">
           <Field label="Nome do aluno"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <Field label="E-mail" required><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></Field>
+          <Field label="WhatsApp (opcional)"><Input inputMode="tel" placeholder="Ex.: 11 98765-4321" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
           <Field label="Produto" required>
             <Select value={productId || products[0]?.id} onChange={(e) => setProductId(e.target.value)}>
               {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

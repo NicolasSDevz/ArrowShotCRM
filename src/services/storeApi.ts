@@ -126,7 +126,7 @@ export const fetchOrderStatus = (id: string, key: string) => call<OrderStatus>('
 /** Pede um link de acesso novo por e-mail. email: false = o envio de e-mail não está configurado. */
 export const memberSendLink = (email: string, area?: string | null) => call<{ ok: true; email: boolean }>('member-send-link', { body: { email, area: area || null } })
 export const memberEnter = (code: string) => call<{ token: string; hasPassword: boolean }>('member-enter', { body: { code } })
-export const memberLogin = (email: string, password: string) => call<{ token: string; hasPassword: boolean }>('member-login', { body: { email, password } })
+export const memberLogin = (email: string, password: string) => call<{ token: string; hasPassword: boolean; mustChangePassword?: boolean }>('member-login', { body: { email, password } })
 export interface MemberOrder {
   orderId: string
   items: string[]
@@ -187,8 +187,12 @@ export async function storeDeleteMpAccount(id: string) {
 export async function storeAdminStatus() {
   return call<{ mercadoPago: boolean; mpPrincipal?: boolean; pixManual: boolean; email: boolean; invoice: { enabled: boolean; hasToken: boolean; environment: string } }>('admin-status', { token: await staffToken() })
 }
-export async function storeGrantAccess(email: string, name: string, productId: string) {
-  return call<{ uid: string; accessUrl: string }>('admin-grant', { body: { email, name, productId }, token: await staffToken() })
+export async function storeGrantAccess(email: string, name: string, productId: string, phone?: string) {
+  return call<{ uid: string; accessUrl: string }>('admin-grant', { body: { email, name, productId, phone: phone || null }, token: await staffToken() })
+}
+/** Senha provisória de 3 dias. send 'email' também manda por e-mail. */
+export async function storeTempPassword(uid: string, productId?: string, send?: 'email') {
+  return call<{ password: string; expiresAt: string; loginUrl: string; email: string; emailSent: boolean }>('admin-temp-password', { body: { uid, productId: productId || null, send: send || null }, token: await staffToken() })
 }
 /** productId: o link abre na área de membros desse produto. */
 export async function storeAccessLink(uid: string, productId?: string) {

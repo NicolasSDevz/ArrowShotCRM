@@ -369,6 +369,30 @@ export function hashPassword(password) {
   return { salt, hash }
 }
 
+/** Senha provisória vale 3 dias; depois o aluno entra pelo link ou pede outra. */
+export const TEMP_PASSWORD_TTL_MS = 3 * 86400_000
+
+/** Gera e grava uma senha provisória (fácil de digitar: sem 0/O, 1/l/I).
+ *  Substitui a senha anterior. O texto em claro só volta para quem pediu. */
+export async function createTempPassword(uid) {
+  const letters = 'abcdefghjkmnpqrstuvwxyz'
+  const digits = '23456789'
+  const pick = (set, n) => Array.from(randomBytes(n), (b) => set[b % set.length]).join('')
+  const password = `${pick(letters, 4)}${pick(digits, 4)}`
+  const expiresAt = new Date(Date.now() + TEMP_PASSWORD_TTL_MS).toISOString()
+  await setDoc(`storeMemberSecrets/${uid}`, { ...hashPassword(password), temporary: true, expiresAt, updatedAt: nowIso() })
+  await updateDoc(`storeMembers/${uid}`, { hasPassword: false, mustChangePassword: true, tempPasswordUntil: expiresAt })
+  return { password, expiresAt }
+}
+
+/** Data curta em português (ex.: 16/10 às 14h30), no horário de Brasília. */
+export function shortDateBr(iso) {
+  const d = new Date(iso)
+  const day = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }).replace(':', 'h')
+  return `${day} às ${time}`
+}
+
 export function checkPassword(password, salt, hash) {
   if (!salt || !hash) return false
   const test = scryptSync(String(password), salt, 64)
@@ -382,7 +406,7 @@ export function checkPassword(password, salt, hash) {
  *  STORE_EMAIL_FROM (ex.: "Arrow Shot <acesso@seudominio.com.br>"). Sem elas,
  *  o link aparece na página de obrigado e no CRM (aba Alunos) pra enviar
  *  pelo WhatsApp. */
-export async function sendAccessEmail({ to, name, productNames, accessUrl, supportEmail }) {
+export async function sendAccessEmail({ to, name, productNames, accessUrl, supportEmail, tempPassword }) {
   const key = process.env.RESEND_API_KEY
   const from = process.env.STORE_EMAIL_FROM
   if (!key || !from) return false
@@ -392,7 +416,7 @@ export async function sendAccessEmail({ to, name, productNames, accessUrl, suppo
     <h2>${escapeHtml(first)}, sua compra foi aprovada!</h2>
     <p>Você já tem acesso a:</p><ul>${list}</ul>
     <p><a href="${accessUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Acessar a área de membros</a></p>
-    <p style="font-size:13px;color:#64748b">Guarde este e-mail: o botão acima é o seu acesso. No primeiro acesso você pode criar uma senha.</p>
+    ${tempPassword ? tempPasswordBlock(to, tempPassword) : '<p style="font-size:13px;color:#64748b">Guarde este e-mail: o botão acima é o seu acesso. No primeiro acesso você pode criar uma senha.</p>'}
     ${supportEmail ? `<p style="font-size:13px;color:#64748b">Dúvidas: ${escapeHtml(supportEmail)}</p>` : ''}
   </div>`
   try {
@@ -425,6 +449,42 @@ export async function sendLoginLinkEmail({ to, name, accessUrl }) {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from, to: [to], subject: 'Seu link de acesso', html }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    return res.ok
+  } catch (err) {
+    console.warn('[loja] falha ao enviar e-mail:', err?.message)
+    return false
+  }
+}
+
+/** Bloco do e-mail com login e senha provisória. */
+function tempPasswordBlock(email, { password, expiresAt }) {
+  return `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;margin:16px 0">
+      <p style="margin:0 0 6px">Para entrar com e-mail e senha:</p>
+      <p style="margin:0">E-mail: <b>${escapeHtml(email)}</b></p>
+      <p style="margin:0">Senha provisória: <b style="font-family:monospace;font-size:16px">${escapeHtml(password)}</b></p>
+      <p style="margin:8px 0 0;font-size:13px;color:#64748b">Ela vale até ${shortDateBr(expiresAt)}. No primeiro acesso, crie a sua senha.</p>
+    </div>`
+}
+
+/** E-mail só com a senha provisória (mandado pela equipe na aba Alunos). */
+export async function sendTempPasswordEmail({ to, name, loginUrl, tempPassword }) {
+  const key = process.env.RESEND_API_KEY
+  const from = process.env.STORE_EMAIL_FROM
+  if (!key || !from) return false
+  const first = String(name || '').split(' ')[0] || 'Olá'
+  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0f172a">
+    <h2>${escapeHtml(first)}, aqui está seu acesso</h2>
+    ${tempPasswordBlock(to, tempPassword)}
+    <p><a href="${loginUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Entrar na área de membros</a></p>
+    <p style="font-size:13px;color:#64748b">Se não foi você que pediu, ignore este e-mail.</p>
+  </div>`
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: [to], subject: 'Sua senha de acesso', html }),
       signal: AbortSignal.timeout(15_000),
     })
     return res.ok
@@ -477,7 +537,12 @@ async function deliver(origin, order) {
   }
   const accessUrl = await createAccessLink(origin, uid, await membersPathFor(order.productId).catch(() => '/membros'))
   if (order.couponId) await incrementField(`storeCoupons/${order.couponId}`, 'uses', 1).catch((err) => console.warn('[loja] cupom:', err?.message))
+  // Quem ainda não criou senha recebe uma provisória (3 dias) junto com o link, no e-mail.
+  const emailOn = Boolean(process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM)
+  const memberSnap = emailOn ? await getDoc(`storeMembers/${uid}`) : null
+  const tempPassword = memberSnap && !memberSnap.data()?.hasPassword ? await createTempPassword(uid).catch(() => null) : null
   const emailSent = await sendAccessEmail({
+    tempPassword,
     to: order.buyer.email,
     name: order.buyer.name,
     productNames: (order.items || []).map((i) => i.name),

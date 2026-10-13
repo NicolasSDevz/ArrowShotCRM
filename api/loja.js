@@ -23,6 +23,7 @@
 //   GET  admin-status                          → gateway e e-mail configurados?
 //   POST admin-grant   { email, name, productId } → { accessUrl }
 //   POST admin-link    { uid }                 → { accessUrl }
+//   POST admin-temp-password { uid, productId?, send? } → senha provisória de 3 dias (send: 'email' manda por e-mail)
 //   POST admin-revoke  { uid, productId }
 //   POST admin-delete-member { uid }     apaga o aluno (pedidos ficam)
 //   POST admin-refund  { orderId }
@@ -86,6 +87,8 @@ import {
   syncOrderWithMp,
   reconcilePendingOrders,
   sendLoginLinkEmail,
+  sendTempPasswordEmail,
+  createTempPassword,
   visibleTo,
   membersPathFor,
   memberAreaBySlug,
@@ -502,7 +505,7 @@ async function memberToken(uid) {
   if (!snap.exists) throw new HttpError(404, 'Aluno não encontrado')
   await updateDoc(`storeMembers/${uid}`, { lastAccessAt: nowIso() })
   const m = snap.data()
-  return { token: createCustomToken(uid, { member: true, email: m.email }), hasPassword: m.hasPassword === true }
+  return { token: createCustomToken(uid, { member: true, email: m.email }), hasPassword: m.hasPassword === true, mustChangePassword: m.mustChangePassword === true }
 }
 
 async function actionMemberEnter(req) {
@@ -545,6 +548,9 @@ async function actionMemberLogin(req) {
   if (!s || !checkPassword(password, s.salt, s.hash)) {
     throw new HttpError(401, 'E-mail ou senha incorretos. Se ainda não criou senha, entre pelo link de acesso que chegou na compra.')
   }
+  if (s.temporary && s.expiresAt && Date.now() > new Date(s.expiresAt).getTime()) {
+    throw new HttpError(401, 'Sua senha provisória venceu (valia 3 dias). Peça um link novo abaixo ou fale com o suporte.')
+  }
   return memberToken(uid)
 }
 
@@ -565,8 +571,9 @@ async function actionMemberPassword(req) {
   const uid = await requireMember(req)
   const password = String(req.body?.password || '')
   if (password.length < 6) throw new HttpError(400, 'A senha precisa ter pelo menos 6 caracteres')
+  // setDoc substitui tudo: a senha provisória deixa de existir.
   await setDoc(`storeMemberSecrets/${uid}`, { ...hashPassword(password), updatedAt: nowIso() })
-  await updateDoc(`storeMembers/${uid}`, { hasPassword: true })
+  await updateDoc(`storeMembers/${uid}`, { hasPassword: true, mustChangePassword: false, tempPasswordUntil: null })
   return { ok: true }
 }
 
@@ -712,7 +719,8 @@ async function actionAdminGrant(req, user) {
   if (!isValidEmail(email)) throw new HttpError(400, 'E-mail inválido')
   const product = await getProduct(productId)
   assertVisible(product, user, 'Produto')
-  const uid = await ensureMember({ email, name })
+  const phone = String(req.body?.phone || '').replace(/[^\d+()\s-]/g, '').trim().slice(0, 30) || null
+  const uid = await ensureMember({ email, name, phone })
   await grantAccess({ uid, email, productId, source: 'manual', grantedBy: user.name })
   return { uid, accessUrl: await createAccessLink(publicOrigin(req), uid, await membersPathFor(productId)) }
 }
@@ -726,6 +734,22 @@ async function actionAdminLink(req, user) {
   const productId = String(req.body?.productId || '')
   if (productId) assertVisible(await getProduct(productId), user, 'Produto')
   return { accessUrl: await createAccessLink(publicOrigin(req), uid, productId ? await membersPathFor(productId) : '/membros') }
+}
+
+/** Senha provisória (3 dias) para a equipe mandar por WhatsApp ou e-mail.
+ *  send: 'email' também manda por e-mail. productId (opcional) escolhe a área. */
+async function actionAdminTempPassword(req, user) {
+  const uid = String(req.body?.uid || '')
+  if (!/^m_[a-f0-9]{26}$/.test(uid)) throw new HttpError(400, 'Aluno inválido')
+  const snap = await getDoc(`storeMembers/${uid}`)
+  if (!snap.exists) throw new HttpError(404, 'Aluno não encontrado')
+  const productId = String(req.body?.productId || '')
+  if (productId) assertVisible(await getProduct(productId), user, 'Produto')
+  const loginUrl = `${publicOrigin(req)}${productId ? await membersPathFor(productId) : '/membros'}/login`
+  const temp = await createTempPassword(uid)
+  const m = snap.data()
+  const emailSent = req.body?.send === 'email' ? await sendTempPasswordEmail({ to: m.email, name: m.name, loginUrl, tempPassword: temp }) : false
+  return { ...temp, loginUrl, email: m.email, emailSent }
 }
 
 async function actionAdminRevoke(req, user) {
@@ -1085,6 +1109,7 @@ const ADMIN = {
   'GET admin-status': actionAdminStatus,
   'POST admin-grant': actionAdminGrant,
   'POST admin-link': actionAdminLink,
+  'POST admin-temp-password': actionAdminTempPassword,
   'POST admin-revoke': actionAdminRevoke,
   'POST admin-refund': actionAdminRefund,
   'POST admin-delete-order': actionAdminDeleteOrder,

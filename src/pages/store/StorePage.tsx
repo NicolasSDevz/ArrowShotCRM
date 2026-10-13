@@ -159,7 +159,7 @@ export function StorePage() {
             { icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel /> },
             { icon: <Receipt size={ico} />, label: salesBadges ? `Vendas (${salesBadges})` : 'Vendas', content: <StoreOrdersTable orders={orders} products={products} /> },
             { icon: <ShoppingCart size={ico} />, label: openCarts ? `Abandonados (${openCarts})` : 'Abandonados', content: <StoreAbandonedPanel carts={abandoned} /> },
-            { icon: <Users size={ico} />, label: `Alunos (${members.length})`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} /> },
+            { icon: <Users size={ico} />, label: `Alunos (${members.length})`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} emailOn={status?.email ?? false} /> },
             { icon: <Wallet size={ico} />, label: 'Recebimento', content: <StorePaymentSettingsPanel principalReady={status?.mpPrincipal ?? status?.mercadoPago ?? false} /> },
             { icon: <MessageSquare size={ico} />, label: pendingComments ? `Comentários (${pendingComments} novos)` : 'Comentários', content: <StoreCommentsPanel comments={comments} products={products} />, secondary: true },
             { icon: <Ticket size={ico} />, label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} />, secondary: true },
