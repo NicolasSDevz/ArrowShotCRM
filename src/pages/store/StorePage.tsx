@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   AlertCircle,
@@ -66,6 +66,8 @@ export function StorePage() {
   const { data: abandoned } = useStoreAbandoned()
   const [status, setStatus] = useState<Awaited<ReturnType<typeof storeAdminStatus>> | null>(null)
   const [creating, setCreating] = useState(false)
+  // Aba aberta fica na URL: voltar de um produto (ou recarregar) cai na mesma aba.
+  const [params, setParams] = useSearchParams()
 
   useEffect(() => {
     storeAdminStatus().then(setStatus).catch(() => setStatus(null))
@@ -87,7 +89,8 @@ export function StorePage() {
   const pendingComments = comments.filter((c) => c.status === 'pending').length
   const pixToConfirm = orders.filter((o) => o.status === 'pending' && o.method === 'pix_manual').length
   const refundRequests = orders.filter((o) => o.status === 'approved' && o.refundRequest).length
-  const salesBadges = [pixToConfirm && `${pixToConfirm} Pix para confirmar`, refundRequests && `${refundRequests} reembolso pedido`].filter(Boolean).join(', ')
+  const salesAlerts = pixToConfirm + refundRequests
+  const salesBadgeLabel = [pixToConfirm && `${pixToConfirm} Pix para confirmar`, refundRequests && `${refundRequests} reembolso pedido`].filter(Boolean).join(', ')
   const openCarts = abandoned.filter((a) => !a.recoveredAt && !a.contactedAt && Date.now() - new Date(a.updatedAt).getTime() > 15 * 60_000).length
 
   // Resumo do topo: últimos 30 dias, sem pedidos de teste.
@@ -96,6 +99,20 @@ export function StorePage() {
   const revenue30 = approved30.reduce((sum, o) => sum + o.amount, 0)
   const live = products.filter((p) => p.status === 'active').length
   const ico = 15
+
+  const tabs = [
+    { key: 'geral', icon: <BarChart3 size={ico} />, label: 'Visão geral', content: <StoreOverview orders={orders} products={products} abandoned={abandoned} /> },
+    { key: 'vendas', icon: <Receipt size={ico} />, label: 'Vendas', badge: salesAlerts, badgeAlert: true, badgeLabel: salesBadgeLabel, content: <StoreOrdersTable orders={orders} products={products} /> },
+    { key: 'produtos', icon: <Package size={ico} />, label: 'Produtos', badge: products.length, badgeLabel: `${products.length} produtos`, content: <ProductsGrid products={products} orders={orders} onCreate={() => setCreating(true)} /> },
+    { key: 'alunos', icon: <Users size={ico} />, label: 'Alunos', badge: members.length, badgeLabel: `${members.length} alunos`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} emailOn={status?.email ?? false} /> },
+    { key: 'abandonados', icon: <ShoppingCart size={ico} />, label: 'Abandonados', badge: openCarts, badgeAlert: true, badgeLabel: `${openCarts} carrinhos sem contato`, content: <StoreAbandonedPanel carts={abandoned} /> },
+    { key: 'membros', icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel /> },
+    { key: 'recebimento', icon: <Wallet size={ico} />, label: 'Recebimento', content: <StorePaymentSettingsPanel principalReady={status?.mpPrincipal ?? status?.mercadoPago ?? false} /> },
+    { key: 'comentarios', icon: <MessageSquare size={ico} />, label: 'Comentários', badge: pendingComments, badgeAlert: true, badgeLabel: `${pendingComments} comentários novos`, content: <StoreCommentsPanel comments={comments} products={products} />, secondary: true },
+    { key: 'cupons', icon: <Ticket size={ico} />, label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} />, secondary: true },
+    { key: 'nota', icon: <FileText size={ico} />, label: 'Nota fiscal', content: <StoreInvoicePanel hasToken={status?.invoice?.hasToken ?? false} onTokenSaved={() => storeAdminStatus().then(setStatus).catch(() => {})} />, secondary: true },
+  ]
+  const activeTab = Math.max(0, tabs.findIndex((t) => t.key === params.get('aba')))
 
   const kpis = [
     { icon: <Wallet size={16} />, label: 'Faturamento (30 dias)', value: formatCents(revenue30) },
@@ -153,18 +170,14 @@ export function StorePage() {
       <div className="overflow-clip rounded-3xl border border-slate-200 bg-white shadow-sm">
         <Tabs
           label="Seções da loja"
-          tabs={[
-            { icon: <BarChart3 size={ico} />, label: 'Visão geral', content: <StoreOverview orders={orders} products={products} abandoned={abandoned} /> },
-            { icon: <Package size={ico} />, label: `Produtos (${products.length})`, content: <ProductsGrid products={products} orders={orders} onCreate={() => setCreating(true)} /> },
-            { icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel /> },
-            { icon: <Receipt size={ico} />, label: salesBadges ? `Vendas (${salesBadges})` : 'Vendas', content: <StoreOrdersTable orders={orders} products={products} /> },
-            { icon: <ShoppingCart size={ico} />, label: openCarts ? `Abandonados (${openCarts})` : 'Abandonados', content: <StoreAbandonedPanel carts={abandoned} /> },
-            { icon: <Users size={ico} />, label: `Alunos (${members.length})`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} emailOn={status?.email ?? false} /> },
-            { icon: <Wallet size={ico} />, label: 'Recebimento', content: <StorePaymentSettingsPanel principalReady={status?.mpPrincipal ?? status?.mercadoPago ?? false} /> },
-            { icon: <MessageSquare size={ico} />, label: pendingComments ? `Comentários (${pendingComments} novos)` : 'Comentários', content: <StoreCommentsPanel comments={comments} products={products} />, secondary: true },
-            { icon: <Ticket size={ico} />, label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} />, secondary: true },
-            { icon: <FileText size={ico} />, label: 'Nota fiscal', content: <StoreInvoicePanel hasToken={status?.invoice?.hasToken ?? false} onTokenSaved={() => storeAdminStatus().then(setStatus).catch(() => {})} />, secondary: true },
-          ]}
+          active={activeTab}
+          onChange={(i) => setParams((p) => {
+            const next = new URLSearchParams(p)
+            if (i === 0) next.delete('aba')
+            else next.set('aba', tabs[i].key)
+            return next
+          }, { replace: true })}
+          tabs={tabs}
         />
       </div>
 

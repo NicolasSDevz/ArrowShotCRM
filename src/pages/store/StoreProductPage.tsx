@@ -108,7 +108,7 @@ export function StoreProductPage() {
   if (!server || !draft) {
     return (
       <div className="p-6 text-center text-sm text-slate-500">
-        Produto não encontrado. <Link to="/loja" className="text-brand-600 hover:underline">Voltar para a Loja</Link>
+        Produto não encontrado. <Link to="/loja?aba=produtos" className="text-brand-600 hover:underline">Voltar para a Loja</Link>
       </div>
     )
   }
@@ -151,7 +151,7 @@ export function StoreProductPage() {
     if (!(await askConfirm({ title: `Excluir "${server.name}"?`, message: 'Some o produto, o checkout e as aulas. Pedidos e alunos continuam registrados.', confirmLabel: 'Excluir produto', danger: true }))) return
     await deleteStoreProduct(server.id)
     toast.success('Produto excluído')
-    navigate('/loja')
+    navigate('/loja?aba=produtos')
   }
 
   const origin = window.location.origin
@@ -317,7 +317,7 @@ export function StoreProductPage() {
   return (
     <div className="space-y-4 pb-20">
       <header className="flex flex-wrap items-center gap-3">
-        <Link to="/loja" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Voltar para a Loja"><ArrowLeft size={18} /></Link>
+        <Link to="/loja?aba=produtos" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Voltar para a Loja"><ArrowLeft size={18} /></Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-bold text-slate-900">{server.name}</h1>
           <p className="text-xs text-slate-500">{server.status === 'active' ? 'No ar' : server.status === 'draft' ? 'Rascunho' : 'Arquivado'}</p>

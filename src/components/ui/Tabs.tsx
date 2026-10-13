@@ -10,12 +10,33 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 export function Tabs({
   tabs,
   label = 'Abas',
+  active: activeProp,
+  onChange,
 }: {
-  tabs: { label: string; content: ReactNode; secondary?: boolean; icon?: ReactNode }[]
+  tabs: {
+    label: string
+    content: ReactNode
+    secondary?: boolean
+    icon?: ReactNode
+    /** Contador na bolinha ao lado do nome (0 ou vazio = sem bolinha). */
+    badge?: number
+    /** Texto do contador para o leitor de tela (ex.: "2 Pix para confirmar"). */
+    badgeLabel?: string
+    /** Bolinha de alerta (âmbar) em vez de neutra. */
+    badgeAlert?: boolean
+  }[]
   /** Nome da lista de abas lido pelo leitor de tela. */
   label?: string
+  /** Aba aberta controlada de fora (ex.: lembrada na URL). */
+  active?: number
+  onChange?: (i: number) => void
 }) {
-  const [active, setActive] = useState(0)
+  const [activeState, setActiveState] = useState(0)
+  const active = activeProp ?? activeState
+  const setActive = (i: number) => {
+    setActiveState(i)
+    onChange?.(i)
+  }
   const [showAll, setShowAll] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const baseId = useId()
@@ -57,7 +78,7 @@ export function Tabs({
 
   const tabButton = (t: (typeof indexed)[number]) => (
     <button
-      key={t.label}
+      key={t.i}
       ref={(el) => {
         tabRefs.current[t.i] = el
       }}
@@ -75,14 +96,18 @@ export function Tabs({
           : 'border-transparent text-slate-400 hover:text-slate-600'
       }`}
     >
-      {t.icon ? (
-        <span className="flex items-center gap-1.5">
-          <span aria-hidden="true" className="opacity-80">{t.icon}</span>
-          {t.label}
-        </span>
-      ) : (
-        t.label
-      )}
+      <span className="flex items-center gap-1.5">
+        {t.icon && <span aria-hidden="true" className="opacity-80">{t.icon}</span>}
+        {t.label}
+        {!!t.badge && (
+          <span
+            className={`rounded-full px-1.5 text-[11px] font-bold leading-[18px] ${t.badgeAlert ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500'}`}
+            aria-label={t.badgeLabel ?? String(t.badge)}
+          >
+            {t.badge}
+          </span>
+        )}
+      </span>
     </button>
   )
 

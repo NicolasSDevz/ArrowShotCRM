@@ -146,7 +146,8 @@ export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'enti
     if (!n.entityId) return '/calendario'
     return n.entityId.startsWith('http') ? n.entityId : `https://wa.me/${n.entityId}`
   }
-  if (n.type.startsWith('store_')) return '/loja'
+  // Avisos da Loja (venda, Pix, reembolso, erro no Meta) abrem direto na aba Vendas.
+  if (n.type.startsWith('store_')) return '/loja?aba=vendas'
   if (!n.entityType) return null
   switch (n.entityType) {
     case 'client':
