@@ -1,7 +1,7 @@
 import { subscribeCalendarEvents } from '../services/calendarService'
 import type { CalendarEvent } from '../types'
-import { useCollectionSubscription } from './useCollectionSubscription'
+import { useSharedSubscription } from './useCollectionSubscription'
 
 export function useCalendarEvents() {
-  return useCollectionSubscription<CalendarEvent>((onData, onError) => subscribeCalendarEvents(onData, onError), [])
+  return useSharedSubscription<CalendarEvent>('calendarEvents:all', (onData, onError) => subscribeCalendarEvents(onData, onError))
 }

@@ -1,6 +1,6 @@
 import { subscribeAllModules, subscribeModulesByTrail } from '../services/moduleService'
 import type { Module } from '../types'
-import { useCollectionSubscription } from './useCollectionSubscription'
+import { useCollectionSubscription, useSharedSubscription } from './useCollectionSubscription'
 
 export function useModules(trailId: string | undefined) {
   return useCollectionSubscription<Module>(
@@ -13,5 +13,5 @@ export function useModules(trailId: string | undefined) {
 }
 
 export function useAllModules() {
-  return useCollectionSubscription<Module>((onData, onError) => subscribeAllModules(onData, onError), [])
+  return useSharedSubscription<Module>('modules:all', (onData, onError) => subscribeAllModules(onData, onError))
 }

@@ -2,16 +2,15 @@ import { useEffect, useMemo } from 'react'
 import { subscribeMyNotifications, deleteNotifications } from '../services/notificationService'
 import type { AppNotification } from '../types'
 import { isNotificationStale } from '../types/notification'
-import { useCollectionSubscription } from './useCollectionSubscription'
+import { useSharedSubscription } from './useCollectionSubscription'
 
 /** The viewer's own notifications. The platform owner isn't special here —
  *  they receive their own copy of every platform action (see
  *  notifyAdminsOfAction), so the badge count and mark-as-read stay meaningful
  *  per person. */
 export function useNotifications(userId: string | undefined) {
-  const { data, loading } = useCollectionSubscription<AppNotification>(
-    (onData, onError) => subscribeMyNotifications(userId ?? '__none__', onData, onError),
-    [userId]
+  const { data, loading } = useSharedSubscription<AppNotification>(`notifications:${userId ?? ''}`, (onData, onError) =>
+    subscribeMyNotifications(userId ?? '__none__', onData, onError)
   )
 
   const sorted = useMemo(

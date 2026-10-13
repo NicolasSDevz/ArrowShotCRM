@@ -1,7 +1,7 @@
 import { subscribeTrails } from '../services/trailService'
 import type { Trail } from '../types'
-import { useCollectionSubscription } from './useCollectionSubscription'
+import { useSharedSubscription } from './useCollectionSubscription'
 
 export function useTrails() {
-  return useCollectionSubscription<Trail>((onData, onError) => subscribeTrails(onData, onError), [])
+  return useSharedSubscription<Trail>('trails:all', (onData, onError) => subscribeTrails(onData, onError))
 }

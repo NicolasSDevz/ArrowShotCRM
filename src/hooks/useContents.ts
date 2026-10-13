@@ -1,6 +1,6 @@
 import { subscribeAllContents, subscribeContents, type ContentFilters } from '../services/contentService'
 import type { Content } from '../types'
-import { useCollectionSubscription } from './useCollectionSubscription'
+import { useCollectionSubscription, useSharedSubscription } from './useCollectionSubscription'
 
 export function useContents(filters: ContentFilters = {}) {
   return useCollectionSubscription<Content>(
@@ -10,5 +10,5 @@ export function useContents(filters: ContentFilters = {}) {
 }
 
 export function useAllContents() {
-  return useCollectionSubscription<Content>((onData, onError) => subscribeAllContents(onData, onError), [])
+  return useSharedSubscription<Content>('contents:all', (onData, onError) => subscribeAllContents(onData, onError))
 }
