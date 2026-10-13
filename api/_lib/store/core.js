@@ -372,13 +372,15 @@ export function hashPassword(password) {
 /** Senha provisória vale 1 dia; depois o aluno entra pelo link ou pede outra. */
 export const TEMP_PASSWORD_TTL_MS = 86400_000
 
-/** Gera e grava uma senha provisória (fácil de digitar: sem 0/O, 1/l/I).
+/** Gera e grava uma senha provisória curta (fácil de digitar).
  *  Substitui a senha anterior. O texto em claro só volta para quem pediu. */
 export async function createTempPassword(uid) {
+  // 6 caracteres (3 letras + 3 números), sem os que confundem (0/o, 1/l/i). Vale 1 dia e o
+  // login tem limite de tentativas, então curta não é fácil de adivinhar.
   const letters = 'abcdefghjkmnpqrstuvwxyz'
   const digits = '23456789'
   const pick = (set, n) => Array.from(randomBytes(n), (b) => set[b % set.length]).join('')
-  const password = `${pick(letters, 4)}${pick(digits, 4)}`
+  const password = `${pick(letters, 3)}${pick(digits, 3)}`
   const expiresAt = new Date(Date.now() + TEMP_PASSWORD_TTL_MS).toISOString()
   await setDoc(`storeMemberSecrets/${uid}`, { ...hashPassword(password), temporary: true, expiresAt, updatedAt: nowIso() })
   await updateDoc(`storeMembers/${uid}`, { hasPassword: false, mustChangePassword: true, tempPasswordUntil: expiresAt })
@@ -463,53 +465,130 @@ export async function sendMail({ to, subject, html }) {
   }
 }
 
+/* ----------------------------- modelo do e-mail ----------------------------- */
+
+/** Marca do e-mail: nome, logo e cor da área de membros do produto (ou da principal). */
+export async function emailBrandFor({ productId = null, areaId = null } = {}) {
+  let theme = null
+  try {
+    const product = productId ? await getProduct(productId) : null
+    const aid = areaId || product?.membersAreaId || null
+    if (aid && /^[A-Za-z0-9_-]{1,64}$/.test(aid)) theme = (await getDoc(`storeMemberAreas/${aid}`)).data() || null
+    if (!theme) theme = (await getDoc('storeSettings/membersTheme')).data() || null
+  } catch {
+    theme = null
+  }
+  const color = /^#[0-9a-f]{6}$/i.test(theme?.primaryColor || '') ? theme.primaryColor : '#2563eb'
+  // Gmail não mostra imagem em data URI: logo só se for um endereço https.
+  const logo = /^https:\/\//.test(theme?.logoUrl || '') ? theme.logoUrl : null
+  return { name: String(theme?.brandName || 'Área de Membros').slice(0, 60), logo, color }
+}
+
+/** Texto escuro ou claro sobre a cor do botão. */
+function onColor(hex) {
+  const n = parseInt(hex.slice(1), 16)
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  return (r * 299 + g * 587 + b * 114) / 1000 > 160 ? '#0f172a' : '#ffffff'
+}
+
+/** Moldura dos e-mails da Loja: cabeçalho com a marca, cartão branco e rodapé.
+ *  Feito com tabela e estilo na linha (é o que os programas de e-mail entendem). */
+export function emailLayout(brand, { preheader, title, body, button, footer }) {
+  const font = "font-family:Arial,Helvetica,sans-serif"
+  const header = brand.logo
+    ? `<img src="${escapeHtml(brand.logo)}" alt="${escapeHtml(brand.name)}" height="40" style="display:block;margin:0 auto;max-height:40px;border:0">`
+    : `<span style="${font};font-size:20px;font-weight:bold;color:#0f172a">${escapeHtml(brand.name)}</span>`
+  const btn = button
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px auto 4px"><tr><td style="border-radius:10px;background:${brand.color}">
+        <a href="${escapeHtml(button.url)}" style="${font};display:inline-block;padding:14px 32px;font-size:16px;font-weight:bold;color:${onColor(brand.color)};text-decoration:none;border-radius:10px">${escapeHtml(button.label)}</a>
+      </td></tr></table>`
+    : ''
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta name="color-scheme" content="light"><title>${escapeHtml(title)}</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9">
+  <span style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader)}</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 12px">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
+        <tr><td align="center" style="padding:0 0 20px">${header}</td></tr>
+        <tr><td style="background:#ffffff;border-radius:16px;border-top:4px solid ${brand.color};padding:32px 28px;${font};color:#0f172a">
+          <h1 style="margin:0 0 12px;font-size:22px;line-height:1.3;color:#0f172a">${escapeHtml(title)}</h1>
+          ${body}
+          ${btn}
+        </td></tr>
+        <tr><td align="center" style="padding:20px 8px 0;${font};font-size:12px;line-height:1.6;color:#94a3b8">${footer}</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`
+}
+
+const P = 'margin:0 0 12px;font-size:15px;line-height:1.6;color:#334155'
+
+/** Caixa com o login e a senha provisória em destaque. */
+export function credentialsBox(brand, email, { password, expiresAt }) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0 4px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
+    <tr><td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif">
+      <p style="margin:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#64748b">Seu e-mail</p>
+      <p style="margin:2px 0 14px;font-size:15px;font-weight:bold;color:#0f172a">${escapeHtml(email)}</p>
+      <p style="margin:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#64748b">Senha provisória</p>
+      <p style="margin:4px 0 0;font-family:'Courier New',monospace;font-size:28px;font-weight:bold;letter-spacing:6px;color:${brand.color}">${escapeHtml(password)}</p>
+      <p style="margin:12px 0 0;font-size:13px;color:#64748b">Vale até <b>${shortDateBr(expiresAt)}</b>. No primeiro acesso você cria a sua senha.</p>
+    </td></tr>
+  </table>`
+}
+
+function footerText(brand, supportEmail) {
+  return `${supportEmail ? `Dúvidas? Responda este e-mail ou escreva para ${escapeHtml(supportEmail)}.<br>` : ''}Você recebeu este e-mail porque tem acesso a ${escapeHtml(brand.name)}.`
+}
+
 /** E-mail de acesso da compra (link + senha provisória, quando houver). */
-export async function sendAccessEmail({ to, name, productNames, accessUrl, supportEmail, tempPassword }) {
+export async function sendAccessEmail({ to, name, productNames, accessUrl, supportEmail, tempPassword, productId = null }) {
   if (!emailConfigured()) return false
+  const brand = await emailBrandFor({ productId })
   const first = String(name || '').split(' ')[0] || 'Olá'
-  const list = productNames.map((n) => `<li>${escapeHtml(n)}</li>`).join('')
-  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0f172a">
-    <h2>${escapeHtml(first)}, sua compra foi aprovada!</h2>
-    <p>Você já tem acesso a:</p><ul>${list}</ul>
-    <p><a href="${accessUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Acessar a área de membros</a></p>
-    ${tempPassword ? tempPasswordBlock(to, tempPassword) : '<p style="font-size:13px;color:#64748b">Guarde este e-mail: o botão acima é o seu acesso. No primeiro acesso você pode criar uma senha.</p>'}
-    ${supportEmail ? `<p style="font-size:13px;color:#64748b">Dúvidas: ${escapeHtml(supportEmail)}</p>` : ''}
-  </div>`
-  return sendMail({ to, subject: 'Seu acesso chegou', html })
+  const items = productNames
+    .map((n) => `<tr><td style="padding:6px 0;font-size:15px;color:#0f172a"><span style="color:${brand.color};font-weight:bold">&#10003;</span>&nbsp; ${escapeHtml(n)}</td></tr>`)
+    .join('')
+  const body = `<p style="${P}">Pagamento aprovado. Você já tem acesso a:</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 4px">${items}</table>
+    ${tempPassword ? credentialsBox(brand, to, tempPassword) : `<p style="${P};margin-top:12px">Guarde este e-mail: o botão abaixo é o seu acesso.</p>`}`
+  const html = emailLayout(brand, {
+    preheader: tempPassword ? `Sua senha provisória: ${tempPassword.password}` : 'Seu acesso está liberado.',
+    title: `${first}, seu acesso chegou!`,
+    body,
+    button: { url: accessUrl, label: 'Acessar agora' },
+    footer: footerText(brand, supportEmail),
+  })
+  return sendMail({ to, subject: `${first}, seu acesso chegou`, html })
 }
 
 /** E-mail com um link de acesso novo (aluno que perdeu o link ou a senha). */
-export async function sendLoginLinkEmail({ to, name, accessUrl }) {
+export async function sendLoginLinkEmail({ to, name, accessUrl, areaId = null }) {
   if (!emailConfigured()) return false
+  const brand = await emailBrandFor({ areaId })
   const first = String(name || '').split(' ')[0] || 'Olá'
-  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0f172a">
-    <h2>${escapeHtml(first)}, aqui está seu novo acesso</h2>
-    <p><a href="${accessUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Entrar na área de membros</a></p>
-    <p style="font-size:13px;color:#64748b">Lá dentro, em Meu perfil, crie uma senha para entrar das próximas vezes. Se não foi você que pediu, ignore este e-mail.</p>
-  </div>`
+  const html = emailLayout(brand, {
+    preheader: 'Seu link para entrar na área de membros.',
+    title: `${first}, aqui está seu novo acesso`,
+    body: `<p style="${P}">Clique no botão para entrar. Lá dentro, em <b>Meu perfil</b>, crie uma senha para as próximas vezes.</p>`,
+    button: { url: accessUrl, label: 'Entrar na área de membros' },
+    footer: `Se não foi você que pediu, pode ignorar este e-mail.<br>${escapeHtml(brand.name)}`,
+  })
   return sendMail({ to, subject: 'Seu link de acesso', html })
 }
 
-/** Bloco do e-mail com login e senha provisória. */
-function tempPasswordBlock(email, { password, expiresAt }) {
-  return `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;margin:16px 0">
-      <p style="margin:0 0 6px">Para entrar com e-mail e senha:</p>
-      <p style="margin:0">E-mail: <b>${escapeHtml(email)}</b></p>
-      <p style="margin:0">Senha provisória: <b style="font-family:monospace;font-size:16px">${escapeHtml(password)}</b></p>
-      <p style="margin:8px 0 0;font-size:13px;color:#64748b">Ela vale até ${shortDateBr(expiresAt)}. No primeiro acesso, crie a sua senha.</p>
-    </div>`
-}
-
 /** E-mail só com a senha provisória (mandado pela equipe na aba Alunos). */
-export async function sendTempPasswordEmail({ to, name, loginUrl, tempPassword }) {
+export async function sendTempPasswordEmail({ to, name, loginUrl, tempPassword, productId = null }) {
   if (!emailConfigured()) return false
+  const brand = await emailBrandFor({ productId })
   const first = String(name || '').split(' ')[0] || 'Olá'
-  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0f172a">
-    <h2>${escapeHtml(first)}, aqui está seu acesso</h2>
-    ${tempPasswordBlock(to, tempPassword)}
-    <p><a href="${loginUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Entrar na área de membros</a></p>
-    <p style="font-size:13px;color:#64748b">Se não foi você que pediu, ignore este e-mail.</p>
-  </div>`
+  const html = emailLayout(brand, {
+    preheader: `Sua senha provisória: ${tempPassword.password}`,
+    title: `${first}, aqui está seu acesso`,
+    body: `<p style="${P}">Entre com o seu e-mail e a senha abaixo.</p>${credentialsBox(brand, to, tempPassword)}`,
+    button: { url: loginUrl, label: 'Entrar na área de membros' },
+    footer: `Se não foi você que pediu, pode ignorar este e-mail.<br>${escapeHtml(brand.name)}`,
+  })
   return sendMail({ to, subject: 'Sua senha de acesso', html })
 }
 
@@ -562,6 +641,7 @@ async function deliver(origin, order) {
   const tempPassword = memberSnap && !memberSnap.data()?.hasPassword ? await createTempPassword(uid).catch(() => null) : null
   const emailSent = await sendAccessEmail({
     tempPassword,
+    productId: order.productId,
     to: order.buyer.email,
     name: order.buyer.name,
     productNames: (order.items || []).map((i) => i.name),

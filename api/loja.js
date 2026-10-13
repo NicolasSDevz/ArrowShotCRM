@@ -537,7 +537,7 @@ async function actionMemberSendLink(req) {
     // O link volta pra área em que a pessoa pediu (/membros ou /m/{slug}).
     const area = req.body?.area ? await memberAreaBySlug(String(req.body.area)) : null
     const base = area ? `/m/${area.slug}` : '/membros'
-    await sendLoginLinkEmail({ to: email, name: snap.data().name, accessUrl: await createAccessLink(publicOrigin(req), uid, base) })
+    await sendLoginLinkEmail({ to: email, name: snap.data().name, accessUrl: await createAccessLink(publicOrigin(req), uid, base), areaId: area?.id || null })
   }
   return { ok: true, email: true }
 }
@@ -545,12 +545,19 @@ async function actionMemberSendLink(req) {
 async function actionMemberLogin(req) {
   const email = normalizeEmail(req.body?.email)
   const password = String(req.body?.password || '')
+  // Limite de tentativas (a senha provisória é curta): 10 por e-mail e 40 por aparelho a cada 15 min.
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'sem-ip'
+  if (!(await rateLimit(`login:${email}`, 10, 15 * 60_000)) || !(await rateLimit(`login-ip:${ip}`, 40, 15 * 60_000))) {
+    throw new HttpError(429, 'Muitas tentativas seguidas. Espere 15 minutos ou peça um link novo abaixo.')
+  }
   const uid = memberUidFor(email)
   const secret = await getDoc(`storeMemberSecrets/${uid}`)
   const s = secret.exists ? secret.data() : null
   // Atraso fixo: não deixa adivinhar senha no ritmo da rede.
   await new Promise((r) => setTimeout(r, 400))
-  if (!s || !checkPassword(password, s.salt, s.hash)) {
+  // Senha provisória: aceita com maiúscula, espaço ou traço (do jeito que a pessoa digitar).
+  const typed = s?.temporary ? password.toLowerCase().replace(/[\s-]/g, '') : password
+  if (!s || !checkPassword(typed, s.salt, s.hash)) {
     throw new HttpError(401, 'E-mail ou senha incorretos. Se ainda não criou senha, entre pelo link de acesso que chegou na compra.')
   }
   if (s.temporary && s.expiresAt && Date.now() > new Date(s.expiresAt).getTime()) {
@@ -733,7 +740,7 @@ async function actionAdminGrant(req, user) {
   if (emailConfigured()) {
     const member = (await getDoc(`storeMembers/${uid}`)).data() || {}
     const tempPassword = member.hasPassword ? null : await createTempPassword(uid)
-    emailSent = await sendAccessEmail({ to: email, name: member.name || name, productNames: [product.name], accessUrl, supportEmail: product.supportEmail, tempPassword })
+    emailSent = await sendAccessEmail({ to: email, name: member.name || name, productNames: [product.name], accessUrl, supportEmail: product.supportEmail, tempPassword, productId })
   }
   return { uid, accessUrl, emailSent }
 }
@@ -761,7 +768,7 @@ async function actionAdminTempPassword(req, user) {
   const loginUrl = `${publicOrigin(req)}${productId ? await membersPathFor(productId) : '/membros'}/login`
   const temp = await createTempPassword(uid)
   const m = snap.data()
-  const emailSent = req.body?.send === 'email' ? await sendTempPasswordEmail({ to: m.email, name: m.name, loginUrl, tempPassword: temp }) : false
+  const emailSent = req.body?.send === 'email' ? await sendTempPasswordEmail({ to: m.email, name: m.name, loginUrl, tempPassword: temp, productId: productId || null }) : false
   return { ...temp, loginUrl, email: m.email, emailSent }
 }
 
