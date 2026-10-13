@@ -369,8 +369,8 @@ export function hashPassword(password) {
   return { salt, hash }
 }
 
-/** Senha provisória vale 3 dias; depois o aluno entra pelo link ou pede outra. */
-export const TEMP_PASSWORD_TTL_MS = 3 * 86400_000
+/** Senha provisória vale 1 dia; depois o aluno entra pelo link ou pede outra. */
+export const TEMP_PASSWORD_TTL_MS = 86400_000
 
 /** Gera e grava uma senha provisória (fácil de digitar: sem 0/O, 1/l/I).
  *  Substitui a senha anterior. O texto em claro só volta para quem pediu. */
@@ -546,7 +546,7 @@ async function deliver(origin, order) {
   }
   const accessUrl = await createAccessLink(origin, uid, await membersPathFor(order.productId).catch(() => '/membros'))
   if (order.couponId) await incrementField(`storeCoupons/${order.couponId}`, 'uses', 1).catch((err) => console.warn('[loja] cupom:', err?.message))
-  // Quem ainda não criou senha recebe uma provisória (3 dias) junto com o link, no e-mail.
+  // Quem ainda não criou senha recebe uma provisória (1 dia) junto com o link, no e-mail.
   const emailOn = emailConfigured()
   const memberSnap = emailOn ? await getDoc(`storeMembers/${uid}`) : null
   const tempPassword = memberSnap && !memberSnap.data()?.hasPassword ? await createTempPassword(uid).catch(() => null) : null

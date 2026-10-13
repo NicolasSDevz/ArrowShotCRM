@@ -23,7 +23,7 @@
 //   GET  admin-status                          → gateway e e-mail configurados?
 //   POST admin-grant   { email, name, productId } → { accessUrl }
 //   POST admin-link    { uid }                 → { accessUrl }
-//   POST admin-temp-password { uid, productId?, send? } → senha provisória de 3 dias (send: 'email' manda por e-mail)
+//   POST admin-temp-password { uid, productId?, send? } → senha provisória de 1 dia (send: 'email' manda por e-mail)
 //   POST admin-email-test             manda um e-mail de teste pra quem pediu
 //   POST admin-revoke  { uid, productId }
 //   POST admin-delete-member { uid }     apaga o aluno (pedidos ficam)
@@ -89,6 +89,7 @@ import {
   reconcilePendingOrders,
   sendLoginLinkEmail,
   sendTempPasswordEmail,
+  sendAccessEmail,
   emailConfigured,
   sendMail,
   createTempPassword,
@@ -552,7 +553,7 @@ async function actionMemberLogin(req) {
     throw new HttpError(401, 'E-mail ou senha incorretos. Se ainda não criou senha, entre pelo link de acesso que chegou na compra.')
   }
   if (s.temporary && s.expiresAt && Date.now() > new Date(s.expiresAt).getTime()) {
-    throw new HttpError(401, 'Sua senha provisória venceu (valia 3 dias). Peça um link novo abaixo ou fale com o suporte.')
+    throw new HttpError(401, 'Sua senha provisória venceu (valia 1 dia). Peça um link novo abaixo ou fale com o suporte.')
   }
   return memberToken(uid)
 }
@@ -725,7 +726,15 @@ async function actionAdminGrant(req, user) {
   const phone = String(req.body?.phone || '').replace(/[^\d+()\s-]/g, '').trim().slice(0, 30) || null
   const uid = await ensureMember({ email, name, phone })
   await grantAccess({ uid, email, productId, source: 'manual', grantedBy: user.name })
-  return { uid, accessUrl: await createAccessLink(publicOrigin(req), uid, await membersPathFor(productId)) }
+  const accessUrl = await createAccessLink(publicOrigin(req), uid, await membersPathFor(productId))
+  // Com e-mail configurado, o aluno já recebe o acesso (link + senha provisória, se ainda não tem senha).
+  let emailSent = false
+  if (emailConfigured()) {
+    const member = (await getDoc(`storeMembers/${uid}`)).data() || {}
+    const tempPassword = member.hasPassword ? null : await createTempPassword(uid)
+    emailSent = await sendAccessEmail({ to: email, name: member.name || name, productNames: [product.name], accessUrl, supportEmail: product.supportEmail, tempPassword })
+  }
+  return { uid, accessUrl, emailSent }
 }
 
 /** Link de acesso novo. productId (opcional) escolhe a área de membros do link. */
@@ -739,7 +748,7 @@ async function actionAdminLink(req, user) {
   return { accessUrl: await createAccessLink(publicOrigin(req), uid, productId ? await membersPathFor(productId) : '/membros') }
 }
 
-/** Senha provisória (3 dias) para a equipe mandar por WhatsApp ou e-mail.
+/** Senha provisória (1 dia) para a equipe mandar por WhatsApp ou e-mail.
  *  send: 'email' também manda por e-mail. productId (opcional) escolhe a área. */
 async function actionAdminTempPassword(req, user) {
   const uid = String(req.body?.uid || '')

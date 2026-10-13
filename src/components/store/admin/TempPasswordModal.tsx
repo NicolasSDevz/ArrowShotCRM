@@ -19,7 +19,7 @@ function waNumber(phone?: string | null) {
   return digits.length <= 11 ? `55${digits}` : digits
 }
 
-/** Gera uma senha provisória (vale 3 dias) e ajuda a mandar por WhatsApp ou e-mail.
+/** Gera uma senha provisória (vale 1 dia) e ajuda a mandar por WhatsApp ou e-mail.
  *  No primeiro login o aluno é levado a criar a senha dele. */
 export function TempPasswordModal({
   member,
@@ -74,7 +74,7 @@ export function TempPasswordModal({
       {!result ? (
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            Cria uma senha que vale por 3 dias. O aluno entra com o e-mail e essa senha e, no primeiro acesso, cria a senha dele. Se ele já tinha senha, ela é trocada pela provisória.
+            Cria uma senha que vale por 1 dia. O aluno entra com o e-mail e essa senha e, no primeiro acesso, cria a senha dele. Se ele já tinha senha, ela é trocada pela provisória.
           </p>
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" onClick={close}>Cancelar</Button>

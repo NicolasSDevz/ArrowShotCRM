@@ -212,6 +212,7 @@ function GrantModal({
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [uid, setUid] = useState('')
+  const [emailed, setEmailed] = useState(false)
   const [productId, setProductId] = useState('')
   const [busy, setBusy] = useState(false)
   const [link, setLink] = useState('')
@@ -223,6 +224,7 @@ function GrantModal({
     setLink('')
     setPhone('')
     setUid('')
+    setEmailed(false)
     onClose()
   }
 
@@ -230,10 +232,11 @@ function GrantModal({
     e.preventDefault()
     setBusy(true)
     try {
-      const { accessUrl, uid: newUid } = await storeGrantAccess(email, name, productId || products[0].id, phone)
+      const { accessUrl, uid: newUid, emailSent } = await storeGrantAccess(email, name, productId || products[0].id, phone)
       setLink(accessUrl)
       setUid(newUid)
-      toast.success('Acesso liberado')
+      setEmailed(!!emailSent)
+      toast.success(emailSent ? `Acesso liberado e enviado para ${email}` : 'Acesso liberado')
     } catch (err) {
       toast.error((err as Error).message)
     } finally {
@@ -245,7 +248,11 @@ function GrantModal({
     <Modal open={open} onClose={close} title="Liberar acesso manualmente">
       {link ? (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600">Pronto. Envie este link para {name || email} (por WhatsApp, por exemplo). É o acesso direto à área de membros.</p>
+          <p className="text-sm text-slate-600">
+            {emailed
+              ? `Pronto. ${name || email} recebeu por e-mail o link e uma senha provisória (vale 1 dia). Se quiser, mande também pelo WhatsApp.`
+              : `Pronto. Envie este link para ${name || email} (por WhatsApp, por exemplo). É o acesso direto à área de membros.`}
+          </p>
           <Input readOnly value={link} aria-label="Link de acesso" onFocus={(e) => e.currentTarget.select()} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={close}>Fechar</Button>
