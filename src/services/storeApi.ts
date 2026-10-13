@@ -190,6 +190,10 @@ export async function storeAdminStatus() {
 export async function storeGrantAccess(email: string, name: string, productId: string, phone?: string) {
   return call<{ uid: string; accessUrl: string }>('admin-grant', { body: { email, name, productId, phone: phone || null }, token: await staffToken() })
 }
+/** E-mail de teste para o próprio usuário (confere a configuração). */
+export async function storeEmailTest() {
+  return call<{ ok: true; to: string }>('admin-email-test', { token: await staffToken() })
+}
 /** Senha provisória de 3 dias. send 'email' também manda por e-mail. */
 export async function storeTempPassword(uid: string, productId?: string, send?: 'email') {
   return call<{ password: string; expiresAt: string; loginUrl: string; email: string; emailSent: boolean }>('admin-temp-password', { body: { uid, productId: productId || null, send: send || null }, token: await staffToken() })

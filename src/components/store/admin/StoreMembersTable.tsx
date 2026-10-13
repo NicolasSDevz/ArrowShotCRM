@@ -6,7 +6,7 @@ import { Field, Input, Select } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
 import { EmptyState } from '../../ui/EmptyState'
 import { Badge } from '../../ui/Badge'
-import { storeAccessLink, storeDeleteMember, storeGrantAccess, storeRevokeAccess } from '../../../services/storeApi'
+import { storeAccessLink, storeDeleteMember, storeEmailTest, storeGrantAccess, storeRevokeAccess } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { copyText } from './StoreOrdersTable'
 import { TempPasswordModal } from './TempPasswordModal'
@@ -27,7 +27,7 @@ export function StoreMembersTable({
   products: StoreProduct[]
   /** total de aulas por produto (pra calcular %). */
   lessonCounts: Record<string, number>
-  /** E-mail automático (Resend) configurado? */
+  /** E-mail automático (Gmail ou Resend) configurado? */
   emailOn?: boolean
 }) {
   const [search, setSearch] = useState('')
@@ -35,6 +35,19 @@ export function StoreMembersTable({
   const [grantOpen, setGrantOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [tempFor, setTempFor] = useState<StoreMember | null>(null)
+  const [testing, setTesting] = useState(false)
+
+  const emailTest = async () => {
+    setTesting(true)
+    try {
+      const { to } = await storeEmailTest()
+      toast.success(`E-mail de teste enviado para ${to}. Confira a caixa de entrada e o spam.`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setTesting(false)
+    }
+  }
   const firstProductOf = (uid: string) => enrollments.find((e) => e.uid === uid && e.active)?.productId
 
   const productName = (id: string) => products.find((p) => p.id === id)?.name ?? 'Produto removido'
@@ -95,6 +108,14 @@ export function StoreMembersTable({
 
   return (
     <div className="space-y-4">
+      <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        {emailOn ? 'E-mail automático ligado: o acesso e a senha provisória chegam por e-mail.' : 'E-mail automático desligado: mande o acesso pelo WhatsApp.'}
+        {emailOn && (
+          <button type="button" onClick={emailTest} disabled={testing} className="font-semibold text-brand-600 hover:underline disabled:opacity-60">
+            {testing ? 'Enviando...' : 'Enviar e-mail de teste para mim'}
+          </button>
+        )}
+      </p>
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-[220px] flex-1">
           <Input aria-label="Buscar aluno por nome ou e-mail" placeholder="Buscar aluno por nome ou e-mail" value={search} onChange={(e) => setSearch(e.target.value)} />

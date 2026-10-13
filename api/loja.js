@@ -24,6 +24,7 @@
 //   POST admin-grant   { email, name, productId } → { accessUrl }
 //   POST admin-link    { uid }                 → { accessUrl }
 //   POST admin-temp-password { uid, productId?, send? } → senha provisória de 3 dias (send: 'email' manda por e-mail)
+//   POST admin-email-test             manda um e-mail de teste pra quem pediu
 //   POST admin-revoke  { uid, productId }
 //   POST admin-delete-member { uid }     apaga o aluno (pedidos ficam)
 //   POST admin-refund  { orderId }
@@ -88,6 +89,8 @@ import {
   reconcilePendingOrders,
   sendLoginLinkEmail,
   sendTempPasswordEmail,
+  emailConfigured,
+  sendMail,
   createTempPassword,
   visibleTo,
   membersPathFor,
@@ -520,7 +523,7 @@ async function actionMemberEnter(req) {
 async function actionMemberSendLink(req) {
   const email = normalizeEmail(req.body?.email)
   if (!isValidEmail(email)) throw new HttpError(400, 'Informe um e-mail válido')
-  const emailOn = Boolean(process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM)
+  const emailOn = emailConfigured()
   if (!emailOn) return { ok: true, email: false }
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'sem-ip'
   if (!(await rateLimit(`link:${email}`, 3, 3600_000)) || !(await rateLimit(`link-ip:${ip}`, 10, 3600_000))) {
@@ -708,7 +711,7 @@ async function actionAdminStatus() {
     mpPrincipal: mpConfigured(),
     pixManual: (await getPaymentSettings()).manualReady,
     invoice: await invoiceStatus(),
-    email: Boolean(process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM),
+    email: emailConfigured(),
   }
 }
 
@@ -750,6 +753,19 @@ async function actionAdminTempPassword(req, user) {
   const m = snap.data()
   const emailSent = req.body?.send === 'email' ? await sendTempPasswordEmail({ to: m.email, name: m.name, loginUrl, tempPassword: temp }) : false
   return { ...temp, loginUrl, email: m.email, emailSent }
+}
+
+/** Manda um e-mail de teste pra quem pediu (confere a configuração do e-mail). */
+async function actionAdminEmailTest(req, user) {
+  if (!emailConfigured()) throw new HttpError(400, 'O e-mail ainda não está configurado na Vercel (GMAIL_USER e GMAIL_APP_PASSWORD).')
+  if (!isValidEmail(user.email)) throw new HttpError(400, 'Seu login não tem e-mail')
+  const ok = await sendMail({
+    to: user.email,
+    subject: 'Teste do e-mail da Loja',
+    html: '<div style="font-family:Arial,sans-serif;color:#0f172a"><p>Funcionou! Os e-mails da Loja (acesso da compra, senha provisória e link novo) vão sair por este endereço.</p></div>',
+  })
+  if (!ok) throw new HttpError(502, 'O e-mail não saiu. Confira GMAIL_USER e GMAIL_APP_PASSWORD na Vercel (a senha de app tem 16 letras e precisa da verificação em duas etapas ligada).')
+  return { ok: true, to: user.email }
 }
 
 async function actionAdminRevoke(req, user) {
@@ -1110,6 +1126,7 @@ const ADMIN = {
   'POST admin-grant': actionAdminGrant,
   'POST admin-link': actionAdminLink,
   'POST admin-temp-password': actionAdminTempPassword,
+  'POST admin-email-test': actionAdminEmailTest,
   'POST admin-revoke': actionAdminRevoke,
   'POST admin-refund': actionAdminRefund,
   'POST admin-delete-order': actionAdminDeleteOrder,

@@ -402,28 +402,48 @@ export function checkPassword(password, salt, hash) {
 
 /* ------------------------------- e-mail ------------------------------- */
 
-/** E-mail de acesso via Resend (opcional). Variáveis: RESEND_API_KEY e
- *  STORE_EMAIL_FROM (ex.: "Arrow Shot <acesso@seudominio.com.br>"). Sem elas,
- *  o link aparece na página de obrigado e no CRM (aba Alunos) pra enviar
- *  pelo WhatsApp. */
-export async function sendAccessEmail({ to, name, productNames, accessUrl, supportEmail, tempPassword }) {
-  const key = process.env.RESEND_API_KEY
-  const from = process.env.STORE_EMAIL_FROM
-  if (!key || !from) return false
-  const first = String(name || '').split(' ')[0] || 'Olá'
-  const list = productNames.map((n) => `<li>${escapeHtml(n)}</li>`).join('')
-  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0f172a">
-    <h2>${escapeHtml(first)}, sua compra foi aprovada!</h2>
-    <p>Você já tem acesso a:</p><ul>${list}</ul>
-    <p><a href="${accessUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Acessar a área de membros</a></p>
-    ${tempPassword ? tempPasswordBlock(to, tempPassword) : '<p style="font-size:13px;color:#64748b">Guarde este e-mail: o botão acima é o seu acesso. No primeiro acesso você pode criar uma senha.</p>'}
-    ${supportEmail ? `<p style="font-size:13px;color:#64748b">Dúvidas: ${escapeHtml(supportEmail)}</p>` : ''}
-  </div>`
+/** Envio de e-mail da Loja. Dois jeitos (o primeiro configurado vale):
+ *  - Gmail: GMAIL_USER (ex.: conta@gmail.com) e GMAIL_APP_PASSWORD (senha de
+ *    app de 16 letras, com verificação em duas etapas ligada). Nome do
+ *    remetente opcional em STORE_EMAIL_NAME. Limite do Gmail: ~500 por dia.
+ *  - Resend: RESEND_API_KEY e STORE_EMAIL_FROM ("Nome <acesso@dominio>").
+ *  Sem nenhum, o link aparece na página de obrigado e no CRM (aba Alunos) pra
+ *  enviar pelo WhatsApp. */
+export function emailConfigured() {
+  return Boolean((process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) || (process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM))
+}
+
+let gmailTransport = null
+
+/** Manda um e-mail; true se saiu. Nunca lança erro (e-mail não trava venda). */
+export async function sendMail({ to, subject, html }) {
   try {
+    const user = process.env.GMAIL_USER
+    const pass = process.env.GMAIL_APP_PASSWORD
+    if (user && pass) {
+      if (!gmailTransport) {
+        const { default: nodemailer } = await import('nodemailer')
+        gmailTransport = nodemailer.createTransport({
+          host: 'smtp.gmail.com',
+          port: 465,
+          secure: true,
+          // A senha de app aparece com espaços no Google; tanto faz colar com ou sem.
+          auth: { user, pass: pass.replace(/\s/g, '') },
+          connectionTimeout: 15_000,
+          socketTimeout: 15_000,
+        })
+      }
+      const name = (process.env.STORE_EMAIL_NAME || 'Arrow Shot').replace(/["<>]/g, '')
+      await gmailTransport.sendMail({ from: `"${name}" <${user}>`, to, subject, html })
+      return true
+    }
+    const key = process.env.RESEND_API_KEY
+    const from = process.env.STORE_EMAIL_FROM
+    if (!key || !from) return false
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: [to], subject: 'Seu acesso chegou', html }),
+      body: JSON.stringify({ from, to: [to], subject, html }),
       signal: AbortSignal.timeout(15_000),
     })
     return res.ok
@@ -433,29 +453,31 @@ export async function sendAccessEmail({ to, name, productNames, accessUrl, suppo
   }
 }
 
+/** E-mail de acesso da compra (link + senha provisória, quando houver). */
+export async function sendAccessEmail({ to, name, productNames, accessUrl, supportEmail, tempPassword }) {
+  if (!emailConfigured()) return false
+  const first = String(name || '').split(' ')[0] || 'Olá'
+  const list = productNames.map((n) => `<li>${escapeHtml(n)}</li>`).join('')
+  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0f172a">
+    <h2>${escapeHtml(first)}, sua compra foi aprovada!</h2>
+    <p>Você já tem acesso a:</p><ul>${list}</ul>
+    <p><a href="${accessUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Acessar a área de membros</a></p>
+    ${tempPassword ? tempPasswordBlock(to, tempPassword) : '<p style="font-size:13px;color:#64748b">Guarde este e-mail: o botão acima é o seu acesso. No primeiro acesso você pode criar uma senha.</p>'}
+    ${supportEmail ? `<p style="font-size:13px;color:#64748b">Dúvidas: ${escapeHtml(supportEmail)}</p>` : ''}
+  </div>`
+  return sendMail({ to, subject: 'Seu acesso chegou', html })
+}
+
 /** E-mail com um link de acesso novo (aluno que perdeu o link ou a senha). */
 export async function sendLoginLinkEmail({ to, name, accessUrl }) {
-  const key = process.env.RESEND_API_KEY
-  const from = process.env.STORE_EMAIL_FROM
-  if (!key || !from) return false
+  if (!emailConfigured()) return false
   const first = String(name || '').split(' ')[0] || 'Olá'
   const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0f172a">
     <h2>${escapeHtml(first)}, aqui está seu novo acesso</h2>
     <p><a href="${accessUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Entrar na área de membros</a></p>
     <p style="font-size:13px;color:#64748b">Lá dentro, em Meu perfil, crie uma senha para entrar das próximas vezes. Se não foi você que pediu, ignore este e-mail.</p>
   </div>`
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: [to], subject: 'Seu link de acesso', html }),
-      signal: AbortSignal.timeout(15_000),
-    })
-    return res.ok
-  } catch (err) {
-    console.warn('[loja] falha ao enviar e-mail:', err?.message)
-    return false
-  }
+  return sendMail({ to, subject: 'Seu link de acesso', html })
 }
 
 /** Bloco do e-mail com login e senha provisória. */
@@ -470,9 +492,7 @@ function tempPasswordBlock(email, { password, expiresAt }) {
 
 /** E-mail só com a senha provisória (mandado pela equipe na aba Alunos). */
 export async function sendTempPasswordEmail({ to, name, loginUrl, tempPassword }) {
-  const key = process.env.RESEND_API_KEY
-  const from = process.env.STORE_EMAIL_FROM
-  if (!key || !from) return false
+  if (!emailConfigured()) return false
   const first = String(name || '').split(' ')[0] || 'Olá'
   const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0f172a">
     <h2>${escapeHtml(first)}, aqui está seu acesso</h2>
@@ -480,18 +500,7 @@ export async function sendTempPasswordEmail({ to, name, loginUrl, tempPassword }
     <p><a href="${loginUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Entrar na área de membros</a></p>
     <p style="font-size:13px;color:#64748b">Se não foi você que pediu, ignore este e-mail.</p>
   </div>`
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: [to], subject: 'Sua senha de acesso', html }),
-      signal: AbortSignal.timeout(15_000),
-    })
-    return res.ok
-  } catch (err) {
-    console.warn('[loja] falha ao enviar e-mail:', err?.message)
-    return false
-  }
+  return sendMail({ to, subject: 'Sua senha de acesso', html })
 }
 
 function escapeHtml(s) {
@@ -538,7 +547,7 @@ async function deliver(origin, order) {
   const accessUrl = await createAccessLink(origin, uid, await membersPathFor(order.productId).catch(() => '/membros'))
   if (order.couponId) await incrementField(`storeCoupons/${order.couponId}`, 'uses', 1).catch((err) => console.warn('[loja] cupom:', err?.message))
   // Quem ainda não criou senha recebe uma provisória (3 dias) junto com o link, no e-mail.
-  const emailOn = Boolean(process.env.RESEND_API_KEY && process.env.STORE_EMAIL_FROM)
+  const emailOn = emailConfigured()
   const memberSnap = emailOn ? await getDoc(`storeMembers/${uid}`) : null
   const tempPassword = memberSnap && !memberSnap.data()?.hasPassword ? await createTempPassword(uid).catch(() => null) : null
   const emailSent = await sendAccessEmail({

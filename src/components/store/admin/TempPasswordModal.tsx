@@ -29,7 +29,7 @@ export function TempPasswordModal({
 }: {
   member: StoreMember | null
   productId?: string
-  /** E-mail (Resend) configurado na Vercel? */
+  /** E-mail automático (Gmail ou Resend) configurado na Vercel? */
   emailOn: boolean
   onClose: () => void
 }) {
