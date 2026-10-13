@@ -169,6 +169,9 @@ export interface Lead extends BaseDoc {
    *  do Lead. */
   sourceFormId?: string
   formAnswers?: LeadFormAnswer[]
+  /** Triagem na aba Questionários (só leads de formulário). Sem valor =
+   *  resposta nova, ainda não vista. 'sent' = já foi para o pipeline de vendas. */
+  formStage?: LeadFormStage | null
   /** Serviço(s) já contratado(s) por esse lead (ex: veio de outra área da
    *  empresa, ou já fechou uma parte e está em negociação por outra) — ids
    *  do catálogo em types/product.ts (o mesmo catálogo do Dashboard),
@@ -278,6 +281,32 @@ export function leadTemperature(bant?: LeadBant | null): LeadTemperature | null 
   if (total >= 9) return 'hot'
   if (total >= 6) return 'warm'
   return 'cold'
+}
+
+// ---------------------------------------------------------------- Questionários
+
+/** Triagem das respostas de formulário antes de virarem lead de vendas. */
+export type LeadFormStage = 'new' | 'reviewing' | 'sent' | 'discarded'
+
+export const LEAD_FORM_STAGE_LABEL: Record<LeadFormStage, string> = {
+  new: 'Nova',
+  reviewing: 'Em análise',
+  sent: 'Enviada para vendas',
+  discarded: 'Descartada',
+}
+
+/** Lead que ainda está na aba Questionários (e fora do pipeline de vendas).
+ *  Os de formulário anteriores à aba, que alguém já trabalhou no pipeline
+ *  (mudou etapa, registrou contato, avaliou o BANT), continuam em vendas. */
+export function isQuestionnaireLead(l: Lead): boolean {
+  if (!l.sourceFormId) return false
+  if (l.formStage) return l.formStage !== 'sent'
+  return l.status === 'new' && !l.pipelineId && !l.contactHistory?.length && !l.bant && !l.convertedClientId
+}
+
+/** Etapa da triagem (sem valor = nova). */
+export function leadFormStage(l: Lead): LeadFormStage {
+  return l.formStage ?? (isQuestionnaireLead(l) ? 'new' : 'sent')
 }
 
 export type LeadInput = Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'stageChangedAt'>

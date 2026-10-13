@@ -19,13 +19,14 @@ import { LeadDrawer } from '../components/leads/LeadDrawer'
 import { LeadsListView } from '../components/leads/LeadsListView'
 import { LeadPipelineModal } from '../components/leads/LeadPipelineModal'
 import { LeadFormsPanel } from '../components/leads/LeadFormsPanel'
+import { QuestionnairePanel } from '../components/leads/QuestionnairePanel'
 import { LeadBantMetrics } from '../components/leads/LeadBantMetrics'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Field, Select, Textarea } from '../components/ui/Field'
 import { moveLeadStatus } from '../services/leadService'
 import { ConvertLeadModal } from '../components/leads/ConvertLeadModal'
-import { LEAD_LOST_REASON_LABEL, LEAD_SEGMENT_LABEL, LEAD_TEMPERATURE_LABEL, DEFAULT_PIPELINE_ID, leadPipelineId, leadTemperature, stageOfLead, type Lead, type LeadLostReason, type LeadSegment, type LeadTemperature } from '../types'
+import { LEAD_LOST_REASON_LABEL, LEAD_SEGMENT_LABEL, LEAD_TEMPERATURE_LABEL, DEFAULT_PIPELINE_ID, isQuestionnaireLead, leadFormStage, leadPipelineId, leadTemperature, stageOfLead, type Lead, type LeadLostReason, type LeadSegment, type LeadTemperature } from '../types'
 
 export function LeadsPage() {
   const { profile } = useAuth()
@@ -39,7 +40,7 @@ export function LeadsPage() {
   const [importing, setImporting] = useState(false)
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
   const [view, setView] = usePersistedViewMode<'kanban' | 'list'>('leadsView', 'kanban')
-  const [mainTab, setMainTab] = useState<'pipeline' | 'forms'>('pipeline')
+  const [mainTab, setMainTab] = useState<'pipeline' | 'questionnaires' | 'forms'>('pipeline')
   // Pipeline aberto agora (lembrado entre visitas). Se o salvo não existe mais, cai no padrão.
   const [pipelineChoice, setPipelineChoice] = useState<string>(() => {
     try {
@@ -78,7 +79,10 @@ export function LeadsPage() {
   const existingClientOf = (l: Lead) => (l.convertedClientId ? undefined : findClientMatch(l, clients)?.client.companyName)
   const openLead = leads.find((l) => l.id === openLeadId) ?? null
 
-  const allPipelineLeads = leads.filter((l) => leadPipelineId(l) === activePipeline.id)
+  // Respostas de formulário ficam na aba Questionários até alguém mandar para vendas.
+  const salesLeads = leads.filter((l) => !isQuestionnaireLead(l))
+  const newQuestionnaires = leads.filter((l) => isQuestionnaireLead(l) && leadFormStage(l) === 'new').length
+  const allPipelineLeads = salesLeads.filter((l) => leadPipelineId(l) === activePipeline.id)
   const tempOf = (l: Lead) => leadTemperature(l.bant) ?? 'none'
   const needle = search.trim().toLowerCase()
   const digits = needle.replace(/\D/g, '')
@@ -92,7 +96,7 @@ export function LeadsPage() {
   )
   const countBySegment = (s: LeadSegment | 'none') => allPipelineLeads.filter((l) => segmentOf(l) === s).length
   const countByTemp = (t: LeadTemperature | 'none') => allPipelineLeads.filter((l) => tempOf(l) === t).length
-  const countByPipeline = (id: string) => leads.filter((l) => leadPipelineId(l) === id).length
+  const countByPipeline = (id: string) => salesLeads.filter((l) => leadPipelineId(l) === id).length
   const leadCountByStage: Record<string, number> = {}
   for (const l of allPipelineLeads) {
     const id = stageOfLead(activePipeline, l.status).id
@@ -148,25 +152,37 @@ export function LeadsPage() {
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-[28px] font-extrabold text-slate-900">Leads</h1>
-        <p className="text-[15px] text-[#64748B]">Pipeline de novos clientes e formulários de captura</p>
+        <p className="text-[15px] text-[#64748B]">Pipeline de vendas, respostas dos questionários e formulários de captura</p>
       </div>
 
       <div className="flex gap-1 border-b border-slate-200">
-        {(['pipeline', 'forms'] as const).map((t) => (
+        {([
+          ['pipeline', 'Vendas'],
+          ['questionnaires', 'Questionários'],
+          ['forms', 'Formulários'],
+        ] as const).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setMainTab(t)}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors duration-150 ease-in-out ${
+            aria-pressed={mainTab === t}
+            className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors duration-150 ease-in-out ${
               mainTab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
-            {t === 'pipeline' ? 'Pipeline' : 'Formulários'}
+            {label}
+            {t === 'questionnaires' && newQuestionnaires > 0 && (
+              <span className="rounded-full bg-brand-600 px-1.5 text-[11px] font-bold text-white" aria-label={`${newQuestionnaires} resposta${newQuestionnaires === 1 ? '' : 's'} nova${newQuestionnaires === 1 ? '' : 's'}`}>
+                {newQuestionnaires}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       {mainTab === 'forms' ? (
         <LeadFormsPanel />
+      ) : mainTab === 'questionnaires' ? (
+        <QuestionnairePanel leads={leads} forms={leadForms} pipelines={pipelines} onOpenLead={setOpenLeadId} />
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">

@@ -28,6 +28,9 @@ import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { leadToFormState, formStateToLeadFields, type LeadFormState } from './leadFormState'
 import {
   locateLead,
+  isQuestionnaireLead,
+  leadFormStage,
+  LEAD_FORM_STAGE_LABEL,
   LEAD_CONTACT_TYPE_LABEL,
   LEAD_CONTACT_OUTCOME_LABEL,
   LEAD_LOST_REASON_LABEL,
@@ -355,8 +358,15 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
         <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge style={{ backgroundColor: `${leadStage.color}1A`, color: leadStage.color }}>{leadStage.label}</Badge>
+              {isQuestionnaireLead(lead) ? (
+                <Badge className="bg-brand-50 text-brand-700">Questionário: {LEAD_FORM_STAGE_LABEL[leadFormStage(lead)]}</Badge>
+              ) : (
+                <Badge style={{ backgroundColor: `${leadStage.color}1A`, color: leadStage.color }}>{leadStage.label}</Badge>
+              )}
             </div>
+            {isQuestionnaireLead(lead) && (
+              <p className="text-xs text-slate-500">Ainda não está no pipeline de vendas. Ao mover abaixo, ele sai da aba Questionários.</p>
+            )}
             {leadStage.kind === 'lost' && lead.lostReason && (
               <p className="text-xs text-slate-400">
                 Motivo: {LEAD_LOST_REASON_LABEL[lead.lostReason]}

@@ -38,7 +38,7 @@ import { ClientsStatusChart } from './ClientsStatusChart'
 import { UpsellRevenueChart } from './UpsellRevenueChart'
 import { TrafficSections } from './TrafficSections'
 import { computeCompanyMetrics, computeMrrSeries } from '../../utils/metrics'
-import { clientChurnDate, leadPipelineId, DEFAULT_PIPELINE_ID, type Activity } from '../../types'
+import { clientChurnDate, isQuestionnaireLead, leadPipelineId, DEFAULT_PIPELINE_ID, type Activity } from '../../types'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { showError } from '../../utils/notifyError'
 import { useDashboardArea } from '../../hooks/useDashboardArea'
@@ -352,7 +352,7 @@ export function OverviewDashboard() {
     // As etapas "em aberto" do pipeline padrão (ganho e perdido ficam de fora), com o nome que estiver configurado.
     const openStages = (leadPipelines.find((p) => p.id === DEFAULT_PIPELINE_ID)?.stages ?? []).filter((st) => st.kind === 'open')
     const openIds = new Set(openStages.map((st) => st.id))
-    const activeLeads = leads.filter((l) => leadPipelineId(l) === DEFAULT_PIPELINE_ID && openIds.has(l.status))
+    const activeLeads = leads.filter((l) => !isQuestionnaireLead(l) && leadPipelineId(l) === DEFAULT_PIPELINE_ID && openIds.has(l.status))
     const byStage = openStages.map((st) => ({
       status: st.id,
       label: st.label,
@@ -464,7 +464,7 @@ export function OverviewDashboard() {
       {/* Alertas: o que precisa de atenção agora (inclui clientes sem valor cadastrado). */}
       {(show('alertas_leads') || show('alertas_clientes')) && (
         <AlertsCard
-          leads={show('alertas_leads') ? leads : []}
+          leads={show('alertas_leads') ? leads.filter((l) => !isQuestionnaireLead(l)) : []}
           pipelines={leadPipelines}
           atRiskCount={show('alertas_clientes') ? atRisk.length : 0}
           clientsWithoutValue={show('mrr') ? clientsWithoutValueList : []}

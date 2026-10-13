@@ -1,7 +1,7 @@
 import { orderBy, Timestamp, type FirestoreError } from 'firebase/firestore'
 import type { AppUser, Client, Lead, LeadContactEntry, LeadInput, LeadStatus, ResolvedPipeline } from '../types'
 import { contactKeys } from '../utils/leadDuplicates'
-import { LEAD_STATUS_LABEL, LEAD_LOST_REASON_LABEL } from '../types/lead'
+import { LEAD_STATUS_LABEL, LEAD_LOST_REASON_LABEL, LEAD_FORM_STAGE_LABEL, isQuestionnaireLead, type LeadFormStage } from '../types/lead'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
 import { createClient } from './clientService'
@@ -149,6 +149,49 @@ function stageMeta(id: string, pipeline?: ResolvedPipeline): { label: string; ki
   return { label: LEAD_STATUS_LABEL[id as LeadStatus] ?? id, kind: id === 'closed' ? 'won' : id === 'lost' ? 'lost' : 'open' }
 }
 
+/** Lead de questionário movido no pipeline (pela ficha) sai da aba Questionários. */
+function sentToSales(lead: Lead): { formStage?: LeadFormStage } {
+  return isQuestionnaireLead(lead) ? { formStage: 'sent' } : {}
+}
+
+/** Triagem na aba Questionários: em análise, descartada ou de volta para nova. */
+export async function setLeadFormStage(lead: Lead, stage: Exclude<LeadFormStage, 'sent'>, userId: string, userName: string) {
+  await base.update(lead.id, { formStage: stage }, userId)
+  await logActivity({
+    entityType: 'lead',
+    entityId: lead.id,
+    action: 'status_changed',
+    message: `marcou a resposta do questionário como "${LEAD_FORM_STAGE_LABEL[stage]}"`,
+    userId,
+    userName,
+  })
+}
+
+/** Tira o lead da aba Questionários e coloca na primeira etapa do pipeline
+ *  escolhido, no topo da coluna. */
+export async function sendLeadToSales(lead: Lead, target: ResolvedPipeline, userId: string, userName: string) {
+  const stage = target.stages[0]
+  await base.update(
+    lead.id,
+    {
+      formStage: 'sent',
+      pipelineId: target.isDefault ? null : target.id,
+      status: stage.id,
+      order: -Date.now(),
+      stageChangedAt: Timestamp.now(),
+    },
+    userId
+  )
+  await logActivity({
+    entityType: 'lead',
+    entityId: lead.id,
+    action: 'status_changed',
+    message: `enviou o lead do questionário para o pipeline "${target.name}" (${stage.label})`,
+    userId,
+    userName,
+  })
+}
+
 export async function moveLeadStatus(
   lead: Lead,
   newStatus: string,
@@ -169,7 +212,7 @@ export async function moveLeadStatus(
         : {}
   await base.update(
     lead.id,
-    { status: newStatus, order: newOrder, ...(changed ? { stageChangedAt: Timestamp.now() } : {}), ...lossFields },
+    { status: newStatus, order: newOrder, ...(changed ? { stageChangedAt: Timestamp.now() } : {}), ...lossFields, ...sentToSales(lead) },
     userId
   )
   if (changed) {
@@ -222,6 +265,7 @@ export async function moveLeadToPipeline(
       lostReason: lost ? (extra?.lostReason ?? null) : null,
       lostReasonNote: lost ? extra?.lostReasonNote?.trim() || null : null,
       lostAt: lost ? Timestamp.now() : null,
+      ...sentToSales(lead),
     },
     userId
   )

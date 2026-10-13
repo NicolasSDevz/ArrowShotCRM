@@ -44,7 +44,7 @@ export function LeadFormsPanel() {
   }
 
   const handleDelete = async (form: LeadForm) => {
-    if (!(await askConfirm({ title: `Excluir o formulário "${form.name}"?`, message: 'Os leads já recebidos por ele continuam no pipeline.', confirmLabel: 'Excluir', danger: true }))) return
+    if (!(await askConfirm({ title: `Excluir o formulário "${form.name}"?`, message: 'As respostas já recebidas por ele continuam em Questionários e no pipeline.', confirmLabel: 'Excluir', danger: true }))) return
     try {
       await deleteLeadForm(form.id)
       toast.success('Formulário excluído')
@@ -58,7 +58,7 @@ export function LeadFormsPanel() {
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
-          Crie um formulário e cole o link dele no anúncio (Meta Ads, Google Ads etc.) — cada resposta cai direto aqui como um novo lead.
+          Crie um formulário e cole o link dele no anúncio (Meta Ads, Google Ads etc.) — cada resposta cai na aba Questionários, separada do pipeline de vendas.
         </p>
         <Button size="sm" icon={<Plus size={14} />} onClick={() => setEditing(null)} className="shrink-0">
           Novo formulário
