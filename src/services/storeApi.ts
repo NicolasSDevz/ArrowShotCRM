@@ -192,7 +192,7 @@ export async function storeGrantAccess(email: string, name: string, productId: s
 }
 /** E-mail de teste para o próprio usuário (confere a configuração). */
 export async function storeEmailTest() {
-  return call<{ ok: true; to: string }>('admin-email-test', { token: await staffToken() })
+  return call<{ ok: true; to: string }>('admin-email-test', { method: 'POST', token: await staffToken() })
 }
 /** Senha provisória de 1 dia. send 'email' também manda por e-mail. */
 export async function storeTempPassword(uid: string, productId?: string, send?: 'email') {
