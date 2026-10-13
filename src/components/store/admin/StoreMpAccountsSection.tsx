@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
-import { CreditCard, Landmark, Lock, Pencil, Plus, QrCode, Star, Trash2, Wallet } from 'lucide-react'
+import { CheckCircle2, CreditCard, Landmark, Lock, Pencil, Plus, QrCode, Star, Stethoscope, Trash2, Wallet, XCircle } from 'lucide-react'
 import { auth } from '../../../firebase/config'
 import { useAuth } from '../../../context/AuthContext'
 import { useStoreMpAccounts, useStoreProducts } from '../../../hooks/useStore'
-import { storeDeleteMpAccount, storeSaveMpAccount } from '../../../services/storeApi'
+import { storeDeleteMpAccount, storeSaveMpAccount, storeTestMpAccount, type MpAccountTest } from '../../../services/storeApi'
 import { saveStorePaymentSettings, setDefaultMpAccount, subscribeStorePaymentSettings } from '../../../services/storeService'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { Button } from '../../ui/Button'
@@ -14,23 +14,28 @@ import { PIX_KEY_TYPE_LABEL, canUsePrivate, type PixKeyType, type StoreMpAccount
 
 const EMPTY_PIX: StorePixDirect = { enabled: false, pixKeyType: 'cpf', pixKey: '', pixName: '', pixCity: '' }
 
-/** "Avançado: Pix direto" de uma conta: chave do banco, sem taxa, confirmação à mão. */
+/** Como esta conta recebe o Pix: pelo Mercado Pago (automático) ou direto na chave do banco. */
 function PixDirectFields({ value, onChange }: { value: StorePixDirect; onChange: (v: StorePixDirect) => void }) {
   const set = (patch: Partial<StorePixDirect>) => onChange({ ...value, ...patch })
+  const option = (direct: boolean, title: string, text: string) => (
+    <label className={`flex cursor-pointer gap-2.5 rounded-xl border p-3 ${value.enabled === direct ? 'border-brand-400 bg-brand-50/60 ring-1 ring-brand-200' : 'border-slate-200 hover:bg-slate-50'}`}>
+      <input type="radio" name="pix-mode" checked={value.enabled === direct} onChange={() => set({ enabled: direct })} className="mt-0.5 h-4 w-4" />
+      <span>
+        <span className="block text-sm font-semibold text-slate-800">{title}</span>
+        <span className="block text-xs text-slate-500">{text}</span>
+      </span>
+    </label>
+  )
   return (
-    <details className="rounded-xl border border-slate-200 p-3" open={value.enabled || undefined}>
-      <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
-        <Landmark size={14} className="text-slate-400" aria-hidden="true" /> Avançado: Pix direto
-        <span className="ml-auto text-xs font-normal text-slate-400">{value.enabled ? 'Ligado' : 'Desligado'}</span>
-      </summary>
-      <div className="mt-3 space-y-3">
-        <p className="text-xs text-slate-500">
-          O Pix cai direto na chave do banco, sem taxa do Mercado Pago. Como o banco não avisa o sistema, alguém confere e clica em Confirmar pagamento na aba Vendas. O cartão continua pelo Mercado Pago.
-        </p>
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} className="h-4 w-4" />
-          Usar Pix direto nesta conta
-        </label>
+    <fieldset className="space-y-2 rounded-xl border border-slate-200 p-3">
+      <legend className="flex items-center gap-1.5 px-1 text-sm font-semibold text-slate-700">
+        <QrCode size={14} className="text-slate-400" aria-hidden="true" /> Como receber o Pix
+      </legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {option(false, 'Pelo Mercado Pago', 'Automático: o acesso sai sozinho. Taxa de ~0,99%. A conta precisa ter chave Pix cadastrada no próprio Mercado Pago.')}
+        {option(true, 'Direto na minha chave', 'Sem taxa, cai no seu banco. Alguém confere e clica em Confirmar na aba Vendas.')}
+      </div>
+      <div className="space-y-3">
         {value.enabled && (
           <>
             <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
@@ -47,20 +52,22 @@ function PixDirectFields({ value, onChange }: { value: StorePixDirect; onChange:
             </div>
           </>
         )}
+        <p className="flex items-center gap-1.5 text-xs text-slate-400"><Landmark size={12} aria-hidden="true" /> O cartão sempre passa pelo Mercado Pago desta conta.</p>
       </div>
-    </details>
+    </fieldset>
   )
 }
 
 /** Contas de recebimento: cada uma é uma conta do Mercado Pago e recebe o Pix e o
  *  cartão dos produtos ligados a ela (o produto escolhe na aba Geral). A principal
  *  é a da Vercel; as outras são cadastradas aqui. */
-export function StoreMpAccountsSection({ principalReady }: { principalReady: boolean }) {
+export function StoreMpAccountsSection({ principalReady, principalEmail, principalInvalid }: { principalReady: boolean; principalEmail?: string | null; principalInvalid?: boolean }) {
   const { data: accounts } = useStoreMpAccounts()
   const { data: products } = useStoreProducts()
   const { profile } = useAuth()
   const [editing, setEditing] = useState<StoreMpAccount | 'new' | null>(null)
   const [renaming, setRenaming] = useState(false)
+  const [testing, setTesting] = useState<{ id: string; name: string } | null>(null)
   const [settings, setSettings] = useState<StorePaymentSettings | null>(null)
   useEffect(() => subscribeStorePaymentSettings(setSettings), [])
   const principalLabel = settings?.mpPrincipalLabel || ''
@@ -112,11 +119,18 @@ export function StoreMpAccountsSection({ principalReady }: { principalReady: boo
             key="vercel"
             order={defaultId === '' ? 0 : 1}
             name={principalLabel || 'Conta principal'}
-            detail={principalReady ? 'Mercado Pago · configurada na Vercel' : 'Mercado Pago não configurado na Vercel'}
+            detail={
+              !principalReady
+                ? 'Mercado Pago não configurado na Vercel'
+                : principalInvalid
+                  ? 'Vercel: o Mercado Pago recusou o token'
+                  : `Vercel · ${principalEmail || 'Mercado Pago'}`
+            }
             ready={principalReady}
             pixDirect={settings?.pixManual === true}
             isDefault={defaultId === ''}
             onMakeDefault={principalReady ? () => makeDefault('') : undefined}
+            onTest={principalReady ? () => setTesting({ id: '', name: principalLabel || 'Conta principal' }) : undefined}
             onEdit={() => setRenaming(true)}
             editLabel={`Configurar a conta ${principalLabel || 'principal'}`}
           />,
@@ -131,6 +145,7 @@ export function StoreMpAccountsSection({ principalReady }: { principalReady: boo
               pixDirect={a.pixDirect?.enabled === true}
               isDefault={defaultId === a.id}
               onMakeDefault={a.privateTo ? undefined : () => makeDefault(a.id)}
+              onTest={() => setTesting({ id: a.id, name: a.label })}
               onEdit={() => setEditing(a)}
               editLabel={`Editar a conta ${a.label}`}
               onRemove={defaultId === a.id ? undefined : () => remove(a)}
@@ -141,6 +156,7 @@ export function StoreMpAccountsSection({ principalReady }: { principalReady: boo
 
       <MpAccountModal account={editing} onClose={() => setEditing(null)} />
       <PrincipalModal open={renaming} settings={settings} onClose={() => setRenaming(false)} />
+      <TestModal target={testing} onClose={() => setTesting(null)} />
     </section>
   )
 }
@@ -153,6 +169,7 @@ function AccountCard({
   isPrivate,
   isDefault,
   onMakeDefault,
+  onTest,
   onEdit,
   editLabel,
   onRemove,
@@ -166,6 +183,7 @@ function AccountCard({
   isPrivate?: boolean
   isDefault?: boolean
   onMakeDefault?: () => void
+  onTest?: () => void
   onEdit: () => void
   editLabel: string
   onRemove?: () => void
@@ -191,8 +209,15 @@ function AccountCard({
         {onRemove && <button type="button" onClick={onRemove} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Excluir ${name}`}><Trash2 size={14} /></button>}
       </div>
       <div className="flex gap-1.5">
-        <span className={chip(ready || !!pixDirect)}><QrCode size={12} aria-hidden="true" /> {pixDirect ? 'Pix direto' : 'Pix'}</span>
+        <span className={chip(ready || !!pixDirect)}><QrCode size={12} aria-hidden="true" /> {pixDirect ? 'Pix na minha chave' : 'Pix pelo MP'}</span>
         <span className={chip(ready)}><CreditCard size={12} aria-hidden="true" /> Cartão</span>
+      </div>
+      <div className="flex items-center gap-3 border-t border-slate-100 pt-2">
+        {onTest && (
+          <button type="button" onClick={onTest} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-brand-700" aria-label={`Testar a conta ${name}`}>
+            <Stethoscope size={13} aria-hidden="true" /> Testar
+          </button>
+        )}
         {!isDefault && onMakeDefault && (
           <button type="button" onClick={onMakeDefault} className="ml-auto text-xs font-semibold text-brand-600 hover:underline" aria-label={`Tornar ${name} a conta padrão`}>
             Tornar padrão
@@ -331,6 +356,52 @@ function MpAccountModal({ account, onClose }: { account: StoreMpAccount | 'new' 
           <Button type="submit" loading={busy}>{editing ? 'Salvar' : 'Criar conta'}</Button>
         </div>
       </form>
+    </Modal>
+  )
+}
+
+/** Resultado do teste de uma conta: de quem é no Mercado Pago e se o Pix funciona. */
+function TestModal({ target, onClose }: { target: { id: string; name: string } | null; onClose: () => void }) {
+  const [result, setResult] = useState<MpAccountTest | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    if (!target) return
+    setResult(null)
+    setError('')
+    storeTestMpAccount(target.id).then(setResult, (err: Error) => setError(err.message))
+  }, [target])
+
+  const line = (ok: boolean, title: string, text?: string | null) => (
+    <li className="flex gap-2.5">
+      {ok ? <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" /> : <XCircle size={18} className="mt-0.5 shrink-0 text-red-500" aria-hidden="true" />}
+      <div>
+        <p className="text-sm font-semibold text-slate-800">{ok ? 'OK: ' : 'Problema: '}{title}</p>
+        {text && <p className="text-xs text-slate-500">{text}</p>}
+      </div>
+    </li>
+  )
+
+  return (
+    <Modal open={!!target} onClose={onClose} title={`Teste da conta ${target?.name ?? ''}`}>
+      <div className="space-y-4" aria-live="polite">
+        {!result && !error && <p className="text-sm text-slate-500">Conferindo no Mercado Pago... (gera um Pix de teste de R$ 1,00 e cancela na hora)</p>}
+        {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {result && (
+          <ul className="space-y-3">
+            {result.account
+              ? line(true, 'Conta do Mercado Pago', `${result.account.email || result.account.nickname} (id ${result.account.userId}). Confira se é a conta que deve receber.`)
+              : line(false, 'Token', result.accountError)}
+            {result.test && line(false, 'Credencial de TESTE', 'Esta conta está com chaves TEST-. Cliente de verdade não consegue pagar: troque pelas de produção (APP_USR-).')}
+            {!result.publicKeyOk && line(false, 'Public key', 'A public key não parece válida (começa com APP_USR-). Sem ela o cartão não aparece.')}
+            {result.account && (result.pix.ok
+              ? line(true, 'Pix pelo Mercado Pago', 'O Mercado Pago gerou o QR Code (o teste foi cancelado).')
+              : line(false, 'Pix pelo Mercado Pago', [result.pix.hint, result.pix.error && `Resposta do Mercado Pago: ${result.pix.error}`].filter(Boolean).join(' ')))}
+          </ul>
+        )}
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={onClose}>Fechar</Button>
+        </div>
+      </div>
     </Modal>
   )
 }

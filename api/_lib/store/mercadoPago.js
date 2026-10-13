@@ -104,6 +104,11 @@ export function createCardPayment(acc, { orderId, amountCents, description, buye
   })
 }
 
+/** Cancela um pagamento pendente (usado no Pix de teste da tela Recebimento). */
+export function cancelPayment(acc, paymentId) {
+  return mpFetch(acc, `/v1/payments/${encodeURIComponent(paymentId)}`, { method: 'PUT', body: { status: 'cancelled' } })
+}
+
 export function getPayment(acc, paymentId) {
   return mpFetch(acc, `/v1/payments/${encodeURIComponent(paymentId)}`)
 }

@@ -25,6 +25,7 @@
 //   POST admin-link    { uid }                 → { accessUrl }
 //   POST admin-temp-password { uid, productId?, send? } → senha provisória de 1 dia (send: 'email' manda por e-mail)
 //   POST admin-email-test             manda um e-mail de teste pra quem pediu
+//   POST admin-mp-test { id? }        testa a conta de recebimento (de quem é e se gera Pix; o Pix de teste é cancelado)
 //   POST admin-revoke  { uid, productId }
 //   POST admin-delete-member { uid }     apaga o aluno (pedidos ficam)
 //   POST admin-refund  { orderId }
@@ -55,6 +56,8 @@ import {
   mpConfigured,
   mpPublicKey,
   createPixPayment,
+  cancelPayment,
+  mpWhoAmI,
   createCardPayment,
   getPayment,
   refundPayment,
@@ -714,7 +717,11 @@ function assertVisible(doc, user, what = 'Pedido') {
 
 async function actionAdminStatus() {
   await ensurePrivacyField().catch((err) => console.warn('[loja] migração privateTo:', err?.message))
+  // De quem é a conta da Vercel (pra ver se as chaves não estão trocadas com outra conta).
+  const principalWho = mpConfigured() ? await mpWhoAmI(process.env.MP_ACCESS_TOKEN).catch(() => null) : null
   return {
+    mpPrincipalEmail: principalWho?.email || null,
+    mpPrincipalInvalid: mpConfigured() && !principalWho,
     mercadoPago: mpConfigured() || (await listDocs('storeMpAccounts')).length > 0,
     // Conta principal (variáveis da Vercel) configurada?
     mpPrincipal: mpConfigured(),
@@ -789,6 +796,46 @@ async function actionAdminEmailTest(req, user) {
     throw new HttpError(502, `O e-mail não saiu. ${hint}${why ? ` Resposta do Gmail: ${why}` : ''}`)
   }
   return { ok: true, to: user.email }
+}
+
+/** Testa uma conta de recebimento: de quem é no Mercado Pago e se ela consegue gerar Pix.
+ *  O Pix de teste (R$ 1,00) é cancelado na hora; ninguém paga nada. id vazio = conta da Vercel. */
+async function actionAdminMpTest(req, user) {
+  const id = String(req.body?.id || '')
+  if (id) {
+    const meta = await getDoc(`storeMpAccounts/${id}`)
+    assertVisible(meta.exists ? meta.data() : null, user, 'Conta')
+  }
+  const acc = await getMpAccount(id || null)
+  if (!acc?.accessToken) throw new HttpError(400, id ? 'Conta sem token salvo. Edite a conta e cole o Access token.' : 'A conta da Vercel não tem MP_ACCESS_TOKEN.')
+  const out = { account: null, accountError: null, publicKeyOk: /^(APP_USR|TEST)-/.test(acc.publicKey || ''), test: /^TEST-/.test(acc.accessToken), pix: { ok: false, error: null, hint: null } }
+  try {
+    out.account = await mpWhoAmI(acc.accessToken)
+  } catch (err) {
+    out.accountError = 'O Mercado Pago não aceitou o Access token desta conta.'
+    return out
+  }
+  try {
+    const p = await createPixPayment(acc, {
+      orderId: `teste_${Date.now()}`,
+      amountCents: 100,
+      description: 'Teste de Pix do CRM (cancelado automaticamente)',
+      buyer: { name: 'Teste CRM', email: 'teste.pix.crm@gmail.com' },
+      expiresMinutes: 30,
+    })
+    out.pix.ok = !!p?.point_of_interaction?.transaction_data?.qr_code
+    if (!out.pix.ok) out.pix.error = 'O Mercado Pago criou o pagamento, mas não devolveu o QR Code.'
+    await cancelPayment(acc, p.id).catch(() => {})
+  } catch (err) {
+    const msg = String(err?.message || '')
+    out.pix.error = msg
+    out.pix.hint = /financial identity|key enabled|without key|chave/i.test(msg)
+      ? 'A conta do Mercado Pago não tem chave Pix ativa DENTRO do Mercado Pago. No app do Mercado Pago: Pix > Minhas chaves > Cadastrar chave (se o celular já é chave em outro banco, use uma chave aleatória). Ou ligue "Pix direto na minha chave" nesta conta.'
+      : /unauthorized|forbidden|401|403/i.test(msg)
+        ? 'O token não tem permissão para receber. Use as credenciais de PRODUÇÃO da aplicação (APP_USR-) e confira se a conta está verificada.'
+        : null
+  }
+  return out
 }
 
 async function actionAdminRevoke(req, user) {
@@ -1150,6 +1197,7 @@ const ADMIN = {
   'POST admin-link': actionAdminLink,
   'POST admin-temp-password': actionAdminTempPassword,
   'POST admin-email-test': actionAdminEmailTest,
+  'POST admin-mp-test': actionAdminMpTest,
   'POST admin-revoke': actionAdminRevoke,
   'POST admin-refund': actionAdminRefund,
   'POST admin-delete-order': actionAdminDeleteOrder,
