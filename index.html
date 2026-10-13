@@ -22,7 +22,9 @@
     <script>
       // Aplica o tema salvo antes do 1º paint (evita flash claro→escuro).
       try {
-        if (localStorage.getItem('arrowshot-theme') === 'dark') {
+        // Páginas públicas (checkout, área de membros...) têm cores próprias: sem o tema do CRM.
+        var publicPage = /^\/(pay|membros|m|captura|aprovar|relatorio|acessos|privacidade|termos)(\/|$)/.test(location.pathname) || /^(pay|checkout|compra|loja)\./i.test(location.hostname)
+        if (!publicPage && localStorage.getItem('arrowshot-theme') === 'dark') {
           document.documentElement.setAttribute('data-theme', 'dark')
         }
       } catch (e) {}

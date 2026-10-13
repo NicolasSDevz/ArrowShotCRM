@@ -1,8 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 
 export type Theme = 'light' | 'dark'
 
 const STORAGE_KEY = 'arrowshot-theme'
+
+/** Páginas públicas (checkout, área de membros, formulário de captura...) têm cores
+ *  próprias: o modo escuro do CRM não vale nelas (recolorava campos e cartões). */
+const PUBLIC_PAGE = /^\/(pay|membros|m|captura|aprovar|relatorio|acessos|privacidade|termos)(\/|$)/
+const CHECKOUT_HOST = typeof window !== 'undefined' && /^(pay|checkout|compra|loja)\./i.test(window.location.hostname)
 
 function readStored(): Theme {
   try {
@@ -27,10 +33,8 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(readStored)
 
+  // O atributo data-theme é posto pelo ThemeApplier (precisa saber a página aberta).
   useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'dark') root.setAttribute('data-theme', 'dark')
-    else root.removeAttribute('data-theme')
     try {
       localStorage.setItem(STORAGE_KEY, theme)
     } catch {
@@ -45,6 +49,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+}
+
+/** Liga o modo escuro só nas telas internas do CRM. Fica dentro do <BrowserRouter>. */
+export function ThemeApplier() {
+  const { theme } = useTheme()
+  const { pathname } = useLocation()
+  const publicPage = CHECKOUT_HOST || PUBLIC_PAGE.test(pathname)
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'dark' && !publicPage) root.setAttribute('data-theme', 'dark')
+    else root.removeAttribute('data-theme')
+  }, [theme, publicPage])
+  return null
 }
 
 export function useTheme(): ThemeContextValue {

@@ -1125,7 +1125,7 @@ const PUBLIC = {
 // Respostas públicas iguais para todo mundo: a Vercel guarda e responde sem chamar o Firestore.
 // Mudança no produto aparece no checkout em até ~1 min (a prévia do CRM é na hora).
 const CACHED = {
-  'GET checkout': 'public, s-maxage=60, stale-while-revalidate=120',
+  'GET checkout': 'public, s-maxage=10, stale-while-revalidate=20',
   'GET members-theme': 'public, s-maxage=60, stale-while-revalidate=300',
   'GET members-catalog': 'public, s-maxage=300, stale-while-revalidate=600',
 }

@@ -432,6 +432,8 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
             {/* Pagamento */}
             <section className="space-y-4 p-5 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-pag`}>
               <h2 id={`${uid}-pag`} className="text-base font-semibold" style={titleStyle}>Pagamento</h2>
+              {/* Ofertas primeiro: Pix e o formulário do cartão ficam embaixo delas. */}
+              {bumpsBlock('payment')}
               {methods.length === 0 ? (
                 <p className="text-sm text-amber-700">Nenhuma forma de pagamento disponível. Fale com o vendedor.</p>
               ) : (
@@ -473,8 +475,6 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               ) : (
                 <div id={brickId} />
               ))}
-
-              {bumpsBlock('payment')}
 
               {/* Cupom */}
               <div>

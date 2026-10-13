@@ -3,7 +3,7 @@ import { Toaster } from 'react-hot-toast'
 import { ErrorDialogHost } from './components/ui/ErrorDialogHost'
 import { ConfirmDialogHost } from './components/ui/ConfirmDialogHost'
 import { SessionIssueHost } from './components/auth/SessionIssueHost'
-import { ThemeProvider } from './context/ThemeContext'
+import { ThemeApplier, ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
 import { PrivacyProvider } from './context/PrivacyContext'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
@@ -69,6 +69,7 @@ function App() {
     <AuthProvider>
     <PrivacyProvider>
       <BrowserRouter>
+        <ThemeApplier />
         <Toaster position="bottom-center" toastOptions={{ className: 'app-toast', style: { fontSize: '13px' } }} />
         <ErrorDialogHost />
         <ConfirmDialogHost />
