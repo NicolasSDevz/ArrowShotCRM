@@ -92,6 +92,7 @@ import {
   sendAccessEmail,
   emailConfigured,
   sendMail,
+  lastMailError,
   createTempPassword,
   visibleTo,
   membersPathFor,
@@ -773,7 +774,13 @@ async function actionAdminEmailTest(req, user) {
     subject: 'Teste do e-mail da Loja',
     html: '<div style="font-family:Arial,sans-serif;color:#0f172a"><p>Funcionou! Os e-mails da Loja (acesso da compra, senha provisória e link novo) vão sair por este endereço.</p></div>',
   })
-  if (!ok) throw new HttpError(502, 'O e-mail não saiu. Confira GMAIL_USER e GMAIL_APP_PASSWORD na Vercel (a senha de app tem 16 letras e precisa da verificação em duas etapas ligada).')
+  if (!ok) {
+    const why = lastMailError
+    const hint = /535|534|Username and Password not accepted|BadCredentials|Application-specific password/i.test(why)
+      ? 'O Gmail recusou o login: a senha de app está errada ou é de outra conta. Gere uma nova senha de app na mesma conta do GMAIL_USER e troque GMAIL_APP_PASSWORD na Vercel (depois Redeploy).'
+      : 'Confira GMAIL_USER e GMAIL_APP_PASSWORD na Vercel.'
+    throw new HttpError(502, `O e-mail não saiu. ${hint}${why ? ` Resposta do Gmail: ${why}` : ''}`)
+  }
   return { ok: true, to: user.email }
 }
 

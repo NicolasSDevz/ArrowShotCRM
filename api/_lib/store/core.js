@@ -419,6 +419,8 @@ export function emailConfigured() {
 }
 
 let gmailTransport = null
+/** Motivo da última falha de envio (pro e-mail de teste mostrar na tela). */
+export let lastMailError = ''
 
 /** Manda um e-mail; true se saiu. Nunca lança erro (e-mail não trava venda). */
 export async function sendMail({ to, subject, html }) {
@@ -453,7 +455,10 @@ export async function sendMail({ to, subject, html }) {
     })
     return res.ok
   } catch (err) {
-    console.warn('[loja] falha ao enviar e-mail:', err?.message)
+    lastMailError = String(err?.response || err?.message || err || '').slice(0, 300)
+    console.warn('[loja] falha ao enviar e-mail:', lastMailError)
+    // Transporte com erro de login é refeito na próxima tentativa (senha trocada na Vercel).
+    gmailTransport = null
     return false
   }
 }
