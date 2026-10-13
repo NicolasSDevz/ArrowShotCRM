@@ -6,7 +6,7 @@ import { Button } from '../ui/Button'
 import { Select } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
-import { useLeads } from '../../hooks/useLeads'
+import { useAllLeads } from '../../hooks/useLeads'
 import { importLeads } from '../../services/leadService'
 import type { ResolvedPipeline } from '../../types'
 import { findUserIdByName } from '../../utils/userLookup'
@@ -39,7 +39,8 @@ function serviceLabel(services: ParsedLeadRow['services']): string {
 export function ImportLeadsModal({ open, onClose, pipeline }: { open: boolean; onClose: () => void; pipeline?: ResolvedPipeline }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
-  const { data: existingLeads } = useLeads()
+  // Histórico inteiro só com o modal aberto (pra achar duplicados antigos também).
+  const { data: existingLeads } = useAllLeads(open)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [dragOver, setDragOver] = useState(false)

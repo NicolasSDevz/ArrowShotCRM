@@ -46,6 +46,8 @@ interface SharedEntry {
 }
 
 const INITIAL: Snapshot = { data: [], loading: true, error: null }
+/** Listener desligado (key null): lista vazia, sem carregando. */
+const IDLE: Snapshot = { data: [], loading: false, error: null }
 /** Quanto tempo o listener fica vivo depois que a última tela que usava saiu. */
 const KEEP_ALIVE_MS = 5 * 60_000
 const shared = new Map<string, SharedEntry>()
@@ -96,20 +98,22 @@ function release(key: string, entry: SharedEntry, onChange: () => void) {
  *  novo no Firestore cobra a leitura de TODOS os documentos da consulta; com
  *  isso, ir e voltar entre páginas (ou várias telas usando a mesma lista) não
  *  relê a coleção. Use só para consultas que não dependem de quem está vendo
- *  além do que está na `key`. */
-export function useSharedSubscription<T>(key: string, subscribe: Subscribe<T>) {
+ *  além do que está na `key`. `key` null não abre listener. */
+export function useSharedSubscription<T>(key: string | null, subscribe: Subscribe<T>) {
   const subscribeRef = useRef(subscribe)
   useLayoutEffect(() => {
     subscribeRef.current = subscribe
   })
   const listen = useCallback(
     (onChange: () => void) => {
+      // Sem key = ainda não dá pra consultar (ou a tela não precisa agora): não lê nada.
+      if (key === null) return () => {}
       const entry = acquire(key, subscribeRef.current as Subscribe<unknown>, onChange)
       return () => release(key, entry, onChange)
     },
     [key]
   )
-  const snapshot = useSyncExternalStore(listen, () => shared.get(key)?.snapshot ?? INITIAL)
+  const snapshot = useSyncExternalStore(listen, () => (key === null ? IDLE : (shared.get(key)?.snapshot ?? INITIAL)))
   return snapshot as { data: T[]; loading: boolean; error: FirestoreError | null }
 }
 

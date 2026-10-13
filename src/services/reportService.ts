@@ -1,4 +1,4 @@
-import { orderBy, where, getDocs, query, type FirestoreError } from 'firebase/firestore'
+import { doc, onSnapshot, orderBy, where, getDocs, query, Timestamp, type FirestoreError } from 'firebase/firestore'
 import type { Report, ReportFunnel, ReportInput } from '../types'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
@@ -78,8 +78,20 @@ export async function updateReportFunnel(
   })
 }
 
-export function subscribeReports(onData: (items: Report[]) => void, onError?: (err: FirestoreError) => void) {
-  return base.subscribe([orderBy('createdAt', 'desc')], onData, onError)
+/** Relatórios, do mais novo para o mais antigo. Com `sinceMs`, só os criados
+ *  a partir dessa data (o dia a dia não precisa reler o histórico inteiro). */
+export function subscribeReports(onData: (items: Report[]) => void, onError?: (err: FirestoreError) => void, sinceMs?: number) {
+  const constraints = sinceMs != null ? [where('createdAt', '>=', Timestamp.fromMillis(sinceMs)), orderBy('createdAt', 'desc')] : [orderBy('createdAt', 'desc')]
+  return base.subscribe(constraints, onData, onError)
+}
+
+/** Um relatório só, ao vivo (1 leitura em vez da lista toda). */
+export function subscribeReport(id: string, onData: (report: Report | null) => void, onError?: (err: FirestoreError) => void) {
+  return onSnapshot(
+    doc(base.colRef, id),
+    (snap) => onData(snap.exists() ? ({ id: snap.id, ...snap.data() } as unknown as Report) : null),
+    onError
+  )
 }
 
 /** One-shot fetch — used by the client-deletion cascade so a deleted client's

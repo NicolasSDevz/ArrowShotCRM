@@ -8,7 +8,7 @@ import { getOrCreateReportLink, reportLinkUrl } from '../services/reportLinkServ
 import { showError } from '../utils/notifyError'
 import { ReportWorkDoneSection } from '../components/reports/ReportWorkDoneSection'
 import { NextStepsEditor } from '../components/reports/NextStepsEditor'
-import { useReports } from '../hooks/useReports'
+import { useReport } from '../hooks/useReports'
 import { useClients } from '../hooks/useClients'
 import { FullPageSpinner } from '../components/ui/FullPageSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -48,7 +48,7 @@ export function MonthlyReportPage() {
   const { id } = useParams<{ id: string }>()
   const { isPrivacyMode } = usePrivacy()
   const navigate = useNavigate()
-  const { data: reports, loading } = useReports()
+  const { report: liveReport, loading } = useReport(id)
   const { data: clients } = useClients()
   const { profile } = useAuth()
   const [presenting, setPresenting] = useState(false)
@@ -58,7 +58,7 @@ export function MonthlyReportPage() {
   // — dá uma janela de tolerância antes de mostrar "não encontrado".
   const [graceOver, setGraceOver] = useState(false)
 
-  const report = reports.find((r) => r.id === id)
+  const report = liveReport ?? undefined
   const client = report ? clients.find((c) => c.id === report.clientId) : undefined
   const clientName = report ? (client?.companyName ?? 'Cliente') : ''
 

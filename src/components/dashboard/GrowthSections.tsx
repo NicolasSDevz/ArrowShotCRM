@@ -4,6 +4,7 @@ import { format, isPast, isToday, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AlertTriangle, BellRing, CheckCircle2, Clock, PhoneMissed, UserX, Wallet } from 'lucide-react'
 import { usePrivacy } from '../../context/PrivacyContext'
+import { useAllLeads } from '../../hooks/useLeads'
 import { Card, CardTitle } from './DashboardCard'
 import {
   LEAD_LOST_REASON_LABEL,
@@ -364,9 +365,12 @@ function periodStart(p: Period): number {
 }
 
 /** Origem dos leads e resultado comercial, com o mesmo filtro de período. */
-export function SalesSection({ leads, pipelines }: { leads: Lead[]; pipelines: ResolvedPipeline[] }) {
+export function SalesSection({ leads: activeLeads, pipelines }: { leads: Lead[]; pipelines: ResolvedPipeline[] }) {
   const { isPrivacyMode } = usePrivacy()
   const [period, setPeriod] = useState<Period>('90d')
+  // Os leads do dia a dia cobrem os últimos 90 dias; "Tudo" carrega o histórico só quando escolhido.
+  const { data: allLeads, loading: loadingAll } = useAllLeads(period === 'all')
+  const leads = period === 'all' && !loadingAll ? allLeads : activeLeads
   const money = (v: number) => (isPrivacyMode ? 'R$ •.•••' : BRL(v))
 
   const stats = useMemo(() => {

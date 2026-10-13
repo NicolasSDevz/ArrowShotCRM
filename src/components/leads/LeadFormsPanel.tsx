@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { Plus, Copy, Pencil, Trash2, ExternalLink, BarChart3, Eraser } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useLeadForms } from '../../hooks/useLeadForms'
-import { useLeads } from '../../hooks/useLeads'
+import { useAllLeads } from '../../hooks/useLeads'
 import { deleteLeadForm, updateLeadForm } from '../../services/leadFormService'
 import { LeadFormBuilderModal } from './LeadFormBuilderModal'
 import { LeadFormAnalyticsModal } from './LeadFormAnalyticsModal'
@@ -18,7 +18,8 @@ import { askConfirm } from '../../utils/confirmDialog'
 export function LeadFormsPanel() {
   const { profile } = useAuth()
   const { data: forms } = useLeadForms()
-  const { data: leads } = useLeads()
+  // Total de todos os tempos por formulário (esta aba é pouco aberta).
+  const { data: leads } = useAllLeads()
   const [editing, setEditing] = useState<LeadForm | null | undefined>(undefined)
   const [viewingStats, setViewingStats] = useState<LeadForm | null>(null)
   const [clearing, setClearing] = useState<LeadForm | null>(null)

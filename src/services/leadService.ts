@@ -1,4 +1,4 @@
-import { orderBy, Timestamp, type FirestoreError } from 'firebase/firestore'
+import { orderBy, where, Timestamp, type FirestoreError } from 'firebase/firestore'
 import type { AppUser, Client, Lead, LeadContactEntry, LeadInput, LeadStatus, ResolvedPipeline } from '../types'
 import { contactKeys } from '../utils/leadDuplicates'
 import { LEAD_STATUS_LABEL, LEAD_LOST_REASON_LABEL, LEAD_FORM_STAGE_LABEL, isQuestionnaireLead, type LeadFormStage } from '../types/lead'
@@ -407,4 +407,35 @@ export function getLead(id: string) {
 
 export function subscribeLeads(onData: (items: Lead[]) => void, onError?: (err: FirestoreError) => void) {
   return base.subscribe([orderBy('order', 'asc')], onData, onError)
+}
+
+/** Leads "vivos" sem reler o histórico inteiro: todos os que estão em etapa
+ *  aberta (qualquer idade) + todos os que mudaram de etapa desde `sinceMs`
+ *  (inclui ganhos e perdidos recentes). Ganhos e perdidos antigos ficam de
+ *  fora — use subscribeLeads quando precisar deles. */
+export function subscribeActiveLeads(
+  openStatusIds: string[],
+  sinceMs: number,
+  onData: (items: Lead[]) => void,
+  onError?: (err: FirestoreError) => void
+) {
+  // O "in" do Firestore aceita até 30 valores por consulta.
+  const chunks: string[][] = []
+  for (let i = 0; i < openStatusIds.length; i += 30) chunks.push(openStatusIds.slice(i, i + 30))
+  const parts: (Lead[] | null)[] = Array(chunks.length + 1).fill(null)
+  const emit = () => {
+    if (parts.some((p) => p === null)) return
+    const byId = new Map<string, Lead>()
+    for (const p of parts) for (const l of p!) byId.set(l.id, l)
+    onData([...byId.values()].sort((a, b) => a.order - b.order))
+  }
+  const listen = (i: number) => (items: Lead[]) => {
+    parts[i] = items
+    emit()
+  }
+  const unsubs = [
+    base.subscribe([where('stageChangedAt', '>=', Timestamp.fromMillis(sinceMs))], listen(0), onError),
+    ...chunks.map((ids, i) => base.subscribe([where('status', 'in', ids)], listen(i + 1), onError)),
+  ]
+  return () => unsubs.forEach((u) => u())
 }

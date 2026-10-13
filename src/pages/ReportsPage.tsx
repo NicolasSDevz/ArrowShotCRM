@@ -4,7 +4,7 @@ import { format, isWithinInterval, startOfMonth, endOfMonth, subMonths } from 'd
 import { ptBR } from 'date-fns/locale'
 import { Plus, FileDown, Eye, FileBarChart, Search, Trash2, X, LayoutGrid, List as ListIcon, AlertCircle, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useReports } from '../hooks/useReports'
+import { RECENT_REPORTS_MONTHS, useReports } from '../hooks/useReports'
 import { useClients } from '../hooks/useClients'
 import { useAuth } from '../context/AuthContext'
 import { usePrivacy } from '../context/PrivacyContext'
@@ -32,7 +32,9 @@ export function ReportsPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const { isPrivacyMode } = usePrivacy()
-  const { data: reports } = useReports()
+  // Os mais antigos que 6 meses só carregam quando alguém pede (economia de leituras).
+  const [showOld, setShowOld] = useState(false)
+  const { data: reports } = useReports(showOld)
   const { data: clients } = useClients()
   const [view, setView] = usePersistedViewMode<'blocks' | 'list'>('reportsView', 'blocks')
   const [creating, setCreating] = useState(false)
@@ -226,10 +228,17 @@ export function ReportsPage() {
             ))}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatCard label="Total de relatórios" value={stats.total} />
+            <StatCard label={showOld ? 'Total de relatórios' : `Relatórios (últimos ${RECENT_REPORTS_MONTHS} meses)`} value={stats.total} />
             <StatCard label="Gerados este mês" value={stats.thisMonth} />
             <StatCard label="Clientes com relatório" value={stats.clients} />
           </div>
+
+          <p className="-mt-1 text-xs text-slate-400">
+            {showOld ? 'Mostrando todos os relatórios.' : `Relatórios de mais de ${RECENT_REPORTS_MONTHS} meses ficam ocultos para economizar leituras.`}{' '}
+            <button type="button" onClick={() => setShowOld((v) => !v)} className="font-semibold text-brand-600 hover:underline">
+              {showOld ? 'Ocultar antigos' : 'Mostrar antigos'}
+            </button>
+          </p>
 
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-white p-3">
             <div className="relative">

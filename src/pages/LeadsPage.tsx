@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Upload, Kanban, List, Settings2, Gauge, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useLeads } from '../hooks/useLeads'
+import { ACTIVE_LEADS_DAYS, useAllLeads, useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
 import { useClients } from '../hooks/useClients'
 import { findClientMatch } from '../utils/leadDuplicates'
@@ -30,7 +30,11 @@ import { LEAD_LOST_REASON_LABEL, LEAD_SEGMENT_LABEL, LEAD_TEMPERATURE_LABEL, DEF
 
 export function LeadsPage() {
   const { profile } = useAuth()
-  const { data: leads } = useLeads()
+  // Ganhos e perdidos antigos só carregam quando alguém pede (economia de leituras).
+  const [showOld, setShowOld] = useState(false)
+  const { data: activeLeads } = useLeads()
+  const { data: allLeads, loading: loadingAll } = useAllLeads(showOld)
+  const leads = showOld && !loadingAll ? allLeads : activeLeads
   const { data: users } = useUsers()
   const { data: clients } = useClients()
   const { pipelines } = useLeadPipelines()
@@ -280,6 +284,17 @@ export function LeadsPage() {
               </button>
             ))}
           </div>
+
+          <p className="text-xs text-slate-400">
+            {showOld
+              ? loadingAll
+                ? 'Carregando ganhos e perdidos antigos...'
+                : 'Mostrando todos os leads, inclusive ganhos e perdidos antigos.'
+              : `Ganhos e perdidos de mais de ${ACTIVE_LEADS_DAYS} dias ficam ocultos para economizar leituras.`}{' '}
+            <button type="button" onClick={() => setShowOld((v) => !v)} className="font-semibold text-brand-600 hover:underline">
+              {showOld ? 'Ocultar antigos' : 'Mostrar antigos'}
+            </button>
+          </p>
 
           <div role="group" aria-label="Filtrar por segmento" className="flex flex-wrap items-center gap-1.5">
             <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Segmento</span>
