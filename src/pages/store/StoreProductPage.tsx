@@ -72,6 +72,7 @@ export function StoreProductPage() {
   const [pixAccounts, setPixAccounts] = useState<{ id: string; label: string }[]>([])
   const [pixManual, setPixManual] = useState(false)
   const [principalLabel, setPrincipalLabel] = useState('Conta principal')
+  const [defaultMpId, setDefaultMpId] = useState('')
 
   const [storeLinks, setStoreLinks] = useState<{ checkoutDomain?: string | null } | null>(null)
   useEffect(() => subscribeStoreLinks(setStoreLinks), [])
@@ -81,6 +82,7 @@ export function StoreProductPage() {
         setPixAccounts((s?.pixAccounts ?? []).map((a) => ({ id: a.id, label: a.label })))
         setPixManual(s?.pixManual === true)
         setPrincipalLabel(s?.mpPrincipalLabel || 'Conta principal')
+        setDefaultMpId(s?.defaultMpAccountId || '')
       }),
     []
   )
@@ -179,8 +181,9 @@ export function StoreProductPage() {
         <h2 className="text-[15px] font-semibold text-slate-800">Preço e pagamento</h2>
         <Field label="Conta de recebimento (Pix e cartão)">
           <Select value={draft.mpAccountId ?? ''} onChange={(e) => set({ mpAccountId: e.target.value || null })}>
-            <option value="">{principalLabel}</option>
-            {mpAccounts.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+            {[{ id: '', label: principalLabel }, ...mpAccounts]
+              .sort((a, b) => Number(b.id === defaultMpId) - Number(a.id === defaultMpId))
+              .map((a) => <option key={a.id || 'vercel'} value={a.id}>{a.label}{a.id === defaultMpId ? ' (padrão)' : ''}</option>)}
           </Select>
         </Field>
         {mpAccounts.length === 0 && <p className="-mt-1 text-xs text-slate-400">Pra receber em outra conta, adicione ela em Loja, aba Recebimento.</p>}

@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -109,9 +110,13 @@ export function subscribeStoreProducts(onData: (items: StoreProduct[]) => void, 
 
 /** onlyMe: nasce privado (só quem criou vê). */
 export async function createStoreProduct(name: string, price: number, userId: string, onlyMe = false) {
+  // Produto novo já nasce na conta de recebimento padrão.
+  const settings = await getDoc(doc(db, 'storeSettings', 'payments')).catch(() => null)
+  const mpAccountId = (settings?.data()?.defaultMpAccountId as string | undefined) || null
   return products.create(
     {
       name,
+      mpAccountId,
       slug: slugify(name),
       privateTo: onlyMe ? userId : null,
       membersAreaId: null,
@@ -327,6 +332,15 @@ export function replyAsProducer(parent: StoreComment, text: string, authorName: 
 
 export function subscribeStorePaymentSettings(onData: (s: StorePaymentSettings | null) => void, onError?: OnError) {
   return onSnapshot(doc(db, 'storeSettings', 'payments'), (s) => onData(s.exists() ? (s.data() as StorePaymentSettings) : null), onError)
+}
+
+/** Troca a conta de recebimento padrão e passa para ela os produtos que estavam na
+ *  padrão anterior (menos os privados, que ficam com o dono). Devolve quantos mudaram. */
+export async function setDefaultMpAccount(newId: string, oldId: string, all: StoreProduct[], userId: string) {
+  await setDoc(doc(db, 'storeSettings', 'payments'), { defaultMpAccountId: newId || null, updatedAt: serverTimestamp(), updatedBy: userId }, { merge: true })
+  const moving = all.filter((p) => !p.privateTo && (p.mpAccountId || '') === oldId)
+  for (const p of moving) await updateStoreProduct(p.id, { mpAccountId: newId || null }, userId)
+  return moving.length
 }
 
 /** Conta principal: nome e Pix direto (o resto do documento fica como está). */

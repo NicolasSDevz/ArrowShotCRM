@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
-import { CreditCard, Landmark, Lock, Pencil, Plus, QrCode, Trash2, Wallet } from 'lucide-react'
+import { CreditCard, Landmark, Lock, Pencil, Plus, QrCode, Star, Trash2, Wallet } from 'lucide-react'
 import { auth } from '../../../firebase/config'
 import { useAuth } from '../../../context/AuthContext'
-import { useStoreMpAccounts } from '../../../hooks/useStore'
+import { useStoreMpAccounts, useStoreProducts } from '../../../hooks/useStore'
 import { storeDeleteMpAccount, storeSaveMpAccount } from '../../../services/storeApi'
-import { saveStorePaymentSettings, subscribeStorePaymentSettings } from '../../../services/storeService'
+import { saveStorePaymentSettings, setDefaultMpAccount, subscribeStorePaymentSettings } from '../../../services/storeService'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { Button } from '../../ui/Button'
 import { Modal } from '../../ui/Modal'
@@ -57,11 +57,34 @@ function PixDirectFields({ value, onChange }: { value: StorePixDirect; onChange:
  *  é a da Vercel; as outras são cadastradas aqui. */
 export function StoreMpAccountsSection({ principalReady }: { principalReady: boolean }) {
   const { data: accounts } = useStoreMpAccounts()
+  const { data: products } = useStoreProducts()
+  const { profile } = useAuth()
   const [editing, setEditing] = useState<StoreMpAccount | 'new' | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [settings, setSettings] = useState<StorePaymentSettings | null>(null)
   useEffect(() => subscribeStorePaymentSettings(setSettings), [])
   const principalLabel = settings?.mpPrincipalLabel || ''
+  // Padrão salvo que não existe mais (conta excluída) volta pra da Vercel.
+  const savedDefault = settings?.defaultMpAccountId || ''
+  const defaultId = savedDefault && accounts.some((a) => a.id === savedDefault) ? savedDefault : ''
+  const nameOf = (id: string) => (id ? accounts.find((a) => a.id === id)?.label : principalLabel) || 'Conta principal'
+
+  const makeDefault = async (id: string) => {
+    if (!profile) return
+    const moving = products.filter((p) => !p.privateTo && (p.mpAccountId || '') === defaultId).length
+    const ok = await askConfirm({
+      title: `Tornar "${nameOf(id)}" a conta padrão?`,
+      message: `Ela aparece primeiro e os produtos novos já nascem nela. ${moving ? `${moving} produto(s) que estão em "${nameOf(defaultId)}" passam para ela.` : 'Nenhum produto muda agora.'} Produtos privados e os que estão em outra conta ficam como estão. Vendas já feitas continuam na conta em que foram pagas.`,
+      confirmLabel: 'Tornar padrão',
+    })
+    if (!ok) return
+    try {
+      const n = await setDefaultMpAccount(id, defaultId, products, profile.id)
+      toast.success(`${nameOf(id)} agora é a conta padrão${n ? ` (${n} produto(s) passaram para ela)` : ''}`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
 
   const remove = async (a: StoreMpAccount) => {
     if (!(await askConfirm({ title: `Excluir a conta "${a.label}"?`, message: 'Os pedidos já feitos continuam registrados. Produtos ligados a ela precisam ser trocados antes.', confirmLabel: 'Excluir conta', danger: true }))) return
@@ -84,27 +107,36 @@ export function StoreMpAccountsSection({ principalReady }: { principalReady: boo
       </div>
 
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <AccountCard
-          name={principalLabel || 'Conta principal'}
-          detail={principalReady ? 'Mercado Pago · conta padrão' : 'Mercado Pago não configurado na Vercel'}
-          ready={principalReady}
-          pixDirect={settings?.pixManual === true}
-          onEdit={() => setRenaming(true)}
-          editLabel="Configurar a conta principal"
-        />
-        {accounts.map((a) => (
+        {[
           <AccountCard
-            key={a.id}
-            name={a.label}
-            isPrivate={!!a.privateTo}
-            detail={`Mercado Pago${a.mpEmail ? ` · ${a.mpEmail}` : ''}`}
-            ready
-            pixDirect={a.pixDirect?.enabled === true}
-            onEdit={() => setEditing(a)}
-            editLabel={`Editar a conta ${a.label}`}
-            onRemove={() => remove(a)}
-          />
-        ))}
+            key="vercel"
+            order={defaultId === '' ? 0 : 1}
+            name={principalLabel || 'Conta principal'}
+            detail={principalReady ? 'Mercado Pago · configurada na Vercel' : 'Mercado Pago não configurado na Vercel'}
+            ready={principalReady}
+            pixDirect={settings?.pixManual === true}
+            isDefault={defaultId === ''}
+            onMakeDefault={principalReady ? () => makeDefault('') : undefined}
+            onEdit={() => setRenaming(true)}
+            editLabel={`Configurar a conta ${principalLabel || 'principal'}`}
+          />,
+          ...accounts.map((a) => (
+            <AccountCard
+              key={a.id}
+              order={defaultId === a.id ? 0 : 1}
+              name={a.label}
+              isPrivate={!!a.privateTo}
+              detail={`Mercado Pago${a.mpEmail ? ` · ${a.mpEmail}` : ''}`}
+              ready
+              pixDirect={a.pixDirect?.enabled === true}
+              isDefault={defaultId === a.id}
+              onMakeDefault={a.privateTo ? undefined : () => makeDefault(a.id)}
+              onEdit={() => setEditing(a)}
+              editLabel={`Editar a conta ${a.label}`}
+              onRemove={defaultId === a.id ? undefined : () => remove(a)}
+            />
+          )),
+        ].sort((x, y) => x.props.order - y.props.order)}
       </ul>
 
       <MpAccountModal account={editing} onClose={() => setEditing(null)} />
@@ -113,10 +145,34 @@ export function StoreMpAccountsSection({ principalReady }: { principalReady: boo
   )
 }
 
-function AccountCard({ name, detail, ready, pixDirect, isPrivate, onEdit, editLabel, onRemove }: { name: string; detail: string; ready: boolean; pixDirect?: boolean; isPrivate?: boolean; onEdit: () => void; editLabel: string; onRemove?: () => void }) {
+function AccountCard({
+  name,
+  detail,
+  ready,
+  pixDirect,
+  isPrivate,
+  isDefault,
+  onMakeDefault,
+  onEdit,
+  editLabel,
+  onRemove,
+}: {
+  /** Só para ordenar a lista (padrão primeiro). */
+  order: number
+  name: string
+  detail: string
+  ready: boolean
+  pixDirect?: boolean
+  isPrivate?: boolean
+  isDefault?: boolean
+  onMakeDefault?: () => void
+  onEdit: () => void
+  editLabel: string
+  onRemove?: () => void
+}) {
   const chip = (on: boolean) => `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`
   return (
-    <li className="flex flex-col gap-2 rounded-xl border border-slate-200 p-4">
+    <li className={`flex flex-col gap-2 rounded-xl border p-4 ${isDefault ? 'border-brand-300 ring-1 ring-brand-200' : 'border-slate-200'}`}>
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600" aria-hidden="true"><Wallet size={17} /></span>
         <div className="min-w-0 flex-1">
@@ -125,6 +181,11 @@ function AccountCard({ name, detail, ready, pixDirect, isPrivate, onEdit, editLa
             <span className="truncate">{name}</span>
           </p>
           <p className="truncate text-xs text-slate-500">{detail}</p>
+          {isDefault && (
+            <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">
+              <Star size={11} aria-hidden="true" /> Conta padrão
+            </p>
+          )}
         </div>
         <button type="button" onClick={onEdit} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={editLabel}><Pencil size={14} /></button>
         {onRemove && <button type="button" onClick={onRemove} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Excluir ${name}`}><Trash2 size={14} /></button>}
@@ -132,6 +193,11 @@ function AccountCard({ name, detail, ready, pixDirect, isPrivate, onEdit, editLa
       <div className="flex gap-1.5">
         <span className={chip(ready || !!pixDirect)}><QrCode size={12} aria-hidden="true" /> {pixDirect ? 'Pix direto' : 'Pix'}</span>
         <span className={chip(ready)}><CreditCard size={12} aria-hidden="true" /> Cartão</span>
+        {!isDefault && onMakeDefault && (
+          <button type="button" onClick={onMakeDefault} className="ml-auto text-xs font-semibold text-brand-600 hover:underline" aria-label={`Tornar ${name} a conta padrão`}>
+            Tornar padrão
+          </button>
+        )}
       </div>
     </li>
   )
@@ -183,7 +249,7 @@ function PrincipalModal({ open, settings, onClose }: { open: boolean; settings: 
   return (
     <Modal open={open} onClose={onClose} title="Conta principal">
       <form onSubmit={submit} className="space-y-3">
-        <p className="text-sm text-slate-500">A conta do Mercado Pago configurada na Vercel. Recebe os produtos sem outra conta escolhida.</p>
+        <p className="text-sm text-slate-500">A conta do Mercado Pago configurada na Vercel (MP_ACCESS_TOKEN e MP_PUBLIC_KEY).</p>
         <Field label="Nome da conta"><Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex.: Nicolas" autoFocus /></Field>
         <PixDirectFields value={pix} onChange={setPix} />
         {pix.enabled && (
