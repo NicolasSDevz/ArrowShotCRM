@@ -149,6 +149,65 @@ export async function createMeetingEvent(
   }
 }
 
+export async function updateMeetingEvent(
+  accessToken: string,
+  eventId: string,
+  params: {
+    summary: string
+    description?: string
+    startDateTime: string
+    endDateTime: string
+    attendeeEmails: string[]
+  }
+): Promise<GoogleCalendarEvent> {
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?conferenceDataVersion=1&sendUpdates=all`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        summary: params.summary,
+        description: params.description,
+        start: { dateTime: params.startDateTime },
+        end: { dateTime: params.endDateTime },
+        attendees: params.attendeeEmails.map((email) => ({ email })),
+        conferenceData: { createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: 'hangoutsMeet' } } },
+      }),
+    }
+  )
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Erro ao atualizar reunião (${res.status}): ${body}`)
+  }
+  const item = await res.json()
+  return {
+    id: item.id,
+    summary: item.summary,
+    start: item.start?.dateTime || item.start?.date,
+    end: item.end?.dateTime || item.end?.date,
+    hangoutLink: item.hangoutLink,
+    htmlLink: item.htmlLink,
+    attendees: item.attendees,
+  }
+}
+
+export async function deleteCalendarEvent(accessToken: string, eventId: string): Promise<void> {
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  )
+  if (!res.ok && res.status !== 410) {
+    const body = await res.text()
+    throw new Error(`Erro ao cancelar reunião (${res.status}): ${body}`)
+  }
+}
+
 /** Liga a gravação automática da sala do Meet (Meet REST API v2). Só funciona
  *  em conta Google Workspace com gravação liberada e com o escopo
  *  MEET_SETTINGS_SCOPE concedido; lança erro com o motivo quando não dá. */

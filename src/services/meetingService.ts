@@ -124,6 +124,15 @@ export function subscribeClientMeetings(
   return base.subscribe(constraints, onData, onError)
 }
 
+export function subscribeLeadMeetings(
+  leadId: string,
+  onData: (items: Meeting[]) => void,
+  onError?: (err: FirestoreError) => void
+) {
+  const constraints: QueryConstraint[] = [where('leadId', '==', leadId), orderBy('date', 'desc')]
+  return base.subscribe(constraints, onData, onError)
+}
+
 /** One-shot fetch — used by the client-deletion cascade so meetings tied to
  *  a deleted client don't linger forever pointing at a clientId that no
  *  longer exists. */

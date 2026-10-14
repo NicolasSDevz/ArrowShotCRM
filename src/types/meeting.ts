@@ -11,6 +11,7 @@ export type MeetingType =
   | 'briefing'
   | 'strategy_access'
   | 'monthly_consulting'
+  | 'sales'
 
 export const MEETING_TYPE_LABEL: Record<MeetingType, string> = {
   daily: 'Daily',
@@ -22,6 +23,7 @@ export const MEETING_TYPE_LABEL: Record<MeetingType, string> = {
   briefing: 'Reunião de Briefing',
   strategy_access: 'Reunião de Estratégia e Acessos',
   monthly_consulting: 'Consultoria Mensal',
+  sales: 'Reunião de Vendas',
 }
 
 /** Agrupamento exibido como dois <optgroup> no <select> de tipo (ver
@@ -36,7 +38,7 @@ export type MeetingTypeGroup = keyof typeof MEETING_TYPE_GROUP_LABEL
 
 export const MEETING_TYPE_GROUPS: Record<MeetingTypeGroup, MeetingType[]> = {
   internal: ['daily', 'continuous_improvement', 'partnership', 'one_on_one', 'monthly_team'],
-  client: ['onboarding', 'briefing', 'strategy_access', 'monthly_consulting'],
+  client: ['onboarding', 'briefing', 'strategy_access', 'monthly_consulting', 'sales'],
 }
 
 export function isClientMeetingType(type: MeetingType): boolean {
@@ -61,6 +63,7 @@ export const MEETING_TYPE_BADGE: Record<MeetingType, string> = {
   briefing: 'bg-orange-50 text-orange-600',
   strategy_access: 'bg-fuchsia-50 text-fuchsia-600',
   monthly_consulting: 'bg-rose-50 text-rose-600',
+  sales: 'bg-brand-50 text-brand-600',
 }
 
 /** Participantes marcados por padrão ao escolher cada tipo — nomes
@@ -72,6 +75,7 @@ export const MEETING_DEFAULT_PARTICIPANT_NAMES: Partial<Record<MeetingType, stri
   continuous_improvement: ['Bruno', 'Jamilson', 'Ciane', 'Nicolas'],
   monthly_team: ['Bruno', 'Jamilson', 'Ciane', 'Nicolas'],
   partnership: ['Bruno', 'Ciane'],
+  sales: ['Bruno'],
 }
 
 export interface MeetingActionItem {
@@ -107,6 +111,8 @@ export interface Meeting extends BaseDoc {
   /** Sala do Google Meet criada pelo CRM (evento no Google Agenda de quem criou). */
   meetLink?: string
   googleEventId?: string
+  /** Lead vinculado (usado nas reuniões de vendas agendadas direto do painel do lead). */
+  leadId?: string
   /** true = a gravação automática do Meet foi ligada na criação da sala. */
   autoRecording?: boolean
   notes?: string
@@ -153,6 +159,7 @@ export const MEETING_TYPE_DOT: Record<MeetingType, string> = {
   briefing: 'bg-orange-500',
   strategy_access: 'bg-fuchsia-500',
   monthly_consulting: 'bg-rose-500',
+  sales: 'bg-brand-500',
 }
 
 /** Fim da reunião: horário + duração, ou o fim do dia quando não tem horário. */

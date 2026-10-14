@@ -12,6 +12,7 @@ import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Tabs } from '../ui/Tabs'
 import { LeadBantTab } from './LeadBantTab'
+import { LeadMeetingTab } from './LeadMeetingTab'
 import { CommentsPanel } from '../comments/CommentsPanel'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
@@ -456,6 +457,7 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
         <Tabs
           tabs={[
             { label: 'Informações', content: <InfoTab lead={lead} /> },
+            { label: 'Reunião', content: <LeadMeetingTab lead={lead} /> },
             { label: 'Qualificação (BANT)', content: <LeadBantTab lead={lead} /> },
             { label: 'Histórico de contatos', content: <ContactHistoryTab lead={lead} /> },
             { label: 'Comentários', content: <CommentsPanel entityType="lead" entityId={lead.id} /> },
