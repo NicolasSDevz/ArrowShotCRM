@@ -170,6 +170,7 @@ export function StorePage() {
       <div className="overflow-clip rounded-3xl border border-slate-200 bg-white shadow-sm">
         <Tabs
           label="Seções da loja"
+          variant="pills"
           active={activeTab}
           onChange={(i) => setParams((p) => {
             const next = new URLSearchParams(p)

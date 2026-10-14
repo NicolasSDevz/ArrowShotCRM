@@ -12,6 +12,7 @@ export function Tabs({
   label = 'Abas',
   active: activeProp,
   onChange,
+  variant = 'underline',
 }: {
   tabs: {
     label: string
@@ -30,7 +31,10 @@ export function Tabs({
   /** Aba aberta controlada de fora (ex.: lembrada na URL). */
   active?: number
   onChange?: (i: number) => void
+  /** underline = sublinhado (padrão); pills = aba aberta em botão azul cheio. */
+  variant?: 'underline' | 'pills'
 }) {
+  const pills = variant === 'pills'
   const [activeState, setActiveState] = useState(0)
   const active = activeProp ?? activeState
   const setActive = (i: number) => {
@@ -90,18 +94,24 @@ export function Tabs({
       tabIndex={active === t.i ? 0 : -1}
       onClick={() => select(t.i)}
       onKeyDown={(e) => onTabKeyDown(e, t.i)}
-      className={`shrink-0 whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
-        active === t.i
-          ? 'border-brand-600 text-brand-700'
-          : 'border-transparent text-slate-400 hover:text-slate-600'
-      }`}
+      className={
+        pills
+          ? `shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1 ${
+              active === t.i ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+            }`
+          : `shrink-0 whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
+              active === t.i ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`
+      }
     >
       <span className="flex items-center gap-1.5">
-        {t.icon && <span aria-hidden="true" className="opacity-80">{t.icon}</span>}
+        {t.icon && <span aria-hidden="true" className={pills && active === t.i ? '' : 'opacity-80'}>{t.icon}</span>}
         {t.label}
         {!!t.badge && (
           <span
-            className={`rounded-full px-1.5 text-[11px] font-bold leading-[18px] ${t.badgeAlert ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500'}`}
+            className={`rounded-full px-1.5 text-[11px] font-bold leading-[18px] ${
+              t.badgeAlert ? 'bg-amber-500 text-white' : pills && active === t.i ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500'
+            }`}
             aria-label={t.badgeLabel ?? String(t.badge)}
           >
             {t.badge}
@@ -123,11 +133,11 @@ export function Tabs({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6">
+      <div className={pills ? 'flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4' : 'flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6'}>
         <div
           role="tablist"
           aria-label={label}
-          className={`flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
+          className={pills ? 'flex flex-1 flex-wrap items-center gap-1' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
         >
           {visible.map(tabButton)}
         </div>
@@ -144,7 +154,7 @@ export function Tabs({
                 ? 'Mostrar menos abas'
                 : `Mostrar mais abas: ${hiddenSecondary.map((t) => t.label).join(', ')}`
             }
-            className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+            className={pills ? 'flex shrink-0 items-center gap-1 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800' : 'flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600'}
           >
             {showAll ? (
               <>
@@ -158,7 +168,7 @@ export function Tabs({
           </button>
         )}
       </div>
-      <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className="px-5 py-4">
+      <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className={pills ? 'p-5' : 'px-5 py-4'}>
         {exitButton('inicio')}
         {tabs[active].content}
         {exitButton('fim')}
