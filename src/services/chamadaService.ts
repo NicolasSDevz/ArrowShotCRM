@@ -1,6 +1,6 @@
-import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { addDoc, collection, doc, orderBy, query, serverTimestamp, updateDoc, onSnapshot, type FirestoreError, type Unsubscribe } from 'firebase/firestore'
 import { db } from '../firebase/config'
-import type { BlocoTranscricao } from '../types/chamada'
+import type { Chamada, BlocoTranscricao } from '../types/chamada'
 
 function ref(leadId: string, chamadaId: string) {
   return doc(db, 'leads', leadId, 'chamadas', chamadaId)
@@ -44,4 +44,20 @@ export async function encerrarChamada(
     updatedBy: userId,
     updatedAt: serverTimestamp(),
   })
+}
+
+/** Chamadas de um lead, mais recente primeiro — usado pela aba "Chamadas" no
+ *  LeadDrawer (lista + transcrição completa, já que `blocos` vem embutido no
+ *  próprio doc da chamada). */
+export function subscribeChamadas(
+  leadId: string,
+  onData: (items: Chamada[]) => void,
+  onError?: (err: FirestoreError) => void
+): Unsubscribe {
+  const q = query(collection(db, 'leads', leadId, 'chamadas'), orderBy('iniciadaEm', 'desc'))
+  return onSnapshot(
+    q,
+    (snap) => onData(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Chamada)),
+    onError
+  )
 }

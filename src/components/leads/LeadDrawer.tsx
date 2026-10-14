@@ -13,6 +13,7 @@ import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Tabs } from '../ui/Tabs'
 import { LeadBantTab } from './LeadBantTab'
 import { LeadMeetingTab } from './LeadMeetingTab'
+import { LeadChamadasTab } from './LeadChamadasTab'
 import { CommentsPanel } from '../comments/CommentsPanel'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
@@ -320,11 +321,22 @@ function ContactHistoryTab({ lead }: { lead: Lead }) {
   )
 }
 
-export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
+export function LeadDrawer({
+  lead,
+  onClose,
+  initialChamadaId,
+}: {
+  lead: Lead | null
+  onClose: () => void
+  /** Chamada do Copiloto de Vendas pra abrir direto na aba "Chamadas" — vem
+   *  do link do toast "Transcrição salva no lead" (ver CopilotoPage). */
+  initialChamadaId?: string | null
+}) {
   const { profile } = useAuth()
   const { isPrivacyMode } = usePrivacy()
   const navigate = useNavigate()
   const [converting, setConverting] = useState(false)
+  const [activeTab, setActiveTab] = useState<number | null>(null)
   const { pipelines } = useLeadPipelines()
   const { data: clients } = useClients()
   const { data: allLeads } = useLeads()
@@ -333,6 +345,20 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
   const { pipeline: leadPipeline, stage: leadStage } = locateLead(pipelines, lead)
   const clientMatch = lead.convertedClientId ? null : findClientMatch(lead, clients)
   const duplicateLeads = findDuplicateLeads(lead, allLeads)
+  const canSeeCopiloto = profile.role === 'admin' || profile.role === 'manager'
+
+  const leadTabs = [
+    { label: 'Informações', content: <InfoTab lead={lead} /> },
+    { label: 'Reunião', content: <LeadMeetingTab lead={lead} /> },
+    { label: 'Qualificação (BANT)', content: <LeadBantTab lead={lead} /> },
+    ...(canSeeCopiloto ? [{ label: 'Chamadas', content: <LeadChamadasTab lead={lead} initialChamadaId={initialChamadaId} /> }] : []),
+    { label: 'Histórico de contatos', content: <ContactHistoryTab lead={lead} /> },
+    { label: 'Comentários', content: <CommentsPanel entityType="lead" entityId={lead.id} /> },
+  ]
+  // Link do toast do Copiloto ("Transcrição salva no lead") já abre direto na
+  // aba Chamadas — sem isso, cairia sempre em Informações.
+  const chamadasTabIndex = leadTabs.findIndex((t) => t.label === 'Chamadas')
+  const defaultTab = initialChamadaId && chamadasTabIndex !== -1 ? chamadasTabIndex : 0
 
   const handleDelete = async () => {
     if (!(await askConfirm({ title: `Excluir o lead "${lead.contactName}"?`, message: 'O histórico de contato e as respostas do formulário somem junto.', confirmLabel: 'Excluir', danger: true }))) return
@@ -356,7 +382,7 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
           </div>
         }
       >
-        {(profile.role === 'admin' || profile.role === 'manager') && (
+        {canSeeCopiloto && (
           <div className="border-b border-brand-100 bg-brand-50 px-5 py-3 dark:border-brand-900 dark:bg-brand-950/40">
             <button
               onClick={() => navigate(`/copiloto/${lead.id}`)}
@@ -454,15 +480,7 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
           </div>
         )}
 
-        <Tabs
-          tabs={[
-            { label: 'Informações', content: <InfoTab lead={lead} /> },
-            { label: 'Reunião', content: <LeadMeetingTab lead={lead} /> },
-            { label: 'Qualificação (BANT)', content: <LeadBantTab lead={lead} /> },
-            { label: 'Histórico de contatos', content: <ContactHistoryTab lead={lead} /> },
-            { label: 'Comentários', content: <CommentsPanel entityType="lead" entityId={lead.id} /> },
-          ]}
-        />
+        <Tabs tabs={leadTabs} active={activeTab ?? defaultTab} onChange={setActiveTab} />
       </Drawer>
 
       <ConvertLeadModal

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Mic, Square, AlertTriangle, Loader2, Radio } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { Mic, Square, AlertTriangle, Loader2, Radio, ArrowRight } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { useAuth } from '../context/AuthContext'
 import { useCopiloto } from '../hooks/useCopiloto'
@@ -133,6 +134,7 @@ export function CopilotoPage() {
     modelProgress,
     modelReady,
     transcrevendo,
+    chamadaId,
     erroCaptura,
     semAudioCliente,
     iniciar,
@@ -143,6 +145,31 @@ export function CopilotoPage() {
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [blocos.length])
+
+  // Avisa que a transcrição já está salva no lead, com link direto pra ela
+  // (ver LeadChamadasTab) — dispara uma vez só por chamada encerrada.
+  const toastFiredForRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (status !== 'encerrada' || !chamadaId || !leadId || toastFiredForRef.current === chamadaId) return
+    toastFiredForRef.current = chamadaId
+    toast.success(
+      (t) => (
+        <span className="flex items-center gap-2">
+          Transcrição salva no lead.
+          <button
+            onClick={() => {
+              toast.dismiss(t.id)
+              navigate(`/leads?lead=${leadId}&chamada=${chamadaId}`)
+            }}
+            className="flex items-center gap-1 font-semibold text-brand-600 underline hover:text-brand-700"
+          >
+            Abrir lead <ArrowRight size={12} />
+          </button>
+        </span>
+      ),
+      { duration: 10000 }
+    )
+  }, [status, chamadaId, leadId, navigate])
 
   // Apenas admin e manager podem usar o Copiloto
   if (profile?.role !== 'admin' && profile?.role !== 'manager') {

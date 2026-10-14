@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Upload, Kanban, List, Settings2, Gauge, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ACTIVE_LEADS_DAYS, useAllLeads, useLeads } from '../hooks/useLeads'
@@ -43,6 +43,8 @@ export function LeadsPage() {
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [openLeadId, setOpenLeadId] = useState<string | null>(null)
+  const [initialChamadaId, setInitialChamadaId] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [view, setView] = usePersistedViewMode<'kanban' | 'list'>('leadsView', 'kanban')
   const [mainTab, setMainTab] = useState<'pipeline' | 'questionnaires' | 'forms'>('pipeline')
   // Pipeline aberto agora (lembrado entre visitas). Se o salvo não existe mais, cai no padrão.
@@ -81,7 +83,31 @@ export function LeadsPage() {
   const formTags: Record<string, LeadFormTag> = Object.fromEntries(leadForms.map((f) => [f.id, { name: f.name, color: leadFormColor(f) }]))
   const formTagOf = (l: Lead) => (l.sourceFormId ? formTags[l.sourceFormId] : undefined)
   const existingClientOf = (l: Lead) => (l.convertedClientId ? undefined : findClientMatch(l, clients)?.client.companyName)
-  const openLead = leads.find((l) => l.id === openLeadId) ?? null
+  const openLead = leads.find((l) => l.id === openLeadId) ?? allLeads.find((l) => l.id === openLeadId) ?? null
+
+  // Deep link do toast do Copiloto ("Transcrição salva no lead" ao encerrar
+  // uma chamada) — abre o LeadDrawer já na chamada certa (ver CopilotoPage).
+  useEffect(() => {
+    const leadId = searchParams.get('lead')
+    if (!leadId) return
+    setOpenLeadId(leadId)
+    setInitialChamadaId(searchParams.get('chamada'))
+    setSearchParams(
+      (params) => {
+        params.delete('lead')
+        params.delete('chamada')
+        return params
+      },
+      { replace: true }
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  // O lead do deep link pode ser um ganho/perdido antigo, fora da lista do
+  // dia a dia (ver useLeads) — se não achar nos ativos, carrega o histórico.
+  useEffect(() => {
+    if (openLeadId && !activeLeads.some((l) => l.id === openLeadId) && !showOld) setShowOld(true)
+  }, [openLeadId, activeLeads, showOld])
 
   // Respostas de formulário ficam na aba Questionários até alguém mandar para vendas.
   const salesLeads = leads.filter((l) => !isQuestionnaireLead(l))
@@ -353,7 +379,15 @@ export function LeadsPage() {
         nextOrder={pipelines.length}
         onSaved={choosePipeline}
       />
-      <LeadDrawer key={`lead-${openLeadId ?? 'none'}`} lead={openLead} onClose={() => setOpenLeadId(null)} />
+      <LeadDrawer
+        key={`lead-${openLeadId ?? 'none'}`}
+        lead={openLead}
+        initialChamadaId={initialChamadaId}
+        onClose={() => {
+          setOpenLeadId(null)
+          setInitialChamadaId(null)
+        }}
+      />
 
       <Modal open={!!lossPrompt} onClose={() => setLossPrompt(null)} title="Motivo da perda">
         <div className="flex flex-col gap-4">
