@@ -56,7 +56,18 @@ function montarContexto(blocos: BlocoTranscricao[]) {
   }
 }
 
-export function useCopilotoSugestoes(leadId: string, chamadaId: string | null, blocos: BlocoTranscricao[], userId: string | undefined) {
+export function useCopilotoSugestoes(
+  leadId: string,
+  chamadaId: string | null,
+  blocos: BlocoTranscricao[],
+  /** Último bloco que CHEGOU, não o último por timestamp — `blocos` é
+   *  ordenado cronologicamente e Bruno/Cliente transcrevem em paralelo, então
+   *  olhar blocos[blocos.length-1] pode nunca ver um bloco do Cliente que
+   *  chegou depois mas foi dito antes (entra no meio do array). Ver
+   *  useCopiloto.ts. */
+  ultimoBlocoRecebido: BlocoTranscricao | null,
+  userId: string | undefined
+) {
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
   const [streaming, setStreaming] = useState<SugestaoParcial | null>(null)
   const [generating, setGenerating] = useState(false)
@@ -96,7 +107,7 @@ export function useCopilotoSugestoes(leadId: string, chamadaId: string | null, b
           tipo: parsed.tipo,
           resumo: parsed.resumo || '(sem resumo)',
           frases: parsed.frases.length > 0 ? parsed.frases : ['(sem frase sugerida)'],
-          timestampMs: blocos.length > 0 ? blocos[blocos.length - 1].timestampMs : Date.now(),
+          timestampMs: ultimoBlocoRecebido?.timestampMs ?? (blocos.length > 0 ? blocos[blocos.length - 1].timestampMs : Date.now()),
           origem,
           pergunta,
         }
@@ -114,24 +125,25 @@ export function useCopilotoSugestoes(leadId: string, chamadaId: string | null, b
         abortRef.current = null
       }
     },
-    [blocos, chamadaId, leadId, userId]
+    [blocos, ultimoBlocoRecebido, chamadaId, leadId, userId]
   )
 
   // Disparo automático: todo novo bloco do Cliente passa pelo detector de
   // palavra-chave, respeitando o cooldown de 20s (só pra disparo automático).
+  // Olha `ultimoBlocoRecebido` (ordem de chegada), NUNCA blocos[blocos.length-1]
+  // (ordem cronológica) — ver o comentário no parâmetro, acima.
   useEffect(() => {
-    const ultimo = blocos[blocos.length - 1]
-    if (!ultimo || ultimo.id === lastSeenBlocoIdRef.current) return
-    lastSeenBlocoIdRef.current = ultimo.id
+    if (!ultimoBlocoRecebido || ultimoBlocoRecebido.id === lastSeenBlocoIdRef.current) return
+    lastSeenBlocoIdRef.current = ultimoBlocoRecebido.id
 
-    if (ultimo.speaker !== 'Cliente') return
-    if (!shouldTriggerSuggestion(ultimo.texto)) return
+    if (ultimoBlocoRecebido.speaker !== 'Cliente') return
+    if (!shouldTriggerSuggestion(ultimoBlocoRecebido.texto)) return
     if (Date.now() - lastAutoAtRef.current < COOLDOWN_AUTO_MS) return
     if (generatingRef.current) return
 
     lastAutoAtRef.current = Date.now()
     void gerar(undefined, 'auto')
-  }, [blocos, gerar])
+  }, [ultimoBlocoRecebido, gerar])
 
   useEffect(() => {
     return () => abortRef.current?.abort()

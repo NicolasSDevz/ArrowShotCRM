@@ -153,6 +153,7 @@ export function CopilotoPage() {
   const {
     status,
     blocos,
+    ultimoBlocoRecebido,
     transcrevendo,
     ouvindo,
     atrasoMedioMs,
@@ -168,6 +169,7 @@ export function CopilotoPage() {
     leadId ?? '',
     chamadaId,
     blocos,
+    ultimoBlocoRecebido,
     profile?.id
   )
   const [pergunta, setPergunta] = useState('')

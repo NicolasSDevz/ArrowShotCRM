@@ -62,6 +62,13 @@ export function useCopiloto(leadId: string) {
   const [chamadaId, setChamadaId] = useState<string | null>(null)
   const [erroCaptura, setErroCaptura] = useState<string | null>(null)
   const [semAudioCliente, setSemAudioCliente] = useState(false)
+  // Último bloco que CHEGOU (não o último por timestamp) — Bruno e Cliente
+  // transcrevem em paralelo, então um bloco do Cliente pode chegar depois de
+  // um do Bruno com timestamp maior e entrar no meio do array `blocos`
+  // (que fica ordenado cronologicamente). Quem precisa saber "o que acabou
+  // de chegar" pra reagir (gatilho automático de sugestão, ver
+  // useCopilotoSugestoes) tem que olhar isto, não blocos[blocos.length-1].
+  const [ultimoBlocoRecebido, setUltimoBlocoRecebido] = useState<BlocoTranscricao | null>(null)
 
   const blocosRef = useRef<BlocoTranscricao[]>([])
   const chamadaIdRef = useRef<string | null>(null)
@@ -80,6 +87,7 @@ export function useCopiloto(leadId: string) {
   }, [chamadaId])
 
   const insertBlocoSorted = useCallback((novo: BlocoTranscricao) => {
+    setUltimoBlocoRecebido(novo)
     setBlocos((prev) => {
       const next = [...prev, novo].sort((a, b) => a.timestampMs - b.timestampMs)
       blocosRef.current = next
@@ -320,6 +328,7 @@ export function useCopiloto(leadId: string) {
   return {
     status,
     blocos,
+    ultimoBlocoRecebido,
     transcrevendo,
     ouvindo,
     atrasoMedioMs,
