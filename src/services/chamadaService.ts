@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, orderBy, query, serverTimestamp, updateDoc, onSnapshot, type FirestoreError, type Unsubscribe } from 'firebase/firestore'
 import { db } from '../firebase/config'
-import type { Chamada, BlocoTranscricao } from '../types/chamada'
+import type { Chamada, BlocoTranscricao, Sugestao } from '../types/chamada'
 
 function ref(leadId: string, chamadaId: string) {
   return doc(db, 'leads', leadId, 'chamadas', chamadaId)
@@ -26,6 +26,22 @@ export async function salvarBlocos(
 ): Promise<void> {
   await updateDoc(ref(leadId, chamadaId), {
     blocos,
+    updatedBy: userId,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/** Sugestões do Copiloto (Etapa 2) — mesmo padrão de `salvarBlocos`: grava o
+ *  array inteiro (o estado em memória do hook já é a fonte da verdade
+ *  enquanto a chamada está ativa). */
+export async function salvarSugestoes(
+  leadId: string,
+  chamadaId: string,
+  sugestoes: Sugestao[],
+  userId: string
+): Promise<void> {
+  await updateDoc(ref(leadId, chamadaId), {
+    sugestoes,
     updatedBy: userId,
     updatedAt: serverTimestamp(),
   })

@@ -222,6 +222,15 @@ service cloud.firestore {
       allow write: if isInternal();
     }
 
+    // ---------- config (Base de Vendas e outras configs sensíveis, não
+    // abertas a toda a equipe como `settings`). Base de Vendas é a fonte
+    // única usada pelo Archer e pelo Copiloto de Vendas — só quem tem
+    // acesso ao Copiloto (admin/manager) edita. A API (Vercel Function) lê
+    // via Admin SDK, ignora esta regra. ----------
+    match /config/{key} {
+      allow read, write: if isAdminOrManager();
+    }
+
     // ---------- calendarEvents (custom one-off events) ----------
     match /calendarEvents/{eventId} {
       allow read: if isInternal();

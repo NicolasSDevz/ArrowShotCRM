@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Mic, Square, AlertTriangle, Loader2, Radio, ArrowRight } from 'lucide-react'
+import { Mic, Square, AlertTriangle, Loader2, Radio, ArrowRight, Sparkles, Send } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { useAuth } from '../context/AuthContext'
 import { useCopiloto } from '../hooks/useCopiloto'
+import { useCopilotoSugestoes } from '../hooks/useCopilotoSugestoes'
+import { SugestaoCard } from '../components/leads/SugestaoCard'
 import type { BlocoTranscricao } from '../types/chamada'
 
 // ─── Aviso LGPD ────────────────────────────────────────────────────────────
@@ -140,6 +142,14 @@ export function CopilotoPage() {
     iniciar,
     encerrar,
   } = useCopiloto(leadId ?? '')
+
+  const { sugestoes, streaming, generating, erro: erroSugestao, pedirAjuda } = useCopilotoSugestoes(
+    leadId ?? '',
+    chamadaId,
+    blocos,
+    profile?.id
+  )
+  const [pergunta, setPergunta] = useState('')
 
   // Scroll automático para o final da transcrição
   useEffect(() => {
@@ -375,17 +385,74 @@ export function CopilotoPage() {
           </div>
         </div>
 
-        {/* Direita: Sugestões (Etapa 2 — placeholder) */}
+        {/* Direita: Sugestões ao vivo (Etapa 2) */}
         <div className="flex w-80 shrink-0 flex-col overflow-hidden">
           <div className="border-b border-slate-100 px-5 py-2.5 dark:border-slate-700">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Sugestões do Assistente</p>
           </div>
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-            <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Etapa 2</p>
-              <p className="mt-1 text-xs text-slate-400">
-                As sugestões ao vivo com Claude Haiku serão implementadas na próxima etapa.
+
+          <div className="flex-1 overflow-y-auto px-3 py-3">
+            {erroSugestao && (
+              <p className="mb-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+                <AlertTriangle size={12} /> {erroSugestao}
               </p>
+            )}
+
+            {!streaming && sugestoes.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
+                <Sparkles size={26} className="text-slate-300" />
+                <p className="text-sm text-slate-400">
+                  Sugestões aparecem aqui quando o cliente trouxer objeção, dúvida ou sinal de compra — ou quando você pedir ajuda.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {streaming && (
+                  <SugestaoCard tipo={streaming.tipo} resumo={streaming.resumo} frases={streaming.frases} loading />
+                )}
+                {[...sugestoes].reverse().map((s) => (
+                  <SugestaoCard key={s.id} tipo={s.tipo} resumo={s.resumo} frases={s.frases} pergunta={s.pergunta} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pedido manual de ajuda */}
+          <div className="flex flex-col gap-2 border-t border-slate-100 p-3 dark:border-slate-700">
+            <button
+              onClick={() => pedirAjuda()}
+              disabled={generating || status !== 'ativa'}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-40 hover:bg-brand-700"
+            >
+              {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              Me ajuda agora
+            </button>
+            <div className="flex items-center gap-1.5">
+              <input
+                value={pergunta}
+                onChange={(e) => setPergunta(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && pergunta.trim() && !generating) {
+                    pedirAjuda(pergunta)
+                    setPergunta('')
+                  }
+                }}
+                placeholder="Pergunte algo rápido…"
+                disabled={status !== 'ativa'}
+                className="h-9 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              />
+              <button
+                onClick={() => {
+                  if (!pergunta.trim() || generating) return
+                  pedirAjuda(pergunta)
+                  setPergunta('')
+                }}
+                disabled={!pergunta.trim() || generating || status !== 'ativa'}
+                aria-label="Enviar pergunta"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-opacity disabled:opacity-40 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300"
+              >
+                <Send size={14} />
+              </button>
             </div>
           </div>
         </div>

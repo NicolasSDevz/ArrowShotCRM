@@ -11,6 +11,7 @@ import {
   UserCog,
   GraduationCap,
   KeyRound,
+  BookOpenText,
   CalendarRange,
   ShoppingBag,
   Settings,
@@ -213,6 +214,22 @@ export function Sidebar({
                     >
                       <KeyRound size={14} />
                       Tokens Meta Ads
+                    </NavLink>
+                  )}
+
+                  {canManageTokens && (
+                    <NavLink
+                      to="/configuracoes/base-vendas"
+                      onClick={onCloseMobile}
+                      className={({ isActive }) =>
+                        `flex items-center gap-2 rounded-lg px-4 py-2 text-[11px] transition-colors ${
+                          isActive ? 'text-slate-200' : 'hover:text-slate-300'
+                        }`
+                      }
+                      style={{ color: '#64748B' }}
+                    >
+                      <BookOpenText size={14} />
+                      Base de Vendas
                     </NavLink>
                   )}
 
