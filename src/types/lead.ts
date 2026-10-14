@@ -1,6 +1,7 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
 import type { LeadFormAnswer } from './leadForm'
+import type { ChamadaTemperatura } from './chamada'
 
 export type LeadStatus =
   | 'new'
@@ -182,6 +183,15 @@ export interface Lead extends BaseDoc {
   contractedDuration?: string
   /** Scorecard BANT preenchido pelo comercial (ver BANT_CRITERIA). */
   bant?: LeadBant | null
+  /** Temperatura avaliada pelo Copiloto de Vendas a partir do resumo da
+   *  última chamada (Etapa 3) — separada do BANT (scorecard manual, com
+   *  4 notas por letra): aqui é um veredito único (quente/morno/frio) com
+   *  justificativa, direto da transcrição. Ver types/chamada.ts (ResumoChamada). */
+  temperaturaChamada?: {
+    valor: ChamadaTemperatura
+    justificativa: string
+    atualizadaEm: Timestamp
+  } | null
 }
 
 // ---------------------------------------------------------------- BANT

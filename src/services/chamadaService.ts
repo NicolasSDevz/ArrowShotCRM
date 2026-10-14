@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, orderBy, query, serverTimestamp, updateDoc, onSnapshot, type FirestoreError, type Unsubscribe } from 'firebase/firestore'
 import { db } from '../firebase/config'
-import type { Chamada, BlocoTranscricao, Sugestao } from '../types/chamada'
+import type { Chamada, BlocoTranscricao, Sugestao, ResumoChamada } from '../types/chamada'
 
 function ref(leadId: string, chamadaId: string) {
   return doc(db, 'leads', leadId, 'chamadas', chamadaId)
@@ -42,6 +42,21 @@ export async function salvarSugestoes(
 ): Promise<void> {
   await updateDoc(ref(leadId, chamadaId), {
     sugestoes,
+    updatedBy: userId,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/** Resumo pós-chamada (Etapa 3) — gerado por api/_lib/copilotoResumo.js e
+ *  editado na tela de revisão antes de salvar (ver ResumoReview). */
+export async function salvarResumo(
+  leadId: string,
+  chamadaId: string,
+  resumo: Omit<ResumoChamada, 'geradoEm'>,
+  userId: string
+): Promise<void> {
+  await updateDoc(ref(leadId, chamadaId), {
+    resumo: { ...resumo, geradoEm: serverTimestamp() },
     updatedBy: userId,
     updatedAt: serverTimestamp(),
   })

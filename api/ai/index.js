@@ -49,6 +49,7 @@ import { fetchAccountInsights, fetchLevelInsights, normalizeAccountId } from '..
 import { resolveMetaToken } from '../_lib/metaTokenStore.js'
 import { getBaseVendas, formatBaseVendasForPrompt } from '../_lib/baseVendas.js'
 import { runCopilotoSugestao } from '../_lib/copilotoSugestao.js'
+import { runCopilotoResumo } from '../_lib/copilotoResumo.js'
 import { transcribeWithGroq, GroqRateLimitError } from '../_lib/groqWhisper.js'
 
 const ANTHROPIC_MODEL = 'claude-sonnet-5'
@@ -482,11 +483,37 @@ async function handleTranscrever(req, res, user) {
   }
 }
 
+/** POST /api/ai/resumo { leadId, blocos, sugestoes } -> { resumo }. Ver
+ *  api/_lib/copilotoResumo.js. Chamado automaticamente ao encerrar a chamada
+ *  e por "Gerar resumo agora" (LeadChamadasTab). */
+async function handleResumo(req, res, user) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return res.status(403).json({ error: 'Sem permissão para usar o Copiloto de Vendas' })
+  }
+  const { leadId, blocos, sugestoes } = req.body || {}
+  if (!leadId || typeof leadId !== 'string' || !Array.isArray(blocos)) {
+    return res.status(400).json({ error: 'leadId e blocos são obrigatórios' })
+  }
+  try {
+    const resumo = await runCopilotoResumo({ leadId, blocos, sugestoes: Array.isArray(sugestoes) ? sugestoes : [] })
+    return res.status(200).json({ resumo })
+  } catch (err) {
+    if (err instanceof Anthropic.APIError) {
+      console.error('[ai/resumo] Anthropic API error:', err.status, err.message)
+      return res.status(502).json({ error: err.message || 'Falha ao gerar o resumo' })
+    }
+    console.error('[ai/resumo] falha ao gerar resumo:', err.message)
+    return res.status(502).json({ error: err.message || 'Falha ao gerar o resumo' })
+  }
+}
+
 async function handler(req, res, user) {
   // Mesmo arquivo (não uma rota nova) porque o projeto está no limite de
   // Functions do plano da Vercel.
   if (req.query.acao === 'sugestao') return handleSugestao(req, res, user)
   if (req.query.acao === 'transcrever') return handleTranscrever(req, res, user)
+  if (req.query.acao === 'resumo') return handleResumo(req, res, user)
 
   if (req.method === 'GET') {
     try {

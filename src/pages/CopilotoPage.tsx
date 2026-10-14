@@ -7,7 +7,13 @@ import { useAuth } from '../context/AuthContext'
 import { useCopiloto } from '../hooks/useCopiloto'
 import { useCopilotoSugestoes } from '../hooks/useCopilotoSugestoes'
 import { SugestaoCard } from '../components/leads/SugestaoCard'
-import type { BlocoTranscricao } from '../types/chamada'
+import { ResumoReview } from '../components/leads/ResumoReview'
+import { Button } from '../components/ui/Button'
+import { gerarResumoChamada } from '../services/copilotoResumoService'
+import { salvarResumo } from '../services/chamadaService'
+import { updateLead } from '../services/leadService'
+import { buildLeadUpdateFromResumo } from '../utils/leadResumoUpdate'
+import type { BlocoTranscricao, ResumoChamada } from '../types/chamada'
 
 // ─── Aviso LGPD ────────────────────────────────────────────────────────────
 
@@ -166,6 +172,52 @@ export function CopilotoPage() {
   )
   const [pergunta, setPergunta] = useState('')
 
+  // ─── Resumo pós-chamada (Etapa 3) ──────────────────────────────────────
+  const [resumo, setResumo] = useState<Omit<ResumoChamada, 'geradoEm'> | null>(null)
+  const [gerandoResumo, setGerandoResumo] = useState(false)
+  const [erroResumo, setErroResumo] = useState<string | null>(null)
+  const [salvandoResumo, setSalvandoResumo] = useState(false)
+  const resumoGeradoParaRef = useRef<string | null>(null)
+
+  const gerarResumo = async () => {
+    if (!leadId || !chamadaId) return
+    setGerandoResumo(true)
+    setErroResumo(null)
+    try {
+      const r = await gerarResumoChamada(leadId, blocos, sugestoes)
+      setResumo(r)
+    } catch (err) {
+      console.error('[copiloto] falha ao gerar resumo:', err)
+      setErroResumo(err instanceof Error ? err.message : 'Falha ao gerar o resumo')
+    } finally {
+      setGerandoResumo(false)
+    }
+  }
+
+  // Gera sozinho assim que a chamada encerra — uma vez só por chamadaId.
+  useEffect(() => {
+    if (status !== 'encerrada' || !chamadaId || resumoGeradoParaRef.current === chamadaId) return
+    resumoGeradoParaRef.current = chamadaId
+    void gerarResumo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, chamadaId])
+
+  const handleSalvarResumo = async () => {
+    if (!resumo || !leadId || !chamadaId || !profile || !lead) return
+    setSalvandoResumo(true)
+    try {
+      await salvarResumo(leadId, chamadaId, resumo, profile.id)
+      await updateLead(leadId, buildLeadUpdateFromResumo(resumo), profile.id, profile.name)
+      toast.success('Resumo salvo no lead')
+      navigate(`/leads?lead=${leadId}&chamada=${chamadaId}`)
+    } catch (err) {
+      console.error('[copiloto] falha ao salvar resumo:', err)
+      toast.error('Erro ao salvar o resumo')
+    } finally {
+      setSalvandoResumo(false)
+    }
+  }
+
   // Scroll automático para o final da transcrição
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -320,6 +372,66 @@ export function CopilotoPage() {
       )}
 
       {/* Conteúdo principal */}
+      {status === 'encerrada' ? (
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="mx-auto flex max-w-2xl flex-col gap-4">
+            {gerandoResumo && (
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-slate-200 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-800">
+                <Loader2 size={28} className="animate-spin text-brand-400" />
+                <p className="text-sm text-slate-500">Gerando resumo da chamada…</p>
+              </div>
+            )}
+
+            {!gerandoResumo && erroResumo && !resumo && (
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-800 dark:bg-red-950/40">
+                <AlertTriangle size={24} className="text-red-500" />
+                <p className="text-sm text-red-700 dark:text-red-400">{erroResumo}</p>
+                <Button variant="secondary" size="sm" onClick={gerarResumo}>
+                  Gerar resumo agora
+                </Button>
+              </div>
+            )}
+
+            {!gerandoResumo && resumo && (
+              <>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                  <p className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    Resumo da chamada
+                    {lead && ` — ${lead.contactName}${lead.companyName ? ` · ${lead.companyName}` : ''}`}
+                  </p>
+                  <ResumoReview resumo={resumo} onChange={setResumo} onSalvar={handleSalvarResumo} salvando={salvandoResumo} />
+                </div>
+
+                {sugestoes.length > 0 && (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Sugestões que apareceram durante a chamada
+                    </p>
+                    <div className="flex flex-col gap-2.5">
+                      {sugestoes.map((s) => (
+                        <SugestaoCard key={s.id} tipo={s.tipo} resumo={s.resumo} frases={s.frases} pergunta={s.pergunta} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {blocos.length > 0 && (
+              <details className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Transcrição completa ({blocos.length} bloco{blocos.length !== 1 ? 's' : ''})
+                </summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  {blocos.map((b) => (
+                    <BlocoItem key={b.id} bloco={b} inicioMs={blocoInicio} />
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="flex flex-1 overflow-hidden">
         {/* Esquerda: Transcrição */}
         <div className="flex flex-1 flex-col overflow-hidden border-r border-slate-200 dark:border-slate-700">
@@ -366,17 +478,6 @@ export function CopilotoPage() {
                   <TranscrevingIndicator key={i} speaker={speaker} />
                 ))}
                 <div ref={transcriptEndRef} />
-              </div>
-            )}
-
-            {status === 'encerrada' && blocos.length > 0 && (
-              <div className="mt-6 rounded-xl bg-green-50 p-4 text-center dark:bg-green-950/40">
-                <p className="text-sm font-semibold text-green-700 dark:text-green-400">
-                  Chamada encerrada — {blocos.length} bloco{blocos.length !== 1 ? 's' : ''} salvos.
-                </p>
-                <p className="mt-1 text-xs text-green-600 dark:text-green-500">
-                  Resumo e follow-up estarão disponíveis na Etapa 3.
-                </p>
               </div>
             )}
           </div>
@@ -454,6 +555,7 @@ export function CopilotoPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Modal LGPD */}
       {showLgpd && (
