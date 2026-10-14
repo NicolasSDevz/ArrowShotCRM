@@ -49,11 +49,12 @@ export function JornadaMigrationBanner({ clients }: Props) {
   }
 
   const handleConfirm = async () => {
-    if (!match) return
+    if (!match || !profile) return
     setStep('running')
     try {
       // Firestore writeBatch supports up to 500 ops; split if needed.
       const BATCH_SIZE = 400
+      const now = Timestamp.now()
       for (let i = 0; i < clients.length; i += BATCH_SIZE) {
         const batch = writeBatch(db)
         const chunk = clients.slice(i, i + BATCH_SIZE)
@@ -62,8 +63,10 @@ export function JornadaMigrationBanner({ clients }: Props) {
           const ref = doc(db, 'clients', c.id)
           batch.update(ref, {
             participaJornada: isLimpecenter,
+            updatedBy: profile.id,
+            updatedAt: now,
             ...(isLimpecenter && !c.dataInicioJornada
-              ? { dataInicioJornada: c.contractStartDate ?? c.createdAt ?? Timestamp.now() }
+              ? { dataInicioJornada: c.contractStartDate ?? c.createdAt ?? now }
               : {}),
           })
         }
