@@ -182,7 +182,7 @@ export async function storeSaveMpAccount(body: { id?: string; label: string; pub
   return call<{ ok: true; id: string }>('admin-mp-account', { body, token: await staffToken() })
 }
 export async function storeDeleteMpAccount(id: string) {
-  return call<{ ok: true }>('admin-mp-account-delete', { body: { id }, token: await staffToken() })
+  return call<{ ok: true; moved?: number }>('admin-mp-account-delete', { body: { id }, token: await staffToken() })
 }
 export interface MpAccountTest {
   account: { userId: string; nickname: string; email: string } | null

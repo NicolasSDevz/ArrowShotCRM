@@ -1110,10 +1110,13 @@ async function actionAdminMpAccountDelete(req, user) {
   const id = String(req.body?.id || '')
   const prev = await getDoc(`storeMpAccounts/${id}`)
   assertVisible(prev.exists ? prev.data() : null, user, 'Conta')
+  // Produtos ligados a ela passam a receber na conta principal (variáveis da Vercel).
   const using = (await listDocs('storeProducts')).filter((p) => p.mpAccountId === id)
-  if (using.length) throw new HttpError(400, `Essa conta recebe ${using.length} produto(s). Troque a conta neles antes de excluir.`)
+  await Promise.all(using.map((p) => updateDoc(`storeProducts/${p.id}`, { mpAccountId: null, updatedAt: nowIso() })))
+  const settings = await getDoc('storeSettings/payments')
+  if (settings.exists && settings.data().defaultMpAccountId === id) await updateDoc('storeSettings/payments', { defaultMpAccountId: null })
   await deleteMpAccount(id)
-  return { ok: true }
+  return { ok: true, moved: using.length }
 }
 
 /** Carrinho abandonado: marcar como contatado (ou desmarcar) e apagar. */

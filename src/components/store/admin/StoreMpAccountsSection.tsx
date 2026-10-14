@@ -94,10 +94,10 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
   }
 
   const remove = async (a: StoreMpAccount) => {
-    if (!(await askConfirm({ title: `Excluir a conta "${a.label}"?`, message: 'Os pedidos já feitos continuam registrados. Produtos ligados a ela precisam ser trocados antes.', confirmLabel: 'Excluir conta', danger: true }))) return
+    if (!(await askConfirm({ title: `Excluir a conta "${a.label}"?`, message: 'Os pedidos já feitos continuam registrados. Os produtos ligados a ela passam a receber na conta principal (a da Vercel).', confirmLabel: 'Excluir conta', danger: true }))) return
     try {
-      await storeDeleteMpAccount(a.id)
-      toast.success('Conta excluída')
+      const r = await storeDeleteMpAccount(a.id)
+      toast.success(`Conta excluída${r?.moved ? ` (${r.moved} produto(s) passaram para a conta principal)` : ''}`)
     } catch (err) {
       toast.error((err as Error).message)
     }
@@ -148,7 +148,7 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
               onTest={() => setTesting({ id: a.id, name: a.label })}
               onEdit={() => setEditing(a)}
               editLabel={`Editar a conta ${a.label}`}
-              onRemove={defaultId === a.id ? undefined : () => remove(a)}
+              onRemove={() => remove(a)}
             />
           )),
         ].sort((x, y) => x.props.order - y.props.order)}
