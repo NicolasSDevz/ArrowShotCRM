@@ -686,6 +686,13 @@ service cloud.firestore {
       allow delete: if isAdminOrManager() || (isMember() && resource.data.uid == request.auth.uid);
     }
 
+    // ---------- jornada do cliente (subcoleção de /clients) ----------
+    // Leitura: qualquer interno. Escrita: admin e manager (CS).
+    match /clients/{clientId}/jornada/{mes} {
+      allow read: if isInternal();
+      allow write: if isAdminOrManager();
+    }
+
     // ---------- future modules ----------
     // When googleAdsCampaigns, metaAdsCampaigns, leads, reports, finance, etc.
     // are introduced, add a `match /{collection}/{docId}` block here following

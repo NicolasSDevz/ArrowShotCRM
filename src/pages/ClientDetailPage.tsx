@@ -33,6 +33,7 @@ import { ClientOptimizationsTab } from '../components/clients/ClientOptimization
 import { ClientContentsTab } from '../components/clients/ClientContentsTab'
 import { ClientSuccessTab } from '../components/clients/ClientSuccessTab'
 import { ClientAccessTab } from '../components/clients/ClientAccessTab'
+import { ClientJornadaTab } from '../components/clients/ClientJornadaTab'
 import { WhatsappGroupLinkModal } from '../components/clients/WhatsappGroupLinkModal'
 import { CLIENT_PACKAGE_LABEL, clientStatusLabel, CLIENT_STATUS_BADGE, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, STYLE_CATALOG_LABEL, getClientOwnerIds } from '../types/client'
 import { TASK_STATUS_LABEL } from '../types/task'
@@ -267,6 +268,7 @@ export function ClientDetailPage() {
               ),
             },
             { label: 'Reuniões', secondary: !isJamilson, content: <ClientMeetingsTab client={client} /> },
+            { label: 'Jornada do Cliente', content: <ClientJornadaTab client={client} /> },
             { label: 'Sucesso do Cliente', content: <ClientSuccessTab clientId={client.id} clientName={client.companyName} /> },
             { label: 'Arquivos', secondary: true, content: <FilesPanel clientId={client.id} category="documents" relatedType="client" relatedId={client.id} /> },
             { label: 'Comentários', secondary: true, content: <CommentsPanel entityType="client" entityId={client.id} clientId={client.id} /> },

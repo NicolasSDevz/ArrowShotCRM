@@ -217,6 +217,12 @@ export interface Client extends BaseDoc {
    *  feitas). Gravado pra não repetir: se alguém voltar o status pra Onboarding
    *  na mão, o CRM respeita. */
   onboardingAutoActivatedAt?: Timestamp
+  /** Data de início da jornada de 12 meses de Customer Success.
+   *  Padrão: data de cadastro do cliente (contractStartDate ?? createdAt). Editável pelo Admin e CS. */
+  dataInicioJornada?: Timestamp | null
+  /** Meses da jornada marcados como feitos ('01'–'12') — campo denormalizado
+   *  para o badge na lista de clientes sem carregar subcoleção. */
+  jornadaFeitas?: string[]
 }
 
 export type ChurnType = 'voluntary' | 'involuntary' | 'early' | 'completed'

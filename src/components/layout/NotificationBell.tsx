@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
 import { useNotifications } from '../../hooks/useNotifications'
 import { markAllNotificationsRead, markNotificationRead } from '../../services/notificationService'
@@ -9,9 +10,57 @@ import type { AppNotification } from '../../types'
 
 export function NotificationBell() {
   const { profile } = useAuth()
-  const { notifications, ownNotifications, unreadCount } = useNotifications(profile?.id)
+  const { notifications, ownNotifications, unreadCount, loading } = useNotifications(profile?.id)
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+
+  // Real-time toast para novas notificações
+  const seenRef = useRef(new Set<string>())
+  const initializedRef = useRef(false)
+
+  useEffect(() => {
+    if (loading) return
+
+    if (!initializedRef.current) {
+      initializedRef.current = true
+      notifications.forEach((n) => seenRef.current.add(n.id))
+      return
+    }
+
+    for (const n of notifications) {
+      if (seenRef.current.has(n.id)) continue
+      seenRef.current.add(n.id)
+      if (n.read) continue
+
+      const Icon = NOTIFICATION_ICON[n.type] ?? Bell
+      const iconStyle = NOTIFICATION_ICON_STYLE[n.type] ?? 'bg-slate-100 text-slate-500'
+
+      toast.custom(
+        (t) => (
+          <div
+            onClick={() => {
+              toast.dismiss(t.id)
+              const route = resolveNotificationRoute(n)
+              if (!route) return
+              if (route.startsWith('http')) window.open(route, '_blank', 'noopener,noreferrer')
+              else navigate(route)
+            }}
+            className={`flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-lg transition-opacity ${t.visible ? 'opacity-100' : 'opacity-0'}`}
+            style={{ maxWidth: '360px', minWidth: '280px' }}
+          >
+            <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${iconStyle}`}>
+              <Icon size={14} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="whitespace-pre-line text-[13px] font-medium leading-snug text-slate-800">{n.message}</p>
+              {n.actorName && <p className="mt-0.5 text-[12px] text-slate-500">{n.actorName}</p>}
+            </div>
+          </div>
+        ),
+        { position: 'bottom-right', duration: 6000 }
+      )
+    }
+  }, [notifications, loading, navigate])
 
   const handleClick = async (n: AppNotification) => {
     if (!n.read) await markNotificationRead(n.id)

@@ -8,6 +8,21 @@ import { PrivateData } from '../ui/PrivateData'
 import { ClientServiceBadges } from './ServiceBadges'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { clientStatusLabel, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
+
+function jornadaAtrasada(client: Client): boolean {
+  const feitas = new Set(client.jornadaFeitas ?? [])
+  const base = client.dataInicioJornada ?? client.contractStartDate ?? client.createdAt
+  if (!base) return false
+  const dataInicio = base.toDate()
+  const today = new Date()
+  for (let n = 1; n <= 12; n++) {
+    const mes = String(n).padStart(2, '0')
+    if (feitas.has(mes)) continue
+    const endOfExpected = new Date(dataInicio.getFullYear(), dataInicio.getMonth() + n, 0)
+    if (endOfExpected < today) return true
+  }
+  return false
+}
 import type { AppUser } from '../../types'
 
 export function ClientsTable({
@@ -62,6 +77,17 @@ export function ClientsTable({
                       <Badge className={`shrink-0 ${CLIENT_CATEGORY_BADGE[client.categoria]}`}>
                         {CLIENT_CATEGORY_LABEL[client.categoria]}
                       </Badge>
+                    )}
+                    {(client.dataInicioJornada != null || (client.jornadaFeitas && client.jornadaFeitas.length > 0)) && (
+                      <span
+                        title="Jornada do Cliente"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 dark:border-slate-600 dark:text-slate-400"
+                      >
+                        {jornadaAtrasada(client) && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                        )}
+                        Jornada: {Math.min((client.jornadaFeitas?.length ?? 0) + 1, 12)}/12
+                      </span>
                     )}
                     {isPrivacyMode ? (
                       <span title="Grupo do WhatsApp oculto no modo apresentação" className="shrink-0 text-slate-300">
