@@ -120,7 +120,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     const result = await createOrder({
       ...basePayload(),
       method: 'card',
-      card: { token: d.token, installments: d.installments, paymentMethodId: d.payment_method_id, issuerId: d.issuer_id, identification: d.payer?.identification },
+      card: { token: d.token, installments: d.installments, paymentMethodId: d.payment_method_id, issuerId: d.issuer_id, identification: d.payer?.identification, deviceId: window.MP_DEVICE_SESSION_ID || null },
     }).catch((err: Error) => {
       setError(err.message)
       throw err

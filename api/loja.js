@@ -332,7 +332,14 @@ async function actionOrder(req) {
   } else if (method === 'pix') {
     if (!gw.mercadoPago) throw new HttpError(400, 'Pagamento ainda não configurado. Fale com o vendedor.')
     if (product.paymentMethods?.pix === false) throw new HttpError(400, 'Pix indisponível para este produto')
-    const p = await createPixPayment(gw.acc, { orderId, amountCents: amount, description, buyer, notificationUrl })
+    const p = await createPixPayment(gw.acc, { orderId, amountCents: amount, description, buyer, items, notificationUrl }).catch((err) => {
+      // Conta do MP sem chave Pix ativa (ou com cadastro pendente): o MP devolve "Financial Identity".
+      if (/financial identity/i.test(String(err?.message))) {
+        console.error('[loja] Pix recusado pela conta do Mercado Pago (sem chave Pix ativa?):', gw.acc.label, err?.message)
+        throw new HttpError(503, 'O Pix está indisponível agora. Pague com cartão ou fale com o vendedor.')
+      }
+      throw err
+    })
     const td = p.point_of_interaction?.transaction_data || {}
     pix = { qrCode: td.qr_code || null, qrBase64: td.qr_code_base64 || null, ticketUrl: td.ticket_url || null, expiresAt: p.date_of_expiration || null }
     order.mpPaymentId = String(p.id)
@@ -350,6 +357,7 @@ async function actionOrder(req) {
       amountCents: amount,
       description,
       buyer,
+      items,
       card: { ...card, installments },
       notificationUrl,
       statementDescriptor: product.statementDescriptor,

@@ -27,11 +27,13 @@ export function mpPublicKey(acc = envMpAccount()) {
   return acc?.publicKey || null
 }
 
-async function mpFetch(acc, path, { method = 'GET', body, idempotencyKey } = {}) {
+async function mpFetch(acc, path, { method = 'GET', body, idempotencyKey, deviceId } = {}) {
   const token = (acc || envMpAccount()).accessToken
   if (!token) throw new Error('Conta do Mercado Pago sem credencial (token) configurada')
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
   if (idempotencyKey) headers['X-Idempotency-Key'] = idempotencyKey
+  // Aparelho do comprador (security.js no checkout): o antifraude do MP recusa menos com ele.
+  if (deviceId) headers['X-meli-session-id'] = deviceId
   const res = await fetch(`${MP_BASE}${path}`, {
     method,
     headers,
@@ -62,8 +64,19 @@ function payerFrom(buyer) {
   return payer
 }
 
+/** Dados extras pro antifraude: itens do pedido e telefone do comprador. */
+function additionalInfo(buyer, items) {
+  const info = { payer: { ...splitName(buyer.name) } }
+  const phone = String(buyer.phone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '')
+  if (phone.length >= 10) info.payer.phone = { area_code: phone.slice(0, 2), number: phone.slice(2) }
+  if (Array.isArray(items) && items.length) {
+    info.items = items.map((i) => ({ id: String(i.productId || 'item'), title: String(i.name || 'Produto').slice(0, 250), category_id: 'learnings', quantity: 1, unit_price: i.price / 100 }))
+  }
+  return info
+}
+
 /** Cria um Pix. Devolve o pagamento do MP (point_of_interaction tem o QR). */
-export function createPixPayment(acc, { orderId, amountCents, description, buyer, notificationUrl, expiresMinutes = 30 }) {
+export function createPixPayment(acc, { orderId, amountCents, description, buyer, items, notificationUrl, expiresMinutes = 30 }) {
   const expires = new Date(Date.now() + expiresMinutes * 60_000)
   return mpFetch(acc, '/v1/payments', {
     method: 'POST',
@@ -73,6 +86,7 @@ export function createPixPayment(acc, { orderId, amountCents, description, buyer
       description,
       payment_method_id: 'pix',
       payer: payerFrom(buyer),
+      additional_info: additionalInfo(buyer, items),
       external_reference: orderId,
       notification_url: notificationUrl,
       date_of_expiration: expires.toISOString().replace('Z', '-00:00'),
@@ -82,10 +96,11 @@ export function createPixPayment(acc, { orderId, amountCents, description, buyer
 
 /** Cobra no cartão com o token gerado no navegador pelo Card Payment Brick
  *  (o número do cartão nunca passa pelo nosso servidor). */
-export function createCardPayment(acc, { orderId, amountCents, description, buyer, card, notificationUrl, statementDescriptor }) {
+export function createCardPayment(acc, { orderId, amountCents, description, buyer, items, card, notificationUrl, statementDescriptor }) {
   return mpFetch(acc, '/v1/payments', {
     method: 'POST',
     idempotencyKey: `card-${orderId}`,
+    deviceId: card.deviceId ? String(card.deviceId).slice(0, 200) : undefined,
     body: {
       transaction_amount: amountCents / 100,
       description,
@@ -97,6 +112,7 @@ export function createCardPayment(acc, { orderId, amountCents, description, buye
         ...payerFrom(buyer),
         ...(card.identification?.number ? { identification: card.identification } : {}),
       },
+      additional_info: additionalInfo(buyer, items),
       external_reference: orderId,
       notification_url: notificationUrl,
       statement_descriptor: statementDescriptor ? String(statementDescriptor).slice(0, 13) : undefined,

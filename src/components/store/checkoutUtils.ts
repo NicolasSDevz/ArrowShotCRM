@@ -46,6 +46,8 @@ declare global {
   interface Window {
     // SDK do Mercado Pago (https://sdk.mercadopago.com/js/v2)
     MercadoPago?: new (publicKey: string, opts?: { locale?: string }) => MercadoPagoInstance
+    // Impressão digital do aparelho (security.js do MP): sem ela o antifraude recusa mais (cc_rejected_high_risk).
+    MP_DEVICE_SESSION_ID?: string
   }
 }
 
@@ -87,6 +89,20 @@ export function loadMercadoPagoSdk(): Promise<void> {
   return sdkPromise
 }
 
+let securityLoaded = false
+
+/** Carrega o security.js do Mercado Pago (gera window.MP_DEVICE_SESSION_ID para o antifraude). */
+export function loadMercadoPagoSecurity() {
+  if (securityLoaded) return
+  securityLoaded = true
+  const s = document.createElement('script')
+  s.src = 'https://www.mercadopago.com/v2/security.js'
+  s.async = true
+  s.setAttribute('view', 'checkout')
+  s.setAttribute('output', 'MP_DEVICE_SESSION_ID')
+  document.head.appendChild(s)
+}
+
 export async function mountCardBrick(opts: {
   publicKey: string
   containerId: string
@@ -97,6 +113,7 @@ export async function mountCardBrick(opts: {
   onSubmit: (data: CardBrickFormData) => Promise<void>
   onError?: (message: string) => void
 }): Promise<BrickController> {
+  loadMercadoPagoSecurity()
   await loadMercadoPagoSdk()
   const mp = new window.MercadoPago!(opts.publicKey, { locale: 'pt-BR' })
   return mp.bricks().create('cardPayment', opts.containerId, {
