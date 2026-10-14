@@ -13,6 +13,7 @@ import {
   KeyRound,
   CalendarRange,
   ShoppingBag,
+  Settings,
   ChevronDown,
   X,
   PanelLeftClose,
@@ -35,6 +36,36 @@ function readCollapsed(): boolean {
   }
 }
 
+type NavItem = {
+  to: string
+  label: string
+  icon: typeof LayoutDashboard
+  /** Outras rotas que também deixam o item aceso. */
+  alsoActive?: string[]
+  /** Se ficar de fora, todo mundo vê. */
+  show?: (p: { canSeeUniversity: boolean; canManageTokens: boolean }) => boolean
+}
+
+// O que se usa o dia todo fica em cima, grande e com ícone.
+const mainNav: NavItem[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/operacional', label: 'Operacional', icon: ListChecks },
+  { to: '/clientes', label: 'Clientes', icon: Users },
+  { to: '/leads', label: 'Leads', icon: UserPlus },
+  // Reuniões e Calendário são a mesma página (abas) — o item fica aceso nas duas rotas.
+  { to: '/reunioes', label: 'Reuniões', icon: CalendarDays, alsoActive: ['/calendario'] },
+  { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
+  { to: '/loja', label: 'Loja', icon: ShoppingBag, alsoActive: ['/loja'], show: (p) => p.canManageTokens },
+]
+
+// O resto fica num grupo menor, mais apagado, logo abaixo.
+const toolsNav: NavItem[] = [
+  { to: '/metricas', label: 'Métricas', icon: Gauge },
+  { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
+  { to: '/universidade', label: 'Universidade', icon: GraduationCap, show: (p) => p.canSeeUniversity },
+  { to: '/equipe', label: 'Equipe', icon: UserCog, show: (p) => p.canSeeUniversity },
+]
+
 export function Sidebar({
   mobileOpen,
   onCloseMobile,
@@ -46,6 +77,8 @@ export function Sidebar({
   const { pathname } = useLocation()
   const { data: teamMembers } = useTeamMembers()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Recolhido (só no computador): vira uma faixa fina só com ícones — bom pra
+  // apresentar pro cliente sem o menu ocupando a tela. Fica salvo no navegador.
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const toggleCollapsed = () =>
     setCollapsed((prev) => {
@@ -57,30 +90,47 @@ export function Sidebar({
       }
       return next
     })
-
+  // No celular o menu é a gaveta de sempre (com os nomes); recolher vale só a partir de md.
   const c = collapsed
   const labelCls = c ? 'md:hidden' : ''
   const linkLayout = c ? 'md:justify-center md:px-0' : ''
-  const canSeeTeam = profile?.role === 'admin' || profile?.role === 'manager' || profile?.role === 'employee'
+  const canSeeUniversity = profile?.role === 'admin' || profile?.role === 'manager' || profile?.role === 'employee'
   const canManageTokens = profile?.role === 'admin' || profile?.role === 'manager'
   const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
   const isGestorTrafego = personKey === 'ciane' || personKey === 'nicolas'
   const showSettingsSection = canManageTokens || isGestorTrafego
   const myProfileCargo = teamMembers.find((m) => m.userId === profile?.id)?.jobTitle
+  const perms = { canSeeUniversity, canManageTokens }
+  const visibleMain = mainNav.filter((i) => !i.show || i.show(perms))
+  const visibleTools = toolsNav.filter((i) => !i.show || i.show(perms))
+  // Se a pessoa já está numa tela de configuração, a gaveta abre sozinha.
+  const inSettingsRoute = pathname.startsWith('/configuracoes') || pathname.startsWith('/otimizacoes')
+  const showSettings = settingsOpen || inSettingsRoute
 
-  const navCls = (isActive: boolean, alsoActive?: string[]) =>
-    `flex items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] font-medium transition-all duration-150 ease-in-out ${linkLayout} ${
-      isActive || alsoActive?.some((p) => pathname.startsWith(p))
-        ? 'bg-brand-600 text-white'
-        : 'text-slate-400 hover:bg-navy-800 hover:text-white'
-    }`
-
-  const sectionLabel = (label: string) =>
-    c ? (
-      <div className="mx-auto my-1 h-px w-6 bg-navy-800 md:block" />
-    ) : (
-      <p className="mt-3 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-navy-600">{label}</p>
+  const renderLink = ({ to, label, icon: Icon, alsoActive }: NavItem, kind: 'main' | 'tool') => {
+    const isMain = kind === 'main'
+    return (
+      <NavLink
+        to={to}
+        title={c ? label : undefined}
+        aria-label={c ? label : undefined}
+        onClick={onCloseMobile}
+        className={({ isActive }) => {
+          const active = isActive || alsoActive?.some((p) => pathname.startsWith(p))
+          const size = isMain ? 'px-4 py-2.5 text-[15px] font-medium' : 'px-4 py-2 text-[13px]'
+          const color = active
+            ? 'bg-brand-600 text-white'
+            : isMain
+              ? 'text-slate-300 hover:bg-navy-800 hover:text-white'
+              : 'text-slate-500 hover:bg-navy-800 hover:text-slate-200'
+          return `flex items-center gap-2.5 rounded-lg transition-all duration-150 ease-in-out ${size} ${linkLayout} ${color}`
+        }}
+      >
+        <Icon size={isMain ? 18 : 15} className="shrink-0" aria-hidden="true" />
+        <span className={labelCls}>{label}</span>
+      </NavLink>
     )
+  }
 
   return (
     <>
@@ -89,11 +139,10 @@ export function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[210px] shrink-0 flex-col bg-navy-950 transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0 ${
-          c ? 'md:w-[64px]' : ''
+        className={`fixed inset-y-0 left-0 z-50 flex w-[220px] shrink-0 flex-col bg-navy-950 transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0 ${
+          c ? 'md:w-[68px]' : ''
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        {/* Logo + botão recolher */}
         <div className={`relative flex items-center justify-center border-b border-navy-800 px-3 py-3 ${c ? 'md:min-h-[81px]' : ''}`}>
           <img src="/logo-white.png" alt="Arrow Shot" className={`h-14 w-auto ${c ? 'md:hidden' : ''}`} />
           <button
@@ -113,120 +162,72 @@ export function Sidebar({
           </button>
         </div>
 
-        <nav className="sidebar flex-1 overflow-y-auto px-2 py-2">
+        <nav aria-label="Menu" className={`sidebar flex-1 overflow-y-auto py-2 ${c ? 'px-2 md:px-2.5' : 'px-2'}`}>
+          <ul className="space-y-0.5" aria-label="Principal">
+            {visibleMain.map((item) => (
+              <li key={item.to}>{renderLink(item, 'main')}</li>
+            ))}
+          </ul>
 
-          {/* ── Início ── */}
-          <NavLink to="/dashboard" title={c ? 'Dashboard' : undefined} onClick={onCloseMobile}
-            className={({ isActive }) => navCls(isActive)}>
-            <LayoutDashboard size={17} className="shrink-0" />
-            <span className={labelCls}>Dashboard</span>
-          </NavLink>
-          <NavLink to="/operacional" title={c ? 'Operacional' : undefined} onClick={onCloseMobile}
-            className={({ isActive }) => navCls(isActive)}>
-            <ListChecks size={17} className="shrink-0" />
-            <span className={labelCls}>Operacional</span>
-          </NavLink>
-          <NavLink to="/clientes" title={c ? 'Clientes' : undefined} onClick={onCloseMobile}
-            className={({ isActive }) => navCls(isActive)}>
-            <Users size={17} className="shrink-0" />
-            <span className={labelCls}>Clientes</span>
-          </NavLink>
-
-          {/* ── Vendas ── */}
-          {sectionLabel('Vendas')}
-          <NavLink to="/leads" title={c ? 'Leads' : undefined} onClick={onCloseMobile}
-            className={({ isActive }) => navCls(isActive)}>
-            <UserPlus size={17} className="shrink-0" />
-            <span className={labelCls}>Leads</span>
-          </NavLink>
-          <NavLink to="/reunioes" title={c ? 'Reuniões' : undefined} onClick={onCloseMobile}
-            className={({ isActive }) => navCls(isActive, ['/calendario'])}>
-            <CalendarDays size={17} className="shrink-0" />
-            <span className={labelCls}>Reuniões</span>
-          </NavLink>
-
-          {/* ── Marketing ── */}
-          {sectionLabel('Marketing')}
-          <NavLink to="/social-media" title={c ? 'Social Mídia' : undefined} onClick={onCloseMobile}
-            className={({ isActive }) => navCls(isActive)}>
-            <Sparkles size={17} className="shrink-0" />
-            <span className={labelCls}>Social Mídia</span>
-          </NavLink>
-          <NavLink to="/relatorios" title={c ? 'Relatórios' : undefined} onClick={onCloseMobile}
-            className={({ isActive }) => navCls(isActive)}>
-            <BarChart3 size={17} className="shrink-0" />
-            <span className={labelCls}>Relatórios</span>
-          </NavLink>
-          <NavLink to="/metricas" title={c ? 'Métricas' : undefined} onClick={onCloseMobile}
-            className={({ isActive }) => navCls(isActive)}>
-            <Gauge size={17} className="shrink-0" />
-            <span className={labelCls}>Métricas</span>
-          </NavLink>
-
-          {/* ── Equipe ── */}
-          {canSeeTeam && sectionLabel('Equipe')}
-          {canSeeTeam && (
-            <NavLink to="/universidade" title={c ? 'Universidade' : undefined} onClick={onCloseMobile}
-              className={({ isActive }) => navCls(isActive)}>
-              <GraduationCap size={17} className="shrink-0" />
-              <span className={labelCls}>Universidade</span>
-            </NavLink>
-          )}
-          {canSeeTeam && (
-            <NavLink to="/equipe" title={c ? 'Equipe' : undefined} onClick={onCloseMobile}
-              className={({ isActive }) => navCls(isActive)}>
-              <UserCog size={17} className="shrink-0" />
-              <span className={labelCls}>Equipe</span>
-            </NavLink>
-          )}
-          {canManageTokens && (
-            <NavLink to="/loja" title={c ? 'Loja' : undefined} onClick={onCloseMobile}
-              className={({ isActive }) => navCls(isActive || pathname.startsWith('/loja'))}>
-              <ShoppingBag size={17} className="shrink-0" />
-              <span className={labelCls}>Loja</span>
-            </NavLink>
+          {visibleTools.length > 0 && (
+            <div className="mt-4 border-t border-navy-800 pt-3">
+              <p
+                id="sidebar-ferramentas"
+                className={`px-4 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 ${labelCls}`}
+              >
+                Ferramentas
+              </p>
+              <ul className="space-y-0.5" aria-labelledby="sidebar-ferramentas">
+                {visibleTools.map((item) => (
+                  <li key={item.to}>{renderLink(item, 'tool')}</li>
+                ))}
+              </ul>
+            </div>
           )}
 
-          {/* ── Configurações (colapsável) ── */}
           {showSettingsSection && (
-            <div className={`mt-2 border-t border-navy-800 pt-1.5 ${c ? 'md:hidden' : ''}`}>
+            <div className={`mt-4 border-t border-navy-800 pt-2 ${c ? 'md:hidden' : ''}`}>
               <button
                 type="button"
                 onClick={() => setSettingsOpen((v) => !v)}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-medium text-navy-500 transition-colors hover:text-slate-300"
+                aria-expanded={showSettings}
+                className="flex w-full items-center gap-2 rounded-lg px-4 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:text-slate-300"
               >
-                <span aria-hidden="true" className="text-[13px]">⚙️</span>
-                <span>Configurações</span>
-                <ChevronDown size={12} className={`ml-auto transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+                <Settings size={13} aria-hidden="true" />
+                Configurações
+                <ChevronDown size={13} aria-hidden="true" className={`ml-auto transition-transform ${showSettings ? 'rotate-180' : ''}`} />
               </button>
 
-              {settingsOpen && (
+              {showSettings && (
                 <div className="flex flex-col gap-0.5 pb-1">
                   {canManageTokens && (
                     <NavLink
                       to="/configuracoes/tokens"
                       onClick={onCloseMobile}
                       className={({ isActive }) =>
-                        `flex items-center gap-2 rounded-lg px-3 py-1.5 text-[11px] transition-colors ${
-                          isActive ? 'text-slate-200' : 'text-navy-500 hover:text-slate-300'
+                        `flex items-center gap-2 rounded-lg px-4 py-2 text-[11px] transition-colors ${
+                          isActive ? 'text-slate-200' : 'hover:text-slate-300'
                         }`
                       }
+                      style={{ color: '#64748B' }}
                     >
-                      <KeyRound size={13} />
+                      <KeyRound size={14} />
                       Tokens Meta Ads
                     </NavLink>
                   )}
+
                   {isGestorTrafego && (
                     <NavLink
                       to="/otimizacoes/calendario"
                       onClick={onCloseMobile}
                       className={({ isActive }) =>
-                        `flex items-center gap-2 rounded-lg px-3 py-1.5 text-[11px] transition-colors ${
-                          isActive ? 'text-slate-200' : 'text-navy-500 hover:text-slate-300'
+                        `flex items-center gap-2 rounded-lg px-4 py-2 text-[11px] transition-colors ${
+                          isActive ? 'text-slate-200' : 'hover:text-slate-300'
                         }`
                       }
+                      style={{ color: '#64748B' }}
                     >
-                      <CalendarRange size={13} />
+                      <CalendarRange size={14} />
                       Calendário de Otimizações
                     </NavLink>
                   )}
@@ -236,16 +237,12 @@ export function Sidebar({
           )}
         </nav>
 
-        {/* Perfil */}
         {profile && (
-          <div
-            className={`flex items-center gap-2.5 border-t border-navy-800 p-3 ${c ? 'md:justify-center md:px-0' : ''}`}
-            title={c ? profile.name : undefined}
-          >
+          <div className={`flex items-center gap-2.5 border-t border-navy-800 p-4 ${c ? 'md:justify-center md:px-0' : ''}`} title={c ? profile.name : undefined}>
             <Avatar name={profile.name} photoURL={profile.photoURL} size="sm" />
             <div className={`min-w-0 ${labelCls}`}>
-              <p className="truncate text-[12px] font-medium text-white">{profile.name}</p>
-              <p className="truncate text-[10px] text-navy-500">{myProfileCargo ?? USER_ROLE_LABEL[profile.role]}</p>
+              <p className="truncate text-[13px] font-medium text-white">{profile.name}</p>
+              <p className="truncate text-[11px] text-slate-500">{myProfileCargo ?? USER_ROLE_LABEL[profile.role]}</p>
             </div>
           </div>
         )}
