@@ -101,7 +101,7 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
     if (!principalOff) {
       const ok = await askConfirm({
         title: `Apagar a conta "${name}"?`,
-        message: 'As vendas novas param de usar as chaves do Mercado Pago da Vercel (MP_ACCESS_TOKEN e MP_PUBLIC_KEY). Os produtos que recebem nela ficam sem Pix e cartão pelo Mercado Pago até você ligar de novo ou trocar a conta deles. Pedidos já feitos continuam registrados.',
+        message: 'Ela some da lista e as vendas novas param de usar as chaves do Mercado Pago da Vercel (MP_ACCESS_TOKEN e MP_PUBLIC_KEY) e o Pix direto dela. Os produtos que recebiam nela ficam sem Pix e cartão até você escolher outra conta neles. Pedidos já feitos continuam registrados.',
         confirmLabel: 'Apagar conta',
         danger: true,
       })
@@ -109,7 +109,9 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
     }
     try {
       await setMpPrincipalDisabled(!principalOff, profile.id)
-      toast.success(principalOff ? `${name} ligada de novo` : `${name} apagada`)
+      // Apagar também desliga o Pix direto dela (senão o checkout continuaria gerando Pix na chave).
+      if (!principalOff && settings?.pixManual) await saveStorePaymentSettings({ ...settings, pixManual: false }, profile.id)
+      toast.success(principalOff ? 'Conta principal de volta' : `${name} apagada`)
     } catch (err) {
       toast.error((err as Error).message)
     }
@@ -137,14 +139,12 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
 
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {[
-          <AccountCard
+          ...(principalOff ? [] : [<AccountCard
             key="vercel"
             order={defaultId === '' ? 0 : 1}
             name={principalLabel || 'Conta principal'}
             detail={
-              principalOff
-                ? 'Apagada no CRM: as chaves da Vercel não cobram'
-                : !principalReady
+              !principalReady
                 ? 'Mercado Pago não configurado na Vercel'
                 : principalInvalid
                   ? 'Vercel: o Mercado Pago recusou o token'
@@ -157,9 +157,8 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
             onTest={principalOn ? () => setTesting({ id: '', name: principalLabel || 'Conta principal' }) : undefined}
             onEdit={() => setRenaming(true)}
             editLabel={`Configurar a conta ${principalLabel || 'principal'}`}
-            onRemove={principalReady && !principalOff ? togglePrincipal : undefined}
-            onRestore={principalReady && principalOff ? togglePrincipal : undefined}
-          />,
+            onRemove={togglePrincipal}
+          />]),
           ...accounts.map((a) => (
             <AccountCard
               key={a.id}
@@ -180,6 +179,13 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
         ].sort((x, y) => x.props.order - y.props.order)}
       </ul>
 
+      {principalOff && (
+        <p className="text-xs text-slate-500">
+          A conta principal (da Vercel) está apagada.{' '}
+          <button type="button" onClick={togglePrincipal} className="font-semibold text-brand-600 hover:underline">Trazer de volta</button>
+        </p>
+      )}
+
       <MpAccountModal account={editing} onClose={() => setEditing(null)} />
       <PrincipalModal open={renaming} settings={settings} onClose={() => setRenaming(false)} />
       <TestModal target={testing} onClose={() => setTesting(null)} />
@@ -199,7 +205,6 @@ function AccountCard({
   onEdit,
   editLabel,
   onRemove,
-  onRestore,
 }: {
   /** Só para ordenar a lista (padrão primeiro). */
   order: number
@@ -214,8 +219,6 @@ function AccountCard({
   onEdit: () => void
   editLabel: string
   onRemove?: () => void
-  /** Conta principal apagada no CRM: botão pra ligar de novo. */
-  onRestore?: () => void
 }) {
   const chip = (on: boolean) => `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`
   return (
@@ -245,11 +248,6 @@ function AccountCard({
         {onTest && (
           <button type="button" onClick={onTest} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-brand-700" aria-label={`Testar a conta ${name}`}>
             <Stethoscope size={13} aria-hidden="true" /> Testar
-          </button>
-        )}
-        {onRestore && (
-          <button type="button" onClick={onRestore} className="text-xs font-semibold text-brand-600 hover:underline" aria-label={`Ligar de novo a conta ${name}`}>
-            Ligar de novo
           </button>
         )}
         {!isDefault && onMakeDefault && (
