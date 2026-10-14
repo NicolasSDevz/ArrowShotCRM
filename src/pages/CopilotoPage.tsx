@@ -1,19 +1,41 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Mic, Square, AlertTriangle, Loader2, Radio, ArrowRight, Sparkles, Send, Clock, Gauge } from 'lucide-react'
+import { Mic, Square, AlertTriangle, Loader2, Radio, ArrowRight, Sparkles, Send, Clock, Gauge, PictureInPicture2 } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { useCopiloto } from '../hooks/useCopiloto'
 import { useCopilotoSugestoes } from '../hooks/useCopilotoSugestoes'
+import { useDocumentPip } from '../hooks/useDocumentPip'
 import { SugestaoCard } from '../components/leads/SugestaoCard'
 import { ResumoReview } from '../components/leads/ResumoReview'
+import { CopilotoFloatingPanel } from '../components/leads/CopilotoFloatingPanel'
 import { Button } from '../components/ui/Button'
 import { gerarResumoChamada } from '../services/copilotoResumoService'
 import { salvarResumo } from '../services/chamadaService'
 import { updateLead } from '../services/leadService'
 import { buildLeadUpdateFromResumo } from '../utils/leadResumoUpdate'
 import type { BlocoTranscricao, ResumoChamada } from '../types/chamada'
+
+const PIP_USADO_KEY = 'copiloto_pip_usado'
+
+function pipFoiUsadoAntes(): boolean {
+  try {
+    return localStorage.getItem(PIP_USADO_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function marcarPipUsado() {
+  try {
+    localStorage.setItem(PIP_USADO_KEY, '1')
+  } catch {
+    /* modo privado / storage bloqueado — só não abre sozinho na próxima */
+  }
+}
 
 // ─── Aviso LGPD ────────────────────────────────────────────────────────────
 
@@ -144,6 +166,7 @@ export function CopilotoPage() {
   const { leadId } = useParams<{ leadId: string }>()
   const navigate = useNavigate()
   const { profile } = useAuth()
+  const { theme } = useTheme()
   const { data: leads } = useLeads()
   const [showLgpd, setShowLgpd] = useState(false)
   const transcriptEndRef = useRef<HTMLDivElement>(null)
@@ -154,6 +177,7 @@ export function CopilotoPage() {
     status,
     blocos,
     ultimoBlocoRecebido,
+    iniciadoEm,
     transcrevendo,
     ouvindo,
     atrasoMedioMs,
@@ -173,6 +197,39 @@ export function CopilotoPage() {
     profile?.id
   )
   const [pergunta, setPergunta] = useState('')
+
+  // ─── Janela flutuante (Picture-in-Picture) ─────────────────────────────
+  const pip = useDocumentPip()
+
+  // Mantém o tema (claro/escuro) em dia na janela flutuante — ela tem um
+  // document próprio, não herda o data-theme do document principal.
+  useEffect(() => {
+    if (!pip.pipWindow) return
+    if (theme === 'dark') pip.pipWindow.document.documentElement.setAttribute('data-theme', 'dark')
+    else pip.pipWindow.document.documentElement.removeAttribute('data-theme')
+  }, [theme, pip.pipWindow])
+
+  // Atalho de teclado (espaço ou H) com a janela flutuante em foco —
+  // precisa escutar no document DELA, não no da aba principal.
+  useEffect(() => {
+    const win = pip.pipWindow
+    if (!win) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
+      if (e.key === ' ' || e.key.toLowerCase() === 'h') {
+        e.preventDefault()
+        if (status === 'ativa' && !generating) pedirAjuda()
+      }
+    }
+    win.document.addEventListener('keydown', onKeyDown)
+    return () => win.document.removeEventListener('keydown', onKeyDown)
+  }, [pip.pipWindow, status, generating, pedirAjuda])
+
+  const handleAbrirPip = async () => {
+    const win = await pip.open()
+    if (win) marcarPipUsado()
+  }
 
   // ─── Resumo pós-chamada (Etapa 3) ──────────────────────────────────────
   const [resumo, setResumo] = useState<Omit<ResumoChamada, 'geradoEm'> | null>(null)
@@ -281,9 +338,20 @@ export function CopilotoPage() {
     if (status === 'aguardando_inicio') setShowLgpd(true)
   }
 
-  const handleLgpdConfirm = () => {
+  const handleLgpdConfirm = async () => {
     setShowLgpd(false)
-    iniciar()
+    await iniciar()
+    // Abre a janela flutuante sozinha só se o Bruno já usou antes — a 1ª vez
+    // é sempre pelo botão. Pode falhar silenciosamente aqui (o Chrome exige
+    // gesto do usuário "fresco"; depois de esperar permissão de mic/aba essa
+    // janela de gesto pode já ter se esgotado) — se falhar, o botão "Janela
+    // flutuante" continua disponível pra abrir com 1 clique extra.
+    if (pipFoiUsadoAntes()) void pip.open()
+  }
+
+  const handleEncerrar = () => {
+    pip.close()
+    void encerrar()
   }
 
   const blocoInicio = blocos[0]?.timestampMs ?? 0
@@ -325,9 +393,23 @@ export function CopilotoPage() {
               <Mic size={14} /> Iniciar
             </button>
           )}
+          {status === 'ativa' && !pip.pipWindow && pip.isSupported && (
+            <button
+              onClick={handleAbrirPip}
+              title="Ver sugestões por cima do Meet, sem trocar de aba"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              <PictureInPicture2 size={14} /> Janela flutuante
+            </button>
+          )}
+          {status === 'ativa' && !pip.isSupported && (
+            <p className="hidden max-w-[220px] text-[11px] leading-tight text-slate-400 sm:block">
+              Pra ver as sugestões junto com o Meet, use dois monitores ou coloque as janelas lado a lado.
+            </p>
+          )}
           {status === 'ativa' && (
             <button
-              onClick={encerrar}
+              onClick={handleEncerrar}
               className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
             >
               <Square size={14} /> Encerrar
@@ -563,6 +645,23 @@ export function CopilotoPage() {
       {showLgpd && (
         <LgpdModal onConfirm={handleLgpdConfirm} onCancel={() => setShowLgpd(false)} />
       )}
+
+      {/* Janela flutuante — mesmo estado da aba principal, via Portal */}
+      {pip.pipWindow &&
+        createPortal(
+          <CopilotoFloatingPanel
+            status={status}
+            ouvindo={ouvindo}
+            iniciadoEm={iniciadoEm}
+            blocos={blocos}
+            sugestoes={sugestoes}
+            streaming={streaming}
+            generating={generating}
+            onPedirAjuda={pedirAjuda}
+            onEncerrar={handleEncerrar}
+          />,
+          pip.pipWindow.document.body
+        )}
     </div>
   )
 }

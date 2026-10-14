@@ -69,6 +69,9 @@ export function useCopiloto(leadId: string) {
   // de chegar" pra reagir (gatilho automático de sugestão, ver
   // useCopilotoSugestoes) tem que olhar isto, não blocos[blocos.length-1].
   const [ultimoBlocoRecebido, setUltimoBlocoRecebido] = useState<BlocoTranscricao | null>(null)
+  // Epoch ms de quando a chamada começou — pra quem precisa exibir duração
+  // (ex: janela flutuante), sem recalcular a partir do primeiro bloco.
+  const [iniciadoEm, setIniciadoEm] = useState<number | null>(null)
 
   const blocosRef = useRef<BlocoTranscricao[]>([])
   const chamadaIdRef = useRef<string | null>(null)
@@ -111,14 +114,17 @@ export function useCopiloto(leadId: string) {
     async (speaker: Speaker, stream: MediaStream): Promise<SpeakerPipeline> => {
       let acumulado: Float32Array | null = null
       let inicioMs = 0
-      let silenceTimer: ReturnType<typeof setTimeout> | null = null
+      // Silêncio acumulado desde o último onSpeechEnd, em ms de áudio real
+      // (não wall-clock) — contado a cada frame processado pelo VAD. Evita
+      // setTimeout/setInterval pra essa decisão: o AudioWorklet que processa
+      // os frames não é throttlado quando a aba vai pra segundo plano
+      // (Chrome throttla temporizadores JS, não o grafo de áudio), então a
+      // fala não fica "trancada" esperando um timer que o navegador atrasou.
+      let silenciodesdeUltimaFalaMs = 0
       let pendingFlush: Promise<void> = Promise.resolve()
 
       const flush = (): Promise<void> => {
-        if (silenceTimer) {
-          clearTimeout(silenceTimer)
-          silenceTimer = null
-        }
+        silenciodesdeUltimaFalaMs = 0
         if (!acumulado || acumulado.length === 0) return Promise.resolve()
         const audio = acumulado
         const startMs = inicioMs
@@ -169,20 +175,23 @@ export function useCopiloto(leadId: string) {
         preSpeechPadMs: 200,
         onSpeechStart: () => {
           if (!acumulado) inicioMs = Date.now() - startTimeRef.current
+          silenciodesdeUltimaFalaMs = 0
         },
         onSpeechEnd: (audio) => {
           acumulado = acumulado ? concatFloat32(acumulado, audio) : audio
+          silenciodesdeUltimaFalaMs = 0
           const durationSec = acumulado.length / SAMPLE_RATE
-          if (silenceTimer) {
-            clearTimeout(silenceTimer)
-            silenceTimer = null
-          }
           if (durationSec >= MERGE_MIN_SEC || durationSec >= MERGE_MAX_SEC) {
             pendingFlush = flush()
-          } else {
-            silenceTimer = setTimeout(() => {
-              pendingFlush = flush()
-            }, MERGE_SILENCE_MS)
+          }
+          // Senão, espera: onFrameProcessed (abaixo) conta o silêncio até
+          // bater MERGE_SILENCE_MS e decide se junta com a próxima fala ou envia.
+        },
+        onFrameProcessed: (_probs, frame) => {
+          if (!acumulado) return
+          silenciodesdeUltimaFalaMs += (frame.length / SAMPLE_RATE) * 1000
+          if (silenciodesdeUltimaFalaMs >= MERGE_SILENCE_MS) {
+            pendingFlush = flush()
           }
         },
         onVADMisfire: () => {
@@ -192,10 +201,6 @@ export function useCopiloto(leadId: string) {
 
       return {
         destroy: async () => {
-          if (silenceTimer) {
-            clearTimeout(silenceTimer)
-            silenceTimer = null
-          }
           await pendingFlush
           await flush()
           await vad.destroy()
@@ -256,6 +261,7 @@ export function useCopiloto(leadId: string) {
     setChamadaId(cid)
     chamadaIdRef.current = cid
     startTimeRef.current = Date.now()
+    setIniciadoEm(startTimeRef.current)
     setBlocos([])
     blocosRef.current = []
     atrasosRef.current = []
@@ -329,6 +335,7 @@ export function useCopiloto(leadId: string) {
     status,
     blocos,
     ultimoBlocoRecebido,
+    iniciadoEm,
     transcrevendo,
     ouvindo,
     atrasoMedioMs,

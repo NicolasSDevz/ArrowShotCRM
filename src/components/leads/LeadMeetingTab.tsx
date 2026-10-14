@@ -239,11 +239,16 @@ export function LeadMeetingTab({ lead }: { lead: Lead }) {
             )}
             {(profile?.role === 'admin' || profile?.role === 'manager') && (
               <button
-                onClick={() => navigate(`/copiloto/${lead.id}`)}
+                onClick={() => {
+                  // Abre o Meet numa aba nova e já deixa o Copiloto pronto pra
+                  // iniciar na aba atual — menos troca de tela pra começar.
+                  if (activeMeeting.meetLink) window.open(activeMeeting.meetLink, '_blank', 'noopener,noreferrer')
+                  navigate(`/copiloto/${lead.id}`)
+                }}
                 className="flex items-center gap-1.5 rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-sm font-semibold text-brand-700 hover:bg-brand-50 dark:border-brand-700 dark:bg-transparent dark:text-brand-300"
               >
                 <Mic size={14} />
-                Abrir Copiloto
+                Entrar com Copiloto
               </button>
             )}
           </div>
