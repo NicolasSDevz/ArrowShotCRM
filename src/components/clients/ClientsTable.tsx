@@ -10,6 +10,7 @@ import { usePrivacy } from '../../context/PrivacyContext'
 import { clientStatusLabel, CLIENT_CATEGORY_LABEL, CLIENT_CATEGORY_BADGE, CLIENT_STATUS_BADGE, type Client } from '../../types/client'
 
 function jornadaAtrasada(client: Client): boolean {
+  if (client.participaJornada !== true) return false
   const feitas = new Set(client.jornadaFeitas ?? [])
   const base = client.dataInicioJornada ?? client.contractStartDate ?? client.createdAt
   if (!base) return false
@@ -78,7 +79,7 @@ export function ClientsTable({
                         {CLIENT_CATEGORY_LABEL[client.categoria]}
                       </Badge>
                     )}
-                    {(client.dataInicioJornada != null || (client.jornadaFeitas && client.jornadaFeitas.length > 0)) && (
+                    {client.participaJornada === true && (
                       <span
                         title="Jornada do Cliente"
                         className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 dark:border-slate-600 dark:text-slate-400"

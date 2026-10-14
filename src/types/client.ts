@@ -223,6 +223,9 @@ export interface Client extends BaseDoc {
   /** Meses da jornada marcados como feitos ('01'–'12') — campo denormalizado
    *  para o badge na lista de clientes sem carregar subcoleção. */
   jornadaFeitas?: string[]
+  /** true = cliente está no plano de Jornada do CS de 12 meses.
+   *  false ou undefined = cliente antigo fora da jornada (sem badge, sem atraso). */
+  participaJornada?: boolean
 }
 
 export type ChurnType = 'voluntary' | 'involuntary' | 'early' | 'completed'

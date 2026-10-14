@@ -99,6 +99,8 @@ const EMPTY = {
   landingPageType: '' as LandingPageType | '',
   contractedProductIds: [] as string[],
   contracts: {} as Record<string, ContractDraft>,
+  participaJornada: true,
+  dataInicioJornada: '',
 }
 
 const toDateInputValue = timestampToDateInput
@@ -272,6 +274,8 @@ export function ClientFormModal({
         googleAds: client.modules?.googleAds ?? false,
         landingPage: client.modules?.landingPage ?? false,
         landingPageType: client.landingPageType ?? '',
+        participaJornada: client.participaJornada !== false,
+        dataInicioJornada: toDateInputValue(client.dataInicioJornada),
         contractedProductIds: client.contractedProductIds ?? [],
         contracts: Object.fromEntries(
           (client.contractedServices ?? []).map((c) => [
@@ -412,6 +416,12 @@ export function ClientFormModal({
         churnReason: form.status === 'churned' ? form.churnReason.trim() || undefined : undefined,
         churnType: form.status === 'churned' ? form.churnType || undefined : undefined,
         churnCounts: form.status === 'churned' ? form.churnCounts : undefined,
+        participaJornada: form.participaJornada,
+        dataInicioJornada: form.dataInicioJornada
+          ? dateInputToTimestamp(form.dataInicioJornada)
+          : client
+            ? undefined
+            : dateInputToTimestamp(form.contractStartDate) ?? Timestamp.now(),
         contractedProductIds: form.contractedProductIds.length > 0 ? form.contractedProductIds : undefined,
         contractedServices: selectedContracts.map(({ product, draft }): ClientServiceContract => {
           const c = draft ? draftContract(draft) : {}
@@ -931,6 +941,30 @@ export function ClientFormModal({
             <Textarea rows={2} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
           </Field>
         </div>
+
+        {(profile?.role === 'admin' || profile?.role === 'manager') && (
+          <div className="flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Jornada do Cliente (CS)</p>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.participaJornada}
+                onChange={(e) => set('participaJornada', e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+              />
+              Participa da Jornada do Cliente
+            </label>
+            {form.participaJornada && (
+              <Field label="Início da jornada">
+                <Input
+                  type="date"
+                  value={form.dataInicioJornada}
+                  onChange={(e) => set('dataInicioJornada', e.target.value)}
+                />
+              </Field>
+            )}
+          </div>
+        )}
       </div>
 
       {!client && (socialMedia || paidTraffic || landingPage) && (

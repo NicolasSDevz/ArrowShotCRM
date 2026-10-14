@@ -382,6 +382,38 @@ export function ClientJornadaTab({ client }: { client: Client }) {
     return totalFeitas === 12 ? 'Jornada concluída 🎉' : null
   }, [jornadaMap, dataInicio, totalFeitas])
 
+  const handleAtivarJornada = async () => {
+    if (!profile) return
+    try {
+      await updateClient(
+        client.id,
+        { participaJornada: true, dataInicioJornada: Timestamp.now() },
+        profile.id,
+        profile.name,
+      )
+      toast.success('Jornada ativada!')
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao ativar jornada')
+    }
+  }
+
+  if (client.participaJornada === false) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-16 text-center">
+        <p className="text-base text-slate-500">Este cliente não está na Jornada do Cliente.</p>
+        {canEdit && (
+          <button
+            onClick={handleAtivarJornada}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Ativar jornada
+          </button>
+        )}
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div role="status" aria-live="polite" className="flex h-32 items-center justify-center">

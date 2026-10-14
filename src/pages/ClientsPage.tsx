@@ -10,6 +10,7 @@ import { ClientsGrid } from '../components/clients/ClientsGrid'
 import { OnboardingClientsBoard } from '../components/clients/OnboardingClientsBoard'
 import { ClientFormModal } from '../components/clients/ClientFormModal'
 import { DeleteClientModal } from '../components/clients/DeleteClientModal'
+import { JornadaMigrationBanner } from '../components/clients/JornadaMigrationBanner'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { CLIENT_CATEGORY_LABEL, getClientOwnerIds, type Client, type ClientStatus } from '../types/client'
@@ -147,6 +148,7 @@ export function ClientsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <JornadaMigrationBanner clients={clients} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-[28px] font-extrabold text-slate-900">Clientes</h1>
