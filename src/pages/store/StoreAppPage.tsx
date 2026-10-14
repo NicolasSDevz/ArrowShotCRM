@@ -21,7 +21,7 @@ const startOfToday = () => {
 }
 const paidAt = (o: StoreOrder) => new Date(o.approvedAt || o.createdAt).getTime()
 const needsAction = (o: StoreOrder) =>
-  (o.method === 'pix_manual' && o.status === 'pending') || (o.status === 'approved' && !!o.refundRequest) || (o.status === 'approved' && o.capi?.purchase?.ok === false)
+  (o.method === 'pix_manual' && o.status === 'pending') || (o.status === 'approved' && !!o.refundRequest && !o.refundRequest.deniedAt) || (o.status === 'approved' && o.capi?.purchase?.ok === false)
 
 /** /app — o CRM instalado no celular (Android e iPhone) abre só aqui: resumo da
  *  Loja, vendas e o que precisa de ação. O CRM completo fica no computador. */
@@ -187,7 +187,7 @@ function SalesTab({ orders }: { orders: StoreOrder[] }) {
 }
 
 function OrderCard({ order: o, compact = false }: { order: StoreOrder; compact?: boolean }) {
-  const { busy, confirmPayment, cancelOrder, refund, copyAccess, deleteOrder, canDelete } = useOrderActions()
+  const { busy, confirmPayment, cancelOrder, refund, denyRefund, copyAccess, deleteOrder, canDelete } = useOrderActions()
   const manualPending = o.method === 'pix_manual' && (o.status === 'pending' || (o.status === 'refused' && !!o.expiredAt))
 
   return (
@@ -210,7 +210,7 @@ function OrderCard({ order: o, compact = false }: { order: StoreOrder; compact?:
 
       {!compact && (
         <>
-          {o.refundRequest && o.status === 'approved' && (
+          {o.refundRequest && !o.refundRequest.deniedAt && o.status === 'approved' && (
             <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 p-2 text-xs text-red-700">
               <AlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
               Pediu reembolso{o.refundRequest.reason ? `: ${o.refundRequest.reason}` : ''}
@@ -242,6 +242,11 @@ function OrderCard({ order: o, compact = false }: { order: StoreOrder; compact?:
             {o.accessUrl && o.status === 'approved' && (
               <Button size="sm" variant="secondary" icon={<Copy size={14} />} onClick={() => copyAccess(o)}>
                 Copiar acesso
+              </Button>
+            )}
+            {o.status === 'approved' && o.refundRequest && !o.refundRequest.deniedAt && (
+              <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => denyRefund(o)}>
+                Recusar reembolso
               </Button>
             )}
             {o.status === 'approved' && (

@@ -33,12 +33,8 @@ export function MyPurchases() {
     setBusy(true)
     setStatus('')
     try {
-      const r = await memberRefundRequest(orderId, reason)
-      setStatus(
-        r.refunded
-          ? 'Reembolso feito. O valor volta pelo mesmo meio de pagamento (no cartão pode levar até 2 faturas para aparecer).'
-          : 'Pedido de reembolso enviado. A equipe vai analisar e devolver o valor pelo mesmo meio de pagamento.'
-      )
+      await memberRefundRequest(orderId, reason)
+      setStatus('Pedido de reembolso enviado. A equipe vai analisar o motivo e te responder.')
       setOpenId(null)
       setReason('')
       await load()
@@ -68,8 +64,11 @@ export function MyPurchases() {
                 {o.canRequestRefund ? `Garantia até ${new Date(o.guaranteeUntil).toLocaleDateString('pt-BR')}` : 'Prazo de garantia encerrado'}
               </p>
             )}
-            {o.refundRequestedAt && o.status === 'approved' && (
-              <p className="mt-1 text-xs text-amber-400">Reembolso pedido em {new Date(o.refundRequestedAt).toLocaleDateString('pt-BR')}. Aguardando a equipe.</p>
+            {o.refundRequestedAt && o.status === 'approved' && !o.refundDeniedAt && (
+              <p className="mt-1 text-xs text-amber-400">Reembolso pedido em {new Date(o.refundRequestedAt).toLocaleDateString('pt-BR')}. Aguardando a análise da equipe.</p>
+            )}
+            {o.refundDeniedAt && o.status === 'approved' && (
+              <p className="mt-1 text-xs text-red-400">A equipe analisou e recusou o reembolso.{o.supportEmail ? ` Dúvidas: ${o.supportEmail}` : ''}</p>
             )}
             {o.canRequestRefund && openId !== o.orderId && (
               <button onClick={() => setOpenId(o.orderId)} className="mt-2 text-xs text-[var(--m-muted)] underline-offset-2 hover:text-[var(--m-text)] hover:underline">
@@ -79,12 +78,12 @@ export function MyPurchases() {
             {openId === o.orderId && (
               <div className="mt-2 space-y-2">
                 <label className="block text-xs text-[var(--m-muted)]">
-                  Conte o motivo (opcional)
-                  <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} className="mt-1 w-full resize-none rounded-lg border border-[var(--m-border)] bg-[var(--m-soft)] p-2 text-sm text-[var(--m-text)] outline-none" />
+                  Conte o motivo do reembolso (obrigatório). A equipe analisa e responde.
+                  <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} required minLength={10} className="mt-1 w-full resize-none rounded-lg border border-[var(--m-border)] bg-[var(--m-soft)] p-2 text-sm text-[var(--m-text)] outline-none" />
                 </label>
                 <div className="flex gap-2">
-                  <button disabled={busy} onClick={() => send(o.orderId)} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-60">
-                    {busy ? 'Enviando...' : o.autoRefund ? 'Confirmar reembolso' : 'Confirmar pedido de reembolso'}
+                  <button disabled={busy || reason.trim().length < 10} onClick={() => send(o.orderId)} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-60">
+                    {busy ? 'Enviando...' : 'Enviar pedido de reembolso'}
                   </button>
                   <button onClick={() => setOpenId(null)} className="rounded-lg px-3 py-1.5 text-xs text-[var(--m-muted)] hover:bg-[var(--m-soft)]">Cancelar</button>
                 </div>

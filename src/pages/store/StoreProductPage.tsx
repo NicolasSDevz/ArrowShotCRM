@@ -229,12 +229,6 @@ export function StoreProductPage() {
           onChange={(v) => set({ testMode: v })}
           hint="Só vale enquanto o Mercado Pago não está configurado: o checkout libera o acesso sem cobrar, para conferir o fluxo inteiro. Desligue antes de divulgar."
         />
-        <Toggle
-          label="Reembolso automático dentro da garantia"
-          checked={draft.autoRefund === true}
-          onChange={(v) => set({ autoRefund: v })}
-          hint={`O aluno pede em Meu perfil e o dinheiro volta na hora pelo Mercado Pago, com o acesso removido (garantia de ${draft.checkout.guaranteeDays || 0} dias, muda na Configuração de tela). Pix direto na conta continua manual: o pedido chega pra você devolver pelo banco.`}
-        />
       </section>
     </div>
   )

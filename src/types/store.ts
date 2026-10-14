@@ -314,7 +314,7 @@ export interface StoreOrder {
   pixDiscountPercent?: number
   pixDiscountAmount?: number
   pixAccountLabel?: string
-  refundRequest?: { reason: string; requestedAt: string }
+  refundRequest?: { reason: string; requestedAt: string; deniedAt?: string; deniedBy?: string }
   buyer: { name: string; email: string; phone?: string | null; cpf?: string | null }
   method: 'pix' | 'pix_manual' | 'card' | 'test' | 'free'
   confirmedBy?: string

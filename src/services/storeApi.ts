@@ -136,9 +136,9 @@ export interface MemberOrder {
   guaranteeUntil: string | null
   canRequestRefund: boolean
   refundRequestedAt: string | null
+  refundDeniedAt?: string | null
   supportEmail: string | null
   /** O dinheiro volta na hora ao pedir (reembolso automático do produto). */
-  autoRefund?: boolean
 }
 /** area: só as compras dos cursos da área aberta ('' = principal). */
 export async function memberOrders(area: string) {
@@ -263,6 +263,9 @@ export async function storeDeleteOrder(orderId: string) {
   return call<{ ok: true; removed: { enrollments: number; notifications: number; memberDeleted: boolean } }>('admin-delete-order', { body: { orderId }, token: await staffToken() })
 }
 
+export async function storeDenyRefund(orderId: string) {
+  return call<{ ok: true }>('admin-refund-deny', { body: { orderId }, token: await staffToken() })
+}
 export async function storeRefundOrder(orderId: string) {
   return call<{ ok: true }>('admin-refund', { body: { orderId }, token: await staffToken() })
 }

@@ -621,9 +621,8 @@ async function memberOrders(uid, areaId) {
       guaranteeUntil: deadline ? deadline.toISOString() : null,
       canRequestRefund: o.status === 'approved' && !o.refundRequest && !!deadline && deadline.getTime() > Date.now(),
       refundRequestedAt: o.refundRequest?.requestedAt || null,
+      refundDeniedAt: o.refundRequest?.deniedAt || null,
       supportEmail: product?.supportEmail || o.supportEmail || null,
-      // Reembolso na hora: produto com reembolso automático e pago pelo Mercado Pago (ou de graça).
-      autoRefund: product?.autoRefund === true && (!!o.mpPaymentId || !(o.amount > 0)),
     })
   }
   return out.sort((a, b) => String(b.approvedAt).localeCompare(String(a.approvedAt)))
@@ -675,6 +674,7 @@ async function actionMemberRefundRequest(req) {
   const uid = await requireMember(req)
   const orderId = String(req.body?.orderId || '')
   const reason = String(req.body?.reason || '').trim().slice(0, 1000)
+  if (reason.length < 10) throw new HttpError(400, 'Conte o motivo do reembolso (pelo menos uma frase).')
   const mine = (await memberOrders(uid)).find((o) => o.orderId === orderId)
   if (!mine) throw new HttpError(404, 'Compra não encontrada')
   if (!mine.canRequestRefund) throw new HttpError(400, mine.refundRequestedAt ? 'O reembolso desta compra já foi pedido' : 'O prazo de garantia desta compra já acabou')
@@ -684,18 +684,7 @@ async function actionMemberRefundRequest(req) {
   const total = (o.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const what = o.items.map((i) => i.name).join(' + ')
 
-  // Reembolso automático (ligado no produto): dentro da garantia o dinheiro volta na hora.
-  if (mine.autoRefund) {
-    try {
-      await refundOrder(orderId, 'Reembolso automático (garantia)', { refundRequest, autoRefundedAt: nowIso() })
-      await notifyStaff('store_refund', `Reembolso automático: ${o.buyer?.name} pediu e recebeu de volta ${total} (${what}). O acesso foi removido.${reason ? ` Motivo: ${reason}` : ''}`, 'Loja', { privateTo: o.privateTo })
-      return { ok: true, refunded: true }
-    } catch (err) {
-      // MP recusou (ex.: saldo insuficiente): vira pedido manual pra equipe resolver.
-      console.warn('[loja] reembolso automático falhou:', orderId, err?.message)
-    }
-  }
-
+  // Nunca reembolsa sozinho: o pedido vai pra equipe, que reembolsa ou recusa na aba Vendas.
   await updateDoc(`storeOrders/${orderId}`, { refundRequest, updatedAt: nowIso() })
   await notifyStaff('store_refund_request', `Pedido de reembolso: ${o.buyer?.name} pediu reembolso de ${what} (${total}).${reason ? ` Motivo: ${reason}` : ''}`, 'Loja', { privateTo: o.privateTo })
   return { ok: true, refunded: false }
@@ -984,6 +973,19 @@ async function actionAdminCancel(req, user) {
   return { ok: true }
 }
 
+/** Recusa o pedido de reembolso do aluno: a compra continua valendo e ele vê "recusado" em Minhas compras. */
+async function actionAdminRefundDeny(req, user) {
+  const orderId = String(req.body?.orderId || '')
+  const snap = await getDoc(`storeOrders/${orderId}`)
+  if (!snap.exists) throw new HttpError(404, 'Pedido não encontrado')
+  const o = snap.data()
+  assertVisible(o, user)
+  if (!o.refundRequest || o.refundRequest.deniedAt) throw new HttpError(400, 'Esse pedido não tem reembolso aguardando resposta')
+  if (o.status !== 'approved') throw new HttpError(400, 'Esse pedido não está aprovado')
+  await updateDoc(`storeOrders/${orderId}`, { refundRequest: { ...o.refundRequest, deniedAt: nowIso(), deniedBy: user.name }, updatedAt: nowIso() })
+  return { ok: true }
+}
+
 /* ----------------------------- nota fiscal ----------------------------- */
 
 const orderIdFromRef = (ref) => String(ref || '').replace(/-\d+$/, '')
@@ -1218,6 +1220,7 @@ const ADMIN = {
   'POST admin-confirm': actionAdminConfirm,
   'POST admin-delete-member': actionAdminDeleteMember,
   'POST admin-cancel': actionAdminCancel,
+  'POST admin-refund-deny': actionAdminRefundDeny,
   'POST admin-reconcile': actionAdminReconcile,
   'POST admin-invoice-token': actionAdminInvoiceToken,
   'GET admin-capi-status': actionAdminCapiStatus,

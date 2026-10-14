@@ -88,7 +88,7 @@ export function StorePage() {
   const lessonCounts = Object.fromEntries(products.map((p) => [p.id, p.lessonCount ?? 0]))
   const pendingComments = comments.filter((c) => c.status === 'pending').length
   const pixToConfirm = orders.filter((o) => o.status === 'pending' && o.method === 'pix_manual').length
-  const refundRequests = orders.filter((o) => o.status === 'approved' && o.refundRequest).length
+  const refundRequests = orders.filter((o) => o.status === 'approved' && o.refundRequest && !o.refundRequest.deniedAt).length
   const salesAlerts = pixToConfirm + refundRequests
   const salesBadgeLabel = [pixToConfirm && `${pixToConfirm} Pix para confirmar`, refundRequests && `${refundRequests} reembolso pedido`].filter(Boolean).join(', ')
   const openCarts = abandoned.filter((a) => !a.recoveredAt && !a.contactedAt && Date.now() - new Date(a.updatedAt).getTime() > 15 * 60_000).length

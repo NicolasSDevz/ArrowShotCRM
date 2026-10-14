@@ -6,7 +6,7 @@ import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
 import { Input, Select } from '../../ui/Field'
 import { EmptyState } from '../../ui/EmptyState'
-import { storeAccessLink, storeCancelOrder, storeDeleteOrder, storeConfirmOrder, storeEmitInvoice, storeReconcileOrders, storeRefundOrder, storeSyncInvoices } from '../../../services/storeApi'
+import { storeAccessLink, storeCancelOrder, storeDeleteOrder, storeConfirmOrder, storeEmitInvoice, storeReconcileOrders, storeRefundOrder, storeDenyRefund, storeSyncInvoices } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { formatCents, STORE_METHOD_LABEL, STORE_ORDER_STATUS_LABEL, type StoreOrder, type StoreOrderStatus, type StoreProduct } from '../../../types/store'
 
@@ -135,6 +135,16 @@ export function useOrderActions() {
     }
   }
 
+  const denyRefund = async (o: StoreOrder) => {
+    if (!(await askConfirm({ title: 'Recusar reembolso', message: `${o.buyer.name}, ${formatCents(o.amount)}. A compra continua valendo e o aluno vê que o reembolso foi recusado.${o.refundRequest?.reason ? ` Motivo dele: ${o.refundRequest.reason}` : ''}`, confirmLabel: 'Recusar reembolso', danger: true }))) return
+    try {
+      await storeDenyRefund(o.id)
+      toast.success('Reembolso recusado')
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
   const refund = async (o: StoreOrder) => {
     const ok = await askConfirm({
       title: 'Reembolsar pedido',
@@ -176,7 +186,7 @@ export function useOrderActions() {
     }
   }
 
-  return { busy: refunding, confirmPayment, cancelOrder, refund, copyAccess, deleteOrder, canDelete }
+  return { busy: refunding, confirmPayment, cancelOrder, refund, denyRefund, copyAccess, deleteOrder, canDelete }
 }
 
 /** Lista de pedidos com filtro, exportação CSV, link de acesso e reembolso. */
@@ -184,7 +194,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | StoreOrderStatus>('')
   const [productId, setProductId] = useState('')
-  const { busy: refunding, confirmPayment, cancelOrder, refund, copyAccess, deleteOrder, canDelete } = useOrderActions()
+  const { busy: refunding, confirmPayment, cancelOrder, refund, denyRefund, copyAccess, deleteOrder, canDelete } = useOrderActions()
   useReconcilePending(orders)
   const [emitting, setEmitting] = useState<string | null>(null)
 
@@ -295,7 +305,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                     )}
                     {o.refundRequest && o.status === 'approved' && (
                       <div className="mt-1">
-                        <Badge className="bg-red-50 text-red-600">Reembolso pedido</Badge>
+                        {o.refundRequest.deniedAt ? <Badge className="bg-slate-100 text-slate-600">Reembolso recusado{o.refundRequest.deniedBy ? ` por ${o.refundRequest.deniedBy}` : ''}</Badge> : <Badge className="bg-red-50 text-red-600">Reembolso pedido</Badge>}
                         <p className="mt-0.5 max-w-[200px] text-xs text-slate-500">
                           {new Date(o.refundRequest.requestedAt).toLocaleDateString('pt-BR')}{o.refundRequest.reason ? `: ${o.refundRequest.reason}` : ''}
                         </p>
@@ -324,6 +334,11 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                     {o.accessUrl && o.status === 'approved' && (
                       <Button size="sm" variant="ghost" icon={<Copy size={14} />} onClick={() => copyAccess(o)} aria-label={`Copiar link de acesso de ${o.buyer.name}`}>
                         Acesso
+                      </Button>
+                    )}
+                    {o.status === 'approved' && o.refundRequest && !o.refundRequest.deniedAt && (
+                      <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => denyRefund(o)} aria-label={`Recusar reembolso de ${o.buyer.name}`}>
+                        Recusar reembolso
                       </Button>
                     )}
                     {o.status === 'approved' && (
