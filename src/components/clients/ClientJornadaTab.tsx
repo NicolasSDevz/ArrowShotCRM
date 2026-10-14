@@ -178,20 +178,30 @@ function JornadaCard({
     'disabled:cursor-default disabled:opacity-60 ' +
     'dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:focus:border-blue-500 dark:focus:ring-blue-900/30'
 
+  const mesNum = parseInt(config.mes, 10)
+  const cardLabel = `Mês ${mesNum} — ${config.tema} — ${STATUS_LABEL[mesStatus]}`
+
   return (
-    <div className={`rounded-xl border p-4 ${CARD_BG[mesStatus]}`}>
+    <div
+      role="region"
+      aria-label={cardLabel}
+      className={`rounded-xl border p-4 ${CARD_BG[mesStatus]}`}
+    >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${DOT_BG[mesStatus]}`}>
+          <div
+            aria-hidden="true"
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${DOT_BG[mesStatus]}`}
+          >
             {config.mes}
           </div>
           <div>
-            <p className="font-semibold text-slate-800 dark:text-slate-100">{config.tema}</p>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100">{config.tema}</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">{config.descricao}</p>
           </div>
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[mesStatus]}`}>
+        <span aria-hidden="true" className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[mesStatus]}`}>
           {STATUS_LABEL[mesStatus]}
         </span>
       </div>
@@ -201,6 +211,8 @@ function JornadaCard({
         <button
           onClick={handleToggleDone}
           disabled={!canEdit || saving}
+          aria-pressed={isDone}
+          aria-label={isDone ? 'Desmarcar reunião como feita' : 'Marcar reunião como feita'}
           className={[
             'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
             isDone
@@ -210,18 +222,22 @@ function JornadaCard({
           ].join(' ')}
         >
           {isDone
-            ? <CheckSquare size={18} className="text-emerald-600 dark:text-emerald-400" />
-            : <Square size={18} className="text-slate-400" />}
+            ? <CheckSquare aria-hidden="true" size={18} className="text-emerald-600 dark:text-emerald-400" />
+            : <Square aria-hidden="true" size={18} className="text-slate-400" />}
           Reunião feita
         </button>
       </div>
 
       {/* Data da reunião */}
       <div className="mt-4">
-        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+        <label
+          htmlFor={`data-reuniao-${config.mes}`}
+          className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+        >
           Data da reunião
         </label>
         <input
+          id={`data-reuniao-${config.mes}`}
           type="date"
           value={localDate}
           onChange={(e) => setLocalDate(e.target.value)}
@@ -233,10 +249,14 @@ function JornadaCard({
 
       {/* Observações */}
       <div className="mt-4">
-        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+        <label
+          htmlFor={`obs-${config.mes}`}
+          className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+        >
           Observações
         </label>
         <textarea
+          id={`obs-${config.mes}`}
           value={localObs}
           onChange={(e) => setLocalObs(e.target.value)}
           onBlur={handleBlurObs}
@@ -272,10 +292,14 @@ function JornadaCard({
       {/* Vincular reunião */}
       {canEdit && meetings.length > 0 && (
         <div className="mt-4">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+          <label
+            htmlFor={`vincular-${config.mes}`}
+            className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+          >
             Vincular a uma reunião
           </label>
           <select
+            id={`vincular-${config.mes}`}
             value={doc?.reuniaoVinculadaId ?? ''}
             onChange={(e) => handleLinkMeeting(e.target.value)}
             className={inputBase}
@@ -360,7 +384,7 @@ export function ClientJornadaTab({ client }: { client: Client }) {
 
   if (loading) {
     return (
-      <div className="flex h-32 items-center justify-center">
+      <div role="status" aria-live="polite" className="flex h-32 items-center justify-center">
         <span className="text-sm text-slate-400">Carregando jornada...</span>
       </div>
     )
@@ -380,9 +404,12 @@ export function ClientJornadaTab({ client }: { client: Client }) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <CalendarDays size={14} className="text-slate-400" />
-            <span className="text-xs text-slate-500 dark:text-slate-400">Início da jornada:</span>
+            <CalendarDays aria-hidden="true" size={14} className="text-slate-400" />
+            <label htmlFor="data-inicio-jornada" className="text-xs text-slate-500 dark:text-slate-400">
+              Início da jornada:
+            </label>
             <input
+              id="data-inicio-jornada"
               type="date"
               value={dataInicioInput}
               onChange={(e) => setDataInicioInput(e.target.value)}
@@ -396,13 +423,21 @@ export function ClientJornadaTab({ client }: { client: Client }) {
             />
           </div>
         </div>
-        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+        <div
+          role="progressbar"
+          aria-valuenow={totalFeitas}
+          aria-valuemin={0}
+          aria-valuemax={12}
+          aria-label={`Progresso da jornada: ${totalFeitas} de 12 reuniões feitas`}
+          className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+        >
           <div
+            aria-hidden="true"
             className="h-2.5 rounded-full bg-emerald-500 transition-all duration-500"
             style={{ width: `${(totalFeitas / 12) * 100}%` }}
           />
         </div>
-        <p className="mt-1.5 text-right text-xs text-slate-400">
+        <p aria-hidden="true" className="mt-1.5 text-right text-xs text-slate-400">
           {Math.round((totalFeitas / 12) * 100)}%
         </p>
       </div>
@@ -414,7 +449,7 @@ export function ClientJornadaTab({ client }: { client: Client }) {
         return (
           <div key={maquina.id} className="flex flex-col gap-3">
             <div className={`rounded-xl border-l-4 px-4 py-3 ${style.border} ${style.bg}`}>
-              <p className={`font-semibold ${style.title}`}>{maquina.nome}</p>
+              <h2 className={`font-semibold ${style.title}`}>{maquina.nome}</h2>
               <p className={`text-sm ${style.sub}`}>{maquina.subtitulo}</p>
             </div>
             {meses.map((config) => {
