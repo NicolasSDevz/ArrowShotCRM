@@ -45,8 +45,8 @@ export function ClientAccessTab({ client }: { client: Client }) {
   const load = useCallback(async () => {
     try {
       const r = await listClientCredentials(client.id)
-      setEntries(Object.fromEntries(r.entries.map((e) => [e.key, e])))
-      setRequest(r.request)
+      setEntries(Object.fromEntries((r.entries ?? []).map((e) => [e.key, e])))
+      setRequest(r.request ?? null)
       setLoadError(null)
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Erro ao carregar os acessos')
@@ -152,7 +152,7 @@ export function ClientAccessTab({ client }: { client: Client }) {
             </button>
           </div>
         ) : (
-          <Button size="sm" icon={<Link2 size={13} />} onClick={createLink} loading={linkBusy} disabled={loading || !!loadError}>
+          <Button size="sm" icon={<Link2 size={13} />} onClick={createLink} loading={linkBusy} disabled={loading}>
             Gerar link e copiar
           </Button>
         )}
