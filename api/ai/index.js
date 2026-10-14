@@ -49,6 +49,7 @@ import { fetchAccountInsights, fetchLevelInsights, normalizeAccountId } from '..
 import { resolveMetaToken } from '../_lib/metaTokenStore.js'
 import { getBaseVendas, formatBaseVendasForPrompt } from '../_lib/baseVendas.js'
 import { runCopilotoSugestao } from '../_lib/copilotoSugestao.js'
+import { transcribeWithGroq, GroqRateLimitError } from '../_lib/groqWhisper.js'
 
 const ANTHROPIC_MODEL = 'claude-sonnet-5'
 const DAILY_MESSAGE_LIMIT = 50
@@ -456,10 +457,36 @@ async function handleSugestao(req, res, user) {
   await runCopilotoSugestao({ leadId, pergunta, transcricaoRecente, resumoAnterior }, res)
 }
 
+/** POST /api/ai/transcrever { audioBase64, mimeType } -> { text }. Ver
+ *  api/_lib/groqWhisper.js. 429 do Groq vira { error, retryAfterSec } pro
+ *  navegador esperar e reenviar o mesmo trecho (ver utils/groqRateLimiter.ts). */
+async function handleTranscrever(req, res, user) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (user.role !== 'admin' && user.role !== 'manager') {
+    return res.status(403).json({ error: 'Sem permissão para usar o Copiloto de Vendas' })
+  }
+  const { audioBase64, mimeType } = req.body || {}
+  if (!audioBase64 || typeof audioBase64 !== 'string') {
+    return res.status(400).json({ error: 'audioBase64 é obrigatório' })
+  }
+  try {
+    const buffer = Buffer.from(audioBase64, 'base64')
+    const text = await transcribeWithGroq(buffer, mimeType || 'audio/wav')
+    return res.status(200).json({ text })
+  } catch (err) {
+    if (err instanceof GroqRateLimitError) {
+      return res.status(429).json({ error: err.message, retryAfterSec: err.retryAfterSec })
+    }
+    console.error('[ai/transcrever] falha ao transcrever:', err.message)
+    return res.status(502).json({ error: err.message || 'Falha ao transcrever o áudio' })
+  }
+}
+
 async function handler(req, res, user) {
   // Mesmo arquivo (não uma rota nova) porque o projeto está no limite de
   // Functions do plano da Vercel.
   if (req.query.acao === 'sugestao') return handleSugestao(req, res, user)
+  if (req.query.acao === 'transcrever') return handleTranscrever(req, res, user)
 
   if (req.method === 'GET') {
     try {

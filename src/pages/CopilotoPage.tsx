@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Mic, Square, AlertTriangle, Loader2, Radio, ArrowRight, Sparkles, Send } from 'lucide-react'
+import { Mic, Square, AlertTriangle, Loader2, Radio, ArrowRight, Sparkles, Send, Clock, Gauge } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { useAuth } from '../context/AuthContext'
 import { useCopiloto } from '../hooks/useCopiloto'
@@ -19,7 +19,9 @@ function LgpdModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: (
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-800">
         <h2 className="mb-1 text-lg font-bold text-slate-900 dark:text-white">Antes de iniciar</h2>
         <p className="mb-4 text-sm text-slate-500">
-          A transcrição é feita localmente no seu computador. O áudio não sai do seu navegador.
+          A fala é cortada por frase no seu navegador e enviada para transcrição via API (Groq Whisper) — diferente
+          da versão anterior, o áudio sai do navegador para esse processamento. Só o texto resultante é salvo no
+          CRM; não guardamos o áudio.
         </p>
 
         <div className="mb-4 rounded-xl bg-amber-50 p-4 dark:bg-amber-950/50">
@@ -118,6 +120,18 @@ function TranscrevingIndicator({ speaker }: { speaker: 'Bruno' | 'Cliente' }) {
   )
 }
 
+// ─── Status "ouvindo" por fonte ─────────────────────────────────────────────
+
+function FonteStatus({ label, ativo, cor }: { label: string; ativo: boolean; cor: string }) {
+  return (
+    <span className="flex items-center gap-1 text-xs text-slate-400">
+      <span className={`h-2 w-2 rounded-full ${ativo ? '' : 'opacity-30'}`} style={{ backgroundColor: cor }} />
+      {label}
+      {ativo ? ': ouvindo' : ''}
+    </span>
+  )
+}
+
 // ─── Página principal ───────────────────────────────────────────────────────
 
 export function CopilotoPage() {
@@ -133,9 +147,10 @@ export function CopilotoPage() {
   const {
     status,
     blocos,
-    modelProgress,
-    modelReady,
     transcrevendo,
+    ouvindo,
+    atrasoMedioMs,
+    groqStatus,
     chamadaId,
     erroCaptura,
     semAudioCliente,
@@ -219,8 +234,6 @@ export function CopilotoPage() {
 
   const blocoInicio = blocos[0]?.timestampMs ?? 0
 
-  const anyTranscribing = transcrevendo.size > 0
-
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-slate-50 dark:bg-slate-900">
       {/* Header */}
@@ -241,7 +254,6 @@ export function CopilotoPage() {
               {lead && ` — ${lead.contactName}${lead.companyName ? ` · ${lead.companyName}` : ''}`}
             </p>
             <p className="text-xs text-slate-400">
-              {status === 'carregando_modelo' && 'Carregando modelo Whisper…'}
               {status === 'aguardando_inicio' && 'Pronto para iniciar'}
               {status === 'ativa' && `${blocos.length} bloco${blocos.length !== 1 ? 's' : ''} transcritos`}
               {status === 'encerrando' && 'Encerrando…'}
@@ -276,32 +288,13 @@ export function CopilotoPage() {
         </div>
       </header>
 
-      {/* Progresso do download do modelo */}
-      {status === 'carregando_modelo' && modelProgress && (
-        <div className="border-b border-slate-200 bg-amber-50 px-5 py-2.5 dark:border-slate-700 dark:bg-amber-950/40">
-          <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
-            <Loader2 size={14} className="animate-spin" />
-            <span>
-              Baixando modelo Whisper-small pela primeira vez (~244 MB, cacheado após isso)…
-              {' '}
-              {Math.round(modelProgress.progress)}%
-            </span>
-          </div>
-          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-amber-200 dark:bg-amber-900">
-            <div
-              className="h-full rounded-full bg-amber-600 transition-all"
-              style={{ width: `${modelProgress.progress}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Aviso de modelo carregando (sem progresso ainda) */}
-      {status === 'carregando_modelo' && !modelProgress && (
-        <div className="border-b border-slate-200 bg-amber-50 px-5 py-2.5 dark:border-slate-700 dark:bg-amber-950/40">
-          <p className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
-            <Loader2 size={14} className="animate-spin" />
-            Inicializando modelo Whisper-small (na primeira vez, aguarde o download de ~244 MB)…
+      {/* Limite diário/por hora do Groq atingido */}
+      {groqStatus.dailyLimitReached && (
+        <div className="border-b border-red-200 bg-red-50 px-5 py-2 dark:border-red-800 dark:bg-red-950/40">
+          <p className="flex items-center gap-2 text-xs text-red-700 dark:text-red-400">
+            <AlertTriangle size={13} />
+            Transcrição pausada: limite diário atingido. O que já foi transcrito está salvo — trechos novos só
+            voltam a ser transcritos quando o limite liberar.
           </p>
         </div>
       )}
@@ -330,33 +323,37 @@ export function CopilotoPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Esquerda: Transcrição */}
         <div className="flex flex-1 flex-col overflow-hidden border-r border-slate-200 dark:border-slate-700">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-2.5 dark:border-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-y-1.5 border-b border-slate-100 px-5 py-2.5 dark:border-slate-700">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Transcrição ao vivo</p>
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 text-xs text-slate-400">
-                <span className="h-2 w-2 rounded-full bg-brand-500" /> Bruno (mic)
-              </span>
-              <span className="flex items-center gap-1 text-xs text-slate-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" /> Cliente (aba Meet)
-              </span>
+              <FonteStatus label="Bruno" ativo={ouvindo.Bruno} cor="#2563EB" />
+              <FonteStatus label="Cliente" ativo={ouvindo.Cliente} cor="#10B981" />
+              {status === 'ativa' && (
+                <>
+                  <span
+                    className="flex items-center gap-1 text-xs"
+                    style={{ color: atrasoMedioMs != null && atrasoMedioMs > 3000 ? '#D97706' : '#94A3B8' }}
+                    title="Atraso médio entre o fim da fala e o texto aparecer"
+                  >
+                    <Clock size={11} /> {atrasoMedioMs != null ? `~${(atrasoMedioMs / 1000).toFixed(1)}s` : '—'}
+                  </span>
+                  <span
+                    className="flex items-center gap-1 text-xs text-slate-400"
+                    title="Requisições de transcrição no último minuto / segundos de áudio transcritos hoje"
+                  >
+                    <Gauge size={11} /> {groqStatus.requestsThisMinute}/min · {Math.round(groqStatus.audioSecondsToday)}s hoje
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            {status === 'aguardando_inicio' || status === 'carregando_modelo' ? (
+            {status === 'aguardando_inicio' ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                {modelReady ? (
-                  <>
-                    <Mic size={32} className="text-brand-400" />
-                    <p className="text-sm text-slate-500">Clique <strong>Iniciar</strong> para começar a transcrição.</p>
-                    <p className="text-xs text-slate-400">Você precisará autorizar acesso ao microfone e compartilhar a aba do Meet.</p>
-                  </>
-                ) : (
-                  <>
-                    <Loader2 size={32} className="animate-spin text-slate-300" />
-                    <p className="text-sm text-slate-400">Carregando modelo…</p>
-                  </>
-                )}
+                <Mic size={32} className="text-brand-400" />
+                <p className="text-sm text-slate-500">Clique <strong>Iniciar</strong> para começar a transcrição.</p>
+                <p className="text-xs text-slate-400">Você precisará autorizar acesso ao microfone e compartilhar a aba do Meet.</p>
               </div>
             ) : blocos.length === 0 && status === 'ativa' ? (
               <p className="pt-8 text-center text-sm text-slate-400">Aguardando fala…</p>
@@ -365,9 +362,9 @@ export function CopilotoPage() {
                 {blocos.map((b) => (
                   <BlocoItem key={b.id} bloco={b} inicioMs={blocoInicio} />
                 ))}
-                {anyTranscribing && (
-                  <TranscrevingIndicator speaker="Bruno" />
-                )}
+                {[...transcrevendo.values()].map((speaker, i) => (
+                  <TranscrevingIndicator key={i} speaker={speaker} />
+                ))}
                 <div ref={transcriptEndRef} />
               </div>
             )}
