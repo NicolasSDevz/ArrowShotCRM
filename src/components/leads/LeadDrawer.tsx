@@ -5,7 +5,7 @@ import { Timestamp } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
-import { Trash2, ArrowRightCircle, Plus, Phone, MessageCircle, Mail, Video, MoreHorizontal, TriangleAlert } from 'lucide-react'
+import { Trash2, ArrowRightCircle, Plus, Phone, MessageCircle, Mail, Video, MoreHorizontal, TriangleAlert, Headphones } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
@@ -375,6 +375,17 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
             )}
           </div>
           <div className="flex items-center gap-1.5">
+            {profile.role === 'admin' && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<Headphones size={14} />}
+                onClick={() => navigate(`/copiloto/${lead.id}`)}
+                title="Abrir Copiloto de Vendas"
+              >
+                Copiloto
+              </Button>
+            )}
             {leadStage.kind === 'won' &&
               (lead.convertedClientId ? (
                 <Button size="sm" variant="secondary" onClick={() => navigate(`/clientes/${lead.convertedClientId}`)}>

@@ -693,6 +693,15 @@ service cloud.firestore {
       allow write: if isAdminOrManager();
     }
 
+    // Transcrições e chamadas do Copiloto de Vendas — só admin lê e escreve.
+    match /leads/{leadId}/chamadas/{chamadaId} {
+      allow read: if isInternal() && request.auth.token.role == 'admin';
+      allow create: if request.auth.token.role == 'admin'
+        && request.resource.data.keys().hasAll(['status', 'iniciadaEm', 'blocos', 'updatedBy', 'updatedAt'])
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow update: if request.auth.token.role == 'admin' && updatedBySelf();
+    }
+
     // ---------- future modules ----------
     // When googleAdsCampaigns, metaAdsCampaigns, leads, reports, finance, etc.
     // are introduced, add a `match /{collection}/{docId}` block here following
