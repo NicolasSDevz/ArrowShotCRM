@@ -89,18 +89,29 @@ export async function stampPdf(bytes, { name, cpf, email, orderId }) {
 
   for (const page of pdf.getPages()) {
     const { width, height } = page.getSize()
-    const size = Math.max(14, Math.min(28, width / 22))
+    // Diagonal grande: ocupa ~75% da diagonal da página.
+    const diag = Math.hypot(width, height)
+    let size = Math.max(20, Math.min(54, width / 11))
+    while (size > 16 && bold.widthOfTextAtSize(who, size) > diag * 0.75) size -= 1
     const textWidth = bold.widthOfTextAtSize(who, size)
     // Diagonal no meio da página.
     const angle = Math.atan2(height, width)
     const cx = width / 2 - (Math.cos(angle) * textWidth) / 2
     const cy = height / 2 - (Math.sin(angle) * textWidth) / 2
-    page.drawText(who, { x: cx, y: cy, size, font: bold, color: rgb(0.55, 0.55, 0.55), opacity: 0.18, rotate: degrees((angle * 180) / Math.PI) })
-    // Rodapé (encolhe se não couber).
-    let fs = 7
-    while (fs > 4 && font.widthOfTextAtSize(footer, fs) > width - 24) fs -= 0.5
-    page.drawRectangle({ x: 0, y: 0, width, height: fs + 8, color: rgb(1, 1, 1), opacity: 0.75 })
-    page.drawText(footer, { x: 12, y: 4, size: fs, font, color: rgb(0.3, 0.3, 0.3) })
+    page.drawText(who, { x: cx, y: cy, size, font: bold, color: rgb(0.55, 0.55, 0.55), opacity: 0.25, rotate: degrees((angle * 180) / Math.PI) })
+    // Rodapé: encolhe até 7 pt; se ainda não couber, quebra em duas linhas.
+    let fs = 10
+    while (fs > 7 && font.widthOfTextAtSize(footer, fs) > width - 24) fs -= 0.5
+    let lines = [footer]
+    if (font.widthOfTextAtSize(footer, fs) > width - 24) {
+      const words = footer.split(' ')
+      let cut = words.length
+      while (cut > 1 && font.widthOfTextAtSize(words.slice(0, cut).join(' '), fs) > width - 24) cut -= 1
+      lines = [words.slice(0, cut).join(' '), words.slice(cut).join(' ')]
+    }
+    const lineH = fs + 3
+    page.drawRectangle({ x: 0, y: 0, width, height: lines.length * lineH + 8, color: rgb(1, 1, 1), opacity: 0.8 })
+    lines.forEach((line, i) => page.drawText(line, { x: 12, y: 5 + (lines.length - 1 - i) * lineH, size: fs, font, color: rgb(0.3, 0.3, 0.3) }))
   }
   pdf.setSubject(footer)
   pdf.setKeywords([latin1(email || ''), doc, orderId || ''].filter(Boolean))
