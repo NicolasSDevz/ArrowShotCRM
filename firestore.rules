@@ -693,13 +693,13 @@ service cloud.firestore {
       allow write: if isAdminOrManager();
     }
 
-    // Transcrições e chamadas do Copiloto de Vendas — só admin lê e escreve.
+    // Transcrições e chamadas do Copiloto de Vendas — admin e manager.
     match /leads/{leadId}/chamadas/{chamadaId} {
-      allow read: if isInternal() && request.auth.token.role == 'admin';
-      allow create: if request.auth.token.role == 'admin'
+      allow read: if isAdminOrManager();
+      allow create: if isAdminOrManager()
         && request.resource.data.keys().hasAll(['status', 'iniciadaEm', 'blocos', 'updatedBy', 'updatedAt'])
         && request.resource.data.updatedBy == request.auth.uid;
-      allow update: if request.auth.token.role == 'admin' && updatedBySelf();
+      allow update: if isAdminOrManager() && updatedBySelf();
     }
 
     // ---------- future modules ----------

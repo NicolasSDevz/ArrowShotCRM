@@ -117,7 +117,7 @@ function App() {
             <Route path="/calendario" element={<CalendarMeetingsPage initialTab="calendario" />} />
             <Route path="/reunioes" element={<CalendarMeetingsPage initialTab="reunioes" />} />
             <Route path="/leads" element={<LeadsPage />} />
-              <Route path="/copiloto/:leadId" element={<ProtectedRoute allowedRoles={['admin']}><CopilotoPage /></ProtectedRoute>} />
+              <Route path="/copiloto/:leadId" element={<ProtectedRoute allowedRoles={['admin', 'manager']}><CopilotoPage /></ProtectedRoute>} />
             <Route path="/metricas" element={<MetricsPage />} />
             <Route path="/relatorios" element={<ReportsPage />} />
             <Route path="/relatorios/:id" element={<MonthlyReportPage />} />

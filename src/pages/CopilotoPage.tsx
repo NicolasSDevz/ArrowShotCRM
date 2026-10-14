@@ -144,11 +144,11 @@ export function CopilotoPage() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [blocos.length])
 
-  // Apenas admins podem usar o Copiloto
-  if (profile?.role !== 'admin') {
+  // Apenas admin e manager podem usar o Copiloto
+  if (profile?.role !== 'admin' && profile?.role !== 'manager') {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-slate-500">Acesso restrito a administradores.</p>
+        <p className="text-slate-500">Acesso restrito a administradores e gerentes.</p>
       </div>
     )
   }

@@ -5,7 +5,7 @@ import { Timestamp } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
-import { Trash2, ArrowRightCircle, Plus, Phone, MessageCircle, Mail, Video, MoreHorizontal, TriangleAlert, Headphones } from 'lucide-react'
+import { Trash2, ArrowRightCircle, Plus, Phone, MessageCircle, Mail, Video, MoreHorizontal, TriangleAlert, Mic } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
@@ -355,6 +355,17 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
           </div>
         }
       >
+        {(profile.role === 'admin' || profile.role === 'manager') && (
+          <div className="border-b border-brand-100 bg-brand-50 px-5 py-3 dark:border-brand-900 dark:bg-brand-950/40">
+            <button
+              onClick={() => navigate(`/copiloto/${lead.id}`)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 active:bg-brand-800"
+            >
+              <Mic size={15} />
+              Abrir Copiloto de Vendas
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -375,17 +386,6 @@ export function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () =
             )}
           </div>
           <div className="flex items-center gap-1.5">
-            {profile.role === 'admin' && (
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<Headphones size={14} />}
-                onClick={() => navigate(`/copiloto/${lead.id}`)}
-                title="Abrir Copiloto de Vendas"
-              >
-                Copiloto
-              </Button>
-            )}
             {leadStage.kind === 'won' &&
               (lead.convertedClientId ? (
                 <Button size="sm" variant="secondary" onClick={() => navigate(`/clientes/${lead.convertedClientId}`)}>
