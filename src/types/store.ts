@@ -503,6 +503,8 @@ export interface StorePaymentSettings {
   pixAccounts?: StorePixAccount[]
   /** Nome da conta principal do Mercado Pago (a da Vercel), ex.: "Nicolas". Vazio = "Conta principal". */
   mpPrincipalLabel?: string
+  /** Conta principal (Vercel) desligada no CRM: as vendas novas ignoram as chaves da Vercel. */
+  mpPrincipalDisabled?: boolean
   /** Conta de recebimento padrão: a que os produtos novos usam e que aparece primeiro.
    *  Id de uma conta extra (storeMpAccounts) ou vazio = a da Vercel. */
   defaultMpAccountId?: string | null

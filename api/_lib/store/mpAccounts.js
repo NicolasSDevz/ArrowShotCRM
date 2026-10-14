@@ -28,9 +28,19 @@ export async function getMpAccount(id) {
   return { id, label: meta.data().label || 'Conta extra', accessToken, publicKey: meta.data().publicKey || null, pixDirect: meta.data().pixDirect || null }
 }
 
-/** Conta que recebe o produto. Conta extra apagada volta pra principal (melhor cobrar que travar a venda). */
+/** Conta principal desligada no CRM (Recebimento > lixeira): as chaves da Vercel ficam ignoradas nas vendas novas. */
+export async function principalDisabled() {
+  const s = await getDoc('storeSettings/payments')
+  return s.exists && s.data().mpPrincipalDisabled === true
+}
+
+/** Conta que recebe o produto. Conta extra apagada volta pra principal (melhor cobrar que travar a venda).
+ *  Principal desligada = sem credencial (o checkout mostra "pagamento não configurado" ou o modo teste). */
 export async function mpAccountForProduct(product) {
-  return (await getMpAccount(product?.mpAccountId || null)) || envMpAccount()
+  const extra = product?.mpAccountId ? await getMpAccount(product.mpAccountId) : null
+  if (extra) return extra
+  if (await principalDisabled()) return { ...envMpAccount(), accessToken: null, publicKey: null }
+  return envMpAccount()
 }
 
 /** Conta do pedido (a mesma em que ele foi cobrado). */

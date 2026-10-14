@@ -196,7 +196,7 @@ export async function storeTestMpAccount(id: string) {
   return call<MpAccountTest>('admin-mp-test', { body: { id }, token: await staffToken() })
 }
 export async function storeAdminStatus() {
-  return call<{ mercadoPago: boolean; mpPrincipal?: boolean; mpPrincipalEmail?: string | null; mpPrincipalInvalid?: boolean; pixManual: boolean; email: boolean; invoice: { enabled: boolean; hasToken: boolean; environment: string } }>('admin-status', { token: await staffToken() })
+  return call<{ mercadoPago: boolean; mpPrincipal?: boolean; mpPrincipalEmail?: string | null; mpPrincipalInvalid?: boolean; mpPrincipalDisabled?: boolean; pixManual: boolean; email: boolean; invoice: { enabled: boolean; hasToken: boolean; environment: string } }>('admin-status', { token: await staffToken() })
 }
 export async function storeGrantAccess(email: string, name: string, productId: string, phone?: string) {
   return call<{ uid: string; accessUrl: string; emailSent?: boolean }>('admin-grant', { body: { email, name, productId, phone: phone || null }, token: await staffToken() })

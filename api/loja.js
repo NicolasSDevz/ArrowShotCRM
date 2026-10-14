@@ -106,7 +106,7 @@ import {
   notifyAbandonedCarts,
 } from './_lib/store/core.js'
 import { buildPixCode } from './_lib/store/pixCode.js'
-import { getMpAccount, mpAccountForProduct, saveMpAccount, deleteMpAccount } from './_lib/store/mpAccounts.js'
+import { getMpAccount, mpAccountForProduct, saveMpAccount, deleteMpAccount, principalDisabled } from './_lib/store/mpAccounts.js'
 import { fetchPdf, stampPdf } from './_lib/store/protectedPdf.js'
 import { encryptToken, decryptToken } from './_lib/tokenCrypto.js'
 import { capiStatus, cleanPixelId, removeCapiToken, saveCapiToken, sendCapiTest, trackingFromRequest } from './_lib/store/metaCapi.js'
@@ -727,10 +727,13 @@ async function actionAdminStatus() {
   await ensurePrivacyField().catch((err) => console.warn('[loja] migração privateTo:', err?.message))
   // De quem é a conta da Vercel (pra ver se as chaves não estão trocadas com outra conta).
   const principalWho = mpConfigured() ? await mpWhoAmI(process.env.MP_ACCESS_TOKEN).catch(() => null) : null
+  const principalOff = await principalDisabled()
   return {
+    // Desligada no CRM (as chaves da Vercel continuam lá, mas não cobram).
+    mpPrincipalDisabled: principalOff,
     mpPrincipalEmail: principalWho?.email || null,
     mpPrincipalInvalid: mpConfigured() && !principalWho,
-    mercadoPago: mpConfigured() || (await listDocs('storeMpAccounts')).length > 0,
+    mercadoPago: (mpConfigured() && !principalOff) || (await listDocs('storeMpAccounts')).length > 0,
     // Conta principal (variáveis da Vercel) configurada?
     mpPrincipal: mpConfigured(),
     pixManual: (await getPaymentSettings()).manualReady,

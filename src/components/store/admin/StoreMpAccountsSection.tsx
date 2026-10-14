@@ -5,7 +5,7 @@ import { auth } from '../../../firebase/config'
 import { useAuth } from '../../../context/AuthContext'
 import { useStoreMpAccounts, useStoreProducts } from '../../../hooks/useStore'
 import { storeDeleteMpAccount, storeSaveMpAccount, storeTestMpAccount, type MpAccountTest } from '../../../services/storeApi'
-import { saveStorePaymentSettings, setDefaultMpAccount, subscribeStorePaymentSettings } from '../../../services/storeService'
+import { saveStorePaymentSettings, setDefaultMpAccount, setMpPrincipalDisabled, subscribeStorePaymentSettings } from '../../../services/storeService'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { Button } from '../../ui/Button'
 import { Modal } from '../../ui/Modal'
@@ -71,6 +71,8 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
   const [settings, setSettings] = useState<StorePaymentSettings | null>(null)
   useEffect(() => subscribeStorePaymentSettings(setSettings), [])
   const principalLabel = settings?.mpPrincipalLabel || ''
+  const principalOff = settings?.mpPrincipalDisabled === true
+  const principalOn = principalReady && !principalOff
   // Padrão salvo que não existe mais (conta excluída) volta pra da Vercel.
   const savedDefault = settings?.defaultMpAccountId || ''
   const defaultId = savedDefault && accounts.some((a) => a.id === savedDefault) ? savedDefault : ''
@@ -88,6 +90,26 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
     try {
       const n = await setDefaultMpAccount(id, defaultId, products, profile.id)
       toast.success(`${nameOf(id)} agora é a conta padrão${n ? ` (${n} produto(s) passaram para ela)` : ''}`)
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
+  const togglePrincipal = async () => {
+    if (!profile) return
+    const name = principalLabel || 'Conta principal'
+    if (!principalOff) {
+      const ok = await askConfirm({
+        title: `Apagar a conta "${name}"?`,
+        message: 'As vendas novas param de usar as chaves do Mercado Pago da Vercel (MP_ACCESS_TOKEN e MP_PUBLIC_KEY). Os produtos que recebem nela ficam sem Pix e cartão pelo Mercado Pago até você ligar de novo ou trocar a conta deles. Pedidos já feitos continuam registrados.',
+        confirmLabel: 'Apagar conta',
+        danger: true,
+      })
+      if (!ok) return
+    }
+    try {
+      await setMpPrincipalDisabled(!principalOff, profile.id)
+      toast.success(principalOff ? `${name} ligada de novo` : `${name} apagada`)
     } catch (err) {
       toast.error((err as Error).message)
     }
@@ -120,19 +142,23 @@ export function StoreMpAccountsSection({ principalReady, principalEmail, princip
             order={defaultId === '' ? 0 : 1}
             name={principalLabel || 'Conta principal'}
             detail={
-              !principalReady
+              principalOff
+                ? 'Apagada no CRM: as chaves da Vercel não cobram'
+                : !principalReady
                 ? 'Mercado Pago não configurado na Vercel'
                 : principalInvalid
                   ? 'Vercel: o Mercado Pago recusou o token'
                   : `Vercel · ${principalEmail || 'Mercado Pago'}`
             }
-            ready={principalReady}
+            ready={principalOn}
             pixDirect={settings?.pixManual === true}
             isDefault={defaultId === ''}
-            onMakeDefault={principalReady ? () => makeDefault('') : undefined}
-            onTest={principalReady ? () => setTesting({ id: '', name: principalLabel || 'Conta principal' }) : undefined}
+            onMakeDefault={principalOn ? () => makeDefault('') : undefined}
+            onTest={principalOn ? () => setTesting({ id: '', name: principalLabel || 'Conta principal' }) : undefined}
             onEdit={() => setRenaming(true)}
             editLabel={`Configurar a conta ${principalLabel || 'principal'}`}
+            onRemove={principalReady && !principalOff ? togglePrincipal : undefined}
+            onRestore={principalReady && principalOff ? togglePrincipal : undefined}
           />,
           ...accounts.map((a) => (
             <AccountCard
@@ -173,6 +199,7 @@ function AccountCard({
   onEdit,
   editLabel,
   onRemove,
+  onRestore,
 }: {
   /** Só para ordenar a lista (padrão primeiro). */
   order: number
@@ -187,6 +214,8 @@ function AccountCard({
   onEdit: () => void
   editLabel: string
   onRemove?: () => void
+  /** Conta principal apagada no CRM: botão pra ligar de novo. */
+  onRestore?: () => void
 }) {
   const chip = (on: boolean) => `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`
   return (
@@ -216,6 +245,11 @@ function AccountCard({
         {onTest && (
           <button type="button" onClick={onTest} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-brand-700" aria-label={`Testar a conta ${name}`}>
             <Stethoscope size={13} aria-hidden="true" /> Testar
+          </button>
+        )}
+        {onRestore && (
+          <button type="button" onClick={onRestore} className="text-xs font-semibold text-brand-600 hover:underline" aria-label={`Ligar de novo a conta ${name}`}>
+            Ligar de novo
           </button>
         )}
         {!isDefault && onMakeDefault && (

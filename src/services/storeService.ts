@@ -334,6 +334,11 @@ export function subscribeStorePaymentSettings(onData: (s: StorePaymentSettings |
   return onSnapshot(doc(db, 'storeSettings', 'payments'), (s) => onData(s.exists() ? (s.data() as StorePaymentSettings) : null), onError)
 }
 
+/** Liga ou desliga a conta principal (Vercel) nas vendas novas. */
+export async function setMpPrincipalDisabled(disabled: boolean, userId: string) {
+  await setDoc(doc(db, 'storeSettings', 'payments'), { mpPrincipalDisabled: disabled, updatedAt: serverTimestamp(), updatedBy: userId }, { merge: true })
+}
+
 /** Troca a conta de recebimento padrão e passa para ela os produtos que estavam na
  *  padrão anterior (menos os privados, que ficam com o dono). Devolve quantos mudaram. */
 export async function setDefaultMpAccount(newId: string, oldId: string, all: StoreProduct[], userId: string) {
