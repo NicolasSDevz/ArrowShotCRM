@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Mic, MicOff, Square, AlertTriangle, CheckSquare, Square as SquareIcon, Loader2, Radio } from 'lucide-react'
+import { Mic, Square, AlertTriangle, Loader2, Radio } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { useAuth } from '../context/AuthContext'
 import { useCopiloto } from '../hooks/useCopiloto'
@@ -182,12 +182,6 @@ export function CopilotoPage() {
 
   const blocoInicio = blocos[0]?.timestampMs ?? 0
 
-  const transcreveBruno = [...transcrevendo].some((id) => {
-    // IDs pares = Bruno por convenção do hook (não ideal, mas funcional para o indicador)
-    return id.endsWith('B')
-  })
-  const transceveCliente = [...transcrevendo].some((id) => id.endsWith('C'))
-  // O hook marca só pelo id numérico, então simplificamos: qualquer pendente = mostrar ambos
   const anyTranscribing = transcrevendo.size > 0
 
   return (
