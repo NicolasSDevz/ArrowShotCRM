@@ -3,13 +3,10 @@ import {
   LayoutDashboard,
   ListChecks,
   Users,
-  Sparkles,
   CalendarDays,
-  Gauge,
   UserPlus,
   BarChart3,
   UserCog,
-  GraduationCap,
   KeyRound,
   CalendarRange,
   ShoppingBag,
@@ -39,12 +36,9 @@ const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/operacional', label: 'Operacional', icon: ListChecks },
   { to: '/clientes', label: 'Clientes', icon: Users },
-  // Reuniões e Calendário são a mesma página (abas) — o item fica aceso nas duas rotas.
   { to: '/reunioes', label: 'Reuniões', icon: CalendarDays, alsoActive: ['/calendario'] },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
-  { to: '/metricas', label: 'Métricas', icon: Gauge },
   { to: '/leads', label: 'Leads', icon: UserPlus },
-  { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
 ]
 
 export function Sidebar({
@@ -75,7 +69,7 @@ export function Sidebar({
   const c = collapsed
   const labelCls = c ? 'md:hidden' : ''
   const linkLayout = c ? 'md:justify-center md:px-0' : ''
-  const canSeeUniversity = profile?.role === 'admin' || profile?.role === 'manager' || profile?.role === 'employee'
+  const canSeeEquipe = profile?.role === 'admin' || profile?.role === 'manager' || profile?.role === 'employee'
   const canManageTokens = profile?.role === 'admin' || profile?.role === 'manager'
   const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
   const isGestorTrafego = personKey === 'ciane' || personKey === 'nicolas'
@@ -146,23 +140,7 @@ export function Sidebar({
             </NavLink>
           )}
 
-          {canSeeUniversity && (
-            <NavLink
-              to="/universidade"
-              title={c ? 'Universidade' : undefined}
-              onClick={onCloseMobile}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[15px] font-medium transition-all duration-150 ease-in-out ${linkLayout} ${
-                  isActive ? 'bg-brand-600 text-white' : 'text-slate-400 hover:bg-navy-800 hover:text-white'
-                }`
-              }
-            >
-              <GraduationCap size={18} className="shrink-0" />
-              <span className={labelCls}>Universidade</span>
-            </NavLink>
-          )}
-
-          {canSeeUniversity && (
+          {canSeeEquipe && (
             <NavLink
               to="/equipe"
               title={c ? 'Equipe' : undefined}
