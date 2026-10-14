@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/meta/:acao",
+      "destination": "/api/meta?acao=:acao"
+    },
+    {
+      "source": "/api/ai/:acao",
+      "destination": "/api/ai?acao=:acao"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },

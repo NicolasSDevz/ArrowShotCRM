@@ -1,4 +1,4 @@
-// Vercel Function — /api/meta/[acao]
+// Vercel Function — /api/meta/:acao (rewrite no vercel.json → /api/meta?acao=:acao)
 //
 // Rota dinâmica que consolida todas as sub-rotas do Meta Ads num único arquivo,
 // respeitando o limite de 12 funções do plano Hobby da Vercel.

@@ -16,8 +16,9 @@ async function call<T>(query: string, init: RequestInit = {}, withAuth = true): 
   const headers: Record<string, string> = { ...(withAuth ? await authHeaders() : {}) }
   if (init.body) headers['Content-Type'] = 'application/json'
   const res = await fetch(`${BASE}${query}`, { ...init, headers, signal: AbortSignal.timeout(20_000) })
-  const body = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(body.error || 'Erro ao falar com o servidor')
+  const body = await res.json().catch(() => null)
+  if (!res.ok) throw new Error(body?.error || 'Erro ao falar com o servidor')
+  if (!body) throw new Error('O servidor respondeu num formato inesperado — tente de novo em instantes')
   return body as T
 }
 
