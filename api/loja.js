@@ -841,7 +841,7 @@ async function actionAdminMpTest(req, user) {
     const msg = String(err?.message || '')
     out.pix.error = msg
     out.pix.hint = /financial identity|key enabled|without key|chave/i.test(msg)
-      ? 'A conta do Mercado Pago não tem chave Pix ativa DENTRO do Mercado Pago. No app do Mercado Pago: Pix > Minhas chaves > Cadastrar chave (se o celular já é chave em outro banco, use uma chave aleatória). Ou ligue "Pix direto na minha chave" nesta conta.'
+      ? `O Mercado Pago bloqueou o Pix desta conta${out.account?.email ? ` (${out.account.email})` : ''}. Confira: 1) se essa é a mesma conta onde está a sua chave Pix; 2) no app do Mercado Pago, Pix > Minhas chaves, se há chave ativa (se não, cadastre uma aleatória); 3) se o app pede validação de identidade ou cadastro pendente. Se tudo estiver certo, só o suporte do Mercado Pago libera. Enquanto isso, dá pra ligar "Pix direto na minha chave" nesta conta.`
       : /unauthorized|forbidden|401|403/i.test(msg)
         ? 'O token não tem permissão para receber. Use as credenciais de PRODUÇÃO da aplicação (APP_USR-) e confira se a conta está verificada.'
         : null
