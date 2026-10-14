@@ -7,11 +7,18 @@ import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib'
 /** Limite da resposta de função na Vercel (~4,5 MB). */
 export const MAX_PDF_BYTES = 4_200_000
 
-/** Links de compartilhamento viram link de download direto (Drive e Dropbox). */
+const DRIVE_ID_RE = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]{10,})/
+const DOCS_RE = /docs\.google\.com\/(document|presentation|spreadsheets)\/d\/([\w-]{10,})/
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+
+/** Links de compartilhamento viram link de download direto (Drive, Docs e Dropbox). */
 export function directDownloadUrl(raw) {
   const url = String(raw || '').trim()
-  const drive = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]{10,})/)
-  if (drive) return `https://drive.google.com/uc?export=download&id=${drive[1]}`
+  const docs = url.match(DOCS_RE)
+  if (docs) return `https://docs.google.com/${docs[1]}/d/${docs[2]}/export?format=pdf`
+  const drive = url.match(DRIVE_ID_RE)
+  // drive.usercontent + confirm=t pula a tela "não foi possível verificar vírus" do Google.
+  if (drive) return `https://drive.usercontent.google.com/download?id=${drive[1]}&export=download&confirm=t`
   if (/dropbox\.com\//.test(url)) {
     const fixed = url.replace(/([?&])dl=0/, '$1dl=1')
     return /[?&]dl=1/.test(fixed) ? fixed : `${fixed}${fixed.includes('?') ? '&' : '?'}dl=1`
@@ -19,12 +26,43 @@ export function directDownloadUrl(raw) {
   return url
 }
 
+const isPdf = (buf) => buf.subarray(0, 1024).toString('latin1').includes('%PDF-')
+
+async function get(url) {
+  const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(25_000) })
+  return { res, buf: Buffer.from(await res.arrayBuffer()) }
+}
+
+/** Página de confirmação do Drive (arquivo grande): reenvia o formulário com os campos escondidos. */
+function driveConfirmUrl(html) {
+  const form = html.match(/<form[^>]+action="([^"]+)"[^>]*>([\s\S]*?)<\/form>/i)
+  if (!form) return null
+  const params = new URLSearchParams()
+  for (const m of form[2].matchAll(/<input[^>]+name="([^"]+)"[^>]+value="([^"]*)"/gi)) params.set(m[1], m[2])
+  if (!params.get('id')) return null
+  return `${form[1].replace(/&amp;/g, '&')}?${params}`
+}
+
 export async function fetchPdf(rawUrl) {
-  const res = await fetch(directDownloadUrl(rawUrl), { redirect: 'follow', signal: AbortSignal.timeout(25_000) })
-  if (!res.ok) throw new Error(`Não consegui baixar o arquivo original (HTTP ${res.status})`)
-  const buf = Buffer.from(await res.arrayBuffer())
-  if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') {
-    throw new Error('O link do anexo não entrega um PDF direto. No Google Drive, deixe o arquivo como "Qualquer pessoa com o link".')
+  let { res, buf } = await get(directDownloadUrl(rawUrl))
+  if (res.ok && !isPdf(buf)) {
+    const next = driveConfirmUrl(buf.toString('utf8'))
+    if (next) ({ res, buf } = await get(next))
+  }
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(/google/.test(res.url) ? 'O Google não deixou baixar o arquivo. No Drive, Compartilhar > Acesso geral: "Qualquer pessoa com o link" (Leitor).' : `O site do arquivo recusou o download (HTTP ${res.status}).`)
+    }
+    if (res.status === 404) throw new Error('Arquivo não encontrado no link. Confira se ele não foi apagado ou movido.')
+    throw new Error(`Não consegui baixar o arquivo original (HTTP ${res.status})`)
+  }
+  if (!isPdf(buf)) {
+    const html = buf.toString('utf8')
+    const title = (html.match(/<title>([^<]*)<\/title>/i)?.[1] || '').trim()
+    console.warn('[pdf] link não entregou PDF:', res.url, title)
+    if (/accounts\.google\.com|ServiceLogin|Fazer login|Sign in/i.test(html)) throw new Error('O arquivo do Drive está restrito. Compartilhar > Acesso geral: "Qualquer pessoa com o link" (Leitor).')
+    if (/quota|cota/i.test(html)) throw new Error('O Google bloqueou downloads desse arquivo por excesso de acessos hoje. Faça uma cópia no Drive e troque o link.')
+    throw new Error(`O link do anexo não entrega um PDF${title ? ` (o Google respondeu: "${title.slice(0, 80)}")` : ''}. Confira se o arquivo é PDF mesmo e está como "Qualquer pessoa com o link".`)
   }
   if (buf.length > MAX_PDF_BYTES) throw new Error('PDF maior que 4 MB. Comprima o arquivo (ex.: ilovepdf.com) e troque o link.')
   return buf

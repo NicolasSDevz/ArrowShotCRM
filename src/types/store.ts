@@ -255,6 +255,8 @@ export interface StoreAttachment {
   /** PDF protegido: o link fica cifrado em `sealed` (url vazio) e o download carimba nome/CPF do aluno. */
   protected?: boolean
   sealed?: { ciphertext: string; iv: string; authTag: string } | null
+  /** PDF protegido: false = só lê na área de membros (sem botão Baixar). Vazio = pode baixar. */
+  allowDownload?: boolean
 }
 
 /** Tipo de aula: o que aparece no lugar do player. Vazio = vídeo (aulas antigas). */

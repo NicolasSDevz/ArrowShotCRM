@@ -312,6 +312,17 @@ function LessonModal({ productId, moduleId, lesson, nextOrder, onClose }: { prod
                   <ShieldCheck size={13} className="text-emerald-600" aria-hidden="true" />
                   PDF protegido: sai com nome, CPF e e-mail do aluno em todas as páginas, e o link original fica escondido
                 </label>
+                {a.protected && (
+                  <label className="flex items-center gap-2 px-1 pl-6 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5"
+                      checked={a.allowDownload !== false}
+                      onChange={(e) => setAttachments(attachments.map((x, j) => (j === i ? { ...x, allowDownload: e.target.checked } : x)))}
+                    />
+                    Aluno pode baixar (desmarcado: só lê dentro da área de membros)
+                  </label>
+                )}
               </li>
             ))}
           </ul>
@@ -333,8 +344,9 @@ async function sealAttachments(list: StoreAttachment[]): Promise<StoreAttachment
   for (const a of list) {
     const url = a.url.trim()
     if (a.protected) {
-      if (url) out.push({ name: a.name, url: '', protected: true, sealed: (await storeSealFile(url)).sealed })
-      else if (a.sealed) out.push({ name: a.name, url: '', protected: true, sealed: a.sealed })
+      const allowDownload = a.allowDownload !== false
+      if (url) out.push({ name: a.name, url: '', protected: true, allowDownload, sealed: (await storeSealFile(url)).sealed })
+      else if (a.sealed) out.push({ name: a.name, url: '', protected: true, allowDownload, sealed: a.sealed })
     } else if (url) {
       out.push({ name: a.name, url })
     }
