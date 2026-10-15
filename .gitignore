@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Pacote da extensão do Copiloto gerado pra enviar pro Bruno/Ciane (ver
+# extensao/README.md) — artefato de build, não faz sentido versionar.
+copiloto-extensao.zip
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
