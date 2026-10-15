@@ -7,6 +7,13 @@
 
 const MEET_PATTERN = /^https:\/\/meet\.google\.com\//
 
+// Sem isto, clicar no ícone da extensão na barra não faz nada — por padrão
+// o botão de ação não abre o painel lateral sozinho, mesmo com
+// side_panel.default_path definido no manifest.json.
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((err) => {
+  console.error('[copiloto-ext] falha ao habilitar abrir o painel pelo ícone:', err)
+})
+
 async function atualizarSidePanel(tabId: number, url: string | undefined) {
   const habilitado = !!url && MEET_PATTERN.test(url)
   try {
@@ -22,6 +29,17 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   chrome.tabs.get(tabId, (tab) => void atualizarSidePanel(tabId, tab?.url))
+})
+
+// Abas do Meet que já estavam abertas ANTES de instalar a extensão nunca
+// disparam onUpdated/onActivated — sem isto, ficariam sem o painel habilitado
+// até trocar de aba ou recarregar o Meet.
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.tabs.query({}, (tabs) => {
+    for (const tab of tabs) {
+      if (tab.id) void atualizarSidePanel(tab.id, tab.url)
+    }
+  })
 })
 
 async function ensureOffscreenDocument() {
