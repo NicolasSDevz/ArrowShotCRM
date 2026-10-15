@@ -146,7 +146,7 @@ export async function memberOrders(area: string) {
   return call<{ orders: MemberOrder[] }>('member-orders', { token, params: { area } })
 }
 /** PDF protegido para o leitor (carimbado, sem virar download). */
-export async function memberViewFile(productId: string, lessonId: string, index: number): Promise<ArrayBuffer> {
+export async function memberViewFile(productId: string, lessonId: string, index: number | 'pdf'): Promise<ArrayBuffer> {
   const token = await membersAuth.currentUser?.getIdToken()
   const qs = new URLSearchParams({ action: 'member-file', productId, lessonId, i: String(index), mode: 'view' })
   const res = await fetch(`/api/loja?${qs}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })

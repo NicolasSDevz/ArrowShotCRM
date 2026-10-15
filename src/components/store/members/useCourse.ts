@@ -86,26 +86,6 @@ export function useCourse(productId: string | undefined) {
   return { product, enrollment, modules, lessons, progress, completed, percent, loading: loading && !!product, setCompleted, setLastLesson, rate }
 }
 
-/** Link de PDF que abre dentro de um iframe: Drive vira /preview, Dropbox vira raw=1. */
-export function pdfSource(url?: string | null): { embed: string; open: string } | null {
-  if (!url) return null
-  try {
-    const u = new URL(url)
-    const host = u.hostname.replace(/^www\./, '')
-    if (host === 'drive.google.com') {
-      const id = u.pathname.match(/\/d\/([\w-]+)/)?.[1] || u.searchParams.get('id')
-      if (id) return { embed: `https://drive.google.com/file/d/${id}/preview`, open: `https://drive.google.com/file/d/${id}/view` }
-    }
-    if (host.endsWith('dropbox.com')) {
-      u.searchParams.delete('dl')
-      u.searchParams.set('raw', '1')
-      return { embed: u.toString(), open: u.toString() }
-    }
-    return { embed: url, open: url }
-  } catch {
-    return null
-  }
-}
 
 /** Converte link de YouTube, Vimeo, Panda, Bunny etc. em algo que dá pra tocar. */
 export function videoSource(url?: string | null): { kind: 'iframe' | 'video'; src: string } | null {

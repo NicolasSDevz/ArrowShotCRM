@@ -633,8 +633,9 @@ async function actionMemberFile(req) {
   const uid = await requireMember(req)
   const productId = String(req.query.productId || '')
   const lessonId = String(req.query.lessonId || '')
+  const isLessonPdf = req.query.i === 'pdf'
   const index = Number(req.query.i)
-  if (!/^[\w-]{5,40}$/.test(productId) || !/^[\w-]{5,40}$/.test(lessonId) || !Number.isInteger(index) || index < 0) throw new HttpError(400, 'Arquivo inválido')
+  if (!/^[\w-]{5,40}$/.test(productId) || !/^[\w-]{5,40}$/.test(lessonId) || (!isLessonPdf && (!Number.isInteger(index) || index < 0))) throw new HttpError(400, 'Arquivo inválido')
   const enr = await getDoc(`storeEnrollments/${uid}_${productId}`)
   if (!enr.exists || enr.data().active === false) throw new HttpError(403, 'Você não tem acesso a este curso')
   const lessonSnap = await getDoc(`storeProducts/${productId}/lessons/${lessonId}`)
@@ -642,8 +643,11 @@ async function actionMemberFile(req) {
   const lesson = lessonSnap.data()
   const releaseDays = Number(lesson.releaseDays) || 0
   if (releaseDays && Date.now() < new Date(enr.data().createdAt).getTime() + releaseDays * 86400_000) throw new HttpError(403, 'Essa aula ainda não foi liberada')
-  const att = (lesson.attachments || [])[index]
-  if (!att?.protected || !att.sealed) throw new HttpError(404, 'Arquivo não encontrado')
+  // i=pdf: o PDF principal da aula (aula do tipo PDF); número: anexo protegido.
+  const att = isLessonPdf
+    ? lesson.pdfSealed || lesson.pdfUrl ? { name: lesson.title, sealed: lesson.pdfSealed, url: lesson.pdfUrl } : null
+    : (lesson.attachments || [])[index]?.protected ? lesson.attachments[index] : null
+  if (!att || (!att.sealed && !att.url)) throw new HttpError(404, 'Arquivo não encontrado')
   // Só abre no leitor da área de membros; baixar o PDF não é permitido.
   if (req.query.mode !== 'view') throw new HttpError(403, 'Este arquivo é só para ler na área de membros.')
 
@@ -653,7 +657,7 @@ async function actionMemberFile(req) {
     .filter((o) => o.status === 'approved' && (o.productIds || [o.productId]).includes(productId))
     .sort((a, b) => String(b.approvedAt || '').localeCompare(String(a.approvedAt || '')))
   const order = orders[0]
-  const original = await fetchPdf(decryptToken(att.sealed)).catch((err) => {
+  const original = await fetchPdf(att.sealed ? decryptToken(att.sealed) : att.url).catch((err) => {
     throw new HttpError(502, err.message)
   })
   const stamped = await stampPdf(original, {

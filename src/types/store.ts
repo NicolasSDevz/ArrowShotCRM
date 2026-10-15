@@ -281,8 +281,10 @@ export interface StoreLesson {
   videoUrl?: string | null
   /** Aula de texto (Markdown). */
   body?: string
-  /** Aula de PDF: link do arquivo (abre dentro da aula). */
+  /** Aula de PDF: link antigo em texto aberto (aulas novas guardam só em `pdfSealed`). */
   pdfUrl?: string | null
+  /** Aula de PDF: link cifrado; o aluno só lê no leitor protegido, carimbado. */
+  pdfSealed?: { ciphertext: string; iv: string; authTag: string } | null
   /** Aula de links: botões para materiais externos. */
   links?: StoreLessonLink[]
   description?: string

@@ -29,7 +29,7 @@ function missingContent(l: StoreLesson): string | null {
   const kind = l.kind ?? 'video'
   if (kind === 'video') return l.videoUrl ? null : 'sem vídeo'
   if (kind === 'text') return l.body?.trim() ? null : 'sem texto'
-  if (kind === 'pdf') return l.pdfUrl ? null : 'sem PDF'
+  if (kind === 'pdf') return l.pdfUrl || l.pdfSealed ? null : 'sem PDF'
   return l.links?.some((x) => x.url) ? null : 'sem links'
 }
 
@@ -209,7 +209,9 @@ function LessonModal({ productId, moduleId, lesson, nextOrder, onClose }: { prod
         kind,
         videoUrl: videoUrl.trim() || null,
         body,
-        pdfUrl: pdfUrl.trim() || null,
+        // Link do PDF vai cifrado: o aluno nunca vê o endereço original.
+        pdfUrl: null,
+        pdfSealed: pdfUrl.trim() ? (await storeSealFile(pdfUrl.trim())).sealed : lesson?.pdfSealed ?? null,
         links: cleanLinks,
         description,
         durationMin: durationMin ? Number(durationMin) : null,
@@ -263,8 +265,8 @@ function LessonModal({ productId, moduleId, lesson, nextOrder, onClose }: { prod
         )}
         {kind === 'pdf' && (
           <div className="space-y-1">
-            <Field label="Link do PDF (Google Drive, Dropbox ou link direto do arquivo)"><Input value={pdfUrl} onChange={(e) => setPdfUrl(e.target.value)} placeholder="https://drive.google.com/file/d/..." /></Field>
-            <p className="text-[11px] text-slate-400">No Drive, deixe o arquivo como "Qualquer pessoa com o link". O PDF abre dentro da aula, com botão para abrir em tela cheia. Para o aluno ler com nome e CPF carimbados (sem baixar), use um anexo protegido lá embaixo.</p>
+            <Field label="Link do PDF (Google Drive, Dropbox ou link direto do arquivo)"><Input value={pdfUrl} onChange={(e) => setPdfUrl(e.target.value)} placeholder={lesson?.pdfSealed ? 'Link guardado com proteção. Cole outro para trocar' : 'https://drive.google.com/file/d/...'} /></Field>
+            <p className="text-[11px] text-slate-400">No Drive, deixe o arquivo como "Qualquer pessoa com o link". O PDF abre dentro da aula só para leitura: sem baixar, imprimir nem copiar, com nome, CPF e e-mail do aluno em todas as páginas. O link original fica escondido.</p>
           </div>
         )}
         {kind === 'link' && (

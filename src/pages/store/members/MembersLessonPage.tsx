@@ -4,7 +4,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Award, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, Circle, Download, ExternalLink, Lock, Paperclip, Star } from 'lucide-react'
-import { pdfSource, useCourse, videoSource } from '../../../components/store/members/useCourse'
+import { useCourse, videoSource } from '../../../components/store/members/useCourse'
 import { releaseDate, useAccent, useMembers } from '../../../components/store/members/MembersContext'
 import { LessonComments } from '../../../components/store/members/LessonComments'
 import { downloadCertificate } from '../../../components/store/members/certificate'
@@ -52,8 +52,8 @@ export function MembersLessonPage() {
   const done = completed.has(lesson.id)
   const kind = lesson.kind ?? 'video'
   const video = videoSource(lesson.videoUrl)
-  const pdf = pdfSource(lesson.pdfUrl)
   const links = (lesson.links ?? []).filter((x) => x.url)
+  const watermark = [member?.name, member?.email].filter(Boolean).join(' · ')
   const myRating = progress?.ratings?.[lesson.id] ?? 0
   const finished = percent === 100 && lessons.length > 0
 
@@ -83,15 +83,8 @@ export function MembersLessonPage() {
             {lesson.body?.trim() ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{lesson.body}</ReactMarkdown> : <p>Esta aula ainda não tem texto.</p>}
           </article>
         ) : kind === 'pdf' ? (
-          pdf ? (
-            <div className="overflow-hidden rounded-xl border border-[var(--m-border)] bg-[var(--m-card)]">
-              <iframe src={pdf.embed} title={lesson.title} className="h-[75vh] min-h-[420px] w-full bg-white" allow="fullscreen" />
-              <div className="flex justify-end border-t border-[var(--m-border2)] p-2">
-                <a href={pdf.open} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm hover:bg-[var(--m-soft)]">
-                  <ExternalLink size={15} aria-hidden="true" /> Abrir o PDF em tela cheia
-                </a>
-              </div>
-            </div>
+          lesson.pdfSealed || lesson.pdfUrl ? (
+            <ProtectedPdfViewer inline productId={product.id} lessonId={lesson.id} index="pdf" title={lesson.title} watermark={watermark} />
           ) : (
             <div className="flex aspect-video items-center justify-center rounded-xl bg-[var(--m-card)] text-[var(--m-faint)]">Esta aula ainda não tem PDF.</div>
           )
@@ -180,7 +173,7 @@ export function MembersLessonPage() {
               {lesson.attachments.map((a, i) => (
                 <li key={i}>
                   {a.protected ? (
-                    <ProtectedReader productId={product.id} lessonId={lesson.id} index={i} name={a.name || 'Arquivo'} watermark={[member?.name, member?.email].filter(Boolean).join(' · ')} />
+                    <ProtectedReader productId={product.id} lessonId={lesson.id} index={i} name={a.name || 'Arquivo'} watermark={watermark} />
                   ) : (
                     <a href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-[var(--m-border)] px-3 py-2 text-sm hover:bg-[var(--m-soft)]">
                       <Download size={16} aria-hidden="true" /> {a.name || 'Baixar arquivo'}
