@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Monitor, Plus, Settings2, Smartphone, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Monitor, Plus, Settings2, Smartphone, Trash2 } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../../ui/Field'
 import { ImageField } from './ImageField'
 import { TextListEditor } from './ListEditor'
@@ -343,8 +343,24 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
       <EditorSection collapsible defaultOpen={openAll} title="Order bumps (ofertas extras no checkout)">
         {c.bumps.map((b, i) => {
           const set = (patch: Partial<typeof b>) => onChange({ bumps: c.bumps.map((x, j) => (j === i ? { ...x, ...patch } : x)) })
+          // Ordem no checkout: troca de lugar com o vizinho (botões em vez de arrastar, funciona no teclado e no leitor de tela).
+          const move = (to: number) => {
+            const next = [...c.bumps]
+            ;[next[i], next[to]] = [next[to], next[i]]
+            onChange({ bumps: next })
+          }
+          const moveBtn = 'rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 disabled:hover:bg-transparent'
           return (
             <div key={i} className="space-y-2 rounded-xl border border-dashed border-slate-300 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Order bump {i + 1}{c.bumps.length > 1 ? ` de ${c.bumps.length}` : ''}</p>
+                {c.bumps.length > 1 && (
+                  <div className="flex gap-0.5">
+                    <button type="button" disabled={i === 0} onClick={() => move(i - 1)} className={moveBtn} aria-label={`Subir order bump ${i + 1}`} title="Subir"><ArrowUp size={15} /></button>
+                    <button type="button" disabled={i === c.bumps.length - 1} onClick={() => move(i + 1)} className={moveBtn} aria-label={`Descer order bump ${i + 1}`} title="Descer"><ArrowDown size={15} /></button>
+                  </div>
+                )}
+              </div>
               <div className="flex gap-2">
                 <Select aria-label={`Produto do order bump ${i + 1}`} value={b.productId} onChange={(e) => set({ productId: e.target.value })}>
                   {others.map((p) => <option key={p.id} value={p.id}>{p.name} ({formatCents(p.price)})</option>)}
