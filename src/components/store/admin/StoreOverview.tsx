@@ -3,13 +3,7 @@ import { BarChart3, Clock, QrCode, Receipt, RotateCcw, ShoppingBag, ShoppingCart
 import { Badge } from '../../ui/Badge'
 import { formatCents, STORE_METHOD_LABEL, type StoreAbandoned, type StoreOrder, type StoreProduct } from '../../../types/store'
 import { OrderStatusBadge } from './StoreOrdersTable'
-
-const PERIODS = [
-  { days: 1, label: 'Hoje' },
-  { days: 7, label: '7 dias' },
-  { days: 30, label: '30 dias' },
-  { days: 0, label: 'Tudo' },
-]
+import { DateRangeFilter, inRange, resolveRange, type DateRange, type DateRangeValue } from './DateRangeFilter'
 
 const TONES = {
   blue: 'bg-brand-50 text-brand-600',
@@ -43,15 +37,10 @@ const initials = (name: string) =>
 
 /** Resumo de vendas: faturamento, pedidos, ticket médio, conversão de Pix e por produto. */
 export function StoreOverview({ orders, products, abandoned = [], compact = false }: { orders: StoreOrder[]; products: StoreProduct[]; abandoned?: StoreAbandoned[]; compact?: boolean }) {
-  const [days, setDays] = useState(30)
+  const [period, setPeriod] = useState<DateRangeValue>({ preset: '30d', from: '', to: '' })
+  const range = useMemo(() => resolveRange(period), [period])
 
-  const inPeriod = useMemo(() => {
-    if (!days) return orders
-    const start = new Date()
-    start.setHours(0, 0, 0, 0)
-    start.setDate(start.getDate() - (days - 1))
-    return orders.filter((o) => new Date(o.createdAt) >= start)
-  }, [orders, days])
+  const inPeriod = useMemo(() => orders.filter((o) => inRange(o.createdAt, range)), [orders, range])
 
   const real = inPeriod.filter((o) => !o.test)
   const approved = real.filter((o) => o.status === 'approved')
@@ -61,12 +50,11 @@ export function StoreOverview({ orders, products, abandoned = [], compact = fals
   const pixPaid = pixAll.filter((o) => o.status === 'approved' || o.status === 'refunded')
   const bumpRevenue = approved.reduce((s, o) => s + o.items.filter((i) => i.bump).reduce((a, i) => a + i.price, 0), 0)
   const refunded = real.filter((o) => o.status === 'refunded')
-  const sinceMs = days ? Date.now() - days * 86_400_000 : 0
   // Carrinho conta como abandonado depois de 15 min sem pagar.
-  const carts = abandoned.filter((a) => new Date(a.createdAt).getTime() >= sinceMs && (a.recoveredAt || Date.now() - new Date(a.updatedAt).getTime() > 15 * 60_000))
+  const carts = abandoned.filter((a) => inRange(a.createdAt, range) && (a.recoveredAt || Date.now() - new Date(a.updatedAt).getTime() > 15 * 60_000))
   const recovered = carts.filter((a) => a.recoveredAt)
   const convBase = carts.length - recovered.length + approved.length
-  const daily = useMemo(() => dailyRevenue(orders, days || 30), [orders, days])
+  const daily = useMemo(() => dailyRevenue(orders, range), [orders, range])
 
   const byProduct = products
     .map((p) => {
@@ -81,20 +69,7 @@ export function StoreOverview({ orders, products, abandoned = [], compact = fals
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[15px] font-semibold text-slate-800">Resumo de vendas</h2>
-        <div role="radiogroup" aria-label="Período" className="flex gap-1 rounded-xl bg-slate-100 p-1">
-          {PERIODS.map((p) => (
-            <button
-              key={p.days}
-              type="button"
-              role="radio"
-              aria-checked={days === p.days}
-              onClick={() => setDays(p.days)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${days === p.days ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <DateRangeFilter value={period} onChange={setPeriod} />
       </div>
 
       <div className={`grid gap-3 ${compact ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'}`}>
@@ -176,11 +151,13 @@ function Empty({ icon, text }: { icon: ReactNode; text: string }) {
 }
 
 /** Faturamento aprovado por dia (até 30 barras; "Tudo" mostra os últimos 30 dias). */
-function dailyRevenue(orders: StoreOrder[], days: number) {
-  const n = Math.min(days, 30)
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() - (n - 1))
+/** Um ponto por dia do período (no máximo os últimos 31 dias dele; "todo o período" mostra os últimos 30). */
+function dailyRevenue(orders: StoreOrder[], range: DateRange | null) {
+  const today = new Date()
+  const end = range?.end ?? new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+  const total = range ? Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000) : 30
+  const n = Math.max(1, Math.min(total, 31))
+  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - n)
   const buckets = Array.from({ length: n }, (_, i) => {
     const d = new Date(start)
     d.setDate(start.getDate() + i)

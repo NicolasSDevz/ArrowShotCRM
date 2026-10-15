@@ -8,6 +8,7 @@ import { Input, Select } from '../../ui/Field'
 import { EmptyState } from '../../ui/EmptyState'
 import { storeAccessLink, storeCancelOrder, storeDeleteOrder, storeConfirmOrder, storeEmitInvoice, storeReconcileOrders, storeRefundOrder, storeDenyRefund, storeSyncInvoices } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
+import { DateRangeFilter, inRange, resolveRange, type DateRangeValue } from './DateRangeFilter'
 import { formatCents, STORE_METHOD_LABEL, STORE_ORDER_STATUS_LABEL, type StoreOrder, type StoreOrderStatus, type StoreProduct } from '../../../types/store'
 
 const STATUS_CLS: Record<StoreOrderStatus, string> = {
@@ -194,6 +195,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | StoreOrderStatus>('')
   const [productId, setProductId] = useState('')
+  const [period, setPeriod] = useState<DateRangeValue>({ preset: 'all', from: '', to: '' })
   const { busy: refunding, confirmPayment, cancelOrder, refund, denyRefund, copyAccess, deleteOrder, canDelete } = useOrderActions()
   useReconcilePending(orders)
   const [emitting, setEmitting] = useState<string | null>(null)
@@ -222,13 +224,16 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
+    const range = resolveRange(period)
     return orders.filter(
       (o) =>
+        inRange(o.createdAt, range) &&
         (!status || o.status === status) &&
         (!productId || o.productIds?.includes(productId)) &&
         (!q || o.buyer.name.toLowerCase().includes(q) || o.buyer.email.includes(q) || o.id.toLowerCase().includes(q))
     )
-  }, [orders, search, status, productId])
+  }, [orders, search, status, productId, period])
+  const paid = filtered.filter((o) => o.status === 'approved' && !o.test)
 
   const exportCsv = () => {
     const blob = new Blob([`﻿${toCsv(filtered)}`], { type: 'text/csv;charset=utf-8' })
@@ -253,11 +258,16 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
           <option value="">Todos os produtos</option>
           {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
+        <DateRangeFilter value={period} onChange={setPeriod} />
         <Button variant="secondary" icon={<Download size={15} />} onClick={exportCsv} disabled={!filtered.length}>Exportar CSV</Button>
       </div>
+      <p className="text-sm text-slate-500" aria-live="polite">
+        {filtered.length} {filtered.length === 1 ? 'pedido' : 'pedidos'} · {paid.length} {paid.length === 1 ? 'venda aprovada' : 'vendas aprovadas'} ·{' '}
+        <span className="font-semibold text-slate-700">{formatCents(paid.reduce((s, o) => s + o.amount, 0))}</span>
+      </p>
 
       {filtered.length === 0 ? (
-        <EmptyState title="Nenhum pedido" description="Quando alguém comprar pelo link do checkout, o pedido aparece aqui na hora." />
+        <EmptyState title="Nenhum pedido" description={orders.length ? 'Nenhum pedido com esses filtros. Troque o período ou limpe a busca.' : 'Quando alguém comprar pelo link do checkout, o pedido aparece aqui na hora.'} />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
           <table className="w-full text-sm">
