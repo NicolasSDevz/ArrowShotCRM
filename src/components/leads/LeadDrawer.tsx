@@ -43,6 +43,7 @@ import {
   type ResolvedPipeline,
 } from '../../types'
 import { askConfirm } from '../../utils/confirmDialog'
+import { temAcessoAoCopiloto } from '../../config/copilotoAccess'
 
 const CONTACT_TYPE_ICON: Record<LeadContactType, typeof Phone> = {
   call: Phone,
@@ -345,7 +346,7 @@ export function LeadDrawer({
   const { pipeline: leadPipeline, stage: leadStage } = locateLead(pipelines, lead)
   const clientMatch = lead.convertedClientId ? null : findClientMatch(lead, clients)
   const duplicateLeads = findDuplicateLeads(lead, allLeads)
-  const canSeeCopiloto = profile.role === 'admin' || profile.role === 'manager'
+  const canSeeCopiloto = temAcessoAoCopiloto(profile.email)
 
   const leadTabs = [
     { label: 'Informações', content: <InfoTab lead={lead} /> },

@@ -51,6 +51,7 @@ import { getBaseVendas, formatBaseVendasForPrompt } from '../_lib/baseVendas.js'
 import { runCopilotoSugestao } from '../_lib/copilotoSugestao.js'
 import { runCopilotoResumo } from '../_lib/copilotoResumo.js'
 import { transcribeWithGroq, GroqRateLimitError } from '../_lib/groqWhisper.js'
+import { temAcessoAoCopiloto } from '../_lib/copilotoAccess.js'
 
 const ANTHROPIC_MODEL = 'claude-sonnet-5'
 const DAILY_MESSAGE_LIMIT = 50
@@ -449,9 +450,9 @@ async function incrementDailyUsage(uid) {
  *  -> streaming (text/plain). Ver api/_lib/copilotoSugestao.js. */
 async function handleSugestao(req, res, user) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-  // Mesma regra do Firestore (isAdminOrManager()) e da página /copiloto —
-  // employee não tem acesso ao Copiloto de Vendas.
-  if (user.role !== 'admin' && user.role !== 'manager') {
+  // Mesma lista fixa do Firestore (isCopiloto()) e da página /copiloto —
+  // por e-mail, não por role (ver api/_lib/copilotoAccess.js).
+  if (!temAcessoAoCopiloto(user.email)) {
     return res.status(403).json({ error: 'Sem permissão para usar o Copiloto de Vendas' })
   }
   const { leadId, pergunta, transcricaoRecente, resumoAnterior } = req.body || {}
@@ -463,7 +464,7 @@ async function handleSugestao(req, res, user) {
  *  navegador esperar e reenviar o mesmo trecho (ver utils/groqRateLimiter.ts). */
 async function handleTranscrever(req, res, user) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-  if (user.role !== 'admin' && user.role !== 'manager') {
+  if (!temAcessoAoCopiloto(user.email)) {
     return res.status(403).json({ error: 'Sem permissão para usar o Copiloto de Vendas' })
   }
   const { audioBase64, mimeType } = req.body || {}
@@ -488,7 +489,7 @@ async function handleTranscrever(req, res, user) {
  *  e por "Gerar resumo agora" (LeadChamadasTab). */
 async function handleResumo(req, res, user) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-  if (user.role !== 'admin' && user.role !== 'manager') {
+  if (!temAcessoAoCopiloto(user.email)) {
     return res.status(403).json({ error: 'Sem permissão para usar o Copiloto de Vendas' })
   }
   const { leadId, blocos, sugestoes } = req.body || {}

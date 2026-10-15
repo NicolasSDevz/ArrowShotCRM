@@ -28,6 +28,7 @@ import type { Meeting } from '../../types/meeting'
 import { Button } from '../ui/Button'
 import { Field, Input, Select } from '../ui/Field'
 import { askConfirm } from '../../utils/confirmDialog'
+import { temAcessoAoCopiloto } from '../../config/copilotoAccess'
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -237,7 +238,7 @@ export function LeadMeetingTab({ lead }: { lead: Lead }) {
                 Entrar na reunião
               </a>
             )}
-            {(profile?.role === 'admin' || profile?.role === 'manager') && (
+            {temAcessoAoCopiloto(profile?.email) && (
               <button
                 onClick={() => {
                   // Abre o Meet numa aba nova e já deixa o Copiloto pronto pra

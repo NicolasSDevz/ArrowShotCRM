@@ -37,6 +37,7 @@ import { UniversityAdminPage } from './pages/UniversityAdminPage'
 import { OptimizationCalendarPage } from './pages/OptimizationCalendarPage'
 import { CopilotoPage } from './pages/CopilotoPage'
 import { BaseVendasPage } from './pages/BaseVendasPage'
+import { COPILOTO_ALLOWED_EMAILS } from './config/copilotoAccess'
 import { StorePage } from './pages/store/StorePage'
 import { StoreProductPage } from './pages/store/StoreProductPage'
 import { StoreAppPage } from './pages/store/StoreAppPage'
@@ -150,7 +151,7 @@ function App() {
             <Route
               path="/configuracoes/base-vendas"
               element={
-                <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                <ProtectedRoute allowedEmails={COPILOTO_ALLOWED_EMAILS}>
                   <BaseVendasPage />
                 </ProtectedRoute>
               }

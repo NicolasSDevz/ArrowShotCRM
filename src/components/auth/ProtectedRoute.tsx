@@ -8,10 +8,15 @@ import { FullPageSpinner } from '../ui/FullPageSpinner'
 export function ProtectedRoute({
   children,
   allowedRoles,
+  allowedEmails,
   showDeniedScreen,
 }: {
   children: ReactNode
   allowedRoles?: UserRole[]
+  /** Lista fixa por e-mail (ex: COPILOTO_ALLOWED_EMAILS) — quando presente,
+   *  substitui a checagem de role: a rota passa a ser "só quem está nessa
+   *  lista", não "quem tem esse cargo". */
+  allowedEmails?: readonly string[]
   /** When the role isn't allowed, render a "sem acesso" screen instead of
    *  redirecting to "/". Use on the top-level guard, where redirecting to "/"
    *  would just loop. */
@@ -31,7 +36,10 @@ export function ProtectedRoute({
   if (loading) return <FullPageSpinner />
   if (!firebaseUser) return <Navigate to="/login" replace />
   if (!profile || isDeactivated) return <FullPageSpinner label="Preparando seu acesso..." />
-  if (allowedRoles && !allowedRoles.includes(profile.role)) {
+  const negado = allowedEmails
+    ? !allowedEmails.some((e) => e.toLowerCase() === profile.email.toLowerCase())
+    : allowedRoles && !allowedRoles.includes(profile.role)
+  if (negado) {
     if (!showDeniedScreen) return <Navigate to="/" replace />
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">

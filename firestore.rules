@@ -44,6 +44,15 @@ service cloud.firestore {
       return isActive() && role() in ['admin', 'manager'];
     }
 
+    // Quem usa o Copiloto de Vendas (chamadas dos leads, Base de Vendas) —
+    // lista fixa por e-mail, não por role. Mesma lista em
+    // src/config/copilotoAccess.ts e api/_lib/copilotoAccess.js — atualize
+    // as três juntas.
+    function isCopiloto() {
+      return isActive() && request.auth.token.email.lower() in
+        ['arrowshotmkt@gmail.com', 'gestorarrowshotmkt@gmail.com'];
+    }
+
     function isAdmin() {
       return isActive() && role() == 'admin';
     }
@@ -228,7 +237,7 @@ service cloud.firestore {
     // acesso ao Copiloto (admin/manager) edita. A API (Vercel Function) lê
     // via Admin SDK, ignora esta regra. ----------
     match /config/{key} {
-      allow read, write: if isAdminOrManager();
+      allow read, write: if isCopiloto();
     }
 
     // ---------- calendarEvents (custom one-off events) ----------
@@ -702,13 +711,13 @@ service cloud.firestore {
       allow write: if isAdminOrManager();
     }
 
-    // Transcrições e chamadas do Copiloto de Vendas — admin e manager.
+    // Transcrições e chamadas do Copiloto de Vendas — lista fixa (isCopiloto()).
     match /leads/{leadId}/chamadas/{chamadaId} {
-      allow read: if isAdminOrManager();
-      allow create: if isAdminOrManager()
+      allow read: if isCopiloto();
+      allow create: if isCopiloto()
         && request.resource.data.keys().hasAll(['status', 'iniciadaEm', 'blocos', 'updatedBy', 'updatedAt'])
         && request.resource.data.updatedBy == request.auth.uid;
-      allow update: if isAdminOrManager() && updatedBySelf();
+      allow update: if isCopiloto() && updatedBySelf();
     }
 
     // ---------- future modules ----------

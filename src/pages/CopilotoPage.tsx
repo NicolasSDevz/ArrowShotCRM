@@ -17,6 +17,7 @@ import { gerarResumoChamada } from '../services/copilotoResumoService'
 import { salvarResumo } from '../services/chamadaService'
 import { updateLead } from '../services/leadService'
 import { buildLeadUpdateFromResumo } from '../utils/leadResumoUpdate'
+import { temAcessoAoCopiloto } from '../config/copilotoAccess'
 import type { BlocoTranscricao, ResumoChamada } from '../types/chamada'
 
 const PIP_USADO_KEY = 'copiloto_pip_usado'
@@ -307,11 +308,11 @@ export function CopilotoPage() {
     )
   }, [status, chamadaId, leadId, navigate])
 
-  // Apenas admin e manager podem usar o Copiloto
-  if (profile?.role !== 'admin' && profile?.role !== 'manager') {
+  // Lista fixa (não por role) — ver src/config/copilotoAccess.ts
+  if (!temAcessoAoCopiloto(profile?.email)) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-slate-500">Acesso restrito a administradores e gerentes.</p>
+        <p className="text-slate-500">Acesso restrito ao Copiloto de Vendas.</p>
       </div>
     )
   }

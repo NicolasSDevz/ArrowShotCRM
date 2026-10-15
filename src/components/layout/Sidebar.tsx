@@ -26,6 +26,7 @@ import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { Avatar } from '../ui/Avatar'
 import { USER_ROLE_LABEL } from '../../types/user'
 import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
+import { temAcessoAoCopiloto } from '../../config/copilotoAccess'
 
 const COLLAPSED_KEY = 'arrowshot-sidebar-collapsed'
 
@@ -97,9 +98,10 @@ export function Sidebar({
   const linkLayout = c ? 'md:justify-center md:px-0' : ''
   const canSeeUniversity = profile?.role === 'admin' || profile?.role === 'manager' || profile?.role === 'employee'
   const canManageTokens = profile?.role === 'admin' || profile?.role === 'manager'
+  const canSeeBaseVendas = temAcessoAoCopiloto(profile?.email)
   const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
   const isGestorTrafego = personKey === 'ciane' || personKey === 'nicolas'
-  const showSettingsSection = canManageTokens || isGestorTrafego
+  const showSettingsSection = canManageTokens || canSeeBaseVendas || isGestorTrafego
   const myProfileCargo = teamMembers.find((m) => m.userId === profile?.id)?.jobTitle
   const perms = { canSeeUniversity, canManageTokens }
   const visibleMain = mainNav.filter((i) => !i.show || i.show(perms))
@@ -217,7 +219,7 @@ export function Sidebar({
                     </NavLink>
                   )}
 
-                  {canManageTokens && (
+                  {canSeeBaseVendas && (
                     <NavLink
                       to="/configuracoes/base-vendas"
                       onClick={onCloseMobile}

@@ -9,6 +9,7 @@ import type { BlocoTranscricao, Sugestao } from '../../src/types/chamada'
 import type { CopilotoStatus, OuvindoStatus } from '../../src/hooks/useCopiloto'
 import type { SugestaoParcial } from '../../src/hooks/useCopilotoSugestoes'
 import { extrairCodigoMeet, buscarLeadPorCodigoMeet, buscarLeadsPorNome } from './lib/meetLink'
+import { temAcessoAoCopiloto } from '../../src/config/copilotoAccess'
 import { enviar, type OffscreenParaSidePanelMsg } from './lib/messaging'
 import { CRM_BASE_URL } from './lib/aiApi'
 
@@ -336,7 +337,7 @@ export function SidePanelApp() {
 
   if (!profile) return <LoginForm />
 
-  if (profile.role !== 'admin' && profile.role !== 'manager') {
+  if (!temAcessoAoCopiloto(profile.email)) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center">
         <p className="text-sm text-slate-500">Sem acesso ao Copiloto de Vendas.</p>
