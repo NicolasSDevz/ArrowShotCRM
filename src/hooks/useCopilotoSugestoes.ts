@@ -44,7 +44,7 @@ function blocosParaTexto(blocos: BlocoTranscricao[]): string {
 /** Monta transcrição recente (~3min) + resumo do que ficou de fora, a
  *  partir dos blocos já carregados em memória (useCopiloto) — sem round-
  *  trip extra de IA só pra resumir (ver comentário no pedido original). */
-function montarContexto(blocos: BlocoTranscricao[]) {
+export function montarContexto(blocos: BlocoTranscricao[]) {
   if (blocos.length === 0) return { transcricaoRecente: '', resumoAnterior: '' }
   const agora = blocos[blocos.length - 1].timestampMs
   const corte = agora - JANELA_RECENTE_MS

@@ -1,0 +1,7 @@
+{
+  "name": "copiloto-extensao",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Extensão Chrome (Manifest V3) do Copiloto de Vendas — painel lateral dentro do Google Meet. Não tem node_modules própria: usa as dependências e as ferramentas de build do projeto raiz (../). Builda com `npm run build:extensao` na raiz do repositório — ver README.md desta pasta."
+}

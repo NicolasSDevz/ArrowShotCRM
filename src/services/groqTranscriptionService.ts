@@ -12,8 +12,13 @@ export class GroqRateLimitClientError extends Error {
 /** Transcreve um trecho de áudio (Float32Array, 16kHz mono — o que o VAD
  *  devolve em onSpeechEnd) via /api/ai/transcrever (acao=transcrever, ver
  *  api/_lib/groqWhisper.js). Lança GroqRateLimitClientError em 429 — quem
- *  chama (utils/groqRateLimiter.ts) decide esperar e reenviar. */
-export async function transcribeAudio(audio: Float32Array): Promise<string> {
+ *  chama (utils/groqRateLimiter.ts) decide esperar e reenviar.
+ *
+ *  `baseUrl` é só pra quem chama fora da página do CRM (ex: a extensão do
+ *  Chrome, que roda em chrome-extension://... e precisa da URL absoluta do
+ *  CRM) — na página normal fica vazio e a requisição é same-origin, igual
+ *  sempre foi. */
+export async function transcribeAudio(audio: Float32Array, baseUrl = ''): Promise<string> {
   const user = auth.currentUser
   if (!user) throw new Error('Usuário não autenticado')
   const idToken = await user.getIdToken()
@@ -21,7 +26,7 @@ export async function transcribeAudio(audio: Float32Array): Promise<string> {
   const wavBuffer = utils.encodeWAV(audio, 1, 16000, 1, 16)
   const audioBase64 = utils.arrayBufferToBase64(wavBuffer)
 
-  const res = await fetch('/api/ai/transcrever', {
+  const res = await fetch(`${baseUrl}/api/ai/transcrever`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
     body: JSON.stringify({ audioBase64, mimeType: 'audio/wav' }),

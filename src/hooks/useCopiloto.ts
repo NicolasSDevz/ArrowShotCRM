@@ -1,41 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MicVAD } from '@ricky0123/vad-web'
 import { useAuth } from '../context/AuthContext'
 import { criarChamada, encerrarChamada, salvarBlocos } from '../services/chamadaService'
 import { GroqTranscriptionQueue, type GroqQueueStatus } from '../utils/groqRateLimiter'
-import { isHallucination } from '../utils/transcriptionHallucinations'
+import { criarSpeakerPipeline, type Speaker, type SpeakerPipeline } from '../copiloto/speakerPipeline'
 import type { BlocoTranscricao } from '../types/chamada'
 
 export type CopilotoStatus = 'aguardando_inicio' | 'ativa' | 'encerrando' | 'encerrada'
 
-type Speaker = 'Bruno' | 'Cliente'
-
 const SAVE_INTERVAL_MS = 15_000
-const SAMPLE_RATE = 16_000
-/** Limites do Groq (free tier): fala curta ("sim", "aham") junta com a
- *  próxima em vez de virar uma requisição só pra ela — ver TAREFA. */
-const MERGE_MIN_SEC = 4
-const MERGE_MAX_SEC = 15
-const MERGE_SILENCE_MS = 2000
 /** Média móvel das últimas N medições de atraso (fim da fala -> texto). */
 const ATRASO_JANELA = 10
-
-// Assets do VAD (modelo Silero ONNX + worklet) servidos via CDN — não dá pra
-// importar os arquivos locais do node_modules com o Vite sem copiá-los pro
-// build; o pacote recomenda apontar pra esses dois caminhos.
-const VAD_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.31/dist/'
-const ORT_WASM_BASE = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/'
-
-function concatFloat32(a: Float32Array, b: Float32Array): Float32Array {
-  const out = new Float32Array(a.length + b.length)
-  out.set(a, 0)
-  out.set(b, a.length)
-  return out
-}
-
-interface SpeakerPipeline {
-  destroy: () => Promise<void>
-}
 
 export interface OuvindoStatus {
   Bruno: boolean
@@ -107,106 +81,25 @@ export function useCopiloto(leadId: string) {
     }
   }, [leadId, profile])
 
-  /** VAD + buffer de merge de falas curtas pra uma fonte de áudio (mic do
-   *  Bruno ou aba do Meet do Cliente) — cada fonte roda seu próprio VAD, em
-   *  paralelo, sem fila alternada entre as duas. */
   const criarPipeline = useCallback(
-    async (speaker: Speaker, stream: MediaStream): Promise<SpeakerPipeline> => {
-      let acumulado: Float32Array | null = null
-      let inicioMs = 0
-      // Silêncio acumulado desde o último onSpeechEnd, em ms de áudio real
-      // (não wall-clock) — contado a cada frame processado pelo VAD. Evita
-      // setTimeout/setInterval pra essa decisão: o AudioWorklet que processa
-      // os frames não é throttlado quando a aba vai pra segundo plano
-      // (Chrome throttla temporizadores JS, não o grafo de áudio), então a
-      // fala não fica "trancada" esperando um timer que o navegador atrasou.
-      let silenciodesdeUltimaFalaMs = 0
-      let pendingFlush: Promise<void> = Promise.resolve()
-
-      const flush = (): Promise<void> => {
-        silenciodesdeUltimaFalaMs = 0
-        if (!acumulado || acumulado.length === 0) return Promise.resolve()
-        const audio = acumulado
-        const startMs = inicioMs
-        const durationSec = audio.length / SAMPLE_RATE
-        acumulado = null
-
-        const segmentoId = crypto.randomUUID()
-        setTranscrevendo((prev) => new Map(prev).set(segmentoId, speaker))
-        const endEpochMs = Date.now()
-
-        const queue = queueRef.current
-        const promise = queue
-          ? queue.enqueue(audio, durationSec).then(
-              (texto) => {
-                const atraso = Date.now() - endEpochMs
-                atrasosRef.current = [...atrasosRef.current.slice(-(ATRASO_JANELA - 1)), atraso]
-                setAtrasoMedioMs(Math.round(atrasosRef.current.reduce((s, v) => s + v, 0) / atrasosRef.current.length))
-
-                if (isHallucination(texto, durationSec)) return
-                insertBlocoSorted({ id: crypto.randomUUID(), speaker, texto: texto.trim(), timestampMs: startMs })
-              },
-              (err) => {
-                console.warn(`[copiloto] falha ao transcrever trecho de ${speaker}:`, err)
-              }
-            )
-          : Promise.resolve()
-
-        return promise.finally(() => {
+    (speaker: Speaker, stream: MediaStream) =>
+      criarSpeakerPipeline(speaker, stream, {
+        queue: queueRef.current!,
+        startTimeMs: startTimeRef.current,
+        onBloco: insertBlocoSorted,
+        onTranscrevendoChange: (segmentoId, ativo) => {
           setTranscrevendo((prev) => {
             const next = new Map(prev)
-            next.delete(segmentoId)
+            if (ativo) next.set(segmentoId, speaker)
+            else next.delete(segmentoId)
             return next
           })
-        })
-      }
-
-      // startOnLoad (padrão: true) já inicia sozinho dentro de MicVAD.new —
-      // sem chamada extra a .start().
-      const vad = await MicVAD.new({
-        getStream: async () => stream,
-        pauseStream: async () => {},
-        resumeStream: async () => stream,
-        baseAssetPath: VAD_ASSET_BASE,
-        onnxWASMBasePath: ORT_WASM_BASE,
-        model: 'v5',
-        minSpeechMs: 150,
-        redemptionMs: 500,
-        preSpeechPadMs: 200,
-        onSpeechStart: () => {
-          if (!acumulado) inicioMs = Date.now() - startTimeRef.current
-          silenciodesdeUltimaFalaMs = 0
         },
-        onSpeechEnd: (audio) => {
-          acumulado = acumulado ? concatFloat32(acumulado, audio) : audio
-          silenciodesdeUltimaFalaMs = 0
-          const durationSec = acumulado.length / SAMPLE_RATE
-          if (durationSec >= MERGE_MIN_SEC || durationSec >= MERGE_MAX_SEC) {
-            pendingFlush = flush()
-          }
-          // Senão, espera: onFrameProcessed (abaixo) conta o silêncio até
-          // bater MERGE_SILENCE_MS e decide se junta com a próxima fala ou envia.
+        onAtraso: (atraso) => {
+          atrasosRef.current = [...atrasosRef.current.slice(-(ATRASO_JANELA - 1)), atraso]
+          setAtrasoMedioMs(Math.round(atrasosRef.current.reduce((s, v) => s + v, 0) / atrasosRef.current.length))
         },
-        onFrameProcessed: (_probs, frame) => {
-          if (!acumulado) return
-          silenciodesdeUltimaFalaMs += (frame.length / SAMPLE_RATE) * 1000
-          if (silenciodesdeUltimaFalaMs >= MERGE_SILENCE_MS) {
-            pendingFlush = flush()
-          }
-        },
-        onVADMisfire: () => {
-          /* segmento descartado pelo próprio VAD (menor que minSpeechMs) — ruído, não fala */
-        },
-      })
-
-      return {
-        destroy: async () => {
-          await pendingFlush
-          await flush()
-          await vad.destroy()
-        },
-      }
-    },
+      }),
     [insertBlocoSorted]
   )
 

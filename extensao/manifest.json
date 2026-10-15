@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Copiloto de Vendas — Arrow Shot",
+  "version": "1.0.0",
+  "description": "Assistente de IA ao vivo durante chamadas no Google Meet, integrado ao CRM Arrow Shot (painel lateral do Chrome).",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2dVboidnBHOOaUCgXec8GI3naOiao/WvHRR4eI9C99cznr1gqH8jYCjipteOZAF39U5WS39ZA1uENZRNlufJid9B2AbwCxGwY3HCLtbAInByZun1nHnktTZMjLF28Hf3jQg6Y5V39/GKI+wgWI6k3Lb0BdbjI6JHjux2u5f9nnX8Z90V1ADU4w/Nk69hY24RG1HiuFBqRIwmPNSk3mIiavWxxbFTV5wdKZhnd9PG1tu+kuPvH918XbJ3VZeZdSYXsinqtI9n3wU4CRbVtWDHlDlAogdPbJ/oG79jXwAg3CjiZ67Giuy69Sx82Z/JKM+NDaCiHAdRaqWSnE0MhlaXPwIDAQAB",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Copiloto de Vendas"
+  },
+  "permissions": ["sidePanel", "tabCapture", "offscreen", "storage", "tabs"],
+  "host_permissions": [
+    "https://meet.google.com/*",
+    "https://arrowshotcrm.vercel.app/*"
+  ]
+}

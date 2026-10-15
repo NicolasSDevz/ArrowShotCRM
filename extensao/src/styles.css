@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+
+/* Mesma paleta de azul do CRM (ver src/index.css na raiz) — side panel
+ *  pequeno, então usa o esquema padrão de dark: do Tailwind (mais simples
+ *  que a lista de overrides por classe que o CRM precisou pros componentes
+ *  antigos dele). */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+:root[data-theme='dark'] body {
+  background-color: #18181b;
+  color: #f1f5f9;
+}

@@ -68,9 +68,15 @@ export class GroqTranscriptionQueue {
   private processing = false
   private dailyLimitReached = false
   private onStatusChange?: (status: GroqQueueStatus) => void
+  private transcribeFn: (audio: Float32Array) => Promise<string>
 
-  constructor(onStatusChange?: (status: GroqQueueStatus) => void) {
+  /** `transcribeFn` é opcional — só quem roda fora da página do CRM (ex: o
+   *  offscreen document da extensão do Chrome) passa uma versão própria
+   *  (URL absoluta do CRM, ver extensao/src/lib/aiApi.ts); na página normal
+   *  usa a função padrão (same-origin), igual sempre foi. */
+  constructor(onStatusChange?: (status: GroqQueueStatus) => void, transcribeFn: (audio: Float32Array) => Promise<string> = transcribeAudio) {
     this.onStatusChange = onStatusChange
+    this.transcribeFn = transcribeFn
     this.emitStatus()
   }
 
@@ -130,7 +136,7 @@ export class GroqTranscriptionQueue {
     this.emitStatus()
 
     try {
-      const text = await transcribeAudio(item.audio)
+      const text = await this.transcribeFn(item.audio)
       item.resolve(text)
     } catch (err) {
       if (err instanceof GroqRateLimitClientError) {

@@ -567,4 +567,24 @@ async function handler(req, res, user) {
   }
 }
 
-export default withInternalAuth(handler)
+// Origem fixa da extensão do Chrome do Copiloto (manifest.json em /extensao
+// tem uma "key" pinada, então o ID da extensão é sempre este, em qualquer
+// máquina que carregar o mesmo manifest — ver extensao/README.md). As
+// chamadas da página /copiloto do próprio CRM são same-origin e não passam
+// por aqui (o navegador só manda preflight em requisição cross-origin).
+const EXTENSAO_ORIGIN = 'chrome-extension://cpajbjjkaphacinbmoeininpgocjgmoj'
+
+function withExtensaoCors(handler) {
+  return async (req, res) => {
+    if (req.headers.origin === EXTENSAO_ORIGIN) {
+      res.setHeader('Access-Control-Allow-Origin', EXTENSAO_ORIGIN)
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+      res.setHeader('Vary', 'Origin')
+    }
+    if (req.method === 'OPTIONS') return res.status(204).end()
+    return handler(req, res)
+  }
+}
+
+export default withExtensaoCors(withInternalAuth(handler))
