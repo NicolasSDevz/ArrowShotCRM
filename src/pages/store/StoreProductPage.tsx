@@ -169,13 +169,30 @@ export function StoreProductPage() {
         <Field label="Descrição (aparece no checkout e na área de membros)"><Textarea rows={4} value={draft.description} onChange={(e) => set({ description: e.target.value })} /></Field>
         <ImageField label="Imagem do produto" value={draft.imageUrl} onChange={(v) => set({ imageUrl: v })} productId={draft.id} assetKey="product" hint="Quadrada, 600 x 600 px. Vale também para a capa e o banner do curso e as capas dos módulos, se você não colocar outras. O banner principal da área fica em Loja, aba Área de membros, Início." aspect="aspect-square" />
         <Field label="E-mail de suporte (aparece para o comprador)"><Input type="email" value={draft.supportEmail ?? ''} onChange={(e) => set({ supportEmail: e.target.value || null })} /></Field>
-        <Field label="Status">
-          <Select value={draft.status} onChange={(e) => set({ status: e.target.value as StoreProduct['status'] })}>
-            <option value="draft">Rascunho (checkout fora do ar)</option>
-            <option value="active">No ar (vendendo)</option>
-            <option value="archived">Arquivado</option>
-          </Select>
-        </Field>
+        <div>
+          <p id="product-status-label" className="mb-1.5 text-sm font-medium text-slate-700">Status</p>
+          <div role="radiogroup" aria-labelledby="product-status-label" className="grid grid-cols-3 gap-2">
+            {(
+              [
+                { value: 'active', label: 'No ar', hint: 'vendendo', on: 'border-emerald-500 bg-emerald-50 text-emerald-700' },
+                { value: 'draft', label: 'Rascunho', hint: 'checkout fora do ar', on: 'border-amber-500 bg-amber-50 text-amber-700' },
+                { value: 'archived', label: 'Arquivado', hint: 'escondido', on: 'border-slate-500 bg-slate-100 text-slate-700' },
+              ] as const
+            ).map((s) => (
+              <button
+                key={s.value}
+                type="button"
+                role="radio"
+                aria-checked={draft.status === s.value}
+                onClick={() => set({ status: s.value })}
+                className={`rounded-xl border-2 px-2 py-2 text-center transition ${draft.status === s.value ? s.on : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'}`}
+              >
+                <span className="block text-sm font-semibold">{s.label}</span>
+                <span className="block text-[11px] opacity-75">{s.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
       <section className={card}>
         <h2 className="text-[15px] font-semibold text-slate-800">Preço e pagamento</h2>
