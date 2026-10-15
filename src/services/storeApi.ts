@@ -38,6 +38,8 @@ export interface PublicCheckout {
   }
   bumps: { productId: string; name: string; imageUrl: string | null; headline: string; description: string; cta: string; animation?: import('../types/store').StoreBumpAnimation; position?: import('../types/store').StoreBumpPosition; price: number; fullPrice: number }[]
   gateway: { mercadoPago: boolean; publicKey: string | null; pixManual: boolean; testMode: boolean }
+  /** Archer no checkout (chat de dúvidas). */
+  archer?: { chat: boolean }
 }
 
 export interface PixData {
@@ -120,6 +122,8 @@ export const checkCoupon = (slug: string, code: string) => call<{ code: string; 
 export const createOrder = (body: unknown) => call<OrderResult>('order', { body })
 /** Nome e contato de quem está no checkout (vira carrinho abandonado se não pagar). */
 export const sendCheckoutLead = (body: unknown) => call<{ ok: true }>('checkout-lead', { body })
+/** Chat do Archer na página de pagamento. */
+export const checkoutChat = (body: { slug: string; messages: { role: 'user' | 'assistant'; content: string }[]; context: Record<string, unknown> }) => call<{ reply: string }>('checkout-chat', { body })
 export const fetchOrderStatus = (id: string, key: string) => call<OrderStatus>('order', { params: { id, key } })
 
 /* alunos */

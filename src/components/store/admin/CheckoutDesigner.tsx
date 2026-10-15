@@ -412,6 +412,21 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
         </fieldset>
       </EditorSection>
 
+      <EditorSection collapsible defaultOpen={openAll} title="Archer: recuperador de vendas" hint="O Archer tira dúvidas no checkout e escreve para quem abandona o carrinho. Ele nunca oferece desconto e só fala o que está cadastrado no produto.">
+        <Toggle label="Chat de dúvidas no checkout (abre sozinho quando a pessoa vai sair ou o cartão é recusado)" checked={c.archer?.chat !== false} onChange={(v) => onChange({ archer: { ...c.archer, chat: v } })} />
+        <Toggle label="E-mails de recuperação (30 min, 1 dia e 3 dias depois do abandono)" checked={c.archer?.emails !== false} onChange={(v) => onChange({ archer: { ...c.archer, emails: v } })} />
+        <Field label="O que o Archer precisa saber (perguntas frequentes, objeções, respostas)">
+          <Textarea
+            rows={5}
+            maxLength={3000}
+            value={c.archer?.notes ?? ''}
+            onChange={(e) => onChange({ archer: { ...c.archer, notes: e.target.value } })}
+            placeholder={'Ex.: O curso tem 40 aulas e certificado. Serve para quem está começando do zero. O acesso vale por 1 ano. Não tem aula ao vivo.'}
+          />
+        </Field>
+        <p className="text-[11px] text-slate-400">Ele já usa a descrição, o preço, os benefícios, os depoimentos e a garantia do produto. Aqui vale colocar o que costumam perguntar no WhatsApp.</p>
+      </EditorSection>
+
       <EditorSection collapsible defaultOpen={openAll} title="Rastreamento e pós-compra">
         <Field label="Pixel do Meta (número ou código)">
           <Input value={c.fbPixelId ?? ''} onChange={(e) => onChange({ fbPixelId: parseMetaPixelId(e.target.value) ?? e.target.value })} placeholder="1234567890" />

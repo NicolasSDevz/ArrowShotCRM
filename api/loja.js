@@ -10,6 +10,8 @@
 //   POST order      { slug, bumpIds, coupon, buyer, method: pix|card|test, card, utm }
 //   GET  order&id=&key=           status do pedido (consulta o MP e libera o acesso)
 //   POST webhook                  notificação do Mercado Pago
+//   POST checkout-chat { slug, messages, context }  chat do Archer no checkout (recuperador de vendas)
+//   GET  recovery-stop&id=&k=     link do e-mail de recuperação: para de mandar lembretes (página HTML)
 // Alunos:
 //   POST member-enter    { code }              → { token } (link de acesso)
 //   POST member-login    { email, password }   → { token }
@@ -108,6 +110,7 @@ import {
 import { buildPixCode } from './_lib/store/pixCode.js'
 import { getMpAccount, mpAccountForProduct, saveMpAccount, deleteMpAccount, principalDisabled } from './_lib/store/mpAccounts.js'
 import { fetchPdf, stampPdf } from './_lib/store/protectedPdf.js'
+import { archerConfig, checkoutChat, sendRecoveryEmails, stopRecovery } from './_lib/store/archerCheckout.js'
 import { encryptToken, decryptToken } from './_lib/tokenCrypto.js'
 import { capiStatus, cleanPixelId, removeCapiToken, saveCapiToken, sendCapiTest, trackingFromRequest } from './_lib/store/metaCapi.js'
 import { pushConfigured, pushPublicKey, cleanSubscription, savePushSubscription, removePushSubscription, sendPushToUsers } from './_lib/webPush.js'
@@ -152,6 +155,7 @@ async function actionCheckout(req) {
   const gw = await gatewayFor(product)
   const [bumps, settings, invoice] = await Promise.all([resolveBumps(product), pixSettingsFor(product, gw), getInvoiceSettings()])
   const data = publicCheckout(product, bumps, gw, settings)
+  data.archer = { chat: archerConfig(product).chat }
   // Com nota fiscal ligada, o CPF/CNPJ do comprador vira obrigatório.
   if (invoice.enabled === true) data.checkout.askCpf = true
   return data
@@ -291,6 +295,8 @@ async function actionOrder(req) {
     supportEmail: product.supportEmail || null,
     utm: cleanUtm(body.utm),
     tracking: trackingFromRequest(req, body.tracking),
+    // Conversou com o Archer no checkout antes de pagar.
+    archerChat: body.archerChat === true,
     privateTo: product.privateTo || null,
     createdAt: nowIso(),
     updatedAt: nowIso(),
@@ -448,6 +454,10 @@ async function saveAbandoned(product, buyer, extra = {}) {
     notified: fresh ? false : prev?.notified ?? true,
     contactedAt: fresh ? null : prev?.contactedAt ?? null,
     contactedBy: fresh ? null : prev?.contactedBy ?? null,
+    // E-mails de recuperação do Archer (archerCheckout.js): seguem com o mesmo carrinho.
+    recoveryEmails: fresh ? [] : prev?.recoveryEmails ?? [],
+    recoveryKey: fresh ? null : prev?.recoveryKey ?? null,
+    recoveryStopped: fresh ? false : prev?.recoveryStopped === true,
     privateTo: product.privateTo || null,
   })
 }
@@ -1191,6 +1201,8 @@ const PUBLIC = {
   'GET members-catalog': actionMembersCatalog,
   'POST coupon': actionCoupon,
   'POST checkout-lead': actionCheckoutLead,
+  'POST checkout-chat': actionCheckoutChat,
+  'GET recovery-stop': actionRecoveryStop,
   'POST order': actionOrder,
   'GET order': actionOrderStatus,
   'POST webhook': actionWebhook,
@@ -1246,15 +1258,56 @@ const ADMIN = {
   'POST admin-push-test': actionAdminPushTest,
 }
 
+/** Chat do Archer na página de pagamento. */
+async function actionCheckoutChat(req) {
+  const body = req.body || {}
+  const product = await loadActiveProduct(String(body.slug || ''))
+  if (!archerConfig(product).chat) throw new HttpError(404, 'Assistente desligado neste produto')
+  const gw = await gatewayFor(product)
+  const [bumps, settings] = await Promise.all([resolveBumps(product), pixSettingsFor(product, gw)])
+  const methods = publicCheckout(product, bumps, gw, settings).paymentMethods
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'sem-ip'
+  const ctx = body.context && typeof body.context === 'object' ? body.context : {}
+  try {
+    return await checkoutChat({
+      product,
+      bumps,
+      methods,
+      ip,
+      messages: body.messages,
+      context: { firstName: ctx.firstName, method: ctx.method === 'card' ? 'card' : ctx.method === 'pix' ? 'pix' : null, total: Number(ctx.total) || 0, refused: ctx.refused },
+    })
+  } catch (err) {
+    if (err?.status) throw new HttpError(err.status, err.message)
+    throw err
+  }
+}
+
+/** "Não quero mais receber lembretes" do e-mail de recuperação. */
+async function actionRecoveryStop(req) {
+  return { __html: await stopRecovery(String(req.query.id || ''), String(req.query.k || '')) }
+}
+
 // Rotas que disparam a conferência dos carrinhos abandonados (no máximo 1x a cada 5 min).
+// E-mails de recuperação: só em rotas onde ninguém fica esperando na tela (o lead do checkout é enviado em segundo plano).
+const RECOVERY_ROUTES = new Set(['POST checkout-lead', 'POST webhook', 'GET webhook', 'GET admin-status', 'POST admin-reconcile'])
 const SWEEP_ROUTES = new Set(['POST checkout-lead', 'POST order', 'POST webhook', 'GET webhook', 'GET admin-status', 'POST admin-reconcile'])
 
 export default async function handler(req, res) {
   const route = `${req.method} ${req.query.action || ''}`
-  if (SWEEP_ROUTES.has(route)) await notifyAbandonedCarts().catch((err) => console.warn('[loja] carrinhos:', err?.message))
+  if (SWEEP_ROUTES.has(route)) {
+    await notifyAbandonedCarts().catch((err) => console.warn('[loja] carrinhos:', err?.message))
+  }
+  // E-mails do Archer escrevem com IA (alguns segundos): fora do "Pagar" do cliente.
+  if (RECOVERY_ROUTES.has(route)) await sendRecoveryEmails(publicOrigin(req)).catch((err) => console.warn('[loja] e-mails de recuperação:', err?.message))
   try {
     if (PUBLIC[route]) {
       const out = await PUBLIC[route](req)
+      if (out?.__html) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-store')
+        return res.status(200).send(out.__html)
+      }
       if (out?.__file) {
         res.setHeader('Content-Type', 'application/pdf')
         res.setHeader('Content-Disposition', `${out.inline ? 'inline' : 'attachment'}; filename="${out.filename}"`)

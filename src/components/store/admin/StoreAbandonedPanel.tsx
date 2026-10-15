@@ -113,6 +113,14 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {a.recoveredAt && <Badge className="bg-emerald-50 text-emerald-700">Comprou</Badge>}
+                  {a.recoveredVia === 'archer-email' && <Badge className="bg-violet-50 text-violet-700">Recuperado pelo e-mail do Archer</Badge>}
+                  {a.recoveredVia === 'archer-chat' && <Badge className="bg-violet-50 text-violet-700">Conversou com o Archer</Badge>}
+                  {!a.recoveredAt && !!a.recoveryEmails?.length && (
+                    <Badge className="bg-violet-50 text-violet-700" title={a.recoveryEmails.map((m) => `${m.step}º: ${m.subject || '(enviando)'}${m.ok === false ? ' (falhou)' : ''}`).join(' · ')}>
+                      Archer: {a.recoveryEmails.length} de 3 e-mails
+                    </Badge>
+                  )}
+                  {!a.recoveredAt && a.recoveryStopped && <Badge className="bg-slate-100 text-slate-600">Pediu para não receber e-mails</Badge>}
                   {!a.recoveredAt && a.orderStatus === 'pending' && <Badge className="bg-amber-50 text-amber-700">Gerou Pix e não pagou</Badge>}
                   {!a.recoveredAt && a.orderStatus === 'refused' && <Badge className="bg-red-50 text-red-700">Pagamento recusado</Badge>}
                   {a.contactedAt && !a.recoveredAt && <Badge className="bg-slate-100 text-slate-600">Chamado por {a.contactedBy}</Badge>}

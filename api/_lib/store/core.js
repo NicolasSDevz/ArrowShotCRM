@@ -153,7 +153,9 @@ async function markRecovered(order) {
     if (!snap?.exists || snap.data().recoveredAt) continue
     const cart = snap.data()
     const wasAbandoned = cart.notified === true || paidAt - new Date(cart.updatedAt).getTime() > ABANDON_AFTER_MS
-    if (wasAbandoned) await updateDoc(path, { recoveredAt: nowIso(), orderId: order.id, orderStatus: 'approved', updatedAt: nowIso() }).catch(() => {})
+    // recoveredVia: voltou pelo e-mail do Archer (utm_source=archer) ou comprou depois de conversar com ele no checkout.
+    const recoveredVia = order.utm?.utm_source === 'archer' ? 'archer-email' : order.archerChat ? 'archer-chat' : null
+    if (wasAbandoned) await updateDoc(path, { recoveredAt: nowIso(), recoveredVia, orderId: order.id, orderStatus: 'approved', updatedAt: nowIso() }).catch(() => {})
     else await deleteDoc(path).catch(() => {})
   }
 }
@@ -592,7 +594,7 @@ export async function sendTempPasswordEmail({ to, name, loginUrl, tempPassword, 
   return sendMail({ to, subject: 'Sua senha de acesso', html })
 }
 
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch])
 }
 

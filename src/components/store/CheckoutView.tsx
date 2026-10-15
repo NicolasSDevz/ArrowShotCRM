@@ -5,6 +5,7 @@ import { checkCoupon, createOrder, sendCheckoutLead, type PublicCheckout } from 
 import { maskDocument, maskPhone } from '../../utils/masks'
 import { trackMetaPixel } from '../../utils/metaPixel'
 import { checkoutSeals, formatCents, sealCopy, type StoreSealKey } from '../../types/store'
+import { CheckoutArcher } from './CheckoutArcher'
 
 const SEAL_ICONS: Record<StoreSealKey, LucideIcon> = {
   secure: Lock,
@@ -52,6 +53,24 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+  // Archer: cartão recusado abre o chat; quem conversou com ele fica marcado no pedido.
+  const [refusal, setRefusal] = useState<{ reason: string; at: number } | null>(null)
+  const archerUsed = useRef(false)
+
+  // Link do e-mail de recuperação (?nome=&email=&tel=): volta com os dados preenchidos.
+  useEffect(() => {
+    if (preview) return
+    const q = new URLSearchParams(window.location.search)
+    const n = q.get('nome')
+    const e = q.get('email')
+    const t = q.get('tel')
+    if (n) setName(n.slice(0, 120))
+    if (e) {
+      setEmail(e.slice(0, 120))
+      setEmail2(e.slice(0, 120))
+    }
+    if (t) setPhone(maskPhone(t))
+  }, [preview])
 
   // "fulano@gmial.com": o acesso iria pro e-mail errado.
   const emailFix = emailTypoSuggestion(email)
@@ -100,6 +119,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     buyer: { name, email, phone, cpf },
     utm: readUtms(),
     tracking: readTracking(),
+    archerChat: archerUsed.current,
   })
 
   const goToThanks = (orderId: string, key: string) => {
@@ -127,6 +147,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     })
     if (result.status === 'refused') {
       setError(refusalMessage(result.statusDetail))
+      setRefusal({ reason: refusalMessage(result.statusDetail), at: Date.now() })
       throw new Error('recusado')
     }
     goToThanks(result.orderId, result.key)
@@ -569,6 +590,22 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
             <Lock size={16} /> {submitLabel} · {formatCents(total)}
           </button>
         </div>
+      )}
+
+      {!preview && data.archer?.chat !== false && (
+        <CheckoutArcher
+          slug={data.slug}
+          productName={data.name}
+          color={btnColor}
+          onColor={btnText}
+          bottom={sticky ? 88 : 16}
+          firstName={name.trim().split(/\s+/)[0] || ''}
+          method={method}
+          total={total}
+          refusal={refusal}
+          pixHint={data.paymentMethods.pix ? `No Pix ${pixPct ? `sai com ${pixPct}% de desconto e ` : ''}aprova na hora.` : ''}
+          onUsed={() => (archerUsed.current = true)}
+        />
       )}
     </div>
   )

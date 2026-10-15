@@ -183,6 +183,17 @@ export interface StoreCheckoutConfig {
   thankYouUrl?: string | null
   footerText?: string
   bumps: StoreOrderBump[]
+  /** Archer no checkout (recuperador de vendas). Vazio = chat e e-mails ligados. */
+  archer?: StoreArcherConfig
+}
+
+export interface StoreArcherConfig {
+  /** Chat de dúvidas na página de pagamento. */
+  chat?: boolean
+  /** E-mails de recuperação para quem abandona o carrinho (30 min, 1 dia e 3 dias). */
+  emails?: boolean
+  /** Perguntas frequentes, objeções e respostas que o Archer pode usar. */
+  notes?: string
 }
 
 export interface StoreMembersConfig {
@@ -380,6 +391,12 @@ export interface StoreAbandoned {
   contactedAt?: string | null
   contactedBy?: string | null
   privateTo?: string | null
+  /** E-mails de recuperação do Archer já enviados (1 a 3). */
+  recoveryEmails?: { step: number; sentAt: string; subject: string; ok?: boolean }[]
+  /** A pessoa clicou em "não quero mais receber" no e-mail. */
+  recoveryStopped?: boolean
+  /** Comprou depois do e-mail do Archer ou de conversar com ele no checkout. */
+  recoveredVia?: 'archer-email' | 'archer-chat' | null
 }
 
 export interface StoreMember {
