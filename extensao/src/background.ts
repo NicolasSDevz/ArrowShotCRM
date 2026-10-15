@@ -7,12 +7,21 @@
 
 const MEET_PATTERN = /^https:\/\/meet\.google\.com\//
 
+// Log de diagnóstico — se isto NÃO aparecer no console do service worker
+// (chrome://extensions → card da extensão → "service worker"), o problema
+// é a pasta errada carregada ou o script travando antes de chegar aqui, não
+// o comportamento do painel em si.
+console.log('[copiloto-ext] background iniciado — v1.0.1')
+
 // Sem isto, clicar no ícone da extensão na barra não faz nada — por padrão
 // o botão de ação não abre o painel lateral sozinho, mesmo com
 // side_panel.default_path definido no manifest.json.
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((err) => {
-  console.error('[copiloto-ext] falha ao habilitar abrir o painel pelo ícone:', err)
-})
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .then(() => console.log('[copiloto-ext] setPanelBehavior ok'))
+  .catch((err) => {
+    console.error('[copiloto-ext] falha ao habilitar abrir o painel pelo ícone:', err)
+  })
 
 async function atualizarSidePanel(tabId: number, url: string | undefined) {
   const habilitado = !!url && MEET_PATTERN.test(url)

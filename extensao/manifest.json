@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Copiloto de Vendas — Arrow Shot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Assistente de IA ao vivo durante chamadas no Google Meet, integrado ao CRM Arrow Shot (painel lateral do Chrome).",
   "icons": {
     "16": "icons/icon16.png",
