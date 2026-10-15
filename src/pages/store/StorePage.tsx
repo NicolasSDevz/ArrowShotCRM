@@ -202,17 +202,13 @@ function Alert({ tone, icon, title, text }: { tone: keyof typeof ALERT_TONE; ico
   )
 }
 
-/** Foto do produto. Sem foto (ou com o arquivo sumido), fundo neutro com ícone. */
+/** Foto do produto (como era antes: fundo com a imagem). Sem foto, fundo neutro com ícone. */
 function ProductThumb({ url, name }: { url?: string | null; name: string }) {
-  const [broken, setBroken] = useState(false)
-  useEffect(() => setBroken(false), [url])
-  if (url && !broken) {
-    return <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
-  }
+  if (url) return <div role="img" aria-label={name} className="h-full w-full bg-cover bg-center transition duration-300 group-hover:scale-105" style={{ backgroundImage: `url(${url})` }} />
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-slate-100 text-slate-400">
       <ImageOff size={22} aria-hidden="true" />
-      <span className="text-[11px] font-medium">{url ? 'Imagem não encontrada' : 'Sem foto'}</span>
+      <span className="text-[11px] font-medium">Sem foto</span>
       <span className="sr-only">{name}</span>
     </div>
   )

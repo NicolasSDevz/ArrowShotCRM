@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { ImageOff, ImagePlus, Trash2 } from 'lucide-react'
+import { ImagePlus, Trash2 } from 'lucide-react'
 import { releaseStoreImage, uploadStoreImage } from '../../../services/storeService'
 import { ImageCropModal, ratioFromAspect, shrinkImage } from './ImageCropModal'
 
@@ -29,20 +29,6 @@ export function ImageField({
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [cropping, setCropping] = useState<File | null>(null)
-  // Link salvo mas o arquivo não abre (apagado do Storage, link quebrado): avisa em vez de mostrar um quadro vazio.
-  const [broken, setBroken] = useState(false)
-  useEffect(() => {
-    setBroken(false)
-    if (!value || value.startsWith('data:')) return
-    let alive = true
-    const img = new Image()
-    img.onload = () => alive && setBroken(false)
-    img.onerror = () => alive && setBroken(true)
-    img.src = value
-    return () => {
-      alive = false
-    }
-  }, [value])
   // Logo (fundo transparente) e imagens da lateral do checkout (aparecem inteiras) não são cortadas.
   const crop = !/logo/.test(assetKey) && !assetKey.startsWith('side-')
   // Troca a imagem e libera a anterior pra ser apagada do Storage quando o produto for salvo.
@@ -76,18 +62,11 @@ export function ImageField({
     <div>
       <span className="mb-1 block text-xs font-medium text-slate-500">{label}</span>
       <div className="flex items-start gap-3">
-        {broken ? (
-          <div className={`${aspect} flex w-32 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-red-300 bg-red-50 p-2 text-center text-red-600`} aria-hidden="true">
-            <ImageOff size={18} />
-            <span className="text-[10px] font-medium leading-tight">Imagem não encontrada</span>
-          </div>
-        ) : (
-          <div
-            className={`${aspect} w-32 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 bg-cover bg-center ${!value && fallback ? 'opacity-60' : ''}`}
-            style={value || fallback ? { backgroundImage: `url(${value || fallback})` } : undefined}
-            aria-hidden="true"
-          />
-        )}
+        <div
+          className={`${aspect} w-32 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 bg-cover bg-center ${!value && fallback ? 'opacity-60' : ''}`}
+          style={value || fallback ? { backgroundImage: `url(${value || fallback})` } : undefined}
+          aria-hidden="true"
+        />
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap gap-1.5">
             <button type="button" onClick={() => fileRef.current?.click()} disabled={busy} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
@@ -107,7 +86,6 @@ export function ImageField({
             onChange={(e) => replace(e.target.value.trim() || null)}
             className="h-8 w-full rounded-lg border border-slate-200 px-2.5 text-xs outline-none focus:border-brand-600"
           />
-          {broken && <p role="alert" className="text-[11px] font-medium text-red-600">O arquivo desta imagem não existe mais. Envie a imagem de novo.</p>}
           {!value && fallback && <p className="text-[11px] text-brand-600">Usando a foto do produto. Envie outra só se quiser trocar aqui.</p>}
           {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
         </div>
