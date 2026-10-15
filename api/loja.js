@@ -644,9 +644,8 @@ async function actionMemberFile(req) {
   if (releaseDays && Date.now() < new Date(enr.data().createdAt).getTime() + releaseDays * 86400_000) throw new HttpError(403, 'Essa aula ainda não foi liberada')
   const att = (lesson.attachments || [])[index]
   if (!att?.protected || !att.sealed) throw new HttpError(404, 'Arquivo não encontrado')
-  // view = abre no leitor da área de membros; download só se o anexo permitir.
-  const view = req.query.mode === 'view'
-  if (!view && att.allowDownload === false) throw new HttpError(403, 'Este arquivo é só para ler na área de membros.')
+  // Só abre no leitor da área de membros; baixar o PDF não é permitido.
+  if (req.query.mode !== 'view') throw new HttpError(403, 'Este arquivo é só para ler na área de membros.')
 
   const member = (await getDoc(`storeMembers/${uid}`)).data() || {}
   // CPF: da compra mais recente aprovada deste produto.
@@ -664,7 +663,7 @@ async function actionMemberFile(req) {
     orderId: order?.id || null,
   })
   const safeName = String(att.name || 'arquivo').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-').slice(0, 60) || 'arquivo'
-  return { __file: stamped, inline: view, filename: safeName.toLowerCase().endsWith('.pdf') ? safeName : `${safeName}.pdf` }
+  return { __file: stamped, inline: true, filename: safeName.toLowerCase().endsWith('.pdf') ? safeName : `${safeName}.pdf` }
 }
 
 async function actionMemberOrders(req) {

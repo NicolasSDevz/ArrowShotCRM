@@ -264,7 +264,7 @@ function LessonModal({ productId, moduleId, lesson, nextOrder, onClose }: { prod
         {kind === 'pdf' && (
           <div className="space-y-1">
             <Field label="Link do PDF (Google Drive, Dropbox ou link direto do arquivo)"><Input value={pdfUrl} onChange={(e) => setPdfUrl(e.target.value)} placeholder="https://drive.google.com/file/d/..." /></Field>
-            <p className="text-[11px] text-slate-400">No Drive, deixe o arquivo como "Qualquer pessoa com o link". O PDF abre dentro da aula, com botão para abrir em tela cheia. Para o aluno baixar com nome e CPF carimbados, use um anexo protegido lá embaixo.</p>
+            <p className="text-[11px] text-slate-400">No Drive, deixe o arquivo como "Qualquer pessoa com o link". O PDF abre dentro da aula, com botão para abrir em tela cheia. Para o aluno ler com nome e CPF carimbados (sem baixar), use um anexo protegido lá embaixo.</p>
           </div>
         )}
         {kind === 'link' && (
@@ -310,19 +310,8 @@ function LessonModal({ productId, moduleId, lesson, nextOrder, onClose }: { prod
                     onChange={(e) => setAttachments(attachments.map((x, j) => (j === i ? { ...x, protected: e.target.checked } : x)))}
                   />
                   <ShieldCheck size={13} className="text-emerald-600" aria-hidden="true" />
-                  PDF protegido: sai com nome, CPF e e-mail do aluno em todas as páginas, e o link original fica escondido
+                  PDF protegido: aluno só lê na área de membros (sem baixar), com nome, CPF e e-mail em todas as páginas, e o link original fica escondido
                 </label>
-                {a.protected && (
-                  <label className="flex items-center gap-2 px-1 pl-6 text-xs text-slate-600">
-                    <input
-                      type="checkbox"
-                      className="h-3.5 w-3.5"
-                      checked={a.allowDownload !== false}
-                      onChange={(e) => setAttachments(attachments.map((x, j) => (j === i ? { ...x, allowDownload: e.target.checked } : x)))}
-                    />
-                    Aluno pode baixar (desmarcado: só lê dentro da área de membros)
-                  </label>
-                )}
               </li>
             ))}
           </ul>
@@ -344,9 +333,8 @@ async function sealAttachments(list: StoreAttachment[]): Promise<StoreAttachment
   for (const a of list) {
     const url = a.url.trim()
     if (a.protected) {
-      const allowDownload = a.allowDownload !== false
-      if (url) out.push({ name: a.name, url: '', protected: true, allowDownload, sealed: (await storeSealFile(url)).sealed })
-      else if (a.sealed) out.push({ name: a.name, url: '', protected: true, allowDownload, sealed: a.sealed })
+      if (url) out.push({ name: a.name, url: '', protected: true, sealed: (await storeSealFile(url)).sealed })
+      else if (a.sealed) out.push({ name: a.name, url: '', protected: true, sealed: a.sealed })
     } else if (url) {
       out.push({ name: a.name, url })
     }

@@ -1,4 +1,3 @@
-import { memberDownloadFile } from '../../../services/storeApi'
 import { ProtectedPdfViewer } from '../../../components/store/members/ProtectedPdfViewer'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
@@ -181,7 +180,7 @@ export function MembersLessonPage() {
               {lesson.attachments.map((a, i) => (
                 <li key={i}>
                   {a.protected ? (
-                    <ProtectedDownload productId={product.id} lessonId={lesson.id} index={i} name={a.name || 'Arquivo'} allowDownload={a.allowDownload !== false} watermark={[member?.name, member?.email].filter(Boolean).join(' · ')} />
+                    <ProtectedReader productId={product.id} lessonId={lesson.id} index={i} name={a.name || 'Arquivo'} watermark={[member?.name, member?.email].filter(Boolean).join(' · ')} />
                   ) : (
                     <a href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-[var(--m-border)] px-3 py-2 text-sm hover:bg-[var(--m-soft)]">
                       <Download size={16} aria-hidden="true" /> {a.name || 'Baixar arquivo'}
@@ -268,22 +267,9 @@ export function MembersLessonPage() {
   )
 }
 
-/** PDF protegido: baixa pela API, já com nome/CPF do aluno nas páginas. */
-function ProtectedDownload({ productId, lessonId, index, name, allowDownload, watermark }: { productId: string; lessonId: string; index: number; name: string; allowDownload: boolean; watermark: string }) {
-  const [busy, setBusy] = useState(false)
+/** PDF protegido: só lê no leitor da área de membros, já com nome/CPF do aluno nas páginas (sem baixar). */
+function ProtectedReader({ productId, lessonId, index, name, watermark }: { productId: string; lessonId: string; index: number; name: string; watermark: string }) {
   const [reading, setReading] = useState(false)
-  const [error, setError] = useState('')
-  const download = async () => {
-    setBusy(true)
-    setError('')
-    try {
-      await memberDownloadFile(productId, lessonId, index, name)
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
   return (
     <div>
       <div className="flex items-center gap-2 rounded-lg border border-[var(--m-border)] px-3 py-2 text-sm">
@@ -292,13 +278,7 @@ function ProtectedDownload({ productId, lessonId, index, name, allowDownload, wa
         <button type="button" onClick={() => setReading(true)} className="flex items-center gap-1 rounded-md px-2 py-1 font-medium hover:bg-[var(--m-soft)]" aria-label={`Ler ${name}`}>
           <BookOpen size={15} aria-hidden="true" /> Ler
         </button>
-        {allowDownload && (
-          <button type="button" onClick={download} disabled={busy} className="flex items-center gap-1 rounded-md px-2 py-1 font-medium hover:bg-[var(--m-soft)] disabled:opacity-60" aria-label={`Baixar ${name}`}>
-            <Download size={15} aria-hidden="true" /> {busy ? 'Preparando...' : 'Baixar'}
-          </button>
-        )}
       </div>
-      {error && <p role="alert" className="mt-1 text-xs text-red-500">{error}</p>}
       {reading && <ProtectedPdfViewer productId={productId} lessonId={lessonId} index={index} title={name} watermark={watermark} onClose={() => setReading(false)} />}
     </div>
   )
