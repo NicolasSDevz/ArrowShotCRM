@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { subscribeStoreLinks, subscribeStorePaymentSettings } from '../../services/storeService'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Copy, CopyPlus, ExternalLink, Lock, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, BookOpen, Copy, CopyPlus, ExternalLink, GraduationCap, Link2, Lock, MonitorSmartphone, Package, Save, Settings2, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { auth } from '../../firebase/config'
 import { useStoreMemberAreas, useStoreMpAccounts, useStoreProducts } from '../../hooks/useStore'
@@ -66,6 +66,8 @@ export function StoreProductPage() {
   const { data: mpAccounts } = useStoreMpAccounts()
   const server = products.find((p) => p.id === id)
   const [privBusy, setPrivBusy] = useState(false)
+  // Aba aberta fica na URL: recarregar ou voltar cai na mesma aba.
+  const [params, setParams] = useSearchParams()
   const [draft, setDraft] = useState<StoreProduct | null>(null)
   const [saving, setSaving] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
@@ -165,10 +167,6 @@ export function StoreProductPage() {
     <div className="grid gap-5 lg:grid-cols-2">
       <section className={card}>
         <h2 className="text-[15px] font-semibold text-slate-800">Produto</h2>
-        <Field label="Nome" required><Input value={draft.name} onChange={(e) => set({ name: e.target.value })} /></Field>
-        <Field label="Descrição (aparece no checkout e na área de membros)"><Textarea rows={4} value={draft.description} onChange={(e) => set({ description: e.target.value })} /></Field>
-        <ImageField label="Imagem do produto" value={draft.imageUrl} onChange={(v) => set({ imageUrl: v })} productId={draft.id} assetKey="product" hint="Quadrada, 600 x 600 px. Vale também para a capa e o banner do curso e as capas dos módulos, se você não colocar outras. O banner principal da área fica em Loja, aba Área de membros, Início." aspect="aspect-square" />
-        <Field label="E-mail de suporte (aparece para o comprador)"><Input type="email" value={draft.supportEmail ?? ''} onChange={(e) => set({ supportEmail: e.target.value || null })} /></Field>
         <div>
           <p id="product-status-label" className="mb-1.5 text-sm font-medium text-slate-700">Status</p>
           <div role="radiogroup" aria-labelledby="product-status-label" className="grid grid-cols-3 gap-2">
@@ -193,6 +191,10 @@ export function StoreProductPage() {
             ))}
           </div>
         </div>
+        <Field label="Nome" required><Input value={draft.name} onChange={(e) => set({ name: e.target.value })} /></Field>
+        <Field label="Descrição (aparece no checkout e na área de membros)"><Textarea rows={4} value={draft.description} onChange={(e) => set({ description: e.target.value })} /></Field>
+        <ImageField label="Imagem do produto" value={draft.imageUrl} onChange={(v) => set({ imageUrl: v })} productId={draft.id} assetKey="product" hint="Quadrada, 600 x 600 px. Vale também para a capa e o banner do curso e as capas dos módulos, se você não colocar outras. O banner principal da área fica em Loja, aba Área de membros, Início." aspect="aspect-square" />
+        <Field label="E-mail de suporte (aparece para o comprador)"><Input type="email" value={draft.supportEmail ?? ''} onChange={(e) => set({ supportEmail: e.target.value || null })} /></Field>
       </section>
       <section className={card}>
         <h2 className="text-[15px] font-semibold text-slate-800">Preço e pagamento</h2>
@@ -328,48 +330,93 @@ export function StoreProductPage() {
     </div>
   )
 
+  const productTabs = [
+    { key: 'geral', icon: <Settings2 size={15} />, label: 'Geral', content: general },
+    { key: 'tela', icon: <MonitorSmartphone size={15} />, label: 'Configuração de tela', content: <CheckoutDesigner product={draft} allProducts={products} onChange={setCheckout} /> },
+    { key: 'conteudo', icon: <BookOpen size={15} />, label: 'Conteúdo', content: <ContentEditor product={server} /> },
+    { key: 'membros', icon: <GraduationCap size={15} />, label: 'Área de membros', content: membersTab },
+    { key: 'links', icon: <Link2 size={15} />, label: 'Links', content: links },
+  ]
+  const activeTab = Math.max(0, productTabs.findIndex((t) => t.key === params.get('aba')))
+
   return (
     <div className="space-y-4 pb-20">
-      <header className="flex flex-wrap items-center gap-3">
+      {/* Cabeçalho fixo no topo: foto, nome, status, link do checkout e Salvar sempre à mão. */}
+      <header className="sticky top-0 z-20 -mt-2 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <Link to="/loja?aba=produtos" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Voltar para a Loja"><ArrowLeft size={18} /></Link>
+        <span className="hidden h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:block" aria-hidden="true">
+          {server.imageUrl ? <img src={server.imageUrl} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} /> : <Package size={18} className="m-3 text-slate-400" />}
+        </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-bold text-slate-900">{server.name}</h1>
-          <p className="text-xs text-slate-500">{server.status === 'active' ? 'No ar' : server.status === 'draft' ? 'Rascunho' : 'Arquivado'}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="truncate text-lg font-bold text-slate-900">{server.name}</h1>
+            <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${server.status === 'active' ? 'bg-emerald-50 text-emerald-700' : server.status === 'draft' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+              {server.status === 'active' ? 'No ar' : server.status === 'draft' ? 'Rascunho' : 'Arquivado'}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">
+            {formatCents(server.price)}
+            {server.lessonCount ? ` · ${server.lessonCount} ${server.lessonCount === 1 ? 'aula' : 'aulas'}` : ''}
+          </p>
         </div>
-        {/* Só eu vejo: cadeado discreto, só aparece pra quem pode usar (ver PRIVATE_OWNER_EMAILS). */}
-        {canUsePrivate(auth.currentUser?.email) && (
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={privBusy}
-            onClick={() => togglePrivate(!server.privateTo)}
-            title={server.privateTo ? 'Privado: só você vê. Clique pra mostrar pra equipe.' : 'Deixar privado (só você vê)'}
-            aria-label={server.privateTo ? 'Produto privado. Mostrar para a equipe' : 'Deixar o produto privado'}
-            aria-pressed={!!server.privateTo}
-            className={`flex h-[38px] w-[38px] items-center justify-center rounded-lg transition disabled:opacity-50 ${server.privateTo ? 'bg-slate-800 text-white hover:bg-slate-700' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}
+            onClick={() => copyText(checkoutUrl, 'Link do checkout copiado')}
+            className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            aria-label="Copiar o link do checkout"
           >
-            <Lock size={15} />
+            <Copy size={15} aria-hidden="true" /> <span className="hidden md:inline">Copiar link</span>
           </button>
-        )}
-        <Button
-          variant="secondary"
-          icon={<CopyPlus size={15} />}
-          onClick={() => (dirty ? toast.error('Salve as alterações antes de duplicar') : setDuplicating(true))}
-        >
-          Duplicar
-        </Button>
-        <Button icon={<Save size={15} />} loading={saving} disabled={!dirty} onClick={save}>{dirty ? 'Salvar alterações' : 'Salvo'}</Button>
+          {server.status === 'active' && (
+            <a href={checkoutUrl} target="_blank" rel="noreferrer" className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50" aria-label="Ver o checkout em outra aba">
+              <ExternalLink size={15} aria-hidden="true" /> <span className="hidden md:inline">Ver checkout</span>
+            </a>
+          )}
+          {/* Só eu vejo: cadeado discreto, só aparece pra quem pode usar (ver PRIVATE_OWNER_EMAILS). */}
+          {canUsePrivate(auth.currentUser?.email) && (
+            <button
+              type="button"
+              disabled={privBusy}
+              onClick={() => togglePrivate(!server.privateTo)}
+              title={server.privateTo ? 'Privado: só você vê. Clique pra mostrar pra equipe.' : 'Deixar privado (só você vê)'}
+              aria-label={server.privateTo ? 'Produto privado. Mostrar para a equipe' : 'Deixar o produto privado'}
+              aria-pressed={!!server.privateTo}
+              className={`flex h-[38px] w-[38px] items-center justify-center rounded-lg transition disabled:opacity-50 ${server.privateTo ? 'bg-slate-800 text-white hover:bg-slate-700' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}
+            >
+              <Lock size={15} />
+            </button>
+          )}
+          <Button
+            variant="secondary"
+            icon={<CopyPlus size={15} />}
+            onClick={() => (dirty ? toast.error('Salve as alterações antes de duplicar') : setDuplicating(true))}
+          >
+            <span className="hidden md:inline">Duplicar</span>
+          </Button>
+          <Button icon={<Save size={15} />} loading={saving} disabled={!dirty} onClick={save}>{dirty ? 'Salvar' : 'Salvo'}</Button>
+        </div>
       </header>
 
-      <Tabs
-        label="Configurações do produto"
-        tabs={[
-          { label: 'Geral', content: general },
-          { label: 'Configuração de tela', content: <CheckoutDesigner product={draft} allProducts={products} onChange={setCheckout} /> },
-          { label: 'Conteúdo', content: <ContentEditor product={server} /> },
-          { label: 'Área de membros', content: membersTab },
-          { label: 'Links', content: links },
-        ]}
-      />
+      <div className="overflow-clip rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <Tabs
+          label="Configurações do produto"
+          variant="pills"
+          active={activeTab}
+          onChange={(i) =>
+            setParams(
+              (p) => {
+                const next = new URLSearchParams(p)
+                if (i === 0) next.delete('aba')
+                else next.set('aba', productTabs[i].key)
+                return next
+              },
+              { replace: true }
+            )
+          }
+          tabs={productTabs}
+        />
+      </div>
 
       {duplicating && <DuplicateProductModal product={server} onClose={() => setDuplicating(false)} />}
 

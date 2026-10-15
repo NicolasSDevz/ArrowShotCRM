@@ -9,6 +9,7 @@ import {
   CopyPlus,
   ExternalLink,
   FileText,
+  ImageOff,
   Lock,
   MessageSquare,
   Package,
@@ -16,6 +17,7 @@ import {
   Pencil,
   Plus,
   Receipt,
+  Search,
   ShoppingBag,
   ShoppingCart,
   Store,
@@ -31,7 +33,7 @@ import { storeAdminStatus } from '../../services/storeApi'
 import { Tabs } from '../../components/ui/Tabs'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
-import { Field, Input } from '../../components/ui/Field'
+import { Field, Input, Select } from '../../components/ui/Field'
 import { Badge } from '../../components/ui/Badge'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { FullPageSpinner } from '../../components/ui/FullPageSpinner'
@@ -108,55 +110,50 @@ export function StorePage() {
     { key: 'abandonados', icon: <ShoppingCart size={ico} />, label: 'Abandonados', badge: openCarts, badgeAlert: true, badgeLabel: `${openCarts} carrinhos sem contato`, content: <StoreAbandonedPanel carts={abandoned} /> },
     { key: 'membros', icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel /> },
     { key: 'recebimento', icon: <Wallet size={ico} />, label: 'Recebimento', content: <StorePaymentSettingsPanel principalReady={status?.mpPrincipal ?? status?.mercadoPago ?? false} principalEmail={status?.mpPrincipalEmail} principalInvalid={status?.mpPrincipalInvalid} /> },
-    { key: 'comentarios', icon: <MessageSquare size={ico} />, label: 'Comentários', badge: pendingComments, badgeAlert: true, badgeLabel: `${pendingComments} comentários novos`, content: <StoreCommentsPanel comments={comments} products={products} />, secondary: true },
-    { key: 'cupons', icon: <Ticket size={ico} />, label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} />, secondary: true },
-    { key: 'nota', icon: <FileText size={ico} />, label: 'Nota fiscal', content: <StoreInvoicePanel hasToken={status?.invoice?.hasToken ?? false} onTokenSaved={() => storeAdminStatus().then(setStatus).catch(() => {})} />, secondary: true },
+    { key: 'comentarios', icon: <MessageSquare size={ico} />, label: 'Comentários', badge: pendingComments, badgeAlert: true, badgeLabel: `${pendingComments} comentários novos`, content: <StoreCommentsPanel comments={comments} products={products} /> },
+    { key: 'cupons', icon: <Ticket size={ico} />, label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} /> },
+    { key: 'nota', icon: <FileText size={ico} />, label: 'Nota fiscal', content: <StoreInvoicePanel hasToken={status?.invoice?.hasToken ?? false} onTokenSaved={() => storeAdminStatus().then(setStatus).catch(() => {})} /> },
   ]
   const activeTab = Math.max(0, tabs.findIndex((t) => t.key === params.get('aba')))
 
   const kpis = [
-    { icon: <Wallet size={16} />, label: 'Faturamento (30 dias)', value: formatCents(revenue30) },
-    { icon: <ShoppingBag size={16} />, label: 'Vendas (30 dias)', value: String(approved30.length) },
-    { icon: <Package size={16} />, label: 'Produtos no ar', value: `${live} de ${products.length}` },
-    { icon: <Users size={16} />, label: 'Alunos', value: String(members.length) },
+    { icon: <Wallet size={13} />, label: 'Faturamento (30 dias)', value: formatCents(revenue30) },
+    { icon: <ShoppingBag size={13} />, label: 'Vendas (30 dias)', value: String(approved30.length) },
+    { icon: <Package size={13} />, label: 'Produtos no ar', value: `${live} de ${products.length}` },
+    { icon: <Users size={13} />, label: 'Alunos', value: String(members.length) },
   ]
 
   return (
-    <div className="space-y-5">
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 p-6 text-white shadow-lg sm:p-7">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" />
-        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-24 h-48 w-48 rounded-full bg-white/5" />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25" aria-hidden="true">
-              <Store size={24} />
-            </span>
-            <div>
-              <h1 className="text-2xl font-bold">Loja</h1>
-              <p className="text-sm text-white/75">Checkout próprio, área de membros e vendas dos nossos produtos digitais.</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <a href="/membros" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white/10 px-3.5 text-sm font-medium text-white ring-1 ring-white/25 hover:bg-white/20">
-              <ExternalLink size={15} aria-hidden="true" /> Ver área de membros
-            </a>
-            <button type="button" onClick={() => setCreating(true)} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white px-4 text-sm font-semibold text-brand-700 shadow-sm hover:bg-brand-50">
-              <Plus size={16} aria-hidden="true" /> Novo produto
-            </button>
+    <div className="space-y-4">
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm shadow-brand-600/30" aria-hidden="true">
+            <Store size={20} />
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold leading-tight text-slate-900">Loja</h1>
+            <p className="truncate text-xs text-slate-500">Checkout, área de membros e vendas dos produtos digitais</p>
           </div>
         </div>
 
-        <dl className="relative mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <dl className="order-3 flex w-full flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-3 lg:order-none lg:w-auto lg:flex-1 lg:justify-center lg:border-0 lg:pt-0">
           {kpis.map((k) => (
-            <div key={k.label} className="rounded-2xl bg-white/10 p-3.5 ring-1 ring-white/15">
-              <dt className="flex items-center gap-1.5 text-xs font-medium text-white/75">
-                <span aria-hidden="true">{k.icon}</span>
+            <div key={k.label} className="min-w-[110px]">
+              <dt className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                <span aria-hidden="true" className="text-slate-400">{k.icon}</span>
                 {k.label}
               </dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums">{k.value}</dd>
+              <dd className="text-base font-bold tabular-nums text-slate-900">{k.value}</dd>
             </div>
           ))}
         </dl>
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <a href="/membros" target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <ExternalLink size={15} aria-hidden="true" /> Área de membros
+          </a>
+          <Button icon={<Plus size={16} />} onClick={() => setCreating(true)}>Novo produto</Button>
+        </div>
       </header>
 
       {(pixToConfirm > 0 || refundRequests > 0 || pendingComments > 0) && (
@@ -167,7 +164,7 @@ export function StorePage() {
         </ul>
       )}
 
-      <div className="overflow-clip rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-clip rounded-2xl border border-slate-200 bg-white shadow-sm">
         <Tabs
           label="Seções da loja"
           variant="pills"
@@ -205,21 +202,37 @@ function Alert({ tone, icon, title, text }: { tone: keyof typeof ALERT_TONE; ico
   )
 }
 
-/** Capa sem foto: degradê com as iniciais do produto (cor fixa por nome). */
-const COVER_GRADIENTS = ['from-sky-500 to-indigo-600', 'from-emerald-500 to-teal-600', 'from-orange-400 to-rose-500', 'from-violet-500 to-fuchsia-600', 'from-amber-400 to-orange-600', 'from-cyan-500 to-blue-600']
-
-function coverFor(name: string) {
-  const sum = [...name].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
-  const words = name.split(/\s+/).filter((w) => w.length > 2 || /\d/.test(w))
-  const initials = words.slice(0, 2).map((w) => w[0]).join('').toUpperCase() || name.slice(0, 2).toUpperCase()
-  return { gradient: COVER_GRADIENTS[sum % COVER_GRADIENTS.length], initials }
+/** Foto do produto. Sem foto (ou com o arquivo sumido), fundo neutro com ícone. */
+function ProductThumb({ url, name }: { url?: string | null; name: string }) {
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [url])
+  if (url && !broken) {
+    return <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+  }
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-slate-100 text-slate-400">
+      <ImageOff size={22} aria-hidden="true" />
+      <span className="text-[11px] font-medium">{url ? 'Imagem não encontrada' : 'Sem foto'}</span>
+      <span className="sr-only">{name}</span>
+    </div>
+  )
 }
 
 type ProductFilter = 'all' | StoreProduct['status']
+type ProductSort = 'recent' | 'name' | 'sales'
+
+/** Data do Firestore (Timestamp) ou texto ISO, em milissegundos. */
+function timeOf(v: unknown) {
+  const t = v as { toMillis?: () => number } | string | null | undefined
+  if (t && typeof t === 'object' && t.toMillis) return t.toMillis()
+  return typeof t === 'string' ? new Date(t).getTime() || 0 : 0
+}
 
 function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]; orders: StoreOrder[]; onCreate: () => void }) {
   const [duplicate, setDuplicate] = useState<StoreProduct | null>(null)
   const [filter, setFilter] = useState<ProductFilter>('all')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<ProductSort>('recent')
   if (!products.length) {
     return (
       <EmptyState
@@ -235,18 +248,27 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
   for (const o of orders) if (!o.test && o.status === 'approved') sales.set(o.productId, (sales.get(o.productId) ?? 0) + 1)
   const counts: Record<ProductFilter, number> = { all: products.length, active: 0, draft: 0, archived: 0 }
   for (const p of products) counts[p.status] += 1
-  const list = filter === 'all' ? products : products.filter((p) => p.status === filter)
+  const q = search.trim().toLowerCase()
+  const list = products
+    .filter((p) => (filter === 'all' || p.status === filter) && (!q || p.name.toLowerCase().includes(q)))
+    .sort((a, b) =>
+      sort === 'name'
+        ? a.name.localeCompare(b.name, 'pt-BR')
+        : sort === 'sales'
+          ? (sales.get(b.id) ?? 0) - (sales.get(a.id) ?? 0)
+          : timeOf(b.updatedAt ?? b.createdAt) - timeOf(a.updatedAt ?? a.createdAt)
+    )
   const filters: { key: ProductFilter; label: string }[] = [
     { key: 'all', label: 'Todos' },
     { key: 'active', label: 'No ar' },
     { key: 'draft', label: 'Rascunho' },
     { key: 'archived', label: 'Arquivados' },
   ]
-  const actionCls = 'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-slate-600 hover:bg-slate-50 hover:text-brand-700'
+  const actionCls = 'flex flex-1 items-center justify-center gap-1.5 py-2 text-slate-500 hover:bg-slate-50 hover:text-brand-700'
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <div role="radiogroup" aria-label="Filtrar produtos" className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
           {filters
             .filter((f) => f.key === 'all' || counts[f.key] > 0)
@@ -263,63 +285,68 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
               </button>
             ))}
         </div>
-        <Button icon={<Plus size={15} />} variant="secondary" onClick={onCreate}>Novo produto</Button>
+        <div className="relative min-w-[200px] flex-1">
+          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Input aria-label="Buscar produto" placeholder="Buscar produto" value={search} onChange={(e) => setSearch(e.target.value)} className="!pl-9" />
+        </div>
+        <Select aria-label="Ordenar produtos" value={sort} onChange={(e) => setSort(e.target.value as ProductSort)} className="!w-48">
+          <option value="recent">Mexidos por último</option>
+          <option value="sales">Mais vendidos</option>
+          <option value="name">Nome (A a Z)</option>
+        </Select>
       </div>
 
-      <ul className="grid gap-x-5 gap-y-6 sm:grid-cols-2 xl:grid-cols-3">
-        {list.map((p) => {
-          const cover = coverFor(p.name)
-          const sold = sales.get(p.id) ?? 0
-          const lessons = p.lessonCount ?? 0
-          return (
-            <li key={p.id} className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-              <Link to={`/loja/produtos/${p.id}`} className="flex flex-1 flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
-                <div className="relative aspect-[16/9] overflow-hidden">
-                  {p.imageUrl ? (
-                    <div className="h-full w-full bg-cover bg-center transition duration-300 group-hover:scale-105" style={{ backgroundImage: `url(${p.imageUrl})` }} />
-                  ) : (
-                    <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${cover.gradient} transition duration-300 group-hover:scale-105`}>
-                      <span className="text-4xl font-black tracking-tight text-white/90 drop-shadow-sm" aria-hidden="true">{cover.initials}</span>
-                    </div>
-                  )}
-                  <Badge className={`absolute left-3 top-3 shadow-sm ${STATUS_LABEL[p.status].cls}`}>{STATUS_LABEL[p.status].text}</Badge>
-                  {p.privateTo && (
-                    <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white" title="Privado: só você vê" aria-label="Privado">
-                      <Lock size={11} aria-hidden="true" />
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-1 flex-col gap-3 p-4">
-                  <h3 className="line-clamp-2 font-semibold leading-snug text-slate-800 group-hover:text-brand-700">{p.name}</h3>
-                  <div className="mt-auto flex items-end justify-between gap-2">
-                    <div>
-                      {p.comparePrice && p.comparePrice > p.price && <p className="text-xs text-slate-400 line-through">{formatCents(p.comparePrice)}</p>}
-                      <p className="text-lg font-bold text-slate-900">{formatCents(p.price)}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-0.5 text-xs text-slate-500">
-                      <span className="flex items-center gap-1"><ShoppingBag size={12} aria-hidden="true" /> {sold} {sold === 1 ? 'venda' : 'vendas'}</span>
-                      <span className="flex items-center gap-1"><BookOpen size={12} aria-hidden="true" /> {lessons} {lessons === 1 ? 'aula' : 'aulas'}</span>
+      {list.length === 0 ? (
+        <p className="py-10 text-center text-sm text-slate-500">Nenhum produto com esse filtro.</p>
+      ) : (
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          {list.map((p) => {
+            const sold = sales.get(p.id) ?? 0
+            const lessons = p.lessonCount ?? 0
+            return (
+              <li key={p.id} className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-brand-300 hover:shadow-md">
+                <Link to={`/loja/produtos/${p.id}`} className="flex flex-1 flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
+                  <div className="relative aspect-[16/9] overflow-hidden">
+                    <ProductThumb url={p.imageUrl} name={p.name} />
+                    <Badge className={`absolute left-2.5 top-2.5 shadow-sm ${STATUS_LABEL[p.status].cls}`}>{STATUS_LABEL[p.status].text}</Badge>
+                    {p.privateTo && (
+                      <span className="absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white" title="Privado: só você vê" aria-label="Privado">
+                        <Lock size={11} aria-hidden="true" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2 p-3.5">
+                    <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-slate-800 group-hover:text-brand-700">{p.name}</h3>
+                    <div className="mt-auto flex items-end justify-between gap-2">
+                      <p className="font-bold text-slate-900">
+                        {formatCents(p.price)}
+                        {p.comparePrice && p.comparePrice > p.price && <span className="ml-1.5 text-xs font-normal text-slate-400 line-through">{formatCents(p.comparePrice)}</span>}
+                      </p>
+                      <p className="flex items-center gap-2.5 text-xs text-slate-500">
+                        <span className="flex items-center gap-1" title="Vendas aprovadas"><ShoppingBag size={12} aria-hidden="true" /> {sold}<span className="sr-only"> {sold === 1 ? 'venda' : 'vendas'}</span></span>
+                        <span className="flex items-center gap-1" title="Aulas"><BookOpen size={12} aria-hidden="true" /> {lessons}<span className="sr-only"> {lessons === 1 ? 'aula' : 'aulas'}</span></span>
+                      </p>
                     </div>
                   </div>
-                </div>
-              </Link>
-              <div className="flex border-t border-slate-100 text-xs font-semibold">
-                <Link to={`/loja/produtos/${p.id}`} className={actionCls} aria-label={`Editar ${p.name}`}>
-                  <Pencil size={13} aria-hidden="true" /> Editar
                 </Link>
-                <button type="button" onClick={() => setDuplicate(p)} className={`${actionCls} border-l border-slate-100`} aria-label={`Duplicar o produto ${p.name}`}>
-                  <CopyPlus size={13} aria-hidden="true" /> Duplicar
-                </button>
-                {p.status === 'active' && (
-                  <a href={`/pay/${p.slug}`} target="_blank" rel="noreferrer" className={`${actionCls} border-l border-slate-100`} aria-label={`Abrir o checkout de ${p.name}`}>
-                    <ExternalLink size={13} aria-hidden="true" /> Checkout
-                  </a>
-                )}
-              </div>
-            </li>
-          )
-        })}
-      </ul>
+                <div className="flex border-t border-slate-100 text-xs font-semibold">
+                  <Link to={`/loja/produtos/${p.id}`} className={actionCls} aria-label={`Editar ${p.name}`}>
+                    <Pencil size={13} aria-hidden="true" /> Editar
+                  </Link>
+                  <button type="button" onClick={() => setDuplicate(p)} className={`${actionCls} border-l border-slate-100`} aria-label={`Duplicar o produto ${p.name}`}>
+                    <CopyPlus size={13} aria-hidden="true" /> Duplicar
+                  </button>
+                  {p.status === 'active' && (
+                    <a href={`/pay/${p.slug}`} target="_blank" rel="noreferrer" className={`${actionCls} border-l border-slate-100`} aria-label={`Abrir o checkout de ${p.name}`}>
+                      <ExternalLink size={13} aria-hidden="true" /> Checkout
+                    </a>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
       <DuplicateProductModal product={duplicate} onClose={() => setDuplicate(null)} />
     </div>
   )

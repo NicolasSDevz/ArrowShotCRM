@@ -474,8 +474,14 @@ export async function cleanupStoreImages(folder: string, force = false) {
     const candidates = items.filter((i) => !pendingUploads.has(i.fullPath))
     if (!candidates.length) return
     const [prods, settings, areas] = await Promise.all([getVisible('storeProducts'), getDocs(collection(db, 'storeSettings')), getVisible('storeMemberAreas')])
-    const mods = await Promise.all(prods.map((p) => getDocs(collection(db, 'storeProducts', p.id, 'modules'))))
-    const used = JSON.stringify([...prods, ...settings.docs, ...areas, ...mods.flatMap((m) => m.docs)].map((d) => d.data()))
+    // O produto dono da pasta é lido direto (a busca por privateTo deixa de fora produto sem esse campo).
+    const own = await getDoc(doc(db, 'storeProducts', folder)).catch(() => null)
+    const all = own?.exists() && !prods.some((p) => p.id === folder) ? [...prods, own] : prods
+    const [mods, lessons] = await Promise.all([
+      Promise.all(all.map((p) => getDocs(collection(db, 'storeProducts', p.id, 'modules')))),
+      Promise.all(all.map((p) => getDocs(collection(db, 'storeProducts', p.id, 'lessons')))),
+    ])
+    const used = JSON.stringify([...all, ...settings.docs, ...areas, ...mods.flatMap((m) => m.docs), ...lessons.flatMap((l) => l.docs)].map((d) => d.data()))
     const stale = candidates.filter((i) => !used.includes(encodeURIComponent(i.fullPath)))
     await Promise.all(stale.map((i) => deleteObject(i).catch(() => {})))
   } catch (err) {

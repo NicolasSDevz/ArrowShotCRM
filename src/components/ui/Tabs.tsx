@@ -133,11 +133,11 @@ export function Tabs({
 
   return (
     <div>
-      <div className={pills ? 'flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4' : 'flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6'}>
+      <div className={pills ? 'flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4' : 'flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6'}>
         <div
           role="tablist"
           aria-label={label}
-          className={pills ? 'flex flex-1 flex-wrap items-center gap-1' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
+          className={pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
         >
           {visible.map(tabButton)}
         </div>
