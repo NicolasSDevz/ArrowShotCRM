@@ -18,7 +18,7 @@ import {
   type FirestoreError,
   type Query,
 } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from 'firebase/storage'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { auth, db, storage } from '../firebase/config'
 import { collectionService } from './firestore'
 import { compressImageToDataUrl } from '../utils/imageToDataUrl'
@@ -429,8 +429,6 @@ export async function uploadStoreImage(productId: string, key: string, file: Fil
     const upload = uploadBytes(r, file, { contentType: file.type })
     await Promise.race([upload, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))])
     const url = await getDownloadURL(r)
-    pendingUploads.add(r.fullPath)
-    changedFolders.add(productId)
     return url
   } catch (err) {
     console.warn('Storage indisponível — salvando imagem da loja como data URI.', err)
@@ -438,53 +436,10 @@ export async function uploadStoreImage(productId: string, key: string, file: Fil
   }
 }
 
-/* Só a imagem atual fica no Storage. Depois de salvar, apaga de store/{pasta}/ os
- * arquivos que nenhum produto, módulo ou config da loja usa mais (trocados,
- * removidos ou de produto excluído). Produto duplicado reaproveita os links do
- * original, por isso a conferência olha a loja inteira, não só o produto salvo.
- * Imagem enviada nesta sessão e ainda não salva fica protegida até ser trocada
- * ou removida no campo (releaseStoreImage). */
-const pendingUploads = new Set<string>()
+/* Limpeza automática de imagens DESLIGADA (15/10/2026): suspeita de ter apagado do Storage a foto
+ * de um produto que ainda estava em uso. As imagens trocadas ficam guardadas; no
+ * volume da Loja isso fica dentro da cota grátis do Firebase. As funções seguem aqui
+ * (sem fazer nada) porque o campo de imagem e o salvar do produto ainda as chamam. */
+export function releaseStoreImage(_url?: string | null) {}
 
-function storagePathOf(url?: string | null) {
-  const m = /\/o\/([^?]+)/.exec(url || '')
-  return m ? decodeURIComponent(m[1]) : null
-}
-
-/** O campo de imagem trocou ou removeu esta imagem: ela pode ser apagada no próximo salvar. */
-export function releaseStoreImage(url?: string | null) {
-  const path = storagePathOf(url)
-  if (path) {
-    pendingUploads.delete(path)
-    const folder = path.split('/')[1] // store/{pasta}/{arquivo}
-    if (folder) changedFolders.add(folder)
-  }
-}
-
-/* Pastas em que alguma imagem foi enviada, trocada ou removida nesta sessão. A limpeza
- * lê todos os produtos e módulos no Firestore; sem esta trava ela rodava a cada
- * "Salvar" (mesmo sem mexer em imagem) e gastava leituras à toa. */
-const changedFolders = new Set<string>()
-
-export async function cleanupStoreImages(folder: string, force = false) {
-  if (!force && !changedFolders.has(folder)) return
-  changedFolders.delete(folder)
-  try {
-    const { items } = await listAll(ref(storage, `store/${folder}`))
-    const candidates = items.filter((i) => !pendingUploads.has(i.fullPath))
-    if (!candidates.length) return
-    const [prods, settings, areas] = await Promise.all([getVisible('storeProducts'), getDocs(collection(db, 'storeSettings')), getVisible('storeMemberAreas')])
-    // O produto dono da pasta é lido direto (a busca por privateTo deixa de fora produto sem esse campo).
-    const own = await getDoc(doc(db, 'storeProducts', folder)).catch(() => null)
-    const all = own?.exists() && !prods.some((p) => p.id === folder) ? [...prods, own] : prods
-    const [mods, lessons] = await Promise.all([
-      Promise.all(all.map((p) => getDocs(collection(db, 'storeProducts', p.id, 'modules')))),
-      Promise.all(all.map((p) => getDocs(collection(db, 'storeProducts', p.id, 'lessons')))),
-    ])
-    const used = JSON.stringify([...all, ...settings.docs, ...areas, ...mods.flatMap((m) => m.docs), ...lessons.flatMap((l) => l.docs)].map((d) => d.data()))
-    const stale = candidates.filter((i) => !used.includes(encodeURIComponent(i.fullPath)))
-    await Promise.all(stale.map((i) => deleteObject(i).catch(() => {})))
-  } catch (err) {
-    console.warn('Limpeza das imagens da loja falhou (tenta de novo no próximo salvar).', err)
-  }
-}
+export async function cleanupStoreImages(_folder: string, _force = false) {}
