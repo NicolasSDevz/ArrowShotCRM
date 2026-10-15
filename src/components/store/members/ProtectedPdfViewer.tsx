@@ -161,9 +161,9 @@ function PageCanvas({ doc, pageNumber, total, width, watermark }: { doc: PdfDoc;
   return (
     <div className="relative mx-auto mb-4 overflow-hidden bg-white shadow-lg" style={{ width, height }} aria-label={`Página ${pageNumber} de ${total}`} role="img">
       <canvas ref={canvasRef} draggable={false} style={{ width, height, display: 'block' }} />
-      {/* Marca d'água por cima da página (além do carimbo já gravado no PDF). */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-wrap content-around justify-around overflow-hidden opacity-[0.12]">
-        {Array.from({ length: 6 }, (_, i) => (
+      {/* Marca d'água bem clara por cima da página (além do carimbo já gravado no PDF): não atrapalha a leitura. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-col items-center justify-around overflow-hidden opacity-[0.04]">
+        {Array.from({ length: 3 }, (_, i) => (
           <span key={i} className="-rotate-[30deg] whitespace-nowrap font-bold text-black" style={{ fontSize: Math.max(14, width / 28) }}>{watermark}</span>
         ))}
       </div>

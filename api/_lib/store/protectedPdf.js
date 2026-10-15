@@ -78,7 +78,7 @@ const formatCpf = (cpf) => {
 // Helvetica padrão só tem Latin-1: troca o resto por "?" pra não quebrar.
 const latin1 = (text) => String(text || '').replace(/[^\x20-\x7E\xA0-\xFF]/g, '?')
 
-/** Carimba todas as páginas: marca d'água diagonal clara + rodapé com os dados. */
+/** Carimba todas as páginas: marca d'água diagonal bem clara (não atrapalha a leitura) + rodapé com os dados. */
 export async function stampPdf(bytes, { name, cpf, email, orderId }) {
   const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true })
   const font = await pdf.embedFont(StandardFonts.Helvetica)
@@ -91,14 +91,14 @@ export async function stampPdf(bytes, { name, cpf, email, orderId }) {
     const { width, height } = page.getSize()
     // Diagonal grande: ocupa ~75% da diagonal da página.
     const diag = Math.hypot(width, height)
-    let size = Math.max(20, Math.min(54, width / 11))
+    let size = Math.max(18, Math.min(40, width / 14))
     while (size > 16 && bold.widthOfTextAtSize(who, size) > diag * 0.75) size -= 1
     const textWidth = bold.widthOfTextAtSize(who, size)
     // Diagonal no meio da página.
     const angle = Math.atan2(height, width)
     const cx = width / 2 - (Math.cos(angle) * textWidth) / 2
     const cy = height / 2 - (Math.sin(angle) * textWidth) / 2
-    page.drawText(who, { x: cx, y: cy, size, font: bold, color: rgb(0.55, 0.55, 0.55), opacity: 0.25, rotate: degrees((angle * 180) / Math.PI) })
+    page.drawText(who, { x: cx, y: cy, size, font: bold, color: rgb(0.6, 0.6, 0.6), opacity: 0.08, rotate: degrees((angle * 180) / Math.PI) })
     // Rodapé: encolhe até 7 pt; se ainda não couber, quebra em duas linhas.
     let fs = 10
     while (fs > 7 && font.widthOfTextAtSize(footer, fs) > width - 24) fs -= 0.5
@@ -110,8 +110,8 @@ export async function stampPdf(bytes, { name, cpf, email, orderId }) {
       lines = [words.slice(0, cut).join(' '), words.slice(cut).join(' ')]
     }
     const lineH = fs + 3
-    page.drawRectangle({ x: 0, y: 0, width, height: lines.length * lineH + 8, color: rgb(1, 1, 1), opacity: 0.8 })
-    lines.forEach((line, i) => page.drawText(line, { x: 12, y: 5 + (lines.length - 1 - i) * lineH, size: fs, font, color: rgb(0.3, 0.3, 0.3) }))
+    page.drawRectangle({ x: 0, y: 0, width, height: lines.length * lineH + 8, color: rgb(1, 1, 1), opacity: 0.6 })
+    lines.forEach((line, i) => page.drawText(line, { x: 12, y: 5 + (lines.length - 1 - i) * lineH, size: fs, font, color: rgb(0.55, 0.55, 0.55) }))
   }
   pdf.setSubject(footer)
   pdf.setKeywords([latin1(email || ''), doc, orderId || ''].filter(Boolean))
