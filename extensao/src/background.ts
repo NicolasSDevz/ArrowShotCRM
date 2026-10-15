@@ -11,17 +11,28 @@ const MEET_PATTERN = /^https:\/\/meet\.google\.com\//
 // (chrome://extensions → card da extensão → "service worker"), o problema
 // é a pasta errada carregada ou o script travando antes de chegar aqui, não
 // o comportamento do painel em si.
-console.log('[copiloto-ext] background iniciado — v1.0.1')
+console.log('[copiloto-ext] background iniciado — v1.0.2')
 
 // Sem isto, clicar no ícone da extensão na barra não faz nada — por padrão
 // o botão de ação não abre o painel lateral sozinho, mesmo com
-// side_panel.default_path definido no manifest.json.
-chrome.sidePanel
-  .setPanelBehavior({ openPanelOnActionClick: true })
-  .then(() => console.log('[copiloto-ext] setPanelBehavior ok'))
-  .catch((err) => {
-    console.error('[copiloto-ext] falha ao habilitar abrir o painel pelo ícone:', err)
-  })
+// side_panel.default_path definido no manifest.json. Confirmado por teste
+// manual (usuário rodou isto no console do service worker e funcionou) que
+// a chamada em si está certa — o problema era SÓ no nível raiz do módulo
+// (fora de qualquer listener) ela não pegava. A documentação oficial do
+// Chrome usa o padrão dentro de onInstalled — troquei pra isso, mantendo
+// a chamada solta também como reforço (chamar 2x não tem efeito colateral).
+function habilitarAberturaPeloIcone() {
+  chrome.sidePanel
+    .setPanelBehavior({ openPanelOnActionClick: true })
+    .then(() => console.log('[copiloto-ext] setPanelBehavior ok'))
+    .catch((err) => {
+      console.error('[copiloto-ext] falha ao habilitar abrir o painel pelo ícone:', err)
+    })
+}
+
+habilitarAberturaPeloIcone()
+chrome.runtime.onInstalled.addListener(habilitarAberturaPeloIcone)
+chrome.runtime.onStartup.addListener(habilitarAberturaPeloIcone)
 
 async function atualizarSidePanel(tabId: number, url: string | undefined) {
   const habilitado = !!url && MEET_PATTERN.test(url)
