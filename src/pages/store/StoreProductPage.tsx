@@ -342,7 +342,9 @@ export function StoreProductPage() {
   return (
     <div className="space-y-4 pb-20">
       {/* Cabeçalho fixo no topo: foto, nome, status, link do checkout e Salvar sempre à mão. */}
-      <header className="sticky top-0 z-20 -mt-2 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      {/* A faixa com o fundo da página cobre o respiro do topo (p-8 do layout): nada passa por cima do cabeçalho ao rolar. */}
+      <div className="sticky -top-8 z-20 -mt-8 bg-page pb-2 pt-8">
+      <header className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <Link to="/loja?aba=produtos" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Voltar para a Loja"><ArrowLeft size={18} /></Link>
         <span className="hidden h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:block" aria-hidden="true">
           {server.imageUrl ? <img src={server.imageUrl} alt="" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} /> : <Package size={18} className="m-3 text-slate-400" />}
@@ -397,6 +399,7 @@ export function StoreProductPage() {
           <Button icon={<Save size={15} />} loading={saving} disabled={!dirty} onClick={save}>{dirty ? 'Salvar' : 'Salvo'}</Button>
         </div>
       </header>
+      </div>
 
       <div className="overflow-clip rounded-2xl border border-slate-200 bg-white shadow-sm">
         <Tabs
