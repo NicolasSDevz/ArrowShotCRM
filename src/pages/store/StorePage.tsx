@@ -47,6 +47,7 @@ import { StoreInvoicePanel } from '../../components/store/admin/StoreInvoicePane
 import { DuplicateProductModal } from '../../components/store/admin/DuplicateProductModal'
 import { StoreMembersThemePanel } from '../../components/store/admin/StoreMembersThemePanel'
 import { StoreAbandonedPanel } from '../../components/store/admin/StoreAbandonedPanel'
+import { STORE_BRAND } from '../../config/storeBrand'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { canUsePrivate, formatCents, type StoreOrder, type StoreProduct } from '../../types/store'
 
@@ -131,7 +132,7 @@ export function StorePage() {
             <Store size={20} />
           </span>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight text-slate-900">Loja</h1>
+            <h1 className="text-xl font-bold leading-tight text-slate-900">{STORE_BRAND}</h1>
             <p className="truncate text-xs text-slate-500">Checkout, área de membros e vendas dos produtos digitais</p>
           </div>
         </div>

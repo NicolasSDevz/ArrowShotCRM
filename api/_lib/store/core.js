@@ -426,8 +426,29 @@ let gmailTransport = null
 /** Motivo da última falha de envio (pro e-mail de teste mostrar na tela). */
 export let lastMailError = ''
 
-/** Manda um e-mail; true se saiu. Nunca lança erro (e-mail não trava venda). */
-export async function sendMail({ to, subject, html }) {
+/** Versão em texto puro do HTML: e-mail só com HTML pesa contra no filtro de spam. */
+export function htmlToText(html) {
+  return String(html || '')
+    .replace(/<(head|style|script)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<span style="display:none[^>]*>[\s\S]*?<\/span>/i, '')
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href, label) => `${label.replace(/<[^>]+>/g, '').trim()}: ${href}`)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|h1|h2|h3|tr|li|div)>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/** Manda um e-mail; true se saiu. Nunca lança erro (e-mail não trava venda).
+ *  `unsubscribeUrl` (lembretes): cabeçalho List-Unsubscribe de um clique, que o
+ *  Gmail exige de quem manda e-mail que não é transacional. */
+export async function sendMail({ to, subject, html, text, unsubscribeUrl }) {
+  const plain = text || htmlToText(html)
+  const headers = unsubscribeUrl ? { 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined
+  const replyTo = (process.env.STORE_EMAIL_REPLY_TO || '').trim() || undefined
   try {
     const user = gmailUser()
     const pass = process.env.GMAIL_APP_PASSWORD
@@ -445,7 +466,7 @@ export async function sendMail({ to, subject, html }) {
         })
       }
       const name = (process.env.STORE_EMAIL_NAME || 'Arrow Shot').replace(/["<>]/g, '')
-      await gmailTransport.sendMail({ from: `"${name}" <${user}>`, to, subject, html })
+      await gmailTransport.sendMail({ from: `"${name}" <${user}>`, to, subject, html, text: plain, replyTo, headers })
       return true
     }
     const key = process.env.RESEND_API_KEY
@@ -454,7 +475,7 @@ export async function sendMail({ to, subject, html }) {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: [to], subject, html }),
+      body: JSON.stringify({ from, to: [to], subject, html, text: plain, ...(replyTo ? { reply_to: replyTo } : {}), ...(headers ? { headers } : {}) }),
       signal: AbortSignal.timeout(15_000),
     })
     return res.ok

@@ -12,6 +12,7 @@
 //   POST webhook                  notificação do Mercado Pago
 //   POST checkout-chat { slug, messages, context }  chat do Archer no checkout (recuperador de vendas)
 //   GET  recovery-stop&id=&k=     link do e-mail de recuperação: para de mandar lembretes (página HTML)
+//   POST recovery-stop&id=&k=     o mesmo, pelo botão "Cancelar inscrição" do Gmail (um clique)
 // Alunos:
 //   POST member-enter    { code }              → { token } (link de acesso)
 //   POST member-login    { email, password }   → { token }
@@ -1203,6 +1204,8 @@ const PUBLIC = {
   'POST checkout-lead': actionCheckoutLead,
   'POST checkout-chat': actionCheckoutChat,
   'GET recovery-stop': actionRecoveryStop,
+  // Descadastro de um clique (List-Unsubscribe-Post) que o Gmail faz por trás.
+  'POST recovery-stop': actionRecoveryStop,
   'POST order': actionOrder,
   'GET order': actionOrderStatus,
   'POST webhook': actionWebhook,

@@ -3,6 +3,7 @@ import { arrayRemove, arrayUnion, collection, doc, getDocs, onSnapshot, orderBy,
 import { membersDb } from '../../../firebase/membersApp'
 import { useMembers } from './MembersContext'
 import type { StoreLesson, StoreModule, StoreProgress } from '../../../types/store'
+import { driveFileEmbedUrl } from '../../../utils/googleDrive'
 
 /** Conteúdo de um curso (módulos + aulas) e o progresso do aluno nele. */
 export function useCourse(productId: string | undefined) {
@@ -87,7 +88,7 @@ export function useCourse(productId: string | undefined) {
 }
 
 
-/** Converte link de YouTube, Vimeo, Panda, Bunny etc. em algo que dá pra tocar. */
+/** Converte link de YouTube, Vimeo, Google Drive, Panda, Bunny etc. em algo que dá pra tocar. */
 export function videoSource(url?: string | null): { kind: 'iframe' | 'video'; src: string } | null {
   if (!url) return null
   try {
@@ -99,6 +100,9 @@ export function videoSource(url?: string | null): { kind: 'iframe' | 'video'; sr
       const id = u.searchParams.get('v') || u.pathname.split('/').filter(Boolean).pop()
       return id ? { kind: 'iframe', src: `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1` } : null
     }
+    // Drive: o link de "compartilhar" (/view) não abre dentro de outra página; o /preview abre.
+    const drive = driveFileEmbedUrl(url)
+    if (drive) return { kind: 'iframe', src: drive }
     if (host === 'vimeo.com') {
       const [id, hash] = u.pathname.split('/').filter(Boolean)
       return { kind: 'iframe', src: `https://player.vimeo.com/video/${id}${hash ? `?h=${hash}` : ''}` }

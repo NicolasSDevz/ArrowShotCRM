@@ -9,6 +9,8 @@ import { createLead } from '../../services/leadService'
 import { findUserIdByName } from '../../utils/userLookup'
 import { isPhoneComplete } from '../../utils/masks'
 import { isValidEmail } from '../../utils/validation'
+import { useLeadPipelines } from '../../hooks/useLeadPipelines'
+import { Field, Select } from '../ui/Field'
 import { LeadForm } from './LeadForm'
 import type { ResolvedPipeline } from '../../types'
 import { buildDefaultLeadForm, formStateToLeadFields, type LeadFormState } from './leadFormState'
@@ -19,6 +21,19 @@ export function LeadFormModal({ open, onClose, pipeline }: { open: boolean; onCl
   const { data: products } = useProducts()
   const [form, setForm] = useState<LeadFormState>(() => buildDefaultLeadForm())
   const [saving, setSaving] = useState(false)
+  const { pipelines } = useLeadPipelines()
+  // Onde o lead nasce: por padrão a 1ª etapa do pipeline aberto, mas dá pra
+  // jogar direto em qualquer etapa (ou em outro pipeline).
+  const [pipelineId, setPipelineId] = useState(pipeline.id)
+  const [stageId, setStageId] = useState(pipeline.stages[0]?.id ?? '')
+  const target = pipelines.find((p) => p.id === pipelineId) ?? pipeline
+  const targetStage = target.stages.find((s) => s.id === stageId) ?? target.stages[0]
+  useEffect(() => {
+    if (!open) return
+    setPipelineId(pipeline.id)
+    setStageId(pipeline.stages[0]?.id ?? '')
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- só reseta ao abrir ou trocar de pipeline
+  }, [open, pipeline.id])
 
   const reset = () => setForm(buildDefaultLeadForm(findUserIdByName(users, 'Bruno')))
 
@@ -61,15 +76,15 @@ export function LeadFormModal({ open, onClose, pipeline }: { open: boolean; onCl
       await createLead(
         {
           ...formStateToLeadFields(form, products),
-          status: pipeline.stages[0].id,
-          pipelineId: pipeline.isDefault ? undefined : pipeline.id,
+          status: targetStage.id,
+          pipelineId: target.isDefault ? undefined : target.id,
           order: Date.now(),
           contactHistory: [],
         },
         profile.id,
         profile.name
       )
-      toast.success('Lead criado')
+      toast.success(`Lead criado em ${targetStage.label}`)
       handleClose()
     } catch (err) {
       console.error(err)
@@ -80,9 +95,34 @@ export function LeadFormModal({ open, onClose, pipeline }: { open: boolean; onCl
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title={pipeline.isDefault ? 'Novo lead' : `Novo lead — ${pipeline.name}`} width="max-w-2xl">
+    <Modal open={open} onClose={handleClose} title="Novo lead" width="max-w-2xl">
       <div className="flex flex-col gap-4">
-        <LeadForm value={form} onChange={setForm} users={users} pipelineFields={pipeline.fields} />
+        <div className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
+          {pipelines.length > 1 && (
+            <Field label="Pipeline">
+              <Select
+                value={target.id}
+                onChange={(e) => {
+                  const next = pipelines.find((p) => p.id === e.target.value)
+                  setPipelineId(e.target.value)
+                  setStageId(next?.stages[0]?.id ?? '')
+                }}
+              >
+                {pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <Field label="Etapa em que o lead entra">
+            <Select value={targetStage?.id ?? ''} onChange={(e) => setStageId(e.target.value)}>
+              {target.stages.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <LeadForm value={form} onChange={setForm} users={users} pipelineFields={target.fields} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={handleClose}>
             Cancelar

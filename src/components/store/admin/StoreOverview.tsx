@@ -36,7 +36,7 @@ const initials = (name: string) =>
     .toUpperCase()
 
 /** Resumo de vendas: faturamento, pedidos, ticket médio, conversão de Pix e por produto. */
-export function StoreOverview({ orders, products, abandoned = [], compact = false }: { orders: StoreOrder[]; products: StoreProduct[]; abandoned?: StoreAbandoned[]; compact?: boolean }) {
+export function StoreOverview({ orders, products, abandoned = [], compact = false, title = 'Resumo de vendas' }: { orders: StoreOrder[]; products: StoreProduct[]; abandoned?: StoreAbandoned[]; compact?: boolean; title?: ReactNode }) {
   const [period, setPeriod] = useState<DateRangeValue>({ preset: '30d', from: '', to: '' })
   const range = useMemo(() => resolveRange(period), [period])
 
@@ -68,7 +68,7 @@ export function StoreOverview({ orders, products, abandoned = [], compact = fals
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[15px] font-semibold text-slate-800">Resumo de vendas</h2>
+        <h2 className="text-[15px] font-semibold text-slate-800">{title}</h2>
         <DateRangeFilter value={period} onChange={setPeriod} />
       </div>
 

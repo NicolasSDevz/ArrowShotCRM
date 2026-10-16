@@ -3,11 +3,15 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { OverviewDashboard } from '../components/dashboard/OverviewDashboard'
 import { ProductsCatalogSection } from '../components/dashboard/ProductsCatalogSection'
+import { StoreSalesSection } from '../components/dashboard/StoreSalesSection'
+import { useAuth } from '../context/AuthContext'
 import { useDashboardArea } from '../hooks/useDashboardArea'
 import { canSeeOverviewSection } from '../utils/dashboardAreas'
 
 export function DashboardPage() {
   const area = useDashboardArea()
+  const { profile } = useAuth()
+  const canSeeStore = profile?.role === 'admin' || profile?.role === 'manager'
   const todayLabel = useMemo(() => {
     const s = format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
     return s.charAt(0).toUpperCase() + s.slice(1)
@@ -24,6 +28,7 @@ export function DashboardPage() {
       </div>
 
       <OverviewDashboard />
+      {canSeeStore && <StoreSalesSection />}
       {canSeeOverviewSection(area, 'produtos') && <ProductsCatalogSection />}
     </div>
   )

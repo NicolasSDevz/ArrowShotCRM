@@ -223,7 +223,7 @@ export async function sendRecoveryEmails(origin, { force = false } = {}) {
       button: { label: 'Finalizar minha compra', url: checkoutLink(origin, product, cart, step) },
       footer: `Você recebeu este e-mail porque começou uma compra de ${escapeHtml(product.name)}.<br><a href="${escapeHtml(stopUrl)}" style="color:#94a3b8">Não quero mais receber lembretes deste pedido</a>`,
     })
-    const ok = await sendMail({ to: cart.email, subject, html })
+    const ok = await sendMail({ to: cart.email, subject, html, unsubscribeUrl: stopUrl })
     await updateDoc(`storeAbandoned/${cart.id}`, { recoveryEmails: [...done, { ...entry, subject, ok }] }).catch(() => {})
     if (ok) sent++
   }

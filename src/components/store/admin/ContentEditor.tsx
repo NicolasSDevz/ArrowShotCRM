@@ -21,6 +21,7 @@ import { Field, Input, Textarea } from '../../ui/Field'
 import { EmptyState } from '../../ui/EmptyState'
 import { ImageField } from './ImageField'
 import { STORE_LESSON_KINDS, type StoreAttachment, type StoreLesson, type StoreLessonKind, type StoreLessonLink, type StoreModule, type StoreProduct } from '../../../types/store'
+import { isGoogleDriveLink } from '../../../utils/googleDrive'
 
 const KIND_ICON: Record<StoreLessonKind, LucideIcon> = { video: Video, text: BookOpen, pdf: FileText, link: Link2 }
 
@@ -256,7 +257,14 @@ function LessonModal({ productId, moduleId, lesson, nextOrder, onClose }: { prod
           <p className="mt-1 text-[11px] text-slate-400">{STORE_LESSON_KINDS.find((k) => k.value === kind)?.hint}</p>
         </div>
         {kind === 'video' && (
-          <Field label="Link do vídeo (YouTube não listado, Vimeo, Panda, Bunny ou .mp4)"><Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://" /></Field>
+          <div>
+            <Field label="Link do vídeo (Google Drive, YouTube não listado, Vimeo, Panda, Bunny ou .mp4)"><Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://" /></Field>
+            {isGoogleDriveLink(videoUrl) && (
+              <p className="mt-1 text-[11px] text-slate-500">
+                No Drive, o vídeo precisa estar em Compartilhar, Acesso geral: Qualquer pessoa com o link. Vídeo recém-enviado pode levar alguns minutos para o Drive processar antes de tocar.
+              </p>
+            )}
+          </div>
         )}
         {kind === 'text' && (
           <Field label="Texto da aula (aceita Markdown: ## título, **negrito**, listas, links e ![imagem](https://...))">

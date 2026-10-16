@@ -14,6 +14,9 @@ import {
   BookOpenText,
   CalendarRange,
   ShoppingBag,
+  Receipt,
+  Package,
+  Store,
   Settings,
   ChevronDown,
   X,
@@ -27,6 +30,7 @@ import { Avatar } from '../ui/Avatar'
 import { USER_ROLE_LABEL } from '../../types/user'
 import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
 import { temAcessoAoCopiloto } from '../../config/copilotoAccess'
+import { STORE_BRAND } from '../../config/storeBrand'
 
 const COLLAPSED_KEY = 'arrowshot-sidebar-collapsed'
 
@@ -44,6 +48,8 @@ type NavItem = {
   icon: typeof LayoutDashboard
   /** Outras rotas que também deixam o item aceso. */
   alsoActive?: string[]
+  /** Itens da Loja: qual aba (?aba=) deixa o item aceso. */
+  aba?: string
   /** Se ficar de fora, todo mundo vê. */
   show?: (p: { canSeeUniversity: boolean; canManageTokens: boolean }) => boolean
 }
@@ -57,7 +63,14 @@ const mainNav: NavItem[] = [
   // Reuniões e Calendário são a mesma página (abas) — o item fica aceso nas duas rotas.
   { to: '/reunioes', label: 'Reuniões', icon: CalendarDays, alsoActive: ['/calendario'] },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
-  { to: '/loja', label: 'Loja', icon: ShoppingBag, alsoActive: ['/loja'], show: (p) => p.canManageTokens },
+]
+
+// Loja (produtos digitais): grupo próprio, separado da operação da agência.
+const storeNav: NavItem[] = [
+  { to: '/loja', label: 'Painel', icon: Store, aba: 'geral' },
+  { to: '/loja?aba=vendas', label: 'Vendas', icon: Receipt, aba: 'vendas' },
+  { to: '/loja?aba=produtos', label: 'Produtos', icon: Package, aba: 'produtos' },
+  { to: '/loja?aba=alunos', label: 'Alunos', icon: Users, aba: 'alunos' },
 ]
 
 // O resto fica num grupo menor, mais apagado, logo abaixo.
@@ -76,7 +89,7 @@ export function Sidebar({
   onCloseMobile: () => void
 }) {
   const { profile } = useAuth()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const { data: teamMembers } = useTeamMembers()
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Recolhido (só no computador): vira uma faixa fina só com ícones — bom pra
@@ -106,11 +119,13 @@ export function Sidebar({
   const perms = { canSeeUniversity, canManageTokens }
   const visibleMain = mainNav.filter((i) => !i.show || i.show(perms))
   const visibleTools = toolsNav.filter((i) => !i.show || i.show(perms))
+  // Aba da Loja aberta agora (a página de um produto conta como Produtos).
+  const storeAba = pathname.startsWith('/loja/produtos') ? 'produtos' : pathname.startsWith('/loja') ? new URLSearchParams(search).get('aba') || 'geral' : null
   // Se a pessoa já está numa tela de configuração, a gaveta abre sozinha.
   const inSettingsRoute = pathname.startsWith('/configuracoes') || pathname.startsWith('/otimizacoes')
   const showSettings = settingsOpen || inSettingsRoute
 
-  const renderLink = ({ to, label, icon: Icon, alsoActive }: NavItem, kind: 'main' | 'tool') => {
+  const renderLink = ({ to, label, icon: Icon, alsoActive, aba }: NavItem, kind: 'main' | 'tool') => {
     const isMain = kind === 'main'
     return (
       <NavLink
@@ -119,7 +134,7 @@ export function Sidebar({
         aria-label={c ? label : undefined}
         onClick={onCloseMobile}
         className={({ isActive }) => {
-          const active = isActive || alsoActive?.some((p) => pathname.startsWith(p))
+          const active = aba ? storeAba === aba : isActive || alsoActive?.some((p) => pathname.startsWith(p))
           const size = isMain ? 'px-4 py-2.5 text-[15px] font-medium' : 'px-4 py-2 text-[13px]'
           const color = active
             ? 'bg-brand-600 text-white'
@@ -171,6 +186,23 @@ export function Sidebar({
               <li key={item.to}>{renderLink(item, 'main')}</li>
             ))}
           </ul>
+
+          {canManageTokens && (
+            <div className="mt-4 border-t border-navy-800 pt-3">
+              <p
+                id="sidebar-loja"
+                className={`flex items-center gap-1.5 px-4 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 ${labelCls}`}
+              >
+                <ShoppingBag size={12} aria-hidden="true" />
+                {STORE_BRAND}
+              </p>
+              <ul className="space-y-0.5" aria-labelledby="sidebar-loja">
+                {storeNav.map((item) => (
+                  <li key={item.to}>{renderLink(item, 'tool')}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {visibleTools.length > 0 && (
             <div className="mt-4 border-t border-navy-800 pt-3">
