@@ -16,12 +16,15 @@ export function MetaTokenRenewModal({
   clientId,
   clientName,
   onDone,
+  isNew = false,
 }: {
   open: boolean
   onClose: () => void
   clientId: string
   clientName: string
   onDone?: () => void
+  /** Cliente ainda sem token: textos de "configurar" em vez de "renovar". */
+  isNew?: boolean
 }) {
   const [shortToken, setShortToken] = useState('')
   const [busy, setBusy] = useState(false)
@@ -53,7 +56,7 @@ export function MetaTokenRenewModal({
   }
 
   return (
-    <Modal open={open} onClose={close} title="Renovar Token Meta Ads" width="max-w-lg">
+    <Modal open={open} onClose={close} title={isNew ? 'Configurar token Meta Ads' : 'Renovar token Meta Ads'} width="max-w-lg">
       <div className="flex flex-col gap-4 text-sm text-slate-700">
         <p className="text-xs text-slate-500">
           Cliente: <strong>{clientName}</strong>
@@ -62,7 +65,7 @@ export function MetaTokenRenewModal({
         {result ? (
           <div className="flex flex-col gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
             <p className="flex items-center gap-2 font-semibold">
-              <CheckCircle2 size={16} /> Token renovado com sucesso! Válido por 60 dias.
+              <CheckCircle2 size={16} /> Token {isNew ? 'configurado' : 'renovado'} com sucesso! Válido por 60 dias.
             </p>
             <p className="text-xs">
               Expira em <strong>{new Date(result.expiresAt).toLocaleDateString('pt-BR')}</strong>. Os relatórios deste

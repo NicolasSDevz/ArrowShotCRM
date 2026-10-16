@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
-import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, FileBarChart } from 'lucide-react'
+import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, FileBarChart, KeyRound } from 'lucide-react'
+import { MetaTokenRenewModal } from '../components/clients/MetaTokenRenewModal'
 import { useAuth } from '../context/AuthContext'
 import { useUsers } from '../hooks/useUsers'
 import { useReports } from '../hooks/useReports'
@@ -163,6 +164,8 @@ function SpendChart({ daily }: { daily: { date: string; spend: number }[] }) {
 
 export function MetaAdsPage() {
   const { profile } = useAuth()
+  // Colocar/renovar o token direto da tabela (sem ir em Configurações).
+  const [tokenFor, setTokenFor] = useState<{ clientId: string; name: string; isNew: boolean } | null>(null)
   const { isPrivacyMode } = usePrivacy()
   const navigate = useNavigate()
   const { data: users } = useUsers()
@@ -462,7 +465,20 @@ export function MetaAdsPage() {
                             {r.balance != null ? (isPrivacyMode ? 'R$ •.•••,••' : BRL(r.balance)) : '—'}
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap text-xs">
-                            {r.hasToken ? tv.label.replace(/ —.*/, '') : '—'}
+                            <div className="flex items-center gap-2">
+                              {r.hasToken && <span>{tv.label.replace(/ —.*/, '')}</span>}
+                              {(!r.hasToken || tokenExpiringSoon(r) || tv.level === 'red') && (
+                                <Button
+                                  size="sm"
+                                  variant={r.hasToken ? 'secondary' : 'primary'}
+                                  icon={<KeyRound size={12} />}
+                                  onClick={() => setTokenFor({ clientId: r.clientId, name: r.companyName, isNew: !r.hasToken })}
+                                  aria-label={`${r.companyName}: ${r.hasToken ? 'renovar o token' : 'colocar o token do Meta Ads'}`}
+                                >
+                                  {r.hasToken ? 'Renovar' : 'Colocar token'}
+                                </Button>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-2.5 text-right">
                             <Button variant="ghost" size="sm" icon={<FileBarChart size={13} />} onClick={() => openReport(r.clientId)}>
@@ -477,6 +493,17 @@ export function MetaAdsPage() {
               </table>
             </div>
           </div>
+
+          {tokenFor && (
+            <MetaTokenRenewModal
+              open
+              onClose={() => setTokenFor(null)}
+              clientId={tokenFor.clientId}
+              clientName={tokenFor.name}
+              isNew={tokenFor.isNew}
+              onDone={() => void load(true)}
+            />
+          )}
 
           {profile?.role !== 'admin' && (
             <p className="text-xs text-slate-400">Você vê apenas os clientes dos quais é responsável.</p>
