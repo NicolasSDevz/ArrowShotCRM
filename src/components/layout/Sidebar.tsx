@@ -58,8 +58,8 @@ type NavItem = {
 const mainNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/operacional', label: 'Operacional', icon: ListChecks },
-  { to: '/clientes', label: 'Clientes', icon: Users },
   { to: '/leads', label: 'Leads', icon: UserPlus },
+  { to: '/clientes', label: 'Clientes', icon: Users },
   // Reuniões e Calendário são a mesma página (abas) — o item fica aceso nas duas rotas.
   { to: '/reunioes', label: 'Reuniões', icon: CalendarDays, alsoActive: ['/calendario'] },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
