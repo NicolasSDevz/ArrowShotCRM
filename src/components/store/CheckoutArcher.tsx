@@ -65,7 +65,14 @@ export function CheckoutArcher({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [refusedNow, setRefusedNow] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  // Caixa de texto cresce com a mensagem (até ~5 linhas) e volta ao enviar.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`
+  }, [input])
   const buttonRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const openRef = useRef(false)
@@ -181,7 +188,7 @@ export function CheckoutArcher({
             {shown.map((m, i) => (
               <p
                 key={i}
-                className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'ml-auto rounded-br-md' : 'rounded-bl-md border border-slate-200 bg-white'}`}
+                className={`max-w-[85%] whitespace-pre-line break-words rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'ml-auto rounded-br-md' : 'rounded-bl-md border border-slate-200 bg-white'}`}
                 style={m.role === 'user' ? { background: color, color: onColor } : undefined}
               >
                 <span className="sr-only">{m.role === 'user' ? 'Você: ' : 'Archer: '}</span>
@@ -200,15 +207,22 @@ export function CheckoutArcher({
               </div>
             )}
           </div>
-          <form onSubmit={submit} className="flex items-center gap-2 border-t border-slate-200 bg-white p-2.5">
-            <input
+          <form onSubmit={submit} className="flex items-end gap-2 border-t border-slate-200 bg-white p-2.5">
+            <textarea
               ref={inputRef}
+              rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  e.currentTarget.form?.requestSubmit()
+                }
+              }}
               maxLength={800}
               placeholder="Escreva sua dúvida"
               aria-label="Sua dúvida para o Archer"
-              className="h-10 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-slate-400"
+              className="max-h-32 min-h-10 min-w-0 flex-1 resize-none overflow-y-auto break-words rounded-xl border border-slate-200 px-3 py-2.5 text-sm leading-5 outline-none focus:border-slate-400"
             />
             <button type="submit" disabled={busy || !input.trim()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl disabled:opacity-50" style={{ background: color, color: onColor }} aria-label="Enviar">
               <Send size={16} />

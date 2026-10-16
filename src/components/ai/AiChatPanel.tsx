@@ -83,12 +83,12 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
         </span>
       )}
       {isUser ? (
-        <div className="max-w-[78%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed" style={{ backgroundColor: C.brand, color: C.white }}>
+        <div className="max-w-[78%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed" style={{ backgroundColor: C.brand, color: C.white }}>
           {message.content}
         </div>
       ) : (
         <div
-          className="ai-md ai-bubble max-w-[92%] overflow-x-auto rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
+          className="ai-md ai-bubble max-w-[92%] overflow-x-auto break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
           style={{ border: `1px solid ${C.border}`, backgroundColor: C.white, color: C.dark }}
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{ensureBlankLineAfterTables(message.content)}</ReactMarkdown>
@@ -148,6 +148,14 @@ export function AiChatPanel({
   onClose: () => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputBoxRef = useRef<HTMLTextAreaElement>(null)
+  // Caixa de texto cresce com a mensagem (até ~6 linhas, depois rola) e volta ao enviar.
+  useEffect(() => {
+    const el = inputBoxRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }, [input])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -248,8 +256,11 @@ export function AiChatPanel({
         )}
       </div>
 
-      <div className="ai-footer flex shrink-0 items-center gap-2 px-3 py-3" style={{ borderTop: `1px solid ${C.border}`, backgroundColor: C.white }}>
-        <input
+      <div className="ai-footer flex shrink-0 items-end gap-2 px-3 py-3" style={{ borderTop: `1px solid ${C.border}`, backgroundColor: C.white }}>
+        <textarea
+          ref={inputBoxRef}
+          rows={1}
+          aria-label="Mensagem para o Archer"
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={(e) => {
@@ -259,7 +270,7 @@ export function AiChatPanel({
             }
           }}
           placeholder="Pergunte sobre campanhas, clientes, métricas..."
-          className="ai-input h-9 flex-1 rounded-lg px-3 text-sm"
+          className="ai-input max-h-40 min-h-9 flex-1 resize-none overflow-y-auto break-words rounded-lg px-3 py-2 text-sm leading-5"
           style={{ border: `1px solid ${C.border}`, color: C.dark, backgroundColor: C.white }}
         />
         <button
