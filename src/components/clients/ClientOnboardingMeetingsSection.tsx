@@ -25,7 +25,7 @@ const STATUS_BADGE: Record<OnboardingStepState['status'], string> = {
   pending: 'bg-slate-100 text-slate-500',
 }
 
-/** Seção no topo da ficha do cliente (só clientes com Tráfego Pago) — as 3
+/** Seção no topo da ficha do cliente (em onboarding, ou com Tráfego Pago) — as 3
  *  reuniões do fluxo inicial (Onboarding, Briefing, Estratégia). Não agenda
  *  mais por conta própria: "Agendar" abre o mesmo formulário do módulo
  *  Reuniões já com o tipo e o cliente preenchidos, então tudo fica num lugar
@@ -37,7 +37,9 @@ export function ClientOnboardingMeetingsSection({ client }: { client: Client }) 
   const [scheduling, setScheduling] = useState<MeetingType | null>(null)
   const [openMeetingId, setOpenMeetingId] = useState<string | null>(null)
 
-  if (!client.modules?.paidTraffic) return null
+  // Em onboarding aparece pra qualquer cliente (com ou sem serviço da agência);
+  // depois, só pra quem tem Tráfego Pago.
+  if (client.status !== 'prospect' && !client.modules?.paidTraffic) return null
 
   const byClientType = groupMeetingsByClientType(meetings)
   const steps = onboardingSteps(client, byClientType)

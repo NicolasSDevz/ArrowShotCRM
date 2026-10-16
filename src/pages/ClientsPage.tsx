@@ -97,15 +97,6 @@ export function ClientsPage() {
 
   const userMap = useMemo(() => Object.fromEntries(users.map((u) => [u.id, u])), [users])
 
-  /** Filtro de gestor. O automático (Ciane/Nicolas abrindo a página) é sobre a
-   *  carteira de tráfego: cliente sem tráfego pago (ex.: só produto ou
-   *  consultoria) continua aparecendo pra todo mundo, senão some do onboarding. */
-  const managerMatches = (c: Client) => {
-    if (!managerFilter) return true
-    if (managerFilterChoice === null && !c.modules?.paidTraffic) return true
-    return ownerNames(c).includes(managerFilter)
-  }
-
   /** Nomes dos responsáveis internos de um cliente (resolvidos de ownerIds). */
   const ownerNames = (c: Client) =>
     getClientOwnerIds(c)
@@ -118,12 +109,12 @@ export function ClientsPage() {
       if (!statusMatches(statusFilter, c.status)) return false
       if (categoryFilter && c.categoria !== categoryFilter) return false
       if (!serviceMatches(serviceFilter, c.modules)) return false
-      if (!managerMatches(c)) return false
+      if (managerFilter && !ownerNames(c).includes(managerFilter)) return false
       return true
     })
     return sortClients(matched, sort)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients, search, statusFilter, categoryFilter, serviceFilter, managerFilter, managerFilterChoice, sort, userMap])
+  }, [clients, search, statusFilter, categoryFilter, serviceFilter, managerFilter, sort, userMap])
 
   /** Quantos clientes cada aba de status teria com os outros filtros atuais. */
   const statusCounts = useMemo(() => {
@@ -132,13 +123,13 @@ export function ClientsPage() {
       if (search && !c.companyName.toLowerCase().includes(search.toLowerCase())) continue
       if (categoryFilter && c.categoria !== categoryFilter) continue
       if (!serviceMatches(serviceFilter, c.modules)) continue
-      if (!managerMatches(c)) continue
+      if (managerFilter && !ownerNames(c).includes(managerFilter)) continue
       counts[c.status] = (counts[c.status] ?? 0) + 1
       counts.all++
     }
     return counts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients, search, categoryFilter, serviceFilter, managerFilter, managerFilterChoice, userMap])
+  }, [clients, search, categoryFilter, serviceFilter, managerFilter, userMap])
 
   const ownersByClientId = useMemo(() => {
     return Object.fromEntries(
