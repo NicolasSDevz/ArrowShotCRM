@@ -6,7 +6,10 @@ import {
   Banknote,
   BarChart3,
   BookOpen,
+  Copy,
   CopyPlus,
+  LayoutGrid,
+  List,
   ExternalLink,
   FileText,
   ImageOff,
@@ -48,6 +51,7 @@ import { DuplicateProductModal } from '../../components/store/admin/DuplicatePro
 import { StoreMembersThemePanel } from '../../components/store/admin/StoreMembersThemePanel'
 import { StoreAbandonedPanel } from '../../components/store/admin/StoreAbandonedPanel'
 import { STORE_BRAND } from '../../config/storeBrand'
+import { copyText } from '../../components/store/admin/StoreOrdersTable'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { canUsePrivate, formatCents, type StoreOrder, type StoreProduct } from '../../types/store'
 
@@ -230,11 +234,46 @@ function timeOf(v: unknown) {
   return typeof t === 'string' ? new Date(t).getTime() || 0 : 0
 }
 
+const PRODUCTS_VIEW_KEY = 'arrowshot-loja-produtos-view'
+
+function readProductsView(): 'cards' | 'list' {
+  try {
+    return localStorage.getItem(PRODUCTS_VIEW_KEY) === 'list' ? 'list' : 'cards'
+  } catch {
+    return 'cards'
+  }
+}
+
+type ProductStats = { sold: number; revenue: number; bumpSold: number; bumpRevenue: number }
+
+/** O que falta para o produto estar pronto para vender (mostrado no cartão e na lista). */
+function missingOf(p: StoreProduct): string[] {
+  const out: string[] = []
+  if (!p.imageUrl) out.push('imagem')
+  if (!(p.lessonCount ?? 0)) out.push('aulas')
+  if (!(p.price > 0)) out.push('preço')
+  return out
+}
+
+function checkoutUrl(p: StoreProduct) {
+  return `${window.location.origin}/pay/${p.slug}`
+}
+
 function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]; orders: StoreOrder[]; onCreate: () => void }) {
   const [duplicate, setDuplicate] = useState<StoreProduct | null>(null)
   const [filter, setFilter] = useState<ProductFilter>('all')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<ProductSort>('recent')
+  const [view, setViewState] = useState<'cards' | 'list'>(readProductsView)
+  const setView = (v: 'cards' | 'list') => {
+    setViewState(v)
+    try {
+      localStorage.setItem(PRODUCTS_VIEW_KEY, v)
+    } catch {
+      /* ignora */
+    }
+  }
+
   if (!products.length) {
     return (
       <EmptyState
@@ -246,10 +285,34 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
     )
   }
 
-  const sales = new Map<string, number>()
-  for (const o of orders) if (!o.test && o.status === 'approved') sales.set(o.productId, (sales.get(o.productId) ?? 0) + 1)
+  // Vendas aprovadas de cada produto: como principal e como order bump.
+  const stats = new Map<string, ProductStats>()
+  const statOf = (id: string) => {
+    if (!stats.has(id)) stats.set(id, { sold: 0, revenue: 0, bumpSold: 0, bumpRevenue: 0 })
+    return stats.get(id)!
+  }
+  for (const o of orders) {
+    if (o.test || o.status !== 'approved') continue
+    const bumps = o.items.filter((i) => i.bump)
+    const bumpTotal = bumps.reduce((s, i) => s + i.price, 0)
+    const main = statOf(o.productId)
+    main.sold += 1
+    main.revenue += Math.max(0, o.amount - bumpTotal)
+    for (const b of bumps) {
+      const s = statOf(b.productId)
+      s.bumpSold += 1
+      s.bumpRevenue += b.price
+    }
+  }
+  const st = (id: string) => stats.get(id) ?? { sold: 0, revenue: 0, bumpSold: 0, bumpRevenue: 0 }
+  const totalOf = (id: string) => st(id).revenue + st(id).bumpRevenue
+
   const counts: Record<ProductFilter, number> = { all: products.length, active: 0, draft: 0, archived: 0 }
   for (const p of products) counts[p.status] += 1
+  const totalRevenue = products.reduce((s, p) => s + totalOf(p.id), 0)
+  const best = [...products].sort((a, b) => totalOf(b.id) - totalOf(a.id))[0]
+  const notReady = products.filter((p) => p.status !== 'archived' && missingOf(p).length > 0).length
+
   const q = search.trim().toLowerCase()
   const list = products
     .filter((p) => (filter === 'all' || p.status === filter) && (!q || p.name.toLowerCase().includes(q)))
@@ -257,7 +320,7 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
       sort === 'name'
         ? a.name.localeCompare(b.name, 'pt-BR')
         : sort === 'sales'
-          ? (sales.get(b.id) ?? 0) - (sales.get(a.id) ?? 0)
+          ? totalOf(b.id) - totalOf(a.id)
           : timeOf(b.updatedAt ?? b.createdAt) - timeOf(a.updatedAt ?? a.createdAt)
     )
   const filters: { key: ProductFilter; label: string }[] = [
@@ -267,11 +330,44 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
     { key: 'archived', label: 'Arquivados' },
   ]
   const actionCls = 'flex flex-1 items-center justify-center gap-1.5 py-2 text-slate-500 hover:bg-slate-50 hover:text-brand-700'
+  const iconBtn = 'inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-brand-700'
+  const segBtn = (active: boolean) => `flex h-8 w-8 items-center justify-center rounded-lg transition ${active ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`
+  const copyLink = (p: StoreProduct) => copyText(checkoutUrl(p), `Link do checkout de ${p.name} copiado`)
+
+  const salesLine = (p: StoreProduct) => {
+    const s = st(p.id)
+    return (
+      <>
+        <span className="font-semibold text-slate-800">{formatCents(s.revenue + s.bumpRevenue)}</span>
+        <span className="text-slate-400">
+          {' '}
+          · {s.sold} {s.sold === 1 ? 'venda' : 'vendas'}
+          {s.bumpSold > 0 && <span className="text-violet-600"> + {s.bumpSold} como bump</span>}
+        </span>
+      </>
+    )
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div role="radiogroup" aria-label="Filtrar produtos" className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { label: 'No ar', value: `${counts.active} de ${products.length}`, bar: 'bg-emerald-500' },
+          { label: 'Faturamento total', value: formatCents(totalRevenue), bar: 'bg-brand-500', hint: 'Somando produto principal e order bump' },
+          { label: 'Mais vendido', value: best && totalOf(best.id) > 0 ? best.name : '-', bar: 'bg-violet-500', hint: best && totalOf(best.id) > 0 ? formatCents(totalOf(best.id)) : undefined },
+          { label: 'Faltando algo', value: String(notReady), bar: 'bg-amber-400', hint: notReady ? 'Sem imagem, aulas ou preço' : 'Tudo pronto' },
+        ].map((k) => (
+          <div key={k.label} className="relative overflow-hidden rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${k.bar}`} />
+            <p className="text-xs font-medium text-slate-500">{k.label}</p>
+            <p className="mt-0.5 truncate text-lg font-bold tabular-nums text-slate-900" title={k.value}>{k.value}</p>
+            {k.hint && <p className="text-xs text-slate-400">{k.hint}</p>}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+        <div role="radiogroup" aria-label="Filtrar produtos" className="flex flex-wrap gap-1 rounded-xl bg-slate-200/60 p-1">
           {filters
             .filter((f) => f.key === 'all' || counts[f.key] > 0)
             .map((f) => (
@@ -287,26 +383,76 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
               </button>
             ))}
         </div>
-        <div className="relative min-w-[200px] flex-1">
+        <div className="relative min-w-[180px] flex-1">
           <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <Input aria-label="Buscar produto" placeholder="Buscar produto" value={search} onChange={(e) => setSearch(e.target.value)} className="!pl-9" />
         </div>
-        <Select aria-label="Ordenar produtos" value={sort} onChange={(e) => setSort(e.target.value as ProductSort)} className="!w-48">
+        <Select aria-label="Ordenar produtos" value={sort} onChange={(e) => setSort(e.target.value as ProductSort)} className="!w-44">
           <option value="recent">Mexidos por último</option>
-          <option value="sales">Mais vendidos</option>
+          <option value="sales">Que mais faturaram</option>
           <option value="name">Nome (A a Z)</option>
         </Select>
+        <div role="radiogroup" aria-label="Mostrar como" className="flex gap-0.5 rounded-xl bg-slate-200/60 p-1">
+          <button type="button" role="radio" aria-checked={view === 'cards'} aria-label="Cartões" title="Cartões" onClick={() => setView('cards')} className={segBtn(view === 'cards')}>
+            <LayoutGrid size={15} aria-hidden="true" />
+          </button>
+          <button type="button" role="radio" aria-checked={view === 'list'} aria-label="Lista" title="Lista" onClick={() => setView('list')} className={segBtn(view === 'list')}>
+            <List size={15} aria-hidden="true" />
+          </button>
+        </div>
+        <Button icon={<Plus size={15} />} onClick={onCreate}>Novo produto</Button>
       </div>
 
       {list.length === 0 ? (
         <p className="py-10 text-center text-sm text-slate-500">Nenhum produto com esse filtro.</p>
+      ) : view === 'list' ? (
+        <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          {list.map((p) => {
+            const missing = p.status !== 'archived' ? missingOf(p) : []
+            return (
+              <li key={p.id} className="grid grid-cols-1 items-center gap-x-4 gap-y-2 px-4 py-3 md:grid-cols-[minmax(0,1.6fr)_7rem_minmax(0,1.2fr)_auto]">
+                <Link to={`/loja/produtos/${p.id}`} className="flex min-w-0 items-center gap-3 hover:text-brand-700">
+                  <span className="relative h-11 w-16 shrink-0 overflow-hidden rounded-lg">
+                    <ProductThumb url={p.imageUrl} name={p.name} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate font-semibold text-slate-800">{p.name}</span>
+                      {p.privateTo && <Lock size={11} className="shrink-0 text-slate-400" aria-label="Privado" />}
+                    </span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                      <Badge className={STATUS_LABEL[p.status].cls}>{STATUS_LABEL[p.status].text}</Badge>
+                      <span className="flex items-center gap-1"><BookOpen size={12} aria-hidden="true" /> {p.lessonCount ?? 0} {(p.lessonCount ?? 0) === 1 ? 'aula' : 'aulas'}</span>
+                      {missing.length > 0 && <span className="text-amber-700">Falta: {missing.join(', ')}</span>}
+                    </span>
+                  </span>
+                </Link>
+                <p className="font-bold tabular-nums text-slate-900 md:text-right">{formatCents(p.price)}</p>
+                <p className="min-w-0 truncate text-sm">{salesLine(p)}</p>
+                <div className="flex items-center justify-end gap-0.5">
+                  <Link to={`/loja/produtos/${p.id}`} className={iconBtn} aria-label={`Editar ${p.name}`}>
+                    <Pencil size={13} aria-hidden="true" /> Editar
+                  </Link>
+                  {p.status === 'active' && (
+                    <button type="button" onClick={() => copyLink(p)} className={iconBtn} aria-label={`Copiar o link do checkout de ${p.name}`}>
+                      <Copy size={13} aria-hidden="true" /> Link
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setDuplicate(p)} className={iconBtn} aria-label={`Duplicar o produto ${p.name}`} title="Duplicar">
+                    <CopyPlus size={13} aria-hidden="true" />
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {list.map((p) => {
-            const sold = sales.get(p.id) ?? 0
             const lessons = p.lessonCount ?? 0
+            const missing = p.status !== 'archived' ? missingOf(p) : []
             return (
-              <li key={p.id} className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-brand-300 hover:shadow-md">
+              <li key={p.id} className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md">
                 <Link to={`/loja/produtos/${p.id}`} className="flex flex-1 flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
                   <div className="relative aspect-[16/9] overflow-hidden">
                     <ProductThumb url={p.imageUrl} name={p.name} />
@@ -319,30 +465,40 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
                   </div>
                   <div className="flex flex-1 flex-col gap-2 p-3.5">
                     <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-slate-800 group-hover:text-brand-700">{p.name}</h3>
-                    <div className="mt-auto flex items-end justify-between gap-2">
+                    <div className="flex items-baseline justify-between gap-2">
                       <p className="font-bold text-slate-900">
                         {formatCents(p.price)}
                         {p.comparePrice && p.comparePrice > p.price && <span className="ml-1.5 text-xs font-normal text-slate-400 line-through">{formatCents(p.comparePrice)}</span>}
                       </p>
-                      <p className="flex items-center gap-2.5 text-xs text-slate-500">
-                        <span className="flex items-center gap-1" title="Vendas aprovadas"><ShoppingBag size={12} aria-hidden="true" /> {sold}<span className="sr-only"> {sold === 1 ? 'venda' : 'vendas'}</span></span>
-                        <span className="flex items-center gap-1" title="Aulas"><BookOpen size={12} aria-hidden="true" /> {lessons}<span className="sr-only"> {lessons === 1 ? 'aula' : 'aulas'}</span></span>
-                      </p>
+                      <span className="flex items-center gap-1 text-xs text-slate-500" title="Aulas">
+                        <BookOpen size={12} aria-hidden="true" /> {lessons} {lessons === 1 ? 'aula' : 'aulas'}
+                      </span>
                     </div>
+                    <p className="mt-auto rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs">{salesLine(p)}</p>
+                    {missing.length > 0 && (
+                      <p className="flex items-center gap-1 text-xs text-amber-700">
+                        <AlertCircle size={12} aria-hidden="true" /> Falta: {missing.join(', ')}
+                      </p>
+                    )}
                   </div>
                 </Link>
                 <div className="flex border-t border-slate-100 text-xs font-semibold">
                   <Link to={`/loja/produtos/${p.id}`} className={actionCls} aria-label={`Editar ${p.name}`}>
                     <Pencil size={13} aria-hidden="true" /> Editar
                   </Link>
+                  {p.status === 'active' && (
+                    <button type="button" onClick={() => copyLink(p)} className={`${actionCls} border-l border-slate-100`} aria-label={`Copiar o link do checkout de ${p.name}`}>
+                      <Copy size={13} aria-hidden="true" /> Link
+                    </button>
+                  )}
+                  {p.status === 'active' && (
+                    <a href={`/pay/${p.slug}`} target="_blank" rel="noreferrer" className={`${actionCls} border-l border-slate-100`} aria-label={`Abrir o checkout de ${p.name}`}>
+                      <ExternalLink size={13} aria-hidden="true" /> Abrir
+                    </a>
+                  )}
                   <button type="button" onClick={() => setDuplicate(p)} className={`${actionCls} border-l border-slate-100`} aria-label={`Duplicar o produto ${p.name}`}>
                     <CopyPlus size={13} aria-hidden="true" /> Duplicar
                   </button>
-                  {p.status === 'active' && (
-                    <a href={`/pay/${p.slug}`} target="_blank" rel="noreferrer" className={`${actionCls} border-l border-slate-100`} aria-label={`Abrir o checkout de ${p.name}`}>
-                      <ExternalLink size={13} aria-hidden="true" /> Checkout
-                    </a>
-                  )}
                 </div>
               </li>
             )
