@@ -17,6 +17,7 @@ import {
   Receipt,
   Package,
   Store,
+  Palette,
   Settings,
   ChevronDown,
   X,
@@ -70,7 +71,7 @@ const storeNav: NavItem[] = [
   { to: '/loja', label: 'Painel', icon: Store, aba: 'geral' },
   { to: '/loja?aba=vendas', label: 'Vendas', icon: Receipt, aba: 'vendas' },
   { to: '/loja?aba=produtos', label: 'Produtos', icon: Package, aba: 'produtos' },
-  { to: '/loja?aba=alunos', label: 'Alunos', icon: Users, aba: 'alunos' },
+  { to: '/loja?aba=membros', label: 'Área de membros', icon: Palette, aba: 'membros' },
 ]
 
 // O resto fica num grupo menor, mais apagado, logo abaixo.
