@@ -118,43 +118,48 @@ export function StorePage() {
   const activeTab = Math.max(0, tabs.findIndex((t) => t.key === params.get('aba')))
 
   const kpis = [
-    { icon: <Wallet size={13} />, label: 'Faturamento (30 dias)', value: formatCents(revenue30) },
-    { icon: <ShoppingBag size={13} />, label: 'Vendas (30 dias)', value: String(approved30.length) },
-    { icon: <Package size={13} />, label: 'Produtos no ar', value: `${live} de ${products.length}` },
-    { icon: <Users size={13} />, label: 'Alunos', value: String(members.length) },
+    { icon: <Wallet size={15} />, label: 'Faturamento (30 dias)', value: formatCents(revenue30) },
+    { icon: <ShoppingBag size={15} />, label: 'Vendas (30 dias)', value: String(approved30.length) },
+    { icon: <Package size={15} />, label: 'Produtos no ar', value: `${live} de ${products.length}` },
+    { icon: <Users size={15} />, label: 'Alunos', value: String(members.length) },
   ]
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm shadow-brand-600/30" aria-hidden="true">
-            <Store size={20} />
-          </span>
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight text-slate-900">{STORE_BRAND}</h1>
-            <p className="truncate text-xs text-slate-500">Checkout, área de membros e vendas dos produtos digitais</p>
+      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 p-5 text-white shadow-lg shadow-brand-900/10 sm:p-6">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-32 h-48 w-48 rounded-full bg-white/5" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25" aria-hidden="true">
+              <Store size={22} />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold leading-tight">{STORE_BRAND}</h1>
+              <p className="text-sm text-white/75">Checkout, área de membros e vendas dos produtos digitais</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a href="/membros" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white/10 px-3.5 text-sm font-medium text-white ring-1 ring-white/25 hover:bg-white/20">
+              <ExternalLink size={15} aria-hidden="true" /> Ver área de membros
+            </a>
+            <button type="button" onClick={() => setCreating(true)} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white px-4 text-sm font-semibold text-brand-700 shadow-sm hover:bg-brand-50">
+              <Plus size={16} aria-hidden="true" /> Novo produto
+            </button>
           </div>
         </div>
 
-        <dl className="order-3 flex w-full flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-3 lg:order-none lg:w-auto lg:flex-1 lg:justify-center lg:border-0 lg:pt-0">
+        <dl className="relative mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {kpis.map((k) => (
-            <div key={k.label} className="min-w-[110px]">
-              <dt className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
-                <span aria-hidden="true" className="text-slate-400">{k.icon}</span>
+            <div key={k.label} className="rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/15">
+              <dt className="flex items-center gap-1.5 text-xs font-medium text-white/75">
+                <span aria-hidden="true">{k.icon}</span>
                 {k.label}
               </dt>
-              <dd className="text-base font-bold tabular-nums text-slate-900">{k.value}</dd>
+              <dd className="mt-1 text-xl font-bold tabular-nums">{k.value}</dd>
             </div>
           ))}
         </dl>
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <a href="/membros" target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            <ExternalLink size={15} aria-hidden="true" /> Área de membros
-          </a>
-          <Button icon={<Plus size={16} />} onClick={() => setCreating(true)}>Novo produto</Button>
-        </div>
       </header>
 
       {(pixToConfirm > 0 || refundRequests > 0 || pendingComments > 0) && (

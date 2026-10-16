@@ -11,6 +11,7 @@
 //   GET  order&id=&key=           status do pedido (consulta o MP e libera o acesso)
 //   POST webhook                  notificação do Mercado Pago
 //   POST checkout-chat { slug, messages, context }  chat do Archer no checkout (recuperador de vendas)
+//   GET  recovery-sweep            gatilho automático (a cada 10 min): avisos de carrinho e e-mails do Archer
 //   GET  recovery-stop&id=&k=     link do e-mail de recuperação: para de mandar lembretes (página HTML)
 //   POST recovery-stop&id=&k=     o mesmo, pelo botão "Cancelar inscrição" do Gmail (um clique)
 // Alunos:
@@ -1204,6 +1205,7 @@ const PUBLIC = {
   'POST checkout-lead': actionCheckoutLead,
   'POST checkout-chat': actionCheckoutChat,
   'GET recovery-stop': actionRecoveryStop,
+  'GET recovery-sweep': actionRecoverySweep,
   // Descadastro de um clique (List-Unsubscribe-Post) que o Gmail faz por trás.
   'POST recovery-stop': actionRecoveryStop,
   'POST order': actionOrder,
@@ -1286,6 +1288,13 @@ async function actionCheckoutChat(req) {
   }
 }
 
+/** Gatilho automático (GitHub Actions a cada 10 min, ver .github/workflows/loja-recuperacao.yml):
+ *  a varredura de carrinhos e os e-mails do Archer rodam no handler (RECOVERY_ROUTES),
+ *  com o limite de 1x a cada 5 min. Público e sem dados: só dispara o que já está na hora. */
+async function actionRecoverySweep() {
+  return { ok: true }
+}
+
 /** "Não quero mais receber lembretes" do e-mail de recuperação. */
 async function actionRecoveryStop(req) {
   return { __html: await stopRecovery(String(req.query.id || ''), String(req.query.k || '')) }
@@ -1293,8 +1302,8 @@ async function actionRecoveryStop(req) {
 
 // Rotas que disparam a conferência dos carrinhos abandonados (no máximo 1x a cada 5 min).
 // E-mails de recuperação: só em rotas onde ninguém fica esperando na tela (o lead do checkout é enviado em segundo plano).
-const RECOVERY_ROUTES = new Set(['POST checkout-lead', 'POST webhook', 'GET webhook', 'GET admin-status', 'POST admin-reconcile'])
-const SWEEP_ROUTES = new Set(['POST checkout-lead', 'POST order', 'POST webhook', 'GET webhook', 'GET admin-status', 'POST admin-reconcile'])
+const RECOVERY_ROUTES = new Set(['GET recovery-sweep', 'POST checkout-lead', 'POST webhook', 'GET webhook', 'GET admin-status', 'POST admin-reconcile'])
+const SWEEP_ROUTES = new Set(['GET recovery-sweep', 'POST checkout-lead', 'POST order', 'POST webhook', 'GET webhook', 'GET admin-status', 'POST admin-reconcile'])
 
 export default async function handler(req, res) {
   const route = `${req.method} ${req.query.action || ''}`

@@ -1,0 +1,17 @@
+# Carrinhos abandonados da Loja: dispara os e-mails de recuperação do Archer
+# e os avisos no celular sem depender de alguém abrir o CRM. O plano Hobby
+# da Vercel só deixa cron 1x por dia, por isso fica aqui.
+name: Loja - recuperação de carrinhos
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Disparar varredura
+        run: curl -fsS --max-time 120 'https://arrowshotcrm.vercel.app/api/loja?action=recovery-sweep'

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Ban, CheckCircle2, Copy, Download, FileText, RotateCcw, Trash2 } from 'lucide-react'
+import { Ban, CheckCircle2, ChevronDown, Copy, Download, FileText, RotateCcw, Trash2 } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext'
 import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
@@ -190,12 +190,105 @@ export function useOrderActions() {
   return { busy: refunding, confirmPayment, cancelOrder, refund, denyRefund, copyAccess, deleteOrder, canDelete }
 }
 
-/** Lista de pedidos com filtro, exportação CSV, link de acesso e reembolso. */
+type OrderKind = '' | 'with_bump' | 'no_bump'
+
+const mainItems = (o: StoreOrder) => o.items.filter((i) => !i.bump)
+const bumpItems = (o: StoreOrder) => o.items.filter((i) => i.bump)
+
+function SummaryCard({ label, value, hint, tone = 'slate' }: { label: string; value: string; hint?: string; tone?: 'slate' | 'green' | 'violet' | 'amber' }) {
+  const bar = { slate: 'bg-slate-300', green: 'bg-emerald-500', violet: 'bg-violet-500', amber: 'bg-amber-400' }[tone]
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${bar}`} />
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{value}</p>
+      {hint && <p className="text-xs text-slate-400">{hint}</p>}
+    </div>
+  )
+}
+
+/** Vendas por produto, separando quando ele foi o produto principal e quando entrou como order bump. */
+function ProductBreakdown({ paid, products }: { paid: StoreOrder[]; products: StoreProduct[] }) {
+  const rows = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; mainCount: number; mainRevenue: number; bumpCount: number; bumpRevenue: number }>()
+    const get = (id: string, name: string) => {
+      if (!map.has(id)) map.set(id, { id, name: products.find((p) => p.id === id)?.name ?? name, mainCount: 0, mainRevenue: 0, bumpCount: 0, bumpRevenue: 0 })
+      return map.get(id)!
+    }
+    for (const o of paid) {
+      const bumps = bumpItems(o)
+      // Valor do produto principal = total do pedido menos os bumps (já com cupom e desconto aplicados).
+      const bumpTotal = bumps.reduce((s, i) => s + i.price, 0)
+      for (const i of mainItems(o)) {
+        const r = get(i.productId, i.name)
+        r.mainCount++
+        r.mainRevenue += Math.max(0, o.amount - bumpTotal)
+      }
+      for (const i of bumps) {
+        const r = get(i.productId, i.name)
+        r.bumpCount++
+        r.bumpRevenue += i.price
+      }
+    }
+    return [...map.values()].sort((a, b) => b.mainRevenue + b.bumpRevenue - (a.mainRevenue + a.bumpRevenue))
+  }, [paid, products])
+
+  if (!rows.length) return <EmptyState title="Nenhuma venda aprovada" description="Troque o período ou os filtros para ver as vendas por produto." />
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <table className="w-full text-sm">
+        <caption className="sr-only">Vendas por produto, como produto principal e como order bump</caption>
+        <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <tr>
+            <th scope="col" className="px-4 py-3">Produto</th>
+            <th scope="col" className="px-4 py-3 text-right">Vendido como principal</th>
+            <th scope="col" className="px-4 py-3 text-right">Vendido como order bump</th>
+            <th scope="col" className="px-4 py-3 text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <th scope="row" className="px-4 py-3 text-left font-medium text-slate-800">{r.name}</th>
+              <td className="px-4 py-3 text-right tabular-nums">
+                {r.mainCount ? (
+                  <>
+                    <span className="font-semibold text-slate-800">{formatCents(r.mainRevenue)}</span>
+                    <span className="block text-xs text-slate-400">{r.mainCount} {r.mainCount === 1 ? 'venda' : 'vendas'}</span>
+                  </>
+                ) : (
+                  <span className="text-slate-300">-</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                {r.bumpCount ? (
+                  <>
+                    <span className="font-semibold text-violet-700">{formatCents(r.bumpRevenue)}</span>
+                    <span className="block text-xs text-slate-400">{r.bumpCount} {r.bumpCount === 1 ? 'venda' : 'vendas'}</span>
+                  </>
+                ) : (
+                  <span className="text-slate-300">-</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-right font-bold tabular-nums text-slate-900">{formatCents(r.mainRevenue + r.bumpRevenue)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Vendas: resumo do período, vendas por produto (principal e order bump) e lista de pedidos. */
 export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; products: StoreProduct[] }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | StoreOrderStatus>('')
   const [productId, setProductId] = useState('')
-  const [period, setPeriod] = useState<DateRangeValue>({ preset: 'all', from: '', to: '' })
+  const [kind, setKind] = useState<OrderKind>('')
+  const [period, setPeriod] = useState<DateRangeValue>({ preset: '30d', from: '', to: '' })
+  const [view, setView] = useState<'orders' | 'products'>('orders')
+  const [openId, setOpenId] = useState<string | null>(null)
   const { busy: refunding, confirmPayment, cancelOrder, refund, denyRefund, copyAccess, deleteOrder, canDelete } = useOrderActions()
   useReconcilePending(orders)
   const [emitting, setEmitting] = useState<string | null>(null)
@@ -230,10 +323,16 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
         inRange(o.createdAt, range) &&
         (!status || o.status === status) &&
         (!productId || o.productIds?.includes(productId)) &&
+        (!kind || (kind === 'with_bump') === bumpItems(o).length > 0) &&
         (!q || o.buyer.name.toLowerCase().includes(q) || o.buyer.email.includes(q) || o.id.toLowerCase().includes(q))
     )
-  }, [orders, search, status, productId, period])
+  }, [orders, search, status, productId, kind, period])
+
   const paid = filtered.filter((o) => o.status === 'approved' && !o.test)
+  const revenue = paid.reduce((s, o) => s + o.amount, 0)
+  const bumpRevenue = paid.reduce((s, o) => s + bumpItems(o).reduce((a, i) => a + i.price, 0), 0)
+  const withBump = paid.filter((o) => bumpItems(o).length > 0).length
+  const waiting = filtered.filter((o) => o.status === 'pending' && !o.test).length
 
   const exportCsv = () => {
     const blob = new Blob([`﻿${toCsv(filtered)}`], { type: 'text/csv;charset=utf-8' })
@@ -244,129 +343,214 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
     URL.revokeObjectURL(a.href)
   }
 
+  const segBtn = (active: boolean) =>
+    `rounded-lg px-3 py-1.5 text-sm font-semibold transition ${active ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-[220px] flex-1">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <SummaryCard tone="green" label="Faturamento aprovado" value={formatCents(revenue)} hint={`${paid.length} ${paid.length === 1 ? 'venda' : 'vendas'}`} />
+        <SummaryCard label="Produto principal" value={formatCents(revenue - bumpRevenue)} hint="Sem contar os order bumps" />
+        <SummaryCard
+          tone="violet"
+          label="Order bumps"
+          value={formatCents(bumpRevenue)}
+          hint={paid.length ? `${withBump} de ${paid.length} pedidos levaram (${Math.round((withBump / paid.length) * 100)}%)` : undefined}
+        />
+        <SummaryCard tone="amber" label="Aguardando pagamento" value={String(waiting)} hint={waiting ? 'Pix gerado e ainda não pago' : undefined} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+        <div className="min-w-[200px] flex-1">
           <Input aria-label="Buscar por nome, e-mail ou pedido" placeholder="Buscar por nome, e-mail ou pedido" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as '' | StoreOrderStatus)} className="!w-48">
-          <option value="">Todos os status</option>
-          {Object.entries(STORE_ORDER_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </Select>
-        <Select aria-label="Produto" value={productId} onChange={(e) => setProductId(e.target.value)} className="!w-56">
+        <Select aria-label="Produto" value={productId} onChange={(e) => setProductId(e.target.value)} className="!w-48">
           <option value="">Todos os produtos</option>
-          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {products.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </Select>
+        <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as '' | StoreOrderStatus)} className="!w-40">
+          <option value="">Todos os status</option>
+          {Object.entries(STORE_ORDER_STATUS_LABEL).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </Select>
+        <Select aria-label="Order bump" value={kind} onChange={(e) => setKind(e.target.value as OrderKind)} className="!w-48">
+          <option value="">Com e sem order bump</option>
+          <option value="with_bump">Só com order bump</option>
+          <option value="no_bump">Só sem order bump</option>
         </Select>
         <DateRangeFilter value={period} onChange={setPeriod} />
-        <Button variant="secondary" icon={<Download size={15} />} onClick={exportCsv} disabled={!filtered.length}>Exportar CSV</Button>
+        <Button variant="secondary" icon={<Download size={15} />} onClick={exportCsv} disabled={!filtered.length}>
+          CSV
+        </Button>
       </div>
-      <p className="text-sm text-slate-500" aria-live="polite">
-        {filtered.length} {filtered.length === 1 ? 'pedido' : 'pedidos'} · {paid.length} {paid.length === 1 ? 'venda aprovada' : 'vendas aprovadas'} ·{' '}
-        <span className="font-semibold text-slate-700">{formatCents(paid.reduce((s, o) => s + o.amount, 0))}</span>
-      </p>
 
-      {filtered.length === 0 ? (
-        <EmptyState title="Nenhum pedido" description={orders.length ? 'Nenhum pedido com esses filtros. Troque o período ou limpe a busca.' : 'Quando alguém comprar pelo link do checkout, o pedido aparece aqui na hora.'} />
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <caption className="sr-only">Pedidos da loja</caption>
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr>
-                <th scope="col" className="px-4 py-3">Cliente</th>
-                <th scope="col" className="px-4 py-3">Produtos</th>
-                <th scope="col" className="px-4 py-3">Valor</th>
-                <th scope="col" className="px-4 py-3">Status</th>
-                <th scope="col" className="px-4 py-3">Nota fiscal</th>
-                <th scope="col" className="px-4 py-3">Data</th>
-                <th scope="col" className="px-4 py-3"><span className="sr-only">Ações</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map((o) => (
-                <tr key={o.id} className="align-top">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-slate-800">{o.buyer.name}</p>
-                    <p className="text-xs text-slate-500">{o.buyer.email}</p>
-                    {o.buyer.phone && <p className="text-xs text-slate-400">{o.buyer.phone}</p>}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {o.items.map((i) => (
-                      <p key={i.productId}>{i.name}{i.bump ? ' (order bump)' : ''}</p>
-                    ))}
-                    {o.couponCode && <p className="text-xs text-slate-400">Cupom {o.couponCode} ({o.couponPercent}%)</p>}
-                    {o.pixDiscountAmount ? <p className="text-xs text-slate-400">Desconto Pix {o.pixDiscountPercent}% (-{formatCents(o.pixDiscountAmount)})</p> : null}
-                    {o.utm?.utm_source && <p className="text-xs text-slate-400">Origem: {o.utm.utm_source}{o.utm.utm_campaign ? `, ${o.utm.utm_campaign}` : ''}</p>}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                    {formatCents(o.amount)}
-                    <p className="text-xs text-slate-400">{STORE_METHOD_LABEL[o.method]}{o.installments && o.installments > 1 ? ` em ${o.installments}x` : ''}</p>
-                    {o.pixAccountLabel && <p className="text-xs text-slate-400">Conta: {o.pixAccountLabel}</p>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} expired={!!o.expiredAt} />
-                    {o.status === 'refunded' && o.refundedBy && <p className="mt-1 text-xs text-slate-400">Por {o.refundedBy}</p>}
-                    {o.status === 'approved' && o.capi?.purchase && !o.capi.purchase.ok && (
-                      <div className="mt-1">
-                        <Badge className="bg-amber-50 text-amber-700">Não marcou no Meta</Badge>
-                        <p className="mt-0.5 max-w-[220px] text-xs text-slate-500">{o.capi.purchase.error || 'O Meta recusou'}. Tenta de novo todo dia.</p>
-                      </div>
-                    )}
-                    {o.refundRequest && o.status === 'approved' && (
-                      <div className="mt-1">
-                        {o.refundRequest.deniedAt ? <Badge className="bg-slate-100 text-slate-600">Reembolso recusado{o.refundRequest.deniedBy ? ` por ${o.refundRequest.deniedBy}` : ''}</Badge> : <Badge className="bg-red-50 text-red-600">Reembolso pedido</Badge>}
-                        <p className="mt-0.5 max-w-[200px] text-xs text-slate-500">
-                          {new Date(o.refundRequest.requestedAt).toLocaleDateString('pt-BR')}{o.refundRequest.reason ? `: ${o.refundRequest.reason}` : ''}
-                        </p>
-                      </div>
-                    )}
-                    {o.confirmedBy && o.status === 'approved' && <p className="mt-1 text-xs text-slate-400">Confirmado por {o.confirmedBy}</p>}
-                    {o.test && <Badge className="ml-1 bg-amber-50 text-amber-700">teste</Badge>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <InvoiceCell order={o} busy={emitting === o.id} onEmit={() => emitInvoice(o)} />
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(o.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right">
-                    {o.method === 'pix_manual' && (o.status === 'pending' || (o.status === 'refused' && o.expiredAt)) && (
-                      <>
-                        <Button size="sm" icon={<CheckCircle2 size={14} />} loading={refunding === o.id} onClick={() => confirmPayment(o)} aria-label={`Confirmar pagamento de ${o.buyer.name}, ${formatCents(o.amount)}`}>
-                          Confirmar pagamento
-                        </Button>
-                        {o.status === 'pending' && (
-                          <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => cancelOrder(o)} aria-label={`Cancelar pedido de ${o.buyer.name}`}>
-                            Cancelar
-                          </Button>
-                        )}
-                      </>
-                    )}
-                    {o.accessUrl && o.status === 'approved' && (
-                      <Button size="sm" variant="ghost" icon={<Copy size={14} />} onClick={() => copyAccess(o)} aria-label={`Copiar link de acesso de ${o.buyer.name}`}>
-                        Acesso
-                      </Button>
-                    )}
-                    {o.status === 'approved' && o.refundRequest && !o.refundRequest.deniedAt && (
-                      <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => denyRefund(o)} aria-label={`Recusar reembolso de ${o.buyer.name}`}>
-                        Recusar reembolso
-                      </Button>
-                    )}
-                    {o.status === 'approved' && (
-                      <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} loading={refunding === o.id} onClick={() => refund(o)} aria-label={`Reembolsar pedido de ${o.buyer.name}`}>
-                        Reembolsar
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} loading={refunding === o.id} onClick={() => deleteOrder(o)} aria-label={`Excluir pedido de ${o.buyer.name}`}>
-                        Excluir
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div role="radiogroup" aria-label="Como ver as vendas" className="flex gap-1 rounded-xl bg-slate-100 p-1">
+          <button type="button" role="radio" aria-checked={view === 'orders'} onClick={() => setView('orders')} className={segBtn(view === 'orders')}>
+            Pedidos
+          </button>
+          <button type="button" role="radio" aria-checked={view === 'products'} onClick={() => setView('products')} className={segBtn(view === 'products')}>
+            Por produto
+          </button>
         </div>
+        <p className="text-sm text-slate-500" aria-live="polite">
+          {filtered.length} {filtered.length === 1 ? 'pedido' : 'pedidos'} no filtro
+        </p>
+      </div>
+
+      {view === 'products' ? (
+        <ProductBreakdown paid={paid} products={products} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="Nenhum pedido"
+          description={orders.length ? 'Nenhum pedido com esses filtros. Troque o período ou limpe a busca.' : 'Quando alguém comprar pelo link do checkout, o pedido aparece aqui na hora.'}
+        />
+      ) : (
+        <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          {filtered.map((o) => {
+            const open = openId === o.id
+            const main = mainItems(o)
+            const bumps = bumpItems(o)
+            const needsPix = o.method === 'pix_manual' && (o.status === 'pending' || (o.status === 'refused' && !!o.expiredAt))
+            const refundAsked = o.status === 'approved' && !!o.refundRequest && !o.refundRequest.deniedAt
+            const capiFail = o.status === 'approved' && !!o.capi?.purchase && !o.capi.purchase.ok
+            return (
+              <li key={o.id} className={open ? 'bg-slate-50/70' : ''}>
+                <div className="grid grid-cols-1 items-center gap-x-4 gap-y-2 px-4 py-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_7rem_minmax(0,0.9fr)_auto]">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-800">{o.buyer.name}</p>
+                    <p className="truncate text-xs text-slate-500">{o.buyer.email}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-slate-700">{main.map((i) => i.name).join(' + ') || o.productName}</p>
+                    {bumps.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {bumps.map((i) => (
+                          <span key={i.productId} className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+                            + {i.name}
+                            <span className="sr-only"> (order bump)</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="whitespace-nowrap md:text-right">
+                    <p className="font-semibold tabular-nums text-slate-800">{formatCents(o.amount)}</p>
+                    <p className="text-xs text-slate-400">
+                      {STORE_METHOD_LABEL[o.method]}
+                      {o.installments && o.installments > 1 ? ` em ${o.installments}x` : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} expired={!!o.expiredAt} />
+                    {refundAsked && <Badge className="bg-red-50 text-red-600">Reembolso pedido</Badge>}
+                    {o.test && <Badge className="bg-amber-50 text-amber-700">teste</Badge>}
+                    {capiFail && <span className="h-2 w-2 rounded-full bg-amber-400" title="Não marcou no Meta" aria-label="Não marcou no Meta" />}
+                  </div>
+                  <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                    <span className="mr-1 text-xs text-slate-400">{new Date(o.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    {needsPix && (
+                      <Button size="sm" icon={<CheckCircle2 size={14} />} loading={refunding === o.id} onClick={() => confirmPayment(o)} aria-label={`Confirmar pagamento de ${o.buyer.name}, ${formatCents(o.amount)}`}>
+                        Confirmar
+                      </Button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(open ? null : o.id)}
+                      aria-expanded={open}
+                      aria-label={`${open ? 'Fechar' : 'Ver'} detalhes do pedido de ${o.buyer.name}`}
+                      className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      Detalhes <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                {open && (
+                  <div className="grid gap-4 border-t border-slate-100 px-4 py-4 text-sm md:grid-cols-3">
+                    <dl className="space-y-1">
+                      <dt className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Comprador</dt>
+                      <dd className="text-slate-700">{o.buyer.name}</dd>
+                      <dd className="text-slate-500">{o.buyer.email}</dd>
+                      {o.buyer.phone && <dd className="text-slate-500">{o.buyer.phone}</dd>}
+                      {o.buyer.cpf && <dd className="text-slate-500">CPF {o.buyer.cpf}</dd>}
+                      <dd className="text-xs text-slate-400">Pedido {o.id.replace('ord_', '')}</dd>
+                    </dl>
+                    <dl className="space-y-1">
+                      <dt className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Compra</dt>
+                      {o.items.map((i) => (
+                        <dd key={i.productId} className="flex justify-between gap-3 text-slate-700">
+                          <span>
+                            {i.name}
+                            {i.bump && <span className="text-violet-600"> (order bump)</span>}
+                          </span>
+                          <span className="tabular-nums text-slate-500">{formatCents(i.price)}</span>
+                        </dd>
+                      ))}
+                      {o.couponCode && <dd className="text-xs text-slate-500">Cupom {o.couponCode} ({o.couponPercent}%)</dd>}
+                      {o.pixDiscountAmount ? <dd className="text-xs text-slate-500">Desconto Pix {o.pixDiscountPercent}% (-{formatCents(o.pixDiscountAmount)})</dd> : null}
+                      {o.pixAccountLabel && <dd className="text-xs text-slate-500">Conta: {o.pixAccountLabel}</dd>}
+                      {o.utm?.utm_source && (
+                        <dd className="text-xs text-slate-500">
+                          Origem: {o.utm.utm_source}
+                          {o.utm.utm_campaign ? `, ${o.utm.utm_campaign}` : ''}
+                          {o.utm.utm_content ? `, ${o.utm.utm_content}` : ''}
+                        </dd>
+                      )}
+                    </dl>
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Situação</p>
+                      {o.confirmedBy && o.status === 'approved' && <p className="text-xs text-slate-500">Confirmado por {o.confirmedBy}</p>}
+                      {o.status === 'refunded' && o.refundedBy && <p className="text-xs text-slate-500">Reembolsado por {o.refundedBy}</p>}
+                      {o.refundRequest && o.status === 'approved' && (
+                        <p className="text-xs text-slate-500">
+                          {o.refundRequest.deniedAt ? `Reembolso recusado${o.refundRequest.deniedBy ? ` por ${o.refundRequest.deniedBy}` : ''}` : 'Pediu reembolso'} em{' '}
+                          {new Date(o.refundRequest.requestedAt).toLocaleDateString('pt-BR')}
+                          {o.refundRequest.reason ? `: ${o.refundRequest.reason}` : ''}
+                        </p>
+                      )}
+                      {capiFail && <p className="text-xs text-amber-700">Não marcou no Meta: {o.capi?.purchase?.error || 'o Meta recusou'}. Tenta de novo todo dia.</p>}
+                      <div>
+                        <p className="mb-1 text-xs text-slate-500">Nota fiscal</p>
+                        <InvoiceCell order={o} busy={emitting === o.id} onEmit={() => emitInvoice(o)} />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-3 md:col-span-3">
+                      {needsPix && o.status === 'pending' && (
+                        <Button size="sm" variant="secondary" icon={<Ban size={14} />} onClick={() => cancelOrder(o)} aria-label={`Cancelar pedido de ${o.buyer.name}`}>
+                          Cancelar pedido
+                        </Button>
+                      )}
+                      {o.accessUrl && o.status === 'approved' && (
+                        <Button size="sm" variant="secondary" icon={<Copy size={14} />} onClick={() => copyAccess(o)} aria-label={`Copiar link de acesso de ${o.buyer.name}`}>
+                          Copiar link de acesso
+                        </Button>
+                      )}
+                      {refundAsked && (
+                        <Button size="sm" variant="secondary" icon={<Ban size={14} />} onClick={() => denyRefund(o)} aria-label={`Recusar reembolso de ${o.buyer.name}`}>
+                          Recusar reembolso
+                        </Button>
+                      )}
+                      {o.status === 'approved' && (
+                        <Button size="sm" variant="secondary" icon={<RotateCcw size={14} />} loading={refunding === o.id} onClick={() => refund(o)} aria-label={`Reembolsar pedido de ${o.buyer.name}`}>
+                          Reembolsar
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} loading={refunding === o.id} onClick={() => deleteOrder(o)} aria-label={`Excluir pedido de ${o.buyer.name}`} className="ml-auto">
+                          Excluir
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
       )}
     </div>
   )

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
-import { KeyRound, Link2, Trash2, UserPlus, XCircle } from 'lucide-react'
+import { ChevronDown, KeyRound, Link2, Mail, Trash2, UserPlus, XCircle } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { Field, Input, Select } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
@@ -11,6 +11,30 @@ import { askConfirm } from '../../../utils/confirmDialog'
 import { copyText } from './StoreOrdersTable'
 import { TempPasswordModal } from './TempPasswordModal'
 import type { StoreEnrollment, StoreMember, StoreProduct, StoreProgress } from '../../../types/store'
+
+type MemberStatus = 'active' | 'idle' | 'never'
+
+const initialsOf = (name: string) =>
+  name
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+
+const STAT_TONE = { slate: 'bg-slate-300', green: 'bg-emerald-500', amber: 'bg-amber-400', blue: 'bg-brand-500' }
+
+function MiniStat({ label, value, hint, tone = 'slate' }: { label: string; value: string; hint?: string; tone?: keyof typeof STAT_TONE }) {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${STAT_TONE[tone]}`} />
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{value}</p>
+      {hint && <p className="text-xs text-slate-400">{hint}</p>}
+    </div>
+  )
+}
 
 /** Alunos: quem tem acesso a quê, progresso, link de acesso e liberação manual. */
 export function StoreMembersTable({
@@ -36,6 +60,8 @@ export function StoreMembersTable({
   const [busy, setBusy] = useState<string | null>(null)
   const [tempFor, setTempFor] = useState<StoreMember | null>(null)
   const [testing, setTesting] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | MemberStatus>('all')
+  const [openId, setOpenId] = useState<string | null>(null)
 
   const emailTest = async () => {
     setTesting(true)
@@ -106,83 +132,204 @@ export function StoreMembersTable({
     }
   }
 
+  const now = Date.now()
+  const WEEK = 7 * 86_400_000
+  const statusOf = (m: StoreMember): { key: MemberStatus; label: string; cls: string } => {
+    if (m.lastAccessAt && now - new Date(m.lastAccessAt).getTime() <= WEEK) return { key: 'active', label: 'Ativo esta semana', cls: 'bg-emerald-50 text-emerald-700' }
+    if (m.lastAccessAt) return { key: 'idle', label: 'Sumido', cls: 'bg-amber-50 text-amber-700' }
+    if (!m.hasPassword && m.tempPasswordUntil && new Date(m.tempPasswordUntil).getTime() < now) return { key: 'never', label: 'Senha provisória vencida', cls: 'bg-red-50 text-red-600' }
+    return { key: 'never', label: 'Nunca acessou', cls: 'bg-slate-100 text-slate-600' }
+  }
+  const avgPercent = (uid: string, access: StoreEnrollment[]) =>
+    access.length ? Math.round(access.reduce((s, a) => s + percentFor(uid, a.productId), 0) / access.length) : 0
+
+  const allRows = rows
+  const counts = {
+    all: allRows.length,
+    active: allRows.filter((r) => statusOf(r.member).key === 'active').length,
+    idle: allRows.filter((r) => statusOf(r.member).key === 'idle').length,
+    never: allRows.filter((r) => statusOf(r.member).key === 'never').length,
+  }
+  const shown = statusFilter === 'all' ? allRows : allRows.filter((r) => statusOf(r.member).key === statusFilter)
+  const avgAll = allRows.length ? Math.round(allRows.reduce((s, r) => s + avgPercent(r.member.id, r.access), 0) / allRows.length) : 0
+  const chips: { key: 'all' | MemberStatus; label: string }[] = [
+    { key: 'all', label: 'Todos' },
+    { key: 'active', label: 'Ativos esta semana' },
+    { key: 'idle', label: 'Sumidos' },
+    { key: 'never', label: 'Nunca acessaram' },
+  ]
+  const date = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
+
   return (
     <div className="space-y-4">
-      <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-        {emailOn ? 'E-mail automático ligado: o acesso e a senha provisória chegam por e-mail.' : 'E-mail automático desligado: mande o acesso pelo WhatsApp.'}
-        {emailOn && (
-          <button type="button" onClick={emailTest} disabled={testing} className="font-semibold text-brand-600 hover:underline disabled:opacity-60">
-            {testing ? 'Enviando...' : 'Enviar e-mail de teste para mim'}
-          </button>
-        )}
-      </p>
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-[220px] flex-1">
-          <Input aria-label="Buscar aluno por nome ou e-mail" placeholder="Buscar aluno por nome ou e-mail" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <Select aria-label="Produto" value={productId} onChange={(e) => setProductId(e.target.value)} className="!w-56">
-          <option value="">Todos os produtos</option>
-          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </Select>
-        <Button icon={<UserPlus size={15} />} onClick={() => setGrantOpen(true)} disabled={!products.length}>Liberar acesso</Button>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <MiniStat label="Alunos" value={String(counts.all)} />
+        <MiniStat label="Ativos esta semana" value={String(counts.active)} tone="green" />
+        <MiniStat label="Nunca acessaram" value={String(counts.never)} tone="amber" hint={counts.never ? 'Mande o link ou uma senha provisória' : undefined} />
+        <MiniStat label="Conclusão média" value={`${avgAll}%`} tone="blue" />
       </div>
 
-      {rows.length === 0 ? (
-        <EmptyState title="Nenhum aluno" description="Os compradores viram alunos automaticamente. Você também pode liberar acesso manualmente." />
-      ) : (
-        <ul className="space-y-2">
-          {rows.map(({ member: m, access }) => (
-            <li key={m.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex flex-wrap items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-slate-800">{m.name}</h3>
-                  <p className="text-sm text-slate-500">{m.email}{m.phone ? `, ${m.phone}` : ''}</p>
-                  <p className="text-xs text-slate-400">
-                    Aluno desde {new Date(m.createdAt).toLocaleDateString('pt-BR')}
-                    {m.lastAccessAt ? `, último acesso em ${new Date(m.lastAccessAt).toLocaleDateString('pt-BR')}` : ', ainda não acessou'}
-                    {m.hasPassword ? ', já criou senha' : ''}
-                    {!m.hasPassword && m.tempPasswordUntil
-                      ? new Date(m.tempPasswordUntil).getTime() > Date.now()
-                        ? `, senha provisória vale até ${new Date(m.tempPasswordUntil).toLocaleDateString('pt-BR')}`
-                        : ', senha provisória vencida'
-                      : ''}
-                  </p>
-                </div>
-                <Button size="sm" variant="secondary" icon={<KeyRound size={14} />} disabled={busy === m.id} onClick={() => setTempFor(m)} aria-label={`Criar senha provisória para ${m.name}`}>
-                  Senha provisória
-                </Button>
-                <Button size="sm" variant="secondary" icon={<Link2 size={14} />} loading={busy === m.id} onClick={() => newLink(m)} aria-label={`Gerar e copiar link de acesso de ${m.name}`}>
-                  Copiar link de acesso
-                </Button>
-                <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} disabled={busy === m.id} onClick={() => removeMember(m)} aria-label={`Remover o aluno ${m.name}`}>
-                  Remover aluno
-                </Button>
-              </div>
-              {access.length > 0 ? (
-                <ul className="mt-3 space-y-1.5">
-                  {access.map((a) => {
-                    const pct = percentFor(m.id, a.productId)
-                    return (
-                      <li key={a.id} className="flex flex-wrap items-center gap-3 text-sm">
-                        <span className="min-w-[180px] font-medium text-slate-700">{productName(a.productId)}</span>
-                        {a.source === 'manual' && <Badge className="bg-slate-100 text-slate-600">liberado manualmente</Badge>}
-                        {a.source === 'equipe' && <Badge className="bg-brand-50 text-brand-700">equipe (ver como aluno)</Badge>}
-                        <span className="flex items-center gap-2 text-slate-500">
-                          <span className="h-1.5 w-28 rounded-full bg-slate-100" aria-hidden="true"><span className="block h-1.5 rounded-full bg-brand-600" style={{ width: `${pct}%` }} /></span>
-                          {pct}% concluído
-                        </span>
-                        <button onClick={() => revoke(m, a.productId)} className="ml-auto flex items-center gap-1 text-xs text-slate-400 hover:text-red-600" aria-label={`Remover acesso de ${m.name} a ${productName(a.productId)}`}>
-                          <XCircle size={14} /> Remover acesso
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              ) : (
-                <p className="mt-2 text-sm text-slate-400">Sem acesso ativo.</p>
-              )}
-            </li>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+        <div className="min-w-[200px] flex-1">
+          <Input aria-label="Buscar aluno por nome ou e-mail" placeholder="Buscar aluno por nome ou e-mail" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <Select aria-label="Produto" value={productId} onChange={(e) => setProductId(e.target.value)} className="!w-52">
+          <option value="">Todos os produtos</option>
+          {products.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
           ))}
+        </Select>
+        <Button icon={<UserPlus size={15} />} onClick={() => setGrantOpen(true)} disabled={!products.length}>
+          Liberar acesso
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div role="radiogroup" aria-label="Filtrar alunos" className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
+          {chips.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === c.key}
+              onClick={() => setStatusFilter(c.key)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${statusFilter === c.key ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {c.label} <span className="ml-0.5 opacity-60">{counts[c.key]}</span>
+            </button>
+          ))}
+        </div>
+        <p role="status" className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <Mail size={13} aria-hidden="true" />
+          {emailOn ? 'E-mail automático ligado' : 'E-mail automático desligado: mande o acesso pelo WhatsApp'}
+          {emailOn && (
+            <button type="button" onClick={emailTest} disabled={testing} className="font-semibold text-brand-600 hover:underline disabled:opacity-60">
+              {testing ? 'Enviando...' : 'Testar'}
+            </button>
+          )}
+        </p>
+      </div>
+
+      {shown.length === 0 ? (
+        <EmptyState title="Nenhum aluno" description={allRows.length ? 'Nenhum aluno neste filtro.' : 'Os compradores viram alunos automaticamente. Você também pode liberar acesso manualmente.'} />
+      ) : (
+        <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          {shown.map(({ member: m, access }) => {
+            const st = statusOf(m)
+            const pct = avgPercent(m.id, access)
+            const open = openId === m.id
+            return (
+              <li key={m.id} className={open ? 'bg-slate-50/70' : ''}>
+                <div className="grid grid-cols-1 items-center gap-x-4 gap-y-2 px-4 py-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.3fr)_9rem_auto]">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700" aria-hidden="true">
+                      {initialsOf(m.name || m.email)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-800">{m.name || m.email}</p>
+                      <p className="truncate text-xs text-slate-500">{m.email}</p>
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    {access.length ? (
+                      <>
+                        <p className="truncate text-sm text-slate-700">
+                          {access.length === 1 ? productName(access[0].productId) : `${access.length} produtos`}
+                        </p>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                          <span className="h-1.5 w-24 rounded-full bg-slate-100" aria-hidden="true">
+                            <span className="block h-1.5 rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
+                          </span>
+                          {pct}% concluído
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-slate-400">Sem acesso ativo</p>
+                    )}
+                  </div>
+                  <div>
+                    <Badge className={st.cls}>{st.label}</Badge>
+                    <p className="mt-0.5 text-xs text-slate-400">{m.lastAccessAt ? `Último acesso ${date(m.lastAccessAt)}` : `Aluno desde ${date(m.createdAt)}`}</p>
+                  </div>
+                  <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                    <Button size="sm" variant="secondary" icon={<Link2 size={14} />} loading={busy === m.id} onClick={() => newLink(m)} aria-label={`Gerar e copiar link de acesso de ${m.name}`}>
+                      Link
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(open ? null : m.id)}
+                      aria-expanded={open}
+                      aria-label={`${open ? 'Fechar' : 'Ver'} detalhes de ${m.name}`}
+                      className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      Detalhes <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                {open && (
+                  <div className="space-y-4 border-t border-slate-100 px-4 py-4 text-sm">
+                    <dl className="grid gap-x-6 gap-y-1 text-xs text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
+                      <div><dt className="inline font-semibold text-slate-600">Aluno desde: </dt><dd className="inline">{date(m.createdAt)}</dd></div>
+                      <div><dt className="inline font-semibold text-slate-600">Último acesso: </dt><dd className="inline">{m.lastAccessAt ? date(m.lastAccessAt) : 'ainda não acessou'}</dd></div>
+                      <div>
+                        <dt className="inline font-semibold text-slate-600">Senha: </dt>
+                        <dd className="inline">
+                          {m.hasPassword
+                            ? 'já criou a dele'
+                            : m.tempPasswordUntil
+                              ? new Date(m.tempPasswordUntil).getTime() > now
+                                ? `provisória até ${date(m.tempPasswordUntil)}`
+                                : 'provisória vencida'
+                              : 'não criou'}
+                        </dd>
+                      </div>
+                      {m.phone && <div><dt className="inline font-semibold text-slate-600">WhatsApp: </dt><dd className="inline">{m.phone}</dd></div>}
+                    </dl>
+
+                    {access.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Produtos</p>
+                        <ul className="space-y-2">
+                          {access.map((a) => {
+                            const p = percentFor(m.id, a.productId)
+                            return (
+                              <li key={a.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                <span className="min-w-[160px] flex-1 font-medium text-slate-700">{productName(a.productId)}</span>
+                                {a.source === 'manual' && <Badge className="bg-slate-100 text-slate-600">liberado manualmente</Badge>}
+                                {a.source === 'equipe' && <Badge className="bg-brand-50 text-brand-700">equipe</Badge>}
+                                <span className="flex items-center gap-2 text-xs text-slate-500">
+                                  <span className="h-1.5 w-24 rounded-full bg-slate-100" aria-hidden="true">
+                                    <span className="block h-1.5 rounded-full bg-brand-600" style={{ width: `${p}%` }} />
+                                  </span>
+                                  {p}%
+                                </span>
+                                <button onClick={() => revoke(m, a.productId)} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600" aria-label={`Remover acesso de ${m.name} a ${productName(a.productId)}`}>
+                                  <XCircle size={14} aria-hidden="true" /> Remover acesso
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
+                      <Button size="sm" variant="secondary" icon={<KeyRound size={14} />} disabled={busy === m.id} onClick={() => setTempFor(m)} aria-label={`Criar senha provisória para ${m.name}`}>
+                        Senha provisória
+                      </Button>
+                      <Button size="sm" variant="secondary" icon={<Link2 size={14} />} loading={busy === m.id} onClick={() => newLink(m)} aria-label={`Gerar e copiar link de acesso de ${m.name}`}>
+                        Copiar link de acesso
+                      </Button>
+                      <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} disabled={busy === m.id} onClick={() => removeMember(m)} aria-label={`Remover o aluno ${m.name}`} className="ml-auto">
+                        Remover aluno
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
 
