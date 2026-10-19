@@ -22,6 +22,7 @@ export function KanbanBoard<T extends KanbanItemBase, S extends string>({
   renderCard,
   onMove,
   pageSize,
+  compact,
 }: {
   columns: { id: S; label: string; accent?: string; accentColor?: string }[]
   items: T[]
@@ -31,6 +32,8 @@ export function KanbanBoard<T extends KanbanItemBase, S extends string>({
   /** Mostra só os N primeiros cartões de cada coluna, com "Mostrar mais"
    *  (coluna com centenas de leads travava a tela). Sem valor = todos. */
   pageSize?: number
+  /** Colunas mais estreitas: cabem mais etapas numa tela comum. */
+  compact?: boolean
 }) {
   const [limits, setLimits] = useState<Record<string, number>>({})
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -70,7 +73,7 @@ export function KanbanBoard<T extends KanbanItemBase, S extends string>({
           const limit = pageSize ? (limits[col.id] ?? pageSize) : colItems.length
           const shown = colItems.slice(0, limit)
           return (
-            <KanbanColumn key={col.id} id={`col:${col.id}`} label={col.label} count={colItems.length} accent={col.accent} accentColor={col.accentColor}>
+            <KanbanColumn key={col.id} id={`col:${col.id}`} label={col.label} count={colItems.length} accent={col.accent} accentColor={col.accentColor} compact={compact}>
               <SortableContext items={shown.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                 <div className="flex flex-col gap-2">
                   {shown.map((item) => (

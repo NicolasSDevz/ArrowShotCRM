@@ -5,6 +5,7 @@ import { X, Eye, EyeOff, Monitor, Smartphone, RotateCcw, Copy } from 'lucide-rea
 import { Input } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
+import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { createLeadForm, updateLeadForm, slugifyFormName } from '../../services/leadFormService'
 import { parseYouTubeId } from '../../utils/youtube'
 import { LeadFormStructureRail } from './LeadFormStructureRail'
@@ -18,7 +19,7 @@ import { conditionProblem, fromOrderedOptions, isChoiceType, newQuestion, ordere
 import { effectiveEndBlocks, normalizeUrl, outcomeRules, setDestination, type BuilderSelection, type LeadFormPreviewScreen } from './leadFormUtils'
 import { RoutingEditor } from './LeadFormRoutingEditor'
 import { LEAD_FORM_COLORS, leadFormColor } from './leadFormColors'
-import { OTHER_OPTION_ID, type LeadForm, type LeadFormBlock, type LeadFormQuestion, type LeadFormDesign, type LeadFormOutcome, type LeadFormFieldRole } from '../../types/leadForm'
+import { OTHER_OPTION_ID, type LeadForm, type LeadFormBlock, type LeadFormQuestion, type LeadFormDesign, type LeadFormOutcome, type LeadFormFieldRole, type LeadFormDestination } from '../../types/leadForm'
 import { askConfirm } from '../../utils/confirmDialog'
 
 const DEFAULT_THANK_YOU = 'Obrigado! Recebemos suas informações e vamos entrar em contato em breve.'
@@ -62,6 +63,8 @@ function snapshotOf(v: {
   endBlocks?: LeadFormBlock[]
   metaPixelId?: string | null
   color?: string
+  destination?: LeadFormDestination
+  destinationPipelineId?: string
 }) {
   return JSON.stringify(v)
 }
@@ -81,6 +84,7 @@ export function LeadFormBuilderModal({
   form?: LeadForm | null
 }) {
   const { profile } = useAuth()
+  const { pipelines } = useLeadPipelines()
   const isEditing = !!form
 
   const [name, setName] = useState('')
@@ -96,6 +100,9 @@ export function LeadFormBuilderModal({
   const [outcomes, setOutcomes] = useState<LeadFormOutcome[]>([])
   const [endBlocks, setEndBlocks] = useState<LeadFormBlock[] | undefined>(undefined)
   const [metaPixelId, setMetaPixelId] = useState('')
+  // Para onde vão as respostas: Questionários (triagem) ou direto pra vendas.
+  const [destination, setFormDestination] = useState<LeadFormDestination>('questionnaires')
+  const [destinationPipelineId, setDestinationPipelineId] = useState('')
   const [saving, setSaving] = useState(false)
 
   const [selection, setSelection] = useState<BuilderSelection>({ kind: 'welcome' })
@@ -129,8 +136,10 @@ export function LeadFormBuilderModal({
           endBlocks: form.endBlocks,
           metaPixelId: form.metaPixelId ?? '',
           color: form.color ?? '',
+          destination: form.destination ?? 'questionnaires',
+          destinationPipelineId: form.destinationPipelineId ?? '',
         }
-      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: newFormDesign(), outcomes: [], endBlocks: undefined, metaPixelId: '', color: '' }
+      : { name: '', active: true, thankYouMessage: DEFAULT_THANK_YOU, questions: [], design: newFormDesign(), outcomes: [], endBlocks: undefined, metaPixelId: '', color: '', destination: 'questionnaires' as const, destinationPipelineId: '' }
     setName(initial.name)
     setSlug(form ? form.id : '')
     setSlugTouched(!!form)
@@ -142,6 +151,8 @@ export function LeadFormBuilderModal({
     setEndBlocks(initial.endBlocks)
     setMetaPixelId(initial.metaPixelId ?? '')
     setColor(initial.color)
+    setFormDestination(initial.destination)
+    setDestinationPipelineId(initial.destinationPipelineId)
     setColorOpen(false)
     setSelection({ kind: 'welcome' })
     setPreviewMode('screen')
@@ -150,7 +161,7 @@ export function LeadFormBuilderModal({
 
   const dirty =
     open &&
-    snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId, color }) !== initialSnapshot.current
+    snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId, color, destination, destinationPipelineId }) !== initialSnapshot.current
 
   const requestClose = async () => {
     if (dirty && !(await askConfirm({ title: 'Fechar sem salvar?', message: 'As alterações que você fez neste formulário vão se perder.', confirmLabel: 'Fechar sem salvar', danger: true }))) return
@@ -375,6 +386,9 @@ export function LeadFormBuilderModal({
         endBlocks: outcomes.length > 0 ? undefined : endBlocks,
         metaPixelId: parseMetaPixelId(metaPixelId),
         color,
+        destination,
+        // O pipeline padrão fica sem id (igual aos leads dele).
+        destinationPipelineId: destination === 'sales' ? pipelines.find((p) => p.id === destinationPipelineId && !p.isDefault)?.id ?? null : null,
       }
       if (isEditing) {
         await updateLeadForm(form!.id, payload, profile.id)
@@ -388,7 +402,7 @@ export function LeadFormBuilderModal({
         }
         toast.success('Formulário criado')
       }
-      initialSnapshot.current = snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId, color })
+      initialSnapshot.current = snapshotOf({ name, active, thankYouMessage, questions, design, outcomes, endBlocks, metaPixelId, color, destination, destinationPipelineId })
       onClose()
     } catch (err) {
       console.error(err)
@@ -520,6 +534,29 @@ export function LeadFormBuilderModal({
               </button>
             )}
           </div>
+          <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-slate-500">
+            Respostas vão para
+            <select
+              value={destination === 'sales' ? `sales:${destinationPipelineId || pipelines.find((p) => p.isDefault)?.id || ''}` : 'questionnaires'}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === 'questionnaires') setFormDestination('questionnaires')
+                else {
+                  setFormDestination('sales')
+                  setDestinationPipelineId(v.slice('sales:'.length))
+                }
+              }}
+              title="Questionários: a resposta espera a triagem. Vendas: entra direto como lead, no topo da primeira etapa."
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="questionnaires">Questionários (triar antes)</option>
+              {pipelines.map((p) => (
+                <option key={p.id} value={`sales:${p.id}`}>
+                  Vendas direto: pipeline {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="w-[190px] shrink-0">
             <Toggle checked={active} onChange={setActive} label={active ? 'Ativo' : 'Pausado'} />
           </div>

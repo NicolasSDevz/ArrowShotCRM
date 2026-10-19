@@ -97,7 +97,8 @@ export async function importLeads(
           assignedTo,
           status: target?.status ?? 'new',
           pipelineId: target?.pipelineId ?? undefined,
-          order: now + i,
+          // Negativo: os importados entram no topo da coluna, na ordem da planilha.
+          order: -now + i,
           contactHistory: [],
         },
         userId,

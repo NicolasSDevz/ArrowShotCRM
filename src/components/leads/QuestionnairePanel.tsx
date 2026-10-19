@@ -132,24 +132,25 @@ export function QuestionnairePanel({
         Respostas dos formulários de captura. Elas não entram direto no pipeline: leia, qualifique e envie para vendas só quem vale a pena.
       </p>
 
-      <div role="group" aria-label="Filtrar respostas por situação" className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <div role="group" aria-label="Filtrar respostas por situação" className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-1 sm:w-fit">
         {STAGE_ORDER.map((s) => (
           <button
             key={s}
             type="button"
             aria-pressed={stageFilter === s}
             onClick={() => setStageFilter(s)}
-            className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
-              stageFilter === s ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+              stageFilter === s ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             {STAGE_TAB_LABEL[s]}
-            <span className={`rounded-full px-1.5 text-xs font-semibold ${stageFilter === s ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{countByStage(s)}</span>
+            <span className={`rounded-full px-1.5 text-xs font-semibold ${stageFilter === s ? 'bg-brand-50 text-brand-700' : 'bg-slate-200 text-slate-500'}`}>{countByStage(s)}</span>
           </button>
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         <div className="relative">
           <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <input
@@ -157,7 +158,7 @@ export function QuestionnairePanel({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar nome, WhatsApp ou resposta..."
             aria-label="Buscar respostas por nome, WhatsApp ou conteúdo da resposta"
-            className="h-9 w-72 max-w-full rounded-full border border-slate-200 bg-white pl-8 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+            className="h-9 w-72 max-w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
           />
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-500">
@@ -175,6 +176,7 @@ export function QuestionnairePanel({
             ))}
           </select>
         </label>
+      </div>
       </div>
 
       {visible.length === 0 ? (
@@ -196,7 +198,7 @@ export function QuestionnairePanel({
             const headingId = `q-${lead.id}`
             return (
               <li key={lead.id}>
-                <article aria-labelledby={headingId} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4" style={{ borderLeft: `4px solid ${color}` }}>
+                <article aria-labelledby={headingId} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]" style={{ borderLeft: `4px solid ${color}` }}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h3 id={headingId} className="text-base font-semibold text-slate-800">

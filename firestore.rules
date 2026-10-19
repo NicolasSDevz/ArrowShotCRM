@@ -286,9 +286,16 @@ service cloud.firestore {
         && request.resource.data.contactName.size() > 0
         && request.resource.data.contactName.size() <= 200
         && request.resource.data.whatsapp is string
+        // Formulário configurado pra mandar direto pra vendas: a resposta
+        // já nasce fora de Questionários, no pipeline que o formulário diz.
+        && (!('formStage' in request.resource.data)
+              || (request.resource.data.formStage == 'sent'
+                  && get(/databases/$(database)/documents/leadForms/$(request.resource.data.sourceFormId)).data.get('destination', 'questionnaires') == 'sales'))
+        && (!('pipelineId' in request.resource.data)
+              || request.resource.data.pipelineId == get(/databases/$(database)/documents/leadForms/$(request.resource.data.sourceFormId)).data.get('destinationPipelineId', null))
         && request.resource.data.keys().hasOnly(['contactName', 'companyName', 'whatsapp', 'email', 'services',
               'source', 'status', 'order', 'stageChangedAt', 'contactHistory', 'sourceFormId', 'formAnswers',
-              'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
+              'formStage', 'pipelineId', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
     }
 
     match /leads/{leadId} {

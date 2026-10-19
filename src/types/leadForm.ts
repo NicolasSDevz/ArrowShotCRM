@@ -341,7 +341,15 @@ export interface LeadForm extends BaseDoc {
   metaPixelId?: string | null
   /** Qual pergunta de escolha única decide a tela de resultado. */
   qualificationQuestionId?: string | null
+  /** Para onde vai cada resposta: 'questionnaires' (padrão) = aba
+   *  Questionários, pra triar antes; 'sales' = direto no pipeline de vendas,
+   *  no topo da primeira etapa. */
+  destination?: LeadFormDestination
+  /** Só com destination 'sales': em qual pipeline (null = o padrão). */
+  destinationPipelineId?: string | null
 }
+
+export type LeadFormDestination = 'questionnaires' | 'sales'
 
 export type LeadFormInput = Omit<LeadForm, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'>
 

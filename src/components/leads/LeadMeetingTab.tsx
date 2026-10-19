@@ -152,7 +152,7 @@ export function LeadMeetingTab({ lead }: { lead: Lead }) {
         const { pipeline, stage } = locateLead(pipelines, lead)
         const meetingStage = pipeline.stages.find((s) => s.id === 'meeting_scheduled')
         if (meetingStage && stage.id !== 'meeting_scheduled') {
-          await moveLeadStatus(lead, 'meeting_scheduled', Date.now(), profile.id, profile.name, undefined, pipeline)
+          await moveLeadStatus(lead, 'meeting_scheduled', -Date.now(), profile.id, profile.name, undefined, pipeline)
         }
         toast.success('Reunião agendada! Convite enviado por e-mail.')
       }

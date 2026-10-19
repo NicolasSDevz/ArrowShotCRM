@@ -169,6 +169,10 @@ export async function submitLeadFormResponse(
     contactHistory: [],
     sourceFormId: form.id,
     formAnswers,
+    // Formulário que manda direto pra vendas: pula a aba Questionários.
+    ...(form.destination === 'sales'
+      ? { formStage: 'sent' as const, ...(form.destinationPipelineId ? { pipelineId: form.destinationPipelineId } : {}) }
+      : {}),
     createdBy: FORM_ACTOR,
     updatedBy: FORM_ACTOR,
   }

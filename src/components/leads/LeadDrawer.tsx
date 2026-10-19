@@ -92,7 +92,7 @@ function LeadMoveControl({
     const extra = isLost ? { lostReason, lostReasonNote: lostNote } : undefined
     try {
       if (target.id === current.pipelineId) {
-        await moveLeadStatus(lead, stage.id, Date.now(), profile.id, profile.name, extra, target)
+        await moveLeadStatus(lead, stage.id, -Date.now(), profile.id, profile.name, extra, target)
       } else {
         await moveLeadToPipeline(lead, target, profile.id, profile.name, stage.id, extra)
       }

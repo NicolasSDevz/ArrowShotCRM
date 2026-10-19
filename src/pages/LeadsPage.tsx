@@ -22,6 +22,7 @@ import { LeadFormsPanel } from '../components/leads/LeadFormsPanel'
 import { QuestionnairePanel } from '../components/leads/QuestionnairePanel'
 import { LeadBantMetrics } from '../components/leads/LeadBantMetrics'
 import { Button } from '../components/ui/Button'
+import { PrivateMoney } from '../components/ui/PrivateData'
 import { Modal } from '../components/ui/Modal'
 import { Field, Select, Textarea } from '../components/ui/Field'
 import { moveLeadStatus } from '../services/leadService'
@@ -178,31 +179,67 @@ export function LeadsPage() {
     }
   }
 
+  const filtersActive = !!tempFilter || !!segmentFilter || !!needle
+  const clearFilters = () => {
+    setTempFilter('')
+    setSegmentFilter('')
+    setSearch('')
+  }
+  const hotCount = countByTemp('hot')
+  // Valor estimado somado só das etapas abertas (sem ganhos e perdidos).
+  const pipelineValue = allPipelineLeads.reduce((sum, l) => (stageKind(stageOfLead(activePipeline, l.status).id) === 'open' ? sum + (l.estimatedValue ?? 0) : sum), 0)
+  const filterSelect =
+    'h-9 rounded-lg border border-slate-200 bg-white pl-2.5 pr-7 text-sm font-medium text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-brand-600 focus:ring-2 focus:ring-brand-100'
+
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-[28px] font-extrabold text-slate-900">Leads</h1>
-        <p className="text-[15px] text-[#64748B]">Pipeline de vendas, respostas dos questionários e formulários de captura</p>
+      {/* Cabeçalho: título à esquerda, ações principais à direita */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Leads</h1>
+          <p className="text-sm text-slate-500">Vendas, respostas dos questionários e formulários de captura</p>
+        </div>
+        {mainTab === 'pipeline' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" icon={<Gauge size={14} />} onClick={() => setBantOpen(true)}>
+              Métricas BANT
+            </Button>
+            <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)}>
+              Importar
+            </Button>
+            <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
+              Novo lead
+            </Button>
+          </div>
+        )}
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200">
+      {/* Abas principais */}
+      <div role="tablist" aria-label="Seções de leads" className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-fit">
         {([
-          ['pipeline', 'Vendas'],
-          ['questionnaires', 'Questionários'],
-          ['forms', 'Formulários'],
-        ] as const).map(([t, label]) => (
+          ['pipeline', 'Vendas', salesLeads.length],
+          ['questionnaires', 'Questionários', newQuestionnaires],
+          ['forms', 'Formulários', leadForms.length],
+        ] as const).map(([t, label, count]) => (
           <button
             key={t}
+            type="button"
+            role="tab"
+            aria-selected={mainTab === t}
             onClick={() => setMainTab(t)}
-            aria-pressed={mainTab === t}
-            className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors duration-150 ease-in-out ${
-              mainTab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-400 hover:text-slate-600'
+            className={`flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 sm:flex-none ${
+              mainTab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             {label}
-            {t === 'questionnaires' && newQuestionnaires > 0 && (
-              <span className="rounded-full bg-brand-600 px-1.5 text-[11px] font-bold text-white" aria-label={`${newQuestionnaires} resposta${newQuestionnaires === 1 ? '' : 's'} nova${newQuestionnaires === 1 ? '' : 's'}`}>
-                {newQuestionnaires}
+            {count > 0 && (
+              <span
+                className={`rounded-full px-1.5 text-[11px] font-bold ${
+                  t === 'questionnaires' ? 'bg-brand-600 text-white' : mainTab === t ? 'bg-brand-50 text-brand-700' : 'bg-slate-200 text-slate-500'
+                }`}
+                aria-label={t === 'questionnaires' ? `${count} resposta${count === 1 ? '' : 's'} nova${count === 1 ? '' : 's'}` : `${count}`}
+              >
+                {count}
               </span>
             )}
           </button>
@@ -210,145 +247,149 @@ export function LeadsPage() {
       </div>
 
       {mainTab === 'forms' ? (
-        <LeadFormsPanel />
+        <LeadFormsPanel pipelines={pipelines} />
       ) : mainTab === 'questionnaires' ? (
         <QuestionnairePanel leads={leads} forms={leadForms} pipelines={pipelines} onOpenLead={setOpenLeadId} />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-              {pipelines.map((p) => (
+          {/* Barra do pipeline: qual quadro, filtros e modo de exibição num cartão só */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="group" aria-label="Pipelines">
+                {pipelines.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => choosePipeline(p.id)}
+                    aria-pressed={p.id === activePipeline.id}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+                      p.id === activePipeline.id ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {p.name}
+                    <span className={`rounded-full px-1.5 text-[11px] font-bold ${p.id === activePipeline.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{countByPipeline(p.id)}</span>
+                  </button>
+                ))}
                 <button
-                  key={p.id}
                   type="button"
-                  onClick={() => choosePipeline(p.id)}
-                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-                    p.id === activePipeline.id ? 'border-brand-200 bg-brand-50 text-brand-700' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
-                  }`}
+                  onClick={() => setPipelineModal('new')}
+                  title="Criar outro pipeline"
+                  aria-label="Novo pipeline"
+                  className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-400 hover:bg-slate-100 hover:text-brand-600"
                 >
-                  {p.name}
-                  <span className="rounded-full bg-white/70 px-1.5 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200">{countByPipeline(p.id)}</span>
+                  <Plus size={14} /> <span className="hidden lg:inline">Novo pipeline</span>
                 </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setPipelineModal('new')}
-                className="flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-500 hover:border-brand-400 hover:text-brand-600"
-              >
-                <Plus size={13} /> Novo pipeline
-              </button>
-              <button
-                type="button"
-                onClick={() => setPipelineModal('edit')}
-                title="Configurar este pipeline (etapas e campos)"
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-              >
-                <Settings2 size={15} /> Editar etapas e campos
-              </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPipelineModal('edit')}
+                  title="Configurar este pipeline (etapas e campos)"
+                  aria-label="Editar etapas e campos deste pipeline"
+                  className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                >
+                  <Settings2 size={15} /> <span className="hidden xl:inline">Etapas e campos</span>
+                </button>
+                <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5" role="group" aria-label="Modo de exibição">
+                  {([
+                    ['kanban', <Kanban key="k" size={15} />, 'Quadro'],
+                    ['list', <List key="l" size={15} />, 'Lista'],
+                  ] as const).map(([v, icon, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setView(v)}
+                      aria-pressed={view === v}
+                      title={`Ver em ${label.toLowerCase()}`}
+                      className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors ${
+                        view === v ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      {icon}
+                      <span className="hidden sm:inline">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
-              <button
-                onClick={() => setView('kanban')}
-                title="Visualizar em quadro"
-                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                  view === 'kanban' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                }`}
+
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+              <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar nome, empresa, WhatsApp..."
+                  aria-label="Buscar leads por nome, empresa ou WhatsApp"
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm outline-none transition-colors focus:border-brand-600 focus:bg-white focus:ring-2 focus:ring-brand-100"
+                />
+              </div>
+              <select
+                value={tempFilter}
+                onChange={(e) => setTempFilter(e.target.value as LeadTemperature | 'none' | '')}
+                aria-label="Filtrar por temperatura do BANT"
+                className={`${filterSelect} ${tempFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
               >
-                <Kanban size={15} />
-              </button>
-              <button
-                onClick={() => setView('list')}
-                title="Visualizar em lista"
-                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                  view === 'list' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                }`}
+                <option value="">Temperatura: todas ({allPipelineLeads.length})</option>
+                {(['hot', 'warm', 'cold', 'disqualified'] as const).map((t) => (
+                  <option key={t} value={t}>
+                    {LEAD_TEMPERATURE_LABEL[t]} ({countByTemp(t)})
+                  </option>
+                ))}
+                <option value="none">Sem avaliação ({countByTemp('none')})</option>
+              </select>
+              <select
+                value={segmentFilter}
+                onChange={(e) => setSegmentFilter(e.target.value as LeadSegment | 'none' | '')}
+                aria-label="Filtrar por segmento"
+                className={`${filterSelect} ${segmentFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
               >
-                <List size={15} />
-              </button>
+                <option value="">Segmento: todos</option>
+                {(['cleaning_services', 'cleaning_products'] as const).map((sg) => (
+                  <option key={sg} value={sg}>
+                    {LEAD_SEGMENT_LABEL[sg]} ({countBySegment(sg)})
+                  </option>
+                ))}
+                <option value="none">Sem segmento ({countBySegment('none')})</option>
+              </select>
+              {filtersActive && (
+                <button type="button" onClick={clearFilters} className="h-9 rounded-lg px-2.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+                  Limpar filtros
+                </button>
+              )}
+              <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500" aria-live="polite">
+                <span>
+                  <strong className="font-semibold text-slate-800">{pipelineLeads.length}</strong> {filtersActive ? `de ${allPipelineLeads.length} ` : ''}lead{pipelineLeads.length === 1 ? '' : 's'}
+                </span>
+                {hotCount > 0 && (
+                  <span>
+                    <strong className="font-semibold text-slate-800">{hotCount}</strong> quente{hotCount === 1 ? '' : 's'}
+                  </span>
+                )}
+                {pipelineValue > 0 && (
+                  <span title="Soma do valor estimado dos leads em etapas abertas">
+                    Em aberto:{' '}
+                    <strong className="font-semibold text-slate-800">
+                      <PrivateMoney value={pipelineValue} />
+                    </strong>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowOld((v) => !v)}
+                  aria-pressed={showOld}
+                  title={`Ganhos e perdidos de mais de ${ACTIVE_LEADS_DAYS} dias ficam ocultos para economizar leituras`}
+                  className={`rounded-lg px-2 py-1 text-xs font-semibold transition-colors ${showOld ? 'bg-slate-800 text-white' : 'text-brand-600 hover:bg-brand-50'}`}
+                >
+                  {showOld ? (loadingAll ? 'Carregando antigos...' : 'Ocultar antigos') : 'Mostrar antigos'}
+                </button>
+              </div>
             </div>
-            <Button variant="secondary" icon={<Gauge size={14} />} onClick={() => setBantOpen(true)}>
-              Métricas BANT
-            </Button>
-            <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)}>
-              Importar leads
-            </Button>
-            <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
-              Novo lead
-            </Button>
-          </div>
-
-          <div role="group" aria-label="Filtrar por faixa do BANT" className="flex flex-wrap items-center gap-1.5">
-            <div className="relative mr-1">
-              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar nome, empresa, WhatsApp..."
-                aria-label="Buscar leads por nome, empresa ou WhatsApp"
-                className="h-8 w-64 rounded-full border border-slate-200 bg-white pl-8 pr-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
-              />
-            </div>
-            {([
-              ['', 'Todos', allPipelineLeads.length],
-              ['hot', LEAD_TEMPERATURE_LABEL.hot, countByTemp('hot')],
-              ['warm', LEAD_TEMPERATURE_LABEL.warm, countByTemp('warm')],
-              ['cold', LEAD_TEMPERATURE_LABEL.cold, countByTemp('cold')],
-              ['disqualified', LEAD_TEMPERATURE_LABEL.disqualified, countByTemp('disqualified')],
-              ['none', 'Sem avaliação', countByTemp('none')],
-            ] as [LeadTemperature | 'none' | '', string, number][]).map(([value, label, count]) => (
-              <button
-                key={value || 'all'}
-                type="button"
-                onClick={() => setTempFilter(value)}
-                aria-pressed={tempFilter === value}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
-                  tempFilter === value ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {label}
-                <span className={`rounded-full px-1.5 text-xs font-semibold ${tempFilter === value ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
-              </button>
-            ))}
-          </div>
-
-          <p className="text-xs text-slate-400">
-            {showOld
-              ? loadingAll
-                ? 'Carregando ganhos e perdidos antigos...'
-                : 'Mostrando todos os leads, inclusive ganhos e perdidos antigos.'
-              : `Ganhos e perdidos de mais de ${ACTIVE_LEADS_DAYS} dias ficam ocultos para economizar leituras.`}{' '}
-            <button type="button" onClick={() => setShowOld((v) => !v)} className="font-semibold text-brand-600 hover:underline">
-              {showOld ? 'Ocultar antigos' : 'Mostrar antigos'}
-            </button>
-          </p>
-
-          <div role="group" aria-label="Filtrar por segmento" className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Segmento</span>
-            {([
-              ['', 'Todos', allPipelineLeads.length],
-              ['cleaning_services', LEAD_SEGMENT_LABEL.cleaning_services, countBySegment('cleaning_services')],
-              ['cleaning_products', LEAD_SEGMENT_LABEL.cleaning_products, countBySegment('cleaning_products')],
-              ['none', 'Sem segmento', countBySegment('none')],
-            ] as [LeadSegment | 'none' | '', string, number][]).map(([value, label, count]) => (
-              <button
-                key={value || 'all'}
-                type="button"
-                onClick={() => setSegmentFilter(value)}
-                aria-pressed={segmentFilter === value}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
-                  segmentFilter === value ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {label}
-                <span className={`rounded-full px-1.5 text-xs font-semibold ${segmentFilter === value ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
-              </button>
-            ))}
           </div>
 
           {view === 'kanban' ? (
-            // Altura da tela: cada coluna rola por dentro (antes a página
-            // descontava o cabeçalho e sobravam ~280px pro quadro).
-            <div className="h-[calc(100vh-150px)] min-h-[460px]">
+            // Altura da tela: cada coluna rola por dentro.
+            <div className="h-[calc(100vh-130px)] min-h-[420px]">
               <KanbanBoard<Lead, string>
                 key={activePipeline.id}
                 columns={columns}
@@ -359,6 +400,7 @@ export function LeadsPage() {
                 )}
                 onMove={handleMove}
                 pageSize={30}
+                compact
               />
             </div>
           ) : (

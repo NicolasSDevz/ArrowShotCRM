@@ -78,7 +78,8 @@ export function LeadFormModal({ open, onClose, pipeline }: { open: boolean; onCl
           ...formStateToLeadFields(form, products),
           status: targetStage.id,
           pipelineId: target.isDefault ? undefined : target.id,
-          order: Date.now(),
+          // Negativo: lead novo entra no topo da coluna.
+          order: -Date.now(),
           contactHistory: [],
         },
         profile.id,
