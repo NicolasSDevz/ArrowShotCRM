@@ -6,6 +6,7 @@ import { useStoreAbandoned, useStoreOrders, useStoreProducts } from '../../hooks
 import { StoreMetricsMobile } from '../../components/store/admin/StoreMetricsMobile'
 import { StoreAbandonedMobile } from '../../components/store/admin/StoreAbandonedMobile'
 import { Button } from '../../components/ui/Button'
+import { Modal } from '../../components/ui/Modal'
 import { FullPageSpinner } from '../../components/ui/FullPageSpinner'
 import { PushNotificationsCard } from '../../components/notifications/PushNotificationsCard'
 import { OrderStatusBadge, useOrderActions, useReconcilePending } from '../../components/store/admin/StoreOrdersTable'
@@ -51,7 +52,8 @@ function dayLabel(t: number) {
   const today = startOfToday()
   if (t >= today) return 'Hoje'
   if (t >= today - DAY) return 'Ontem'
-  return new Date(t).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
+  const label = new Date(t).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
+  return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 /** /app — o CRM instalado no celular (Android e iPhone) abre só aqui: resumo da
@@ -297,18 +299,38 @@ const FILTERS: { key: '' | StoreOrderStatus; label: string }[] = [
   { key: 'refunded', label: 'Reembolsadas' },
 ]
 
+const SALES_PERIODS: { key: string; label: string; days: number | null }[] = [
+  { key: 'today', label: 'Hoje', days: 0 },
+  { key: '7d', label: '7 dias', days: 6 },
+  { key: '30d', label: '30 dias', days: 29 },
+  { key: 'all', label: 'Tudo', days: null },
+]
+
 function SalesTab({ orders }: { orders: StoreOrder[] }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | StoreOrderStatus>('')
-  const [shown, setShown] = useState(30)
+  const [period, setPeriod] = useState('30d')
+  const [shown, setShown] = useState(40)
+  const [openId, setOpenId] = useState<string | null>(null)
   const q = search.trim().toLowerCase()
-  const matchesSearch = (o: StoreOrder) => !q || o.buyer.name.toLowerCase().includes(q) || o.buyer.email.includes(q)
+  const days = SALES_PERIODS.find((p) => p.key === period)?.days ?? null
+  const since = days === null ? 0 : startOfToday() - days * DAY
+
+  const inPeriod = useMemo(() => orders.filter((o) => new Date(o.createdAt).getTime() >= since), [orders, since])
+  const matchesSearch = (o: StoreOrder) => !q || o.buyer.name.toLowerCase().includes(q) || o.buyer.email.toLowerCase().includes(q) || (o.buyer.phone ?? '').replace(/\D/g, '').includes(q.replace(/\D/g, '') || '§')
   const filtered = useMemo(
-    () => orders.filter((o) => (!status || o.status === status) && matchesSearch(o)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    () => inPeriod.filter((o) => (!status || o.status === status) && matchesSearch(o)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [orders, q, status]
+    [inPeriod, q, status]
   )
-  const countOf = (s: '' | StoreOrderStatus) => orders.filter((o) => (!s || o.status === s) && matchesSearch(o)).length
+  const countOf = (s: '' | StoreOrderStatus) => inPeriod.filter((o) => (!s || o.status === s) && matchesSearch(o)).length
+
+  const real = inPeriod.filter((o) => !o.test)
+  const approved = real.filter((o) => o.status === 'approved')
+  const total = approved.reduce((s, o) => s + o.amount, 0)
+  const pendingCount = real.filter((o) => o.status === 'pending').length
+  const actionCount = inPeriod.filter(needsAction).length
+  const open = openId ? orders.find((o) => o.id === openId) ?? null : null
 
   // Agrupa por dia, com o total aprovado de cada dia no cabeçalho.
   const groups: { key: string; label: string; items: StoreOrder[]; total: number }[] = []
@@ -327,13 +349,59 @@ function SalesTab({ orders }: { orders: StoreOrder[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 -mx-4 space-y-2.5 bg-page/95 px-4 pb-2 pt-1 backdrop-blur-md">
+      <div role="radiogroup" aria-label="Período" className="grid grid-cols-4 gap-1 rounded-2xl bg-slate-200/60 p-1">
+        {SALES_PERIODS.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            role="radio"
+            aria-checked={period === p.key}
+            onClick={() => {
+              setPeriod(p.key)
+              setShown(40)
+            }}
+            className={`h-9 rounded-xl text-sm font-semibold transition-all ${period === p.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Resumo do período */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-700 p-5 text-white shadow-md">
+        <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-white/15 blur-2xl" aria-hidden="true" />
+        <p className="relative text-sm font-medium text-white/80">Vendido no período</p>
+        <p className="relative mt-1 text-[34px] font-extrabold leading-none tracking-tight tabular-nums">{formatCents(total)}</p>
+        <dl className="relative mt-5 grid grid-cols-3 gap-2 border-t border-white/20 pt-4">
+          <div>
+            <dt className="text-[11px] text-white/70">Aprovadas</dt>
+            <dd className="text-lg font-bold tabular-nums">{approved.length}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-white/70">Pendentes</dt>
+            <dd className="text-lg font-bold tabular-nums">{pendingCount}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-white/70">Ticket médio</dt>
+            <dd className="text-lg font-bold tabular-nums">{formatCents(approved.length ? Math.round(total / approved.length) : 0)}</dd>
+          </div>
+        </dl>
+      </section>
+
+      {actionCount > 0 && (
+        <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
+          <AlertCircle size={17} className="shrink-0" aria-hidden="true" />
+          {actionCount} {actionCount === 1 ? 'venda precisa' : 'vendas precisam'} da sua atenção. Estão marcadas em amarelo.
+        </p>
+      )}
+
+      <div className="sticky top-0 z-10 -mx-4 space-y-2.5 bg-page/95 px-4 pb-2 pt-2 backdrop-blur-md">
         <div className="relative">
           <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <input
             type="search"
-            aria-label="Buscar por nome ou e-mail"
-            placeholder="Buscar por nome ou e-mail"
+            aria-label="Buscar por nome, e-mail ou telefone"
+            placeholder="Buscar por nome, e-mail ou telefone"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-11 w-full rounded-xl border-0 bg-white pl-10 pr-3 text-slate-800 shadow-sm outline-none ring-1 ring-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500"
@@ -362,61 +430,154 @@ function SalesTab({ orders }: { orders: StoreOrder[] }) {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyCard>{q ? 'Nenhum pedido com essa busca.' : 'Nenhum pedido.'}</EmptyCard>
+        <EmptyCard>{q ? 'Nenhuma venda com essa busca.' : 'Nenhuma venda nesse período.'}</EmptyCard>
       ) : (
         <>
           {groups.map((g) => (
             <section key={g.key} aria-label={g.label}>
               <div className="mb-2 flex items-baseline justify-between px-1">
-                <h3 className="text-[13px] font-bold capitalize text-slate-500">{g.label}</h3>
+                <h3 className="text-[13px] font-bold text-slate-500">{g.label}</h3>
                 {g.total > 0 && <span className="text-[13px] font-semibold tabular-nums text-slate-500">{formatCents(g.total)}</span>}
               </div>
-              <ul className="space-y-3">
+              <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
                 {g.items.map((o) => (
-                  <OrderCard key={o.id} order={o} />
+                  <SaleRow key={o.id} order={o} onOpen={() => setOpenId(o.id)} />
                 ))}
               </ul>
             </section>
           ))}
           {filtered.length > shown && (
-            <Button variant="secondary" className="h-11 w-full rounded-xl" onClick={() => setShown((n) => n + 30)}>
+            <Button variant="secondary" className="h-11 w-full rounded-xl" onClick={() => setShown((n) => n + 40)}>
               Ver mais ({filtered.length - shown})
             </Button>
           )}
         </>
       )}
+
+      <Modal open={!!open} onClose={() => setOpenId(null)} title="Detalhes da venda">
+        {open && <OrderDetails order={open} />}
+      </Modal>
     </div>
   )
 }
 
-function OrderCard({ order: o }: { order: StoreOrder }) {
+/** Uma linha por venda; tocar abre os detalhes e as ações. */
+function SaleRow({ order: o, onOpen }: { order: StoreOrder; onOpen: () => void }) {
+  const attention = needsAction(o)
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-slate-50 ${attention ? 'bg-amber-50/60' : ''}`}
+        style={attention ? { boxShadow: 'inset 3px 0 0 #f59e0b' } : undefined}
+        aria-label={`${o.buyer.name}, ${formatCents(o.amount)}${attention ? ', precisa da sua atenção' : ''}. Abrir detalhes`}
+      >
+        <Initials order={o} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-semibold text-slate-800">{o.buyer.name}</p>
+          <p className="truncate text-xs text-slate-500">
+            {o.items.map((i) => i.name).join(' + ')}
+            {o.test ? ' · teste' : ''}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <p className="text-[15px] font-bold tabular-nums text-slate-900">{formatCents(o.amount)}</p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-slate-400">{new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+            <StatusDot order={o} />
+          </div>
+        </div>
+        <ChevronRight size={16} className="shrink-0 text-slate-300" aria-hidden="true" />
+      </button>
+    </li>
+  )
+}
+
+function StatusDot({ order: o }: { order: StoreOrder }) {
+  const label = o.method === 'pix_manual' && o.status === 'pending' ? 'Confirmar' : o.status === 'approved' ? 'Aprovada' : o.status === 'pending' ? 'Pendente' : o.status === 'refunded' ? 'Reembolsada' : o.expiredAt ? 'Expirada' : 'Recusada'
+  const cls =
+    o.status === 'approved' ? 'bg-emerald-50 text-emerald-700' : o.status === 'pending' ? 'bg-amber-100 text-amber-800' : o.status === 'refunded' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500'
+  return <span className={`rounded-md px-1.5 py-px text-[10.5px] font-bold ${cls}`}>{label}</span>
+}
+
+/** Folha de detalhes: comprador, o que comprou, pagamento e as ações. */
+function OrderDetails({ order: o }: { order: StoreOrder }) {
+  const phone = String(o.buyer.phone || '').replace(/\D/g, '')
+  const wa = phone.length >= 10 ? `https://wa.me/${phone.length <= 11 ? `55${phone}` : phone}` : null
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Initials order={o} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-bold text-slate-900">{o.buyer.name}</p>
+          <p className="text-xs text-slate-500">{timeLabel(o.createdAt)}</p>
+        </div>
+        <p className="shrink-0 text-xl font-extrabold tabular-nums text-slate-900">{formatCents(o.amount)}</p>
+      </div>
+
+      <dl className="divide-y divide-slate-100 rounded-2xl bg-slate-50 px-4 text-sm">
+        <DetailLine label="Status">
+          <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} expired={!!o.expiredAt} />
+          {o.test && <span className="ml-1.5 text-xs font-semibold text-amber-600">teste</span>}
+        </DetailLine>
+        <DetailLine label="Pagamento">
+          {STORE_METHOD_LABEL[o.method]}
+          {o.installments && o.installments > 1 ? ` em ${o.installments}x` : ''}
+        </DetailLine>
+        <DetailLine label="Comprou">
+          <span className="flex flex-col items-end gap-0.5">
+            {o.items.map((i, idx) => (
+              <span key={idx}>
+                {i.name}
+                {i.bump ? <span className="ml-1 text-[11px] font-semibold text-violet-600">bump</span> : null}
+              </span>
+            ))}
+          </span>
+        </DetailLine>
+        {o.couponCode && <DetailLine label="Cupom">{o.couponCode}</DetailLine>}
+        <DetailLine label="E-mail">
+          <a href={`mailto:${o.buyer.email}`} className="break-all text-brand-700">
+            {o.buyer.email}
+          </a>
+        </DetailLine>
+        {o.buyer.phone && (
+          <DetailLine label="Telefone">
+            {wa ? (
+              <a href={wa} target="_blank" rel="noreferrer" className="font-semibold text-emerald-700">
+                {o.buyer.phone}
+              </a>
+            ) : (
+              o.buyer.phone
+            )}
+          </DetailLine>
+        )}
+        {o.utm?.utm_source && <DetailLine label="Veio de">{o.utm.utm_source}</DetailLine>}
+      </dl>
+
+      <OrderActions order={o} />
+    </div>
+  )
+}
+
+function DetailLine({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-2.5">
+      <dt className="shrink-0 text-slate-500">{label}</dt>
+      <dd className="min-w-0 text-right font-medium text-slate-800">{children}</dd>
+    </div>
+  )
+}
+
+/** Avisos e botões de um pedido (usado no Resumo e nos detalhes da venda). */
+function OrderActions({ order: o }: { order: StoreOrder }) {
   const { busy, confirmPayment, cancelOrder, refund, denyRefund, copyAccess, deleteOrder, canDelete } = useOrderActions()
   const manualPending = o.method === 'pix_manual' && (o.status === 'pending' || (o.status === 'refused' && !!o.expiredAt))
   const refundAsked = o.status === 'approved' && !!o.refundRequest && !o.refundRequest.deniedAt
+  const hasSecondary = (manualPending && o.status === 'pending') || (o.accessUrl && o.status === 'approved') || o.status === 'approved' || canDelete
 
   return (
-    <li className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ${manualPending || refundAsked ? 'ring-amber-300' : 'ring-slate-200/70'}`}>
-      <div className="flex items-start gap-3">
-        <Initials order={o} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <p className="truncate text-[15px] font-semibold text-slate-800">{o.buyer.name}</p>
-            <p className="shrink-0 text-[15px] font-bold tabular-nums text-slate-900">{formatCents(o.amount)}</p>
-          </div>
-          <p className="truncate text-xs text-slate-500">{o.items.map((i) => i.name).join(' + ')}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
-            <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} expired={!!o.expiredAt} />
-            <span>
-              {STORE_METHOD_LABEL[o.method]}
-              {o.installments && o.installments > 1 ? ` ${o.installments}x` : ''}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>{timeLabel(o.createdAt)}</span>
-            {o.test && <span className="font-semibold text-amber-600">teste</span>}
-          </div>
-        </div>
-      </div>
-
+    <>
       {refundAsked && (
         <p className="mt-3 flex items-start gap-2 rounded-xl bg-red-50 p-2.5 text-xs text-red-700">
           <AlertCircle size={15} className="mt-px shrink-0" aria-hidden="true" />
@@ -442,7 +603,7 @@ function OrderCard({ order: o }: { order: StoreOrder }) {
         </Button>
       )}
 
-      {(manualPending && o.status === 'pending') || (o.accessUrl && o.status === 'approved') || o.status === 'approved' || canDelete ? (
+      {hasSecondary ? (
         <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
           {manualPending && o.status === 'pending' && (
             <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => cancelOrder(o)}>
@@ -471,6 +632,37 @@ function OrderCard({ order: o }: { order: StoreOrder }) {
           )}
         </div>
       ) : null}
+    </>
+  )
+}
+
+function OrderCard({ order: o }: { order: StoreOrder }) {
+  const manualPending = o.method === 'pix_manual' && (o.status === 'pending' || (o.status === 'refused' && !!o.expiredAt))
+  const refundAsked = o.status === 'approved' && !!o.refundRequest && !o.refundRequest.deniedAt
+
+  return (
+    <li className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ${manualPending || refundAsked ? 'ring-amber-300' : 'ring-slate-200/70'}`}>
+      <div className="flex items-start gap-3">
+        <Initials order={o} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="truncate text-[15px] font-semibold text-slate-800">{o.buyer.name}</p>
+            <p className="shrink-0 text-[15px] font-bold tabular-nums text-slate-900">{formatCents(o.amount)}</p>
+          </div>
+          <p className="truncate text-xs text-slate-500">{o.items.map((i) => i.name).join(' + ')}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+            <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} expired={!!o.expiredAt} />
+            <span>
+              {STORE_METHOD_LABEL[o.method]}
+              {o.installments && o.installments > 1 ? ` ${o.installments}x` : ''}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>{timeLabel(o.createdAt)}</span>
+            {o.test && <span className="font-semibold text-amber-600">teste</span>}
+          </div>
+        </div>
+      </div>
+      <OrderActions order={o} />
     </li>
   )
 }
