@@ -7,7 +7,7 @@ import { storeAbandonedAction } from '../../../services/storeApi'
 import { formatCents, type StoreAbandoned } from '../../../types/store'
 
 /** Carrinho vira "abandonado" 15 min depois da última mexida sem pagar. */
-const ABANDON_MS = 15 * 60_000
+export const ABANDON_MS = 15 * 60_000
 
 /** Mesmo calendário dos e-mails do Archer no servidor (api/_lib/store/archerCheckout.js). */
 const EMAIL_STEPS = [
@@ -19,7 +19,7 @@ const START_WITHIN_MS = 48 * 3600_000
 
 type Filter = 'open' | 'contacted' | 'recovered' | 'live'
 
-function ago(iso: string) {
+export function ago(iso: string) {
   const min = Math.round((Date.now() - new Date(iso).getTime()) / 60_000)
   if (min < 60) return `há ${Math.max(1, min)} min`
   const h = Math.round(min / 60)
@@ -39,7 +39,7 @@ function inTime(ms: number) {
 }
 
 /** Como estão os e-mails automáticos do Archer para este carrinho. */
-function emailStatus(a: StoreAbandoned): { text: string; tone: 'violet' | 'slate' } | null {
+export function emailStatus(a: StoreAbandoned): { text: string; tone: 'violet' | 'slate' } | null {
   if (a.recoveredAt) return null
   const done = a.recoveryEmails ?? []
   if (a.recoveryStopped) return { text: 'Pediu para não receber e-mails', tone: 'slate' }
@@ -55,7 +55,7 @@ function emailStatus(a: StoreAbandoned): { text: string; tone: 'violet' | 'slate
 }
 
 /** Mensagem pronta pro WhatsApp (a pessoa edita antes de mandar). */
-function whatsappLink(a: StoreAbandoned) {
+export function whatsappLink(a: StoreAbandoned) {
   const digits = String(a.phone || '').replace(/\D/g, '')
   if (digits.length < 10) return null
   const phone = digits.length <= 11 ? `55${digits}` : digits

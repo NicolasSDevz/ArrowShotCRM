@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useAppAutoUpdate } from '../../hooks/useAppAutoUpdate'
 import { useStoreAbandoned, useStoreOrders, useStoreProducts } from '../../hooks/useStore'
 import { StoreMetricsMobile } from '../../components/store/admin/StoreMetricsMobile'
-import { StoreAbandonedPanel } from '../../components/store/admin/StoreAbandonedPanel'
+import { StoreAbandonedMobile } from '../../components/store/admin/StoreAbandonedMobile'
 import { Button } from '../../components/ui/Button'
 import { FullPageSpinner } from '../../components/ui/FullPageSpinner'
 import { PushNotificationsCard } from '../../components/notifications/PushNotificationsCard'
@@ -114,7 +114,7 @@ export function StoreAppPage() {
         {tab === 'home' && <HomeTab orders={orders} onSeeAll={() => changeTab('sales')} />}
         {tab === 'sales' && <SalesTab orders={orders} />}
         {tab === 'metrics' && <StoreMetricsMobile orders={orders} products={products} abandoned={abandoned} />}
-        {tab === 'carts' && <StoreAbandonedPanel carts={abandoned} compact />}
+        {tab === 'carts' && <StoreAbandonedMobile carts={abandoned} />}
         {tab === 'settings' && <SettingsTab />}
       </main>
 
