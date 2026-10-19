@@ -1,11 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { AlertCircle, Ban, Banknote, BarChart3, CheckCircle2, Copy, Home, LogOut, Receipt, RotateCcw, Settings, ShoppingCart, Store, Trash2 } from 'lucide-react'
+import { AlertCircle, Ban, Banknote, BarChart3, CheckCircle2, ChevronRight, Copy, Home, LogOut, Receipt, RotateCcw, Search, Settings, ShoppingCart, Trash2, TrendingDown, TrendingUp } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { useAppAutoUpdate } from '../../hooks/useAppAutoUpdate'
 import { useStoreAbandoned, useStoreOrders, useStoreProducts } from '../../hooks/useStore'
 import { StoreOverview } from '../../components/store/admin/StoreOverview'
 import { StoreAbandonedPanel } from '../../components/store/admin/StoreAbandonedPanel'
 import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Field'
 import { FullPageSpinner } from '../../components/ui/FullPageSpinner'
 import { PushNotificationsCard } from '../../components/notifications/PushNotificationsCard'
 import { OrderStatusBadge, useOrderActions, useReconcilePending } from '../../components/store/admin/StoreOrdersTable'
@@ -23,117 +23,270 @@ const paidAt = (o: StoreOrder) => new Date(o.approvedAt || o.createdAt).getTime(
 const needsAction = (o: StoreOrder) =>
   (o.method === 'pix_manual' && o.status === 'pending') || (o.status === 'approved' && !!o.refundRequest && !o.refundRequest.deniedAt) || (o.status === 'approved' && o.capi?.purchase?.ok === false)
 
+const TAB_TITLE: Record<Tab, string> = { home: 'Resumo', sales: 'Vendas', metrics: 'Métricas', carts: 'Carrinhos', settings: 'Ajustes' }
+
+/** Cor do círculo com as iniciais do comprador, pelo status do pedido. */
+const STATUS_TONE: Record<StoreOrderStatus, string> = {
+  approved: 'bg-emerald-100 text-emerald-700',
+  pending: 'bg-amber-100 text-amber-700',
+  refused: 'bg-slate-100 text-slate-500',
+  refunded: 'bg-rose-100 text-rose-700',
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+}
+
+function timeLabel(iso: string) {
+  const t = new Date(iso).getTime()
+  const today = startOfToday()
+  const hm = new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (t >= today) return `hoje, ${hm}`
+  if (t >= today - DAY) return `ontem, ${hm}`
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function dayLabel(t: number) {
+  const today = startOfToday()
+  if (t >= today) return 'Hoje'
+  if (t >= today - DAY) return 'Ontem'
+  return new Date(t).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
+}
+
 /** /app — o CRM instalado no celular (Android e iPhone) abre só aqui: resumo da
  *  Loja, vendas e o que precisa de ação. O CRM completo fica no computador. */
 export function StoreAppPage() {
+  const { profile } = useAuth()
   const { data: orders, loading } = useStoreOrders()
   const { data: products } = useStoreProducts()
   const { data: abandoned } = useStoreAbandoned()
   const [tab, setTab] = useState<Tab>('home')
   useReconcilePending(orders)
+  useAppAutoUpdate()
 
   if (loading) return <FullPageSpinner />
 
-  const tabs: { key: Tab; label: string; icon: ReactNode }[] = [
-    { key: 'home', label: 'Resumo', icon: <Home size={20} /> },
-    { key: 'sales', label: 'Vendas', icon: <Receipt size={20} /> },
-    { key: 'metrics', label: 'Métricas', icon: <BarChart3 size={20} /> },
-    { key: 'carts', label: 'Carrinhos', icon: <ShoppingCart size={20} /> },
-    { key: 'settings', label: 'Ajustes', icon: <Settings size={20} /> },
+  const tabs: { key: Tab; label: string; icon: typeof Home }[] = [
+    { key: 'home', label: 'Resumo', icon: Home },
+    { key: 'sales', label: 'Vendas', icon: Receipt },
+    { key: 'metrics', label: 'Métricas', icon: BarChart3 },
+    { key: 'carts', label: 'Carrinhos', icon: ShoppingCart },
+    { key: 'settings', label: 'Ajustes', icon: Settings },
   ]
   const pending = orders.filter(needsAction).length
+  const firstName = profile?.name?.trim().split(/\s+/)[0]
+
+  const changeTab = (t: Tab) => {
+    setTab(t)
+    window.scrollTo({ top: 0 })
+  }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-page">
-      <header className="sticky top-0 z-10 flex items-center gap-2 bg-gradient-to-br from-brand-600 to-brand-800 px-4 pb-3 text-white" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
-        <Store size={20} aria-hidden="true" />
-        <h1 className="text-lg font-bold">Loja</h1>
+    <div className="store-app flex min-h-dvh flex-col bg-page">
+      <header
+        className="relative overflow-hidden bg-gradient-to-br from-navy-950 via-brand-800 to-brand-600 px-5 text-white"
+        style={{ paddingTop: 'max(14px, env(safe-area-inset-top))', paddingBottom: tab === 'home' ? 72 : 18 }}
+      >
+        {/* Brilho de fundo, só enfeite. */}
+        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
+        <div className="relative flex items-center gap-3">
+          <img src="/icon-192.png" alt="" className="h-9 w-9 rounded-xl shadow-sm ring-1 ring-white/20" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Quiver · Loja</p>
+            <h1 className="truncate text-xl font-bold leading-tight">{tab === 'home' && firstName ? `Olá, ${firstName}` : TAB_TITLE[tab]}</h1>
+          </div>
+          {pending > 0 && (
+            <button
+              type="button"
+              onClick={() => changeTab('sales')}
+              className="flex items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1.5 text-xs font-bold text-amber-950 shadow-sm"
+              aria-label={`${pending} ${pending === 1 ? 'venda precisa' : 'vendas precisam'} da sua atenção`}
+            >
+              <AlertCircle size={14} aria-hidden="true" /> {pending}
+            </button>
+          )}
+        </div>
+        {tab === 'home' && <TodayHero orders={orders} />}
       </header>
 
-      <main className="flex-1 px-4 py-4" style={{ paddingBottom: 'calc(88px + env(safe-area-inset-bottom))' }}>
-        {tab === 'home' && <HomeTab orders={orders} onSeeAll={() => setTab('sales')} />}
+      <main className={`relative flex-1 px-4 ${tab === 'home' ? '-mt-14' : 'pt-4'}`} style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
+        {tab === 'home' && <HomeTab orders={orders} onSeeAll={() => changeTab('sales')} />}
         {tab === 'sales' && <SalesTab orders={orders} />}
         {tab === 'metrics' && <StoreOverview orders={orders} products={products} abandoned={abandoned} compact />}
         {tab === 'carts' && <StoreAbandonedPanel carts={abandoned} compact />}
         {tab === 'settings' && <SettingsTab />}
       </main>
 
-      <nav aria-label="Seções do app" className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-200 bg-white" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            aria-current={tab === t.key ? 'page' : undefined}
-            className={`relative flex h-16 flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium ${tab === t.key ? 'text-brand-700' : 'text-slate-500'}`}
-          >
-            {t.icon}
-            {t.label}
-            {t.key === 'sales' && pending > 0 && (
-              <span className="absolute right-[calc(50%-22px)] top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{pending}</span>
-            )}
-          </button>
-        ))}
+      <nav
+        aria-label="Seções do app"
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200/70 bg-white/95 backdrop-blur-md"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="mx-auto flex max-w-lg">
+          {tabs.map(({ key, label, icon: Icon }) => {
+            const active = tab === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => changeTab(key)}
+                aria-current={active ? 'page' : undefined}
+                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 pb-1.5 pt-2 text-[11px] font-semibold transition-colors ${active ? 'text-brand-700' : 'text-slate-400'}`}
+              >
+                <span className={`flex h-8 w-14 items-center justify-center rounded-full transition-all duration-200 ${active ? 'bg-brand-50' : ''}`}>
+                  <Icon size={21} strokeWidth={active ? 2.4 : 2} aria-hidden="true" />
+                </span>
+                {label}
+                {key === 'sales' && pending > 0 && (
+                  <span className="absolute right-[calc(50%-24px)] top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                    {pending}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
       </nav>
     </div>
   )
 }
 
-function HomeTab({ orders, onSeeAll }: { orders: StoreOrder[]; onSeeAll: () => void }) {
+function useSales(orders: StoreOrder[]) {
   const real = orders.filter((o) => !o.test && o.status === 'approved')
-  const sum = (since: number) => {
-    const list = real.filter((o) => paidAt(o) >= since)
+  const sum = (from: number, to = Infinity) => {
+    const list = real.filter((o) => paidAt(o) >= from && paidAt(o) < to)
     return { total: list.reduce((s, o) => s + o.amount, 0), count: list.length }
   }
+  return { real, sum }
+}
+
+/** Valor de hoje em destaque no topo do Resumo, comparado com ontem. */
+function TodayHero({ orders }: { orders: StoreOrder[] }) {
+  const { sum } = useSales(orders)
   const today = sum(startOfToday())
-  const week = sum(Date.now() - 7 * DAY)
-  const month = sum(Date.now() - 30 * DAY)
-  const attention = orders.filter(needsAction)
-  const recent = [...real].sort((a, b) => paidAt(b) - paidAt(a)).slice(0, 5)
+  const yesterday = sum(startOfToday() - DAY, startOfToday())
+  const diff = yesterday.total > 0 ? Math.round(((today.total - yesterday.total) / yesterday.total) * 100) : null
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <p className="text-xs font-medium text-slate-500">Hoje</p>
-        <p className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatCents(today.total)}</p>
-        <p className="text-sm text-slate-500">{today.count} {today.count === 1 ? 'venda' : 'vendas'}</p>
-        <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
-          <Stat label="7 dias" value={formatCents(week.total)} sub={`${week.count} vendas`} />
-          <Stat label="30 dias" value={formatCents(month.total)} sub={`${month.count} vendas`} />
-        </dl>
+    <div className="relative mt-6">
+      <p className="text-sm font-medium text-white/70">Vendido hoje</p>
+      <p className="mt-1 text-[40px] font-extrabold leading-none tracking-tight tabular-nums">{formatCents(today.total)}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <span className="rounded-full bg-white/15 px-2.5 py-1 font-semibold">
+          {today.count} {today.count === 1 ? 'venda' : 'vendas'}
+        </span>
+        {diff !== null && (
+          <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${diff >= 0 ? 'bg-emerald-400/20 text-emerald-100' : 'bg-rose-400/20 text-rose-100'}`}>
+            {diff >= 0 ? <TrendingUp size={14} aria-hidden="true" /> : <TrendingDown size={14} aria-hidden="true" />}
+            {diff >= 0 ? '+' : ''}
+            {diff}% que ontem
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function HomeTab({ orders, onSeeAll }: { orders: StoreOrder[]; onSeeAll: () => void }) {
+  const { real, sum } = useSales(orders)
+  const week = sum(Date.now() - 7 * DAY)
+  const month = sum(Date.now() - 30 * DAY)
+  const ticket = month.count > 0 ? Math.round(month.total / month.count) : 0
+  const attention = orders.filter(needsAction)
+  const recent = [...real].sort((a, b) => paidAt(b) - paidAt(a)).slice(0, 6)
+
+  return (
+    <div className="space-y-6">
+      <section className="grid grid-cols-2 gap-3" aria-label="Totais">
+        <StatCard label="Últimos 7 dias" value={formatCents(week.total)} sub={`${week.count} ${week.count === 1 ? 'venda' : 'vendas'}`} />
+        <StatCard label="Últimos 30 dias" value={formatCents(month.total)} sub={`${month.count} ${month.count === 1 ? 'venda' : 'vendas'}`} />
+        <StatCard label="Ticket médio (30 dias)" value={formatCents(ticket)} sub="por venda" wide />
       </section>
 
       {attention.length > 0 && (
         <section aria-labelledby="atencao">
-          <h2 id="atencao" className="mb-2 text-sm font-semibold text-slate-700">Precisa da sua atenção</h2>
-          <ul className="space-y-2">
-            {attention.map((o) => <OrderCard key={o.id} order={o} />)}
+          <SectionTitle id="atencao" dot="bg-amber-400">
+            Precisa da sua atenção
+          </SectionTitle>
+          <ul className="space-y-3">
+            {attention.map((o) => (
+              <OrderCard key={o.id} order={o} />
+            ))}
           </ul>
         </section>
       )}
 
       <section aria-labelledby="ultimas">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 id="ultimas" className="text-sm font-semibold text-slate-700">Últimas vendas</h2>
-          {recent.length > 0 && <button type="button" onClick={onSeeAll} className="text-sm font-medium text-brand-700">Ver todas</button>}
+        <div className="mb-2.5 flex items-center justify-between">
+          <SectionTitle id="ultimas">Últimas vendas</SectionTitle>
+          {recent.length > 0 && (
+            <button type="button" onClick={onSeeAll} className="-mr-1 flex items-center rounded-lg px-1 py-1 text-sm font-semibold text-brand-700">
+              Ver todas <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          )}
         </div>
         {recent.length === 0 ? (
-          <p className="rounded-2xl bg-white p-4 text-sm text-slate-500 ring-1 ring-slate-200">Nenhuma venda ainda. Quando alguém comprar, aparece aqui na hora.</p>
+          <EmptyCard>Nenhuma venda ainda. Quando alguém comprar, aparece aqui na hora.</EmptyCard>
         ) : (
-          <ul className="space-y-2">{recent.map((o) => <OrderCard key={o.id} order={o} compact />)}</ul>
+          <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+            {recent.map((o) => (
+              <OrderRow key={o.id} order={o} />
+            ))}
+          </ul>
         )}
       </section>
     </div>
   )
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
+function SectionTitle({ id, children, dot }: { id: string; children: ReactNode; dot?: string }) {
   return (
-    <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="text-base font-semibold tabular-nums text-slate-800">{value}</dd>
-      <dd className="text-xs text-slate-400">{sub}</dd>
+    <h2 id={id} className="mb-2.5 flex items-center gap-2 text-[15px] font-bold text-slate-800">
+      {dot && <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" />}
+      {children}
+    </h2>
+  )
+}
+
+function StatCard({ label, value, sub, wide }: { label: string; value: string; sub: string; wide?: boolean }) {
+  return (
+    <div className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 ${wide ? 'col-span-2 flex items-center justify-between' : ''}`}>
+      <div>
+        <p className="text-xs font-medium text-slate-500">{label}</p>
+        <p className={`mt-1 font-bold tabular-nums text-slate-900 ${wide ? 'text-lg' : 'text-[19px] leading-tight'}`}>{value}</p>
+      </div>
+      <p className={`text-xs text-slate-400 ${wide ? '' : 'mt-0.5'}`}>{sub}</p>
     </div>
+  )
+}
+
+function EmptyCard({ children }: { children: ReactNode }) {
+  return <p className="rounded-2xl bg-white p-5 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200/70">{children}</p>
+}
+
+function Initials({ order: o }: { order: StoreOrder }) {
+  return (
+    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${STATUS_TONE[o.status] ?? 'bg-slate-100 text-slate-500'}`} aria-hidden="true">
+      {initials(o.buyer.name)}
+    </span>
+  )
+}
+
+/** Linha enxuta (lista de últimas vendas). */
+function OrderRow({ order: o }: { order: StoreOrder }) {
+  return (
+    <li className="flex items-center gap-3 px-4 py-3">
+      <Initials order={o} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[15px] font-semibold text-slate-800">{o.buyer.name}</p>
+        <p className="truncate text-xs text-slate-500">{o.items.map((i) => i.name).join(' + ')}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="font-bold tabular-nums text-slate-900">{formatCents(o.amount)}</p>
+        <p className="text-[11px] text-slate-400">{timeLabel(o.approvedAt || o.createdAt)}</p>
+      </div>
+    </li>
   )
 }
 
@@ -148,35 +301,85 @@ function SalesTab({ orders }: { orders: StoreOrder[] }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | StoreOrderStatus>('')
   const [shown, setShown] = useState(30)
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return orders.filter((o) => (!status || o.status === status) && (!q || o.buyer.name.toLowerCase().includes(q) || o.buyer.email.includes(q)))
-  }, [orders, search, status])
+  const q = search.trim().toLowerCase()
+  const matchesSearch = (o: StoreOrder) => !q || o.buyer.name.toLowerCase().includes(q) || o.buyer.email.includes(q)
+  const filtered = useMemo(
+    () => orders.filter((o) => (!status || o.status === status) && matchesSearch(o)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [orders, q, status]
+  )
+  const countOf = (s: '' | StoreOrderStatus) => orders.filter((o) => (!s || o.status === s) && matchesSearch(o)).length
+
+  // Agrupa por dia, com o total aprovado de cada dia no cabeçalho.
+  const groups: { key: string; label: string; items: StoreOrder[]; total: number }[] = []
+  for (const o of filtered.slice(0, shown)) {
+    const d = new Date(o.createdAt)
+    d.setHours(0, 0, 0, 0)
+    const key = String(d.getTime())
+    let g = groups[groups.length - 1]
+    if (!g || g.key !== key) {
+      g = { key, label: dayLabel(d.getTime()), items: [], total: 0 }
+      groups.push(g)
+    }
+    g.items.push(o)
+    if (o.status === 'approved' && !o.test) g.total += o.amount
+  }
 
   return (
-    <div className="space-y-3">
-      <Input aria-label="Buscar por nome ou e-mail" placeholder="Buscar por nome ou e-mail" value={search} onChange={(e) => setSearch(e.target.value)} />
-      <div role="radiogroup" aria-label="Status" className="flex gap-1.5 overflow-x-auto pb-1">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            role="radio"
-            aria-checked={status === f.key}
-            onClick={() => setStatus(f.key)}
-            className={`h-8 shrink-0 rounded-full px-3 text-sm font-medium ${status === f.key ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}
-          >
-            {f.label}
-          </button>
-        ))}
+    <div className="space-y-4">
+      <div className="sticky top-0 z-10 -mx-4 space-y-2.5 bg-page/95 px-4 pb-2 pt-1 backdrop-blur-md">
+        <div className="relative">
+          <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="Buscar por nome ou e-mail"
+            placeholder="Buscar por nome ou e-mail"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-11 w-full rounded-xl border-0 bg-white pl-10 pr-3 text-slate-800 shadow-sm outline-none ring-1 ring-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500"
+          />
+        </div>
+        <div role="radiogroup" aria-label="Status" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none]">
+          {FILTERS.map((f) => {
+            const active = status === f.key
+            return (
+              <button
+                key={f.key}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setStatus(f.key)}
+                className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors ${
+                  active ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 ring-1 ring-slate-200'
+                }`}
+              >
+                {f.label}
+                <span className={`rounded-full px-1.5 text-[11px] font-bold ${active ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{countOf(f.key)}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
+
       {filtered.length === 0 ? (
-        <p className="rounded-2xl bg-white p-4 text-sm text-slate-500 ring-1 ring-slate-200">Nenhum pedido.</p>
+        <EmptyCard>{q ? 'Nenhum pedido com essa busca.' : 'Nenhum pedido.'}</EmptyCard>
       ) : (
         <>
-          <ul className="space-y-2">{filtered.slice(0, shown).map((o) => <OrderCard key={o.id} order={o} />)}</ul>
+          {groups.map((g) => (
+            <section key={g.key} aria-label={g.label}>
+              <div className="mb-2 flex items-baseline justify-between px-1">
+                <h3 className="text-[13px] font-bold capitalize text-slate-500">{g.label}</h3>
+                {g.total > 0 && <span className="text-[13px] font-semibold tabular-nums text-slate-500">{formatCents(g.total)}</span>}
+              </div>
+              <ul className="space-y-3">
+                {g.items.map((o) => (
+                  <OrderCard key={o.id} order={o} />
+                ))}
+              </ul>
+            </section>
+          ))}
           {filtered.length > shown && (
-            <Button variant="secondary" className="w-full" onClick={() => setShown((n) => n + 30)}>
+            <Button variant="secondary" className="h-11 w-full rounded-xl" onClick={() => setShown((n) => n + 30)}>
               Ver mais ({filtered.length - shown})
             </Button>
           )}
@@ -186,82 +389,88 @@ function SalesTab({ orders }: { orders: StoreOrder[] }) {
   )
 }
 
-function OrderCard({ order: o, compact = false }: { order: StoreOrder; compact?: boolean }) {
+function OrderCard({ order: o }: { order: StoreOrder }) {
   const { busy, confirmPayment, cancelOrder, refund, denyRefund, copyAccess, deleteOrder, canDelete } = useOrderActions()
   const manualPending = o.method === 'pix_manual' && (o.status === 'pending' || (o.status === 'refused' && !!o.expiredAt))
+  const refundAsked = o.status === 'approved' && !!o.refundRequest && !o.refundRequest.deniedAt
 
   return (
-    <li className="rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate font-semibold text-slate-800">{o.buyer.name}</p>
+    <li className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ${manualPending || refundAsked ? 'ring-amber-300' : 'ring-slate-200/70'}`}>
+      <div className="flex items-start gap-3">
+        <Initials order={o} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="truncate text-[15px] font-semibold text-slate-800">{o.buyer.name}</p>
+            <p className="shrink-0 text-[15px] font-bold tabular-nums text-slate-900">{formatCents(o.amount)}</p>
+          </div>
           <p className="truncate text-xs text-slate-500">{o.items.map((i) => i.name).join(' + ')}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+            <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} expired={!!o.expiredAt} />
+            <span>
+              {STORE_METHOD_LABEL[o.method]}
+              {o.installments && o.installments > 1 ? ` ${o.installments}x` : ''}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>{timeLabel(o.createdAt)}</span>
+            {o.test && <span className="font-semibold text-amber-600">teste</span>}
+          </div>
         </div>
-        <div className="shrink-0 text-right">
-          <p className="font-semibold tabular-nums text-slate-900">{formatCents(o.amount)}</p>
-          <p className="text-xs text-slate-400">{STORE_METHOD_LABEL[o.method]}{o.installments && o.installments > 1 ? ` ${o.installments}x` : ''}</p>
-        </div>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
-        <OrderStatusBadge status={o.status} manual={o.method === 'pix_manual'} expired={!!o.expiredAt} />
-        <span>{new Date(o.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
-        {o.test && <span className="font-medium text-amber-600">teste</span>}
       </div>
 
-      {!compact && (
-        <>
-          {o.refundRequest && !o.refundRequest.deniedAt && o.status === 'approved' && (
-            <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 p-2 text-xs text-red-700">
-              <AlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
-              Pediu reembolso{o.refundRequest.reason ? `: ${o.refundRequest.reason}` : ''}
-            </p>
-          )}
-          {o.status === 'approved' && o.capi?.purchase?.ok === false && (
-            <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
-              <AlertCircle size={14} className="mt-px shrink-0" aria-hidden="true" />
-              Não marcou no Meta. O sistema tenta de novo todo dia.
-            </p>
-          )}
-          {manualPending && (
-            <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
-              <Banknote size={14} className="mt-px shrink-0" aria-hidden="true" />
-              Pix direto: confira no app do banco antes de confirmar.
-            </p>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {manualPending && (
-              <Button size="sm" icon={<CheckCircle2 size={14} />} loading={busy === o.id} onClick={() => confirmPayment(o)}>
-                Confirmar pagamento
-              </Button>
-            )}
-            {manualPending && o.status === 'pending' && (
-              <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => cancelOrder(o)}>
-                Cancelar
-              </Button>
-            )}
-            {o.accessUrl && o.status === 'approved' && (
-              <Button size="sm" variant="secondary" icon={<Copy size={14} />} onClick={() => copyAccess(o)}>
-                Copiar acesso
-              </Button>
-            )}
-            {o.status === 'approved' && o.refundRequest && !o.refundRequest.deniedAt && (
-              <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => denyRefund(o)}>
-                Recusar reembolso
-              </Button>
-            )}
-            {o.status === 'approved' && (
-              <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} loading={busy === o.id} onClick={() => refund(o)}>
-                Reembolsar
-              </Button>
-            )}
-            {canDelete && (
-              <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} loading={busy === o.id} onClick={() => deleteOrder(o)} aria-label={`Excluir pedido de ${o.buyer.name}`}>
-                Excluir
-              </Button>
-            )}
-          </div>
-        </>
+      {refundAsked && (
+        <p className="mt-3 flex items-start gap-2 rounded-xl bg-red-50 p-2.5 text-xs text-red-700">
+          <AlertCircle size={15} className="mt-px shrink-0" aria-hidden="true" />
+          Pediu reembolso{o.refundRequest?.reason ? `: ${o.refundRequest.reason}` : ''}
+        </p>
       )}
+      {o.status === 'approved' && o.capi?.purchase?.ok === false && (
+        <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">
+          <AlertCircle size={15} className="mt-px shrink-0" aria-hidden="true" />
+          Não marcou no Meta. O sistema tenta de novo todo dia.
+        </p>
+      )}
+      {manualPending && (
+        <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">
+          <Banknote size={15} className="mt-px shrink-0" aria-hidden="true" />
+          Pix direto: confira no app do banco antes de confirmar.
+        </p>
+      )}
+
+      {manualPending && (
+        <Button className="mt-3 h-11 w-full rounded-xl text-[15px]" icon={<CheckCircle2 size={17} />} loading={busy === o.id} onClick={() => confirmPayment(o)}>
+          Confirmar pagamento
+        </Button>
+      )}
+
+      {(manualPending && o.status === 'pending') || (o.accessUrl && o.status === 'approved') || o.status === 'approved' || canDelete ? (
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
+          {manualPending && o.status === 'pending' && (
+            <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => cancelOrder(o)}>
+              Cancelar
+            </Button>
+          )}
+          {o.accessUrl && o.status === 'approved' && (
+            <Button size="sm" variant="secondary" icon={<Copy size={14} />} onClick={() => copyAccess(o)}>
+              Copiar acesso
+            </Button>
+          )}
+          {refundAsked && (
+            <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => denyRefund(o)}>
+              Recusar reembolso
+            </Button>
+          )}
+          {o.status === 'approved' && (
+            <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} loading={busy === o.id} onClick={() => refund(o)}>
+              Reembolsar
+            </Button>
+          )}
+          {canDelete && (
+            <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} loading={busy === o.id} onClick={() => deleteOrder(o)} aria-label={`Excluir pedido de ${o.buyer.name}`} className="ml-auto text-red-600">
+              Excluir
+            </Button>
+          )}
+        </div>
+      ) : null}
     </li>
   )
 }
@@ -270,21 +479,22 @@ function SettingsTab() {
   const { profile, signOut } = useAuth()
   return (
     <div className="space-y-4">
-      <PushNotificationsCard />
-      <section className="rounded-2xl bg-white p-4 text-sm text-slate-600 ring-1 ring-slate-200">
-        <p>
-          Este app mostra só a Loja. Produtos, checkout e o resto do CRM ficam no computador, em <span className="font-medium text-slate-800">{window.location.host}</span>.
-        </p>
-      </section>
-      <section className="flex items-center justify-between rounded-2xl bg-white p-4 ring-1 ring-slate-200">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-800">{profile?.name}</p>
+      <section className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-50 text-base font-bold text-brand-700" aria-hidden="true">
+          {initials(profile?.name ?? '?')}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-semibold text-slate-800">{profile?.name}</p>
           <p className="truncate text-xs text-slate-500">{profile?.email}</p>
         </div>
         <Button variant="ghost" size="sm" icon={<LogOut size={14} />} onClick={() => signOut()}>
           Sair
         </Button>
       </section>
+      <PushNotificationsCard />
+      <p className="px-2 text-center text-xs leading-relaxed text-slate-400">
+        Este app mostra só a Loja. Produtos, checkout e o resto do CRM ficam no computador, em <span className="font-medium text-slate-500">{window.location.host}</span>.
+      </p>
     </div>
   )
 }

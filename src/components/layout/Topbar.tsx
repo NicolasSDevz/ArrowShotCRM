@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { LogOut, Search, Camera, Menu, Moon, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
@@ -11,26 +10,6 @@ import { TeamPresence } from './TeamPresence'
 import { compressImageToDataUrl } from '../../utils/imageToDataUrl'
 import { updateUserPhoto } from '../../services/userService'
 import { showError } from '../../utils/notifyError'
-
-/** Nome da tela aberta, mostrado no topo do celular (lá não tem menu lateral). */
-const MOBILE_TITLES: [string, string][] = [
-  ['/dashboard', 'Dashboard'],
-  ['/operacional', 'Operacional'],
-  ['/leads', 'Leads'],
-  ['/copiloto', 'Copiloto'],
-  ['/clientes', 'Clientes'],
-  ['/social-media', 'Social Mídia'],
-  ['/reunioes', 'Reuniões'],
-  ['/calendario', 'Calendário'],
-  ['/metricas', 'Métricas'],
-  ['/relatorios', 'Relatórios'],
-  ['/notificacoes', 'Notificações'],
-  ['/otimizacoes', 'Otimizações'],
-  ['/equipe', 'Equipe'],
-  ['/configuracoes', 'Configurações'],
-  ['/loja', 'Loja'],
-  ['/universidade', 'Universidade'],
-]
 
 export function Topbar({
   search,
@@ -47,8 +26,6 @@ export function Topbar({
   const [menuOpen, setMenuOpen] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
-  const { pathname } = useLocation()
-  const mobileTitle = MOBILE_TITLES.find(([p]) => pathname.startsWith(p))?.[1] ?? 'Arrow Shot'
 
   const togglePresentation = () => {
     const next = !isPrivacyMode
@@ -75,22 +52,13 @@ export function Topbar({
   }
 
   return (
-    <header
-      className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 sm:gap-3 sm:px-5"
-      style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(3.5rem + env(safe-area-inset-top))' }}
-    >
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 sm:gap-3 sm:px-5">
       <button
         onClick={onOpenMobileNav}
-        aria-label="Abrir o menu"
-        className="hidden shrink-0 rounded-md p-1.5 text-slate-500 hover:bg-slate-100 sm:block md:hidden"
+        className="shrink-0 rounded-md p-1.5 text-slate-500 hover:bg-slate-100 md:hidden"
       >
         <Menu size={20} />
       </button>
-      {/* Celular: marca + nome da tela (o menu fica na barra de baixo). */}
-      <div className="flex min-w-0 items-center gap-2 md:hidden">
-        <img src="/favicon.png" alt="" className="h-7 w-7 shrink-0 rounded-lg" />
-        <span className="truncate text-[17px] font-bold tracking-tight text-slate-900">{mobileTitle}</span>
-      </div>
 
       {onSearchChange ? (
         <div className="relative w-full max-w-sm">
@@ -103,7 +71,7 @@ export function Topbar({
           />
         </div>
       ) : (
-        <div className="hidden flex-1 md:block" />
+        <div className="flex-1" />
       )}
 
       <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
@@ -124,7 +92,7 @@ export function Topbar({
 
         <NotificationBell />
 
-        <span className="mx-1 hidden h-6 w-px bg-slate-200 sm:block" aria-hidden="true" />
+        <span className="mx-1 h-6 w-px bg-slate-200" aria-hidden="true" />
 
         <div className="relative">
           <button
@@ -138,7 +106,7 @@ export function Topbar({
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 z-20 mt-2 w-64 max-w-[calc(100vw-1.5rem)] rounded-xl border border-slate-100 bg-white p-1.5 shadow-lg">
+              <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-100 bg-white p-1.5 shadow-lg">
                 <div className="flex items-center gap-2.5 px-2.5 py-2">
                   <Avatar name={profile?.name ?? '?'} photoURL={profile?.photoURL} size="md" />
                   <div className="min-w-0 text-xs text-slate-400">
