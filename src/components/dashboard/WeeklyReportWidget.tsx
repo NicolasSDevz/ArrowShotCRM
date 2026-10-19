@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format, subDays } from 'date-fns'
-import { Check, FileBarChart, BarChart3 } from 'lucide-react'
+import { Check, FileBarChart, BarChart3, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
 import { useOptimizationSchedule, useRecentOptimizations } from '../../hooks/useOptimizations'
@@ -34,6 +34,7 @@ export function WeeklyReportWidget() {
   const [localChecks, setLocalChecks] = useState<Record<string, boolean>>({})
   const [justCompleted, setJustCompleted] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [showCompleted, setShowCompleted] = useState(false)
   const [reportClient, setReportClient] = useState<Client | null>(null)
 
   const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
@@ -83,6 +84,7 @@ export function WeeklyReportWidget() {
   useEffect(() => {
     setJustCompleted(false)
     setDismissed(false)
+    setShowCompleted(false)
   }, [weekKey])
 
   useEffect(() => {
@@ -113,6 +115,8 @@ export function WeeklyReportWidget() {
     if (allDone) {
       setJustCompleted(true)
       setTimeout(() => setDismissed(true), 3000)
+    } else {
+      setJustCompleted(false)
     }
   }
 
@@ -125,20 +129,38 @@ export function WeeklyReportWidget() {
   const lastWeekEnd = toDateStr(subDays(new Date(), 1))
 
   if (!active) return null
-  if (dismissed) return null
-  // Já concluído desde antes desta sessão (doc carregado com completedAt) —
-  // some direto, sem repetir a mensagem de comemoração.
-  if (!justCompleted && doc?.completedAt != null) return null
 
   const done = eligibleIds.filter((id) => localChecks[id]).length
   const total = eligibleIds.length
   const allDone = total > 0 && done === total
   const pct = total > 0 ? (done / total) * 100 : 0
 
-  if (justCompleted) {
+  if (justCompleted && !dismissed) {
     return (
       <div className="h-full rounded-2xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #2563EB' }} data-dash-accent>
         <p className="text-center text-[15px] font-semibold text-[#10B981]">✅ Todos os relatórios enviados! Ótimo trabalho! 🎉</p>
+      </div>
+    )
+  }
+
+  // Semana concluída (agora ou antes desta sessão): fica só uma faixa
+  // recolhida com "Ver lista" — antes sumia de vez e não dava pra rever nem
+  // desmarcar um cliente marcado sem querer.
+  const isCompleted = justCompleted || doc?.completedAt != null
+  if (isCompleted && !showCompleted) {
+    return (
+      <div className="rounded-2xl bg-white px-5 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" style={{ borderLeft: '4px solid #10B981' }} data-dash-accent>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[14px] font-semibold text-slate-900">✅ Relatórios semanais concluídos ({done}/{total})</p>
+          <button
+            type="button"
+            onClick={() => setShowCompleted(true)}
+            aria-expanded={false}
+            className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[12px] font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Ver lista <ChevronDown size={13} />
+          </button>
+        </div>
       </div>
     )
   }
@@ -160,7 +182,19 @@ export function WeeklyReportWidget() {
             <p className="text-[13px] text-[#64748B]">Marque conforme for enviando os relatórios de cada cliente</p>
           </div>
         </div>
-        <p className="shrink-0 text-[13px] text-[#64748B]">{done}/{total} relatórios enviados</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <p className="text-[13px] text-[#64748B]">{done}/{total} relatórios enviados</p>
+          {isCompleted && (
+            <button
+              type="button"
+              onClick={() => setShowCompleted(false)}
+              aria-expanded={true}
+              className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-0.5 text-[12px] font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Recolher <ChevronUp size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-2.5 h-[6px] w-full overflow-hidden rounded-full bg-slate-200">
