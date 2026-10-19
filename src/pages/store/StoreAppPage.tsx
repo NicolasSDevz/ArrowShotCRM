@@ -3,7 +3,7 @@ import { AlertCircle, Ban, Banknote, BarChart3, CheckCircle2, ChevronRight, Copy
 import { useAuth } from '../../context/AuthContext'
 import { useAppAutoUpdate } from '../../hooks/useAppAutoUpdate'
 import { useStoreAbandoned, useStoreOrders, useStoreProducts } from '../../hooks/useStore'
-import { StoreOverview } from '../../components/store/admin/StoreOverview'
+import { StoreMetricsMobile } from '../../components/store/admin/StoreMetricsMobile'
 import { StoreAbandonedPanel } from '../../components/store/admin/StoreAbandonedPanel'
 import { Button } from '../../components/ui/Button'
 import { FullPageSpinner } from '../../components/ui/FullPageSpinner'
@@ -113,7 +113,7 @@ export function StoreAppPage() {
       <main className={`relative flex-1 px-4 ${tab === 'home' ? '-mt-14' : 'pt-4'}`} style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
         {tab === 'home' && <HomeTab orders={orders} onSeeAll={() => changeTab('sales')} />}
         {tab === 'sales' && <SalesTab orders={orders} />}
-        {tab === 'metrics' && <StoreOverview orders={orders} products={products} abandoned={abandoned} compact />}
+        {tab === 'metrics' && <StoreMetricsMobile orders={orders} products={products} abandoned={abandoned} />}
         {tab === 'carts' && <StoreAbandonedPanel carts={abandoned} compact />}
         {tab === 'settings' && <SettingsTab />}
       </main>

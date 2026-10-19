@@ -152,7 +152,7 @@ function Empty({ icon, text }: { icon: ReactNode; text: string }) {
 
 /** Faturamento aprovado por dia (até 30 barras; "Tudo" mostra os últimos 30 dias). */
 /** Um ponto por dia do período (no máximo os últimos 31 dias dele; "todo o período" mostra os últimos 30). */
-function dailyRevenue(orders: StoreOrder[], range: DateRange | null) {
+export function dailyRevenue(orders: StoreOrder[], range: DateRange | null) {
   const today = new Date()
   const end = range?.end ?? new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
   const total = range ? Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000) : 30
