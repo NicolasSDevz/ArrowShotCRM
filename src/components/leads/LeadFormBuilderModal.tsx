@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { showError } from '../../utils/notifyError'
-import { X, Eye, EyeOff, Monitor, Smartphone, RotateCcw, Copy } from 'lucide-react'
+import { X, Eye, EyeOff, Monitor, Smartphone, RotateCcw, Copy, ChevronLeft } from 'lucide-react'
 import { Input } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
@@ -112,6 +112,8 @@ export function LeadFormBuilderModal({
   const [testRun, setTestRun] = useState(0)
   // Tela mostrada no preview enquanto se edita 'Cores e tema' (acompanha a aba Início/Perguntas/Final).
   const [themePreview, setThemePreview] = useState<'welcome' | 'question' | 'end'>('welcome')
+  // Celular: uma coluna por vez — a lista de telas ou o editor da tela escolhida.
+  const [mobilePane, setMobilePane] = useState<'rail' | 'editor'>('rail')
   const initialSnapshot = useRef('')
   const editorScrollRef = useRef<HTMLDivElement>(null)
   const selectionKey = selection.kind === 'question' || selection.kind === 'end' ? `${selection.kind}-${selection.id}` : selection.kind
@@ -155,6 +157,7 @@ export function LeadFormBuilderModal({
     setDestinationPipelineId(initial.destinationPipelineId)
     setColorOpen(false)
     setSelection({ kind: 'welcome' })
+    setMobilePane('rail')
     setPreviewMode('screen')
     initialSnapshot.current = snapshotOf(initial)
   }, [open, form])
@@ -461,13 +464,16 @@ export function LeadFormBuilderModal({
     )
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-2 sm:p-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/30" onClick={requestClose} />
-      <div className="relative z-50 flex h-[96vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+      <div
+        className="relative z-50 flex h-[100dvh] w-full max-w-[1500px] flex-col overflow-hidden bg-white shadow-2xl sm:h-[96vh] sm:rounded-xl"
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         {/* Topo: identificação do formulário + salvar, sempre visível */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 px-4 py-3">
           <div className="shrink-0 text-sm font-semibold text-slate-800">{isEditing ? 'Editar formulário' : 'Novo formulário'}</div>
-          <div className="w-[230px] max-w-full">
+          <div className="w-full sm:w-[230px]">
             <Input value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Nome interno (ex: Campanha Black Friday)" aria-label="Nome interno" />
           </div>
           {/* Cor da etiqueta que os leads deste formulário ganham no pipeline de Vendas. */}
@@ -515,7 +521,7 @@ export function LeadFormBuilderModal({
               </>
             )}
           </div>
-          <div className="flex w-[290px] max-w-full items-center gap-1.5">
+          <div className="flex w-full items-center gap-1.5 sm:w-[290px]">
             <span className="shrink-0 text-xs text-slate-400">/captura/</span>
             <Input
               value={slug}
@@ -561,7 +567,7 @@ export function LeadFormBuilderModal({
             <Toggle checked={active} onChange={setActive} label={active ? 'Ativo' : 'Pausado'} />
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="order-first ml-auto flex w-full items-center justify-end gap-2 sm:order-none sm:w-auto">
             <button
               type="button"
               onClick={() => setShowPreview((v) => !v)}
@@ -585,15 +591,21 @@ export function LeadFormBuilderModal({
         {!isEditing && slug && <p className="border-b border-slate-100 bg-slate-50 px-4 py-1 text-[11px] text-slate-400">Link do formulário: {publicUrl}</p>}
 
         <div className="flex min-h-0 flex-1">
-          <aside className="w-[210px] shrink-0 border-r border-slate-100 bg-slate-50/70 lg:w-[250px]">
+          <aside className={`w-full shrink-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 md:block md:w-[210px] lg:w-[250px] ${mobilePane === 'rail' ? 'block' : 'hidden'}`}>
             <LeadFormStructureRail
               questions={questions}
               outcomes={outcomes}
               hasRouting={outcomes.length > 0}
               onEnableRouting={enableRouting}
               selection={sel}
-              onSelect={setSelection}
-              onAddQuestion={(type) => addQuestion(newQuestion(type))}
+              onSelect={(s) => {
+                setSelection(s)
+                setMobilePane('editor')
+              }}
+              onAddQuestion={(type) => {
+                addQuestion(newQuestion(type))
+                setMobilePane('editor')
+              }}
               onAddFieldsPreset={(key) => {
                 const preset = FIELD_GROUP_PRESETS.find((p) => p.key === key)
                 if (preset) addQuestion(newQuestion('fields', { label: preset.question, subfields: preset.make() }))
@@ -659,7 +671,17 @@ export function LeadFormBuilderModal({
             </div>
           )}
 
-          <div ref={editorScrollRef} className={`min-w-0 overflow-y-auto border-l border-slate-100 bg-white ${showPreview ? 'flex-1 lg:w-[400px] lg:flex-none' : 'flex-1'}`}>
+          <div
+            ref={editorScrollRef}
+            className={`min-w-0 overflow-y-auto border-l border-slate-100 bg-white md:block ${mobilePane === 'editor' ? 'block' : 'hidden'} ${showPreview ? 'flex-1 lg:w-[400px] lg:flex-none' : 'flex-1'}`}
+          >
+            <button
+              type="button"
+              onClick={() => setMobilePane('rail')}
+              className="sticky top-0 z-10 flex w-full items-center gap-1 border-b border-slate-100 bg-white/95 px-3 py-2.5 text-sm font-semibold text-brand-600 backdrop-blur md:hidden"
+            >
+              <ChevronLeft size={18} aria-hidden="true" /> Telas do formulário
+            </button>
             <div className={`p-4 ${showPreview ? '' : 'mx-auto max-w-2xl'}`}>
               {sel.kind === 'welcome' && <WelcomeScreenEditor design={design} onDesignChange={setDesign} formId={slug || 'preview'} canUpload={canUpload} />}
               {sel.kind === 'tracking' && <TrackingEditor value={metaPixelId} onChange={setMetaPixelId} />}

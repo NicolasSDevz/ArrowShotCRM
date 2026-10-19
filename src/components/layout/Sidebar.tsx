@@ -136,7 +136,7 @@ export function Sidebar({
         onClick={onCloseMobile}
         className={({ isActive }) => {
           const active = aba ? storeAba === aba : isActive || alsoActive?.some((p) => pathname.startsWith(p))
-          const size = isMain ? 'px-4 py-2.5 text-[15px] font-medium' : 'px-4 py-2 text-[13px]'
+          const size = isMain ? 'px-4 py-3 text-[15px] font-medium md:py-2.5' : 'px-4 py-2.5 text-[14px] md:py-2 md:text-[13px]'
           const color = active
             ? 'bg-brand-600 text-white'
             : isMain
@@ -154,12 +154,12 @@ export function Sidebar({
   return (
     <>
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onCloseMobile} />
+        <div className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-[2px] md:hidden" onClick={onCloseMobile} aria-hidden="true" />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[220px] shrink-0 flex-col bg-navy-950 transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0 ${
-          c ? 'md:w-[68px]' : ''
+        className={`fixed inset-y-0 left-0 z-50 flex w-[min(300px,85vw)] shrink-0 flex-col rounded-r-2xl bg-navy-950 shadow-2xl transition-[transform,width] duration-300 ease-out md:static md:z-auto md:translate-x-0 md:rounded-none md:shadow-none ${
+          c ? 'md:w-[68px]' : 'md:w-[220px]'
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className={`relative flex items-center justify-center border-b border-navy-800 px-3 py-3 ${c ? 'md:min-h-[81px]' : ''}`}>
@@ -175,7 +175,8 @@ export function Sidebar({
           </button>
           <button
             onClick={onCloseMobile}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-white md:hidden"
+            aria-label="Fechar o menu"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-slate-400 hover:bg-navy-800 hover:text-white md:hidden"
           >
             <X size={18} />
           </button>
@@ -290,7 +291,7 @@ export function Sidebar({
         </nav>
 
         {profile && (
-          <div className={`flex items-center gap-2.5 border-t border-navy-800 p-4 ${c ? 'md:justify-center md:px-0' : ''}`} title={c ? profile.name : undefined}>
+          <div style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }} className={`flex items-center gap-2.5 border-t border-navy-800 p-4 ${c ? 'md:justify-center md:px-0' : ''}`} title={c ? profile.name : undefined}>
             <Avatar name={profile.name} photoURL={profile.photoURL} size="sm" />
             <div className={`min-w-0 ${labelCls}`}>
               <p className="truncate text-[13px] font-medium text-white">{profile.name}</p>

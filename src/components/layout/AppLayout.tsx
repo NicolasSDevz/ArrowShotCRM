@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { MobileTabBar } from './MobileTabBar'
 import { PrivacyModeBanner } from './PrivacyModeBanner'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { CelebrationOverlay } from '../CelebrationOverlay'
@@ -39,7 +40,8 @@ export function AppLayout() {
         {/* relative: textos sr-only (absolute) da página ficam presos aqui dentro;
             sem isso eles se posicionavam pela janela e criavam barras de rolagem
             com espaço vazio na ficha do cliente. */}
-        <main className="relative flex-1 overflow-y-auto p-8 pb-28 print:static print:overflow-visible print:p-0">
+        {/* No celular: margens menores e espaço embaixo pra barra de navegação. */}
+        <main className="app-main relative flex-1 overflow-y-auto px-4 pb-36 pt-4 sm:px-6 sm:pt-6 md:p-8 md:pb-28 print:static print:overflow-visible print:p-0">
           <ErrorBoundary resetKey={location.pathname}>
             <Outlet />
           </ErrorBoundary>
@@ -49,6 +51,7 @@ export function AppLayout() {
         <CelebrationOverlay />
         <TaskCelebrationOverlay />
         <AiAssistantWidget />
+        <MobileTabBar onOpenMenu={() => setMobileNavOpen(true)} menuOpen={mobileNavOpen} />
       </div>
     </div>
   )

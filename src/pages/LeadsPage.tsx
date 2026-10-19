@@ -195,19 +195,20 @@ export function LeadsPage() {
     <div className="flex flex-col gap-4">
       {/* Cabeçalho: título à esquerda, ações principais à direita */}
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
+        {/* No celular o nome da tela já está no topo: aqui fica só para o leitor de tela. */}
+        <div className="sr-only min-w-0 md:not-sr-only">
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Leads</h1>
           <p className="text-sm text-slate-500">Vendas, respostas dos questionários e formulários de captura</p>
         </div>
         {mainTab === 'pipeline' && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" icon={<Gauge size={14} />} onClick={() => setBantOpen(true)}>
-              Métricas BANT
+          <div className="grid w-full grid-cols-[auto_auto_1fr] items-center gap-2 md:flex md:w-auto">
+            <Button variant="secondary" icon={<Gauge size={14} />} onClick={() => setBantOpen(true)} aria-label="Métricas BANT">
+              <span className="hidden sm:inline">Métricas BANT</span>
             </Button>
-            <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)}>
-              Importar
+            <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)} aria-label="Importar leads">
+              <span className="hidden sm:inline">Importar</span>
             </Button>
-            <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
+            <Button icon={<Plus size={14} />} onClick={() => setCreating(true)} className="justify-center">
               Novo lead
             </Button>
           </div>
@@ -215,7 +216,7 @@ export function LeadsPage() {
       </div>
 
       {/* Abas principais */}
-      <div role="tablist" aria-label="Seções de leads" className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-fit">
+      <div role="tablist" aria-label="Seções de leads" className="flex w-full gap-1 rounded-xl bg-slate-100 p-1 sm:w-fit">
         {([
           ['pipeline', 'Vendas', salesLeads.length],
           ['questionnaires', 'Questionários', newQuestionnaires],
@@ -227,7 +228,7 @@ export function LeadsPage() {
             role="tab"
             aria-selected={mainTab === t}
             onClick={() => setMainTab(t)}
-            className={`flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 sm:flex-none ${
+            className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-semibold sm:gap-2 sm:px-4 sm:text-sm transition-all duration-150 sm:flex-none ${
               mainTab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
@@ -314,7 +315,7 @@ export function LeadsPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-              <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+              <div className="relative w-full min-w-[200px] sm:w-auto sm:flex-1 sm:max-w-xs">
                 <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                 <input
                   value={search}
@@ -328,7 +329,7 @@ export function LeadsPage() {
                 value={tempFilter}
                 onChange={(e) => setTempFilter(e.target.value as LeadTemperature | 'none' | '')}
                 aria-label="Filtrar por temperatura do BANT"
-                className={`${filterSelect} ${tempFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${tempFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
               >
                 <option value="">Temperatura: todas ({allPipelineLeads.length})</option>
                 {(['hot', 'warm', 'cold', 'disqualified'] as const).map((t) => (
@@ -342,7 +343,7 @@ export function LeadsPage() {
                 value={segmentFilter}
                 onChange={(e) => setSegmentFilter(e.target.value as LeadSegment | 'none' | '')}
                 aria-label="Filtrar por segmento"
-                className={`${filterSelect} ${segmentFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${segmentFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
               >
                 <option value="">Segmento: todos</option>
                 {(['cleaning_services', 'cleaning_products'] as const).map((sg) => (
@@ -357,7 +358,7 @@ export function LeadsPage() {
                   Limpar filtros
                 </button>
               )}
-              <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500" aria-live="polite">
+              <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 sm:ml-auto sm:w-auto" aria-live="polite">
                 <span>
                   <strong className="font-semibold text-slate-800">{pipelineLeads.length}</strong> {filtersActive ? `de ${allPipelineLeads.length} ` : ''}lead{pipelineLeads.length === 1 ? '' : 's'}
                 </span>
@@ -389,7 +390,7 @@ export function LeadsPage() {
 
           {view === 'kanban' ? (
             // Altura da tela: cada coluna rola por dentro.
-            <div className="h-[calc(100vh-130px)] min-h-[420px]">
+            <div className="h-[calc(100dvh-210px)] min-h-[420px] md:h-[calc(100vh-130px)]">
               <KanbanBoard<Lead, string>
                 key={activePipeline.id}
                 columns={columns}

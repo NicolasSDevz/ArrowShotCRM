@@ -25,7 +25,7 @@ export function Drawer({
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden="true" />
       <div
         ref={panelRef}
         role="dialog"
@@ -34,8 +34,9 @@ export function Drawer({
         tabIndex={-1}
         onKeyDown={onKeyDown}
         className={`relative z-50 flex ${width} flex-col bg-white shadow-2xl outline-none`}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3.5 sm:px-5 sm:py-4">
           <div id={titleId} className="min-w-0 text-base font-semibold text-slate-800">{title}</div>
           <button
             type="button"

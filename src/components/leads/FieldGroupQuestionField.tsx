@@ -85,7 +85,7 @@ export function FieldGroupQuestionField({
                   ? void handleCep(i, e.target.value)
                   : onChange(withValue(value, i, f.type === 'phone' ? maskPhone(e.target.value) : e.target.value))
               }
-              className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
+              className={`w-full rounded-xl border bg-white px-3.5 py-3 text-base text-slate-800 sm:rounded-lg sm:px-3 sm:py-2.5 sm:text-sm outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
                 invalid ? 'border-red-300' : 'border-slate-200'
               }`}
             />

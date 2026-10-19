@@ -50,7 +50,71 @@ export function LeadsListView({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-      <div className="overflow-x-auto">
+      {/* Celular: um cartão por lead em vez da tabela larga. */}
+      <ul className="divide-y divide-slate-100 md:hidden" aria-label="Leads">
+        {sorted.length === 0 ? (
+          <li className="px-4 py-8 text-center text-sm text-slate-400">Nenhum lead encontrado.</li>
+        ) : (
+          shown.map((lead) => {
+            const assignee = lead.assignedTo ? userMap[lead.assignedTo] : undefined
+            const stage = locateLead(pipelines, lead).stage
+            const temp = leadTemperature(lead.bant)
+            const tag = formTagOf?.(lead)
+            return (
+              <li key={lead.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenLead(lead.id)}
+                  className="flex w-full flex-col gap-2 px-4 py-3.5 text-left active:bg-slate-50"
+                  style={tag ? { boxShadow: `inset 3px 0 0 ${tag.color}` } : undefined}
+                >
+                  <div className="flex w-full items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[15px] font-semibold text-slate-900">{isPrivacyMode ? 'Lead ••••••' : lead.contactName}</p>
+                      {lead.companyName && <p className="truncate text-xs text-slate-400">{isPrivacyMode ? 'Empresa ••••••' : lead.companyName}</p>}
+                    </div>
+                    {lead.estimatedValue != null && lead.estimatedValue > 0 && (
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800">
+                        <PrivateMoney value={lead.estimatedValue} />
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold"
+                      style={{ backgroundColor: `${stage.color}1F`, color: stage.color }}
+                    >
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: stage.color }} />
+                      {stage.label}
+                    </span>
+                    {temp && (
+                      <span className={`whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold ${LEAD_TEMPERATURE_BADGE[temp]}`}>
+                        {LEAD_TEMPERATURE_LABEL[temp]} · {bantTotal(lead.bant)}
+                      </span>
+                    )}
+                    {tag && (
+                      <span className="inline-flex max-w-[160px] items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold" style={{ background: `${tag.color}1F`, color: tag.color }}>
+                        <span className="truncate">{tag.name}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex w-full items-center gap-2 text-xs text-slate-400">
+                    {assignee && (
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <Avatar name={assignee.name} photoURL={assignee.photoURL} size="xs" />
+                        <span className="truncate">{assignee.name}</span>
+                      </span>
+                    )}
+                    {lead.nextActionDate && <span className="whitespace-nowrap">Próx.: {format(lead.nextActionDate.toDate(), 'dd/MM', { locale: ptBR })}</span>}
+                    <span className="ml-auto whitespace-nowrap">{daysLabel(lead)} na etapa</span>
+                  </div>
+                </button>
+              </li>
+            )
+          })
+        )}
+      </ul>
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="whitespace-nowrap border-b border-slate-100 bg-slate-50 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
             <tr>

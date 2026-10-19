@@ -31,7 +31,7 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex min-h-0 shrink-0 flex-col rounded-xl bg-slate-50 ${compact ? 'w-[260px] min-w-[240px] p-2.5' : 'w-72 min-w-[280px] p-3'} ${
+      className={`flex min-h-0 shrink-0 flex-col rounded-xl bg-slate-50 ${compact ? 'w-[84vw] max-w-[320px] snap-start p-2.5 sm:w-[260px] sm:min-w-[240px]' : 'w-72 min-w-[280px] p-3'} ${
         isOver ? 'ring-2 ring-brand-300' : ''
       }`}
     >

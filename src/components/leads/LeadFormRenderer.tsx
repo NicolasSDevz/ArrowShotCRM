@@ -336,10 +336,13 @@ export function LeadFormRenderer({
     ) : null
 
   return (
-    <div className={`flex ${fillViewport ? 'min-h-screen' : 'min-h-full'} flex-col`} style={{ background: backgroundColor }}>
+    <div
+      className={`flex ${fillViewport ? 'min-h-screen supports-[min-height:100dvh]:min-h-[100dvh]' : 'min-h-full'} flex-col`}
+      style={{ background: backgroundColor, ...(fillViewport ? { paddingBottom: 'env(safe-area-inset-bottom)' } : {}) }}
+    >
       {fullScreen && banner}
       <div
-        className={`flex flex-1 ${isEnd && design.endVAlign === 'top' ? 'items-start' : 'items-center'} justify-center ${fullScreen ? 'px-5 py-10 sm:px-8' : 'px-4 py-8'}`}
+        className={`flex flex-1 ${isEnd && design.endVAlign === 'top' ? 'items-start' : 'items-center'} justify-center ${fullScreen ? 'px-5 py-8 sm:px-8 sm:py-10' : 'px-3 py-5 sm:px-4 sm:py-8'}`}
         style={contentPadTop !== undefined ? { paddingTop: contentPadTop } : undefined}
       >
       <div
@@ -347,7 +350,7 @@ export function LeadFormRenderer({
         style={fullScreen ? undefined : { background: theme.card }}
       >
         {!fullScreen && banner}
-        <div className={fullScreen ? '' : 'p-6 sm:p-8'} style={cardPadTop !== undefined ? { paddingTop: cardPadTop } : undefined}>
+        <div className={fullScreen ? '' : 'p-5 sm:p-8'} style={cardPadTop !== undefined ? { paddingTop: cardPadTop } : undefined}>
           {inlineImage}
           {(shownPhase === 'welcome' || shownPhase === 'done') && design.logoUrl && (
             <div className={`mb-4 flex ${shownPhase === 'welcome' ? alignFlex : 'justify-center'}`} style={imageGapPx !== undefined ? { marginBottom: imageGapPx } : undefined}>
@@ -362,8 +365,8 @@ export function LeadFormRenderer({
 
           {shownPhase === 'welcome' && (
             <>
-              <h1 className={`mb-1 whitespace-pre-wrap font-bold text-slate-900 ${fullScreen ? 'text-2xl sm:text-3xl' : 'text-xl'} ${alignText}`} style={textStyle}>{design.title || form.name}</h1>
-              {design.subtitle && <p className={`whitespace-pre-wrap text-sm text-slate-500 ${alignText}`} style={mutedStyle}>{design.subtitle}</p>}
+              <h1 className={`mb-1 whitespace-pre-wrap font-bold text-slate-900 ${fullScreen ? 'text-[26px] leading-tight sm:text-3xl' : 'text-xl'} ${alignText}`} style={textStyle}>{design.title || form.name}</h1>
+              {design.subtitle && <p className={`mt-1 whitespace-pre-wrap text-[15px] leading-relaxed text-slate-500 sm:text-sm ${alignText}`} style={mutedStyle}>{design.subtitle}</p>}
               <VideoEmbed url={design.welcomeVideoUrl} />
               {welcomeBlocksBefore && welcomeExtra}
               <div className={`mt-5 flex ${buttonFlex}`}>
@@ -372,9 +375,9 @@ export function LeadFormRenderer({
                   onClick={handleStart}
                   disabled={visibleQuestions.length === 0}
                   style={{ background: primaryColor, color: theme.buttonText }}
-                  className={`flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${buttonAnimationClass(formDesign.welcomeButtonAnimation)}`}
+                  className={`flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 sm:w-auto sm:rounded-lg sm:px-5 sm:py-2.5 sm:text-sm ${buttonAnimationClass(formDesign.welcomeButtonAnimation)}`}
                 >
-                  {design.welcomeButtonLabel || 'Começar'} <ArrowRight size={14} />
+                  {design.welcomeButtonLabel || 'Começar'} <ArrowRight size={16} />
                 </button>
               </div>
               {!welcomeBlocksBefore && welcomeExtra}
@@ -383,7 +386,7 @@ export function LeadFormRenderer({
 
           {(shownPhase === 'question' || shownPhase === 'submitting') && currentQuestion && (
             <div>
-              <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-slate-100" style={theme.text ? { background: `${theme.text}26` } : undefined}>
+              <div className="mb-5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100" style={theme.text ? { background: `${theme.text}26` } : undefined}>
                 <div
                   className="h-full rounded-full transition-all duration-300 ease-in-out"
                   style={{ width: `${((questionIndex + 1) / Math.max(visibleQuestions.length, 1)) * 100}%`, background: primaryColor }}
@@ -394,7 +397,7 @@ export function LeadFormRenderer({
               </p>
 
               {currentQuestion.imageUrl && (
-                <img src={currentQuestion.imageUrl} alt="" className="mb-4 max-h-56 w-full rounded-xl object-cover" />
+                <img src={currentQuestion.imageUrl} alt="" className="mb-4 max-h-48 w-full rounded-xl object-cover sm:max-h-56" />
               )}
 
               <QuestionField
@@ -414,10 +417,16 @@ export function LeadFormRenderer({
               {submitError && isLast && (
                 <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">Não foi possível enviar. Verifique sua internet e toque em Enviar de novo.</p>
               )}
-              <div className="mt-5 flex items-center gap-2">
+              <div className="mt-6 flex items-center gap-2">
                 {questionIndex > 0 && (
-                  <button type="button" onClick={goBack} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100" style={mutedStyle}>
-                    <ArrowLeft size={14} /> Voltar
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    aria-label="Voltar"
+                    className="flex h-12 shrink-0 items-center justify-center gap-1 rounded-xl px-3.5 text-sm font-medium text-slate-500 hover:bg-slate-100 sm:h-auto sm:rounded-lg sm:px-3 sm:py-2"
+                    style={mutedStyle}
+                  >
+                    <ArrowLeft size={16} /> <span className="hidden sm:inline">Voltar</span>
                   </button>
                 )}
                 <button
@@ -425,16 +434,15 @@ export function LeadFormRenderer({
                   onClick={goNext}
                   disabled={shownPhase === 'submitting'}
                   style={{ background: primaryColor, color: theme.buttonText }}
-                  className={`ml-auto flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${isLast && shownPhase !== 'submitting' ? buttonAnimationClass(formDesign.submitButtonAnimation) : ''}`}
+                  className={`ml-auto flex h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 text-base font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 sm:h-auto sm:flex-none sm:rounded-lg sm:px-5 sm:py-2.5 sm:text-sm ${isLast && shownPhase !== 'submitting' ? buttonAnimationClass(formDesign.submitButtonAnimation) : ''}`}
                 >
                   {shownPhase === 'submitting' ? (
                     <Spinner className="h-4 w-4 border-white/30 border-t-white" />
                   ) : isLast ? (
-                    <Send size={14} />
-                  ) : (
-                    <ArrowRight size={14} />
-                  )}
+                    <Send size={16} />
+                  ) : null}
                   {isLast ? 'Enviar' : 'Continuar'}
+                  {!isLast && shownPhase !== 'submitting' && <ArrowRight size={16} />}
                 </button>
               </div>
             </div>
@@ -514,7 +522,7 @@ function QuestionField({
   ) : null
   const heading = (
     <>
-      <span className={`mb-1.5 block whitespace-pre-wrap text-base font-medium text-slate-800 ${TEXT_ALIGN_CLASS[align]}`} style={theme.text ? { color: theme.text } : undefined}>
+      <span className={`mb-2 block whitespace-pre-wrap text-lg font-semibold leading-snug text-slate-800 sm:mb-1.5 sm:text-base sm:font-medium ${TEXT_ALIGN_CLASS[align]}`} style={theme.text ? { color: theme.text } : undefined}>
         {question.label || <span className="text-slate-300">Texto da pergunta</span>}
         {question.required && <span className="text-red-400"> *</span>}
       </span>
@@ -526,7 +534,7 @@ function QuestionField({
       {linkButtons}
     </>
   )
-  const inputClass = `w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
+  const inputClass = `w-full rounded-xl border bg-white px-3.5 py-3 text-base text-slate-800 sm:rounded-lg sm:px-3 sm:py-2.5 sm:text-sm outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
     error === 'required' ? 'border-red-300' : 'border-slate-200'
   }`
   const handleEnterKey = (e: React.KeyboardEvent) => {
@@ -565,14 +573,14 @@ function QuestionField({
                 key={opt.id}
                 type="button"
                 onClick={() => (isMulti ? onToggleOption(opt.id) : onChange(opt.id))}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
+                className={`flex min-h-[48px] items-center gap-3 rounded-xl border px-4 py-3 text-left text-[15px] transition-all active:scale-[0.99] sm:min-h-0 sm:gap-2 sm:rounded-lg sm:px-3 sm:py-2.5 sm:text-sm ${
                   // Com cor de texto do tema (fundo colorido/escuro), o hover só clareia — branco apagaria o texto.
                   checked ? '' : `border-slate-200 text-slate-700 ${theme.text ? 'hover:bg-white/10' : 'hover:bg-slate-50'}`
                 }`}
                 style={checked ? { borderColor: theme.primary, background: `${theme.primary}1A`, color: theme.primary } : theme.text ? { color: theme.text } : undefined}
               >
                 <span
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center border ${isMulti ? 'rounded' : 'rounded-full'} ${checked ? '' : 'border-slate-300'}`}
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center border sm:h-4 sm:w-4 ${isMulti ? 'rounded' : 'rounded-full'} ${checked ? '' : 'border-slate-300'}`}
                   style={checked ? { borderColor: theme.primary, background: theme.primary } : undefined}
                 >
                   {checked && <span className={`h-1.5 w-1.5 bg-white ${isMulti ? 'rounded-sm' : 'rounded-full'}`} />}

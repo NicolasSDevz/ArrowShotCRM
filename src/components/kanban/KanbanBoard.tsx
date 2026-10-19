@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import {
   DndContext,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -36,7 +37,12 @@ export function KanbanBoard<T extends KanbanItemBase, S extends string>({
   compact?: boolean
 }) {
   const [limits, setLimits] = useState<Record<string, number>>({})
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  // No toque o cartão só arrasta depois de segurar um instante; antes disso o
+  // dedo rola a tela normalmente (antes, deslizar de lado puxava o cartão).
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } })
+  )
 
   const byColumn = (status: S) =>
     items.filter((i) => getStatus(i) === status).sort((a, b) => a.order - b.order)
@@ -67,7 +73,7 @@ export function KanbanBoard<T extends KanbanItemBase, S extends string>({
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-      <div className="flex h-full gap-3 overflow-x-auto pb-2">
+      <div className={`flex h-full gap-3 overflow-x-auto pb-2 ${compact ? 'snap-x snap-mandatory scroll-px-1 md:snap-none' : ''}`}>
         {columns.map((col) => {
           const colItems = byColumn(col.id)
           const limit = pageSize ? (limits[col.id] ?? pageSize) : colItems.length

@@ -672,3 +672,30 @@ body {
   --tw-prose-td-borders: var(--m-border2);
   color: var(--m-text2);
 }
+
+/* ---------------- Celular ---------------- */
+
+/* Barra de baixo do celular no modo escuro (bg-white/95 não passa pelo mapa de cores). */
+:root[data-theme="dark"] .mobile-tabbar { background-color: color-mix(in srgb, var(--dk-surface) 95%, transparent); border-color: rgba(148, 163, 184, 0.15); }
+
+/* Janela que sobe de baixo no celular. */
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 639px) {
+  .sheet-up { animation: sheet-up 0.22s ease-out; }
+}
+
+@media (max-width: 767px) {
+  /* Campo com letra menor que 16px faz o iPhone dar zoom ao tocar. */
+  .app-main input:not([type="checkbox"]):not([type="radio"]),
+  .app-main select,
+  .app-main textarea,
+  [role="dialog"] input:not([type="checkbox"]):not([type="radio"]),
+  [role="dialog"] select,
+  [role="dialog"] textarea { font-size: 16px !important; }
+
+  /* Títulos de página grandes demais pra tela pequena. */
+  .app-main h1 { font-size: 1.5rem !important; line-height: 1.2 !important; }
+
+  /* Toque sem o "flash" cinza do navegador. */
+  .app-main, .mobile-tabbar { -webkit-tap-highlight-color: transparent; }
+}
