@@ -562,6 +562,19 @@ export function ClientFormModal({
         <Field label="Nome da empresa" required>
           <Input autoFocus value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />
         </Field>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 sm:col-span-2">
+          <Field label="Observações: o que foi vendido e combinado com o cliente">
+            <Textarea
+              rows={3}
+              value={form.notes}
+              onChange={(e) => set('notes', e.target.value)}
+              placeholder="Ex: fechou tráfego no Google + 4 artes por mês, prometido site novo até dia 10, desconto de 20% nos 3 primeiros meses..."
+            />
+          </Field>
+          <p className="mt-1 text-xs text-amber-700">
+            Escreva tudo o que foi vendido ou prometido. A equipe vê isso no topo da ficha do cliente e no aviso de cliente novo.
+          </p>
+        </div>
         <Field label="WhatsApp">
           <Input
             value={form.whatsapp}
@@ -934,12 +947,6 @@ export function ClientFormModal({
             ))}
           </div>
           <p className="mt-1 text-xs text-slate-400">Selecione um ou mais responsáveis (ex: co-gestão de Tráfego Pago).</p>
-        </div>
-
-        <div className="sm:col-span-2">
-          <Field label="Observações">
-            <Textarea rows={2} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
-          </Field>
         </div>
 
         {(profile?.role === 'admin' || profile?.role === 'manager') && (

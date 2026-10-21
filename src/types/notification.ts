@@ -43,6 +43,7 @@ export type NotificationType =
   | 'store_refund_request' // Loja: aluno pediu reembolso
   | 'store_refund' // Loja: reembolso/chargeback feito no Mercado Pago (acesso removido)
   | 'store_capi_error' // Loja: o Meta recusou a venda na API de Conversões
+  | 'consulting_pending' // Consultoria do mês ainda não feita com algum cliente ativo
 
 export interface AppNotification {
   id: string
@@ -97,6 +98,31 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   store_refund_request: 'Pedido de reembolso',
   store_refund: 'Estorno no Mercado Pago',
   store_capi_error: 'Venda não marcada no Meta',
+  consulting_pending: 'Consultoria pendente',
+}
+
+/** Avisos de rotina que deixaram de ser enviados (21/10/2026): o sino ficava
+ *  cheio de "salvou", "criou", "atualizou" e as importantes se perdiam.
+ *  Continuam registrados no histórico de atividades; só não viram
+ *  notificação. As antigas desses tipos também somem da lista. */
+export const QUIET_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set<NotificationType>([
+  'task_created',
+  'task_updated',
+  'task_completed',
+  'funnel_saved',
+  'planning_saved',
+  'landing_page_saved',
+  'content_created',
+  'content_published',
+  'content_imported',
+  'lead_stage_changed',
+  'report_created',
+  'team_member_added',
+  'member_health_updated',
+])
+
+export function isQuietNotificationType(type: NotificationType): boolean {
+  return QUIET_NOTIFICATION_TYPES.has(type)
 }
 
 /** Notifications older than this are pruned client-side (no backend

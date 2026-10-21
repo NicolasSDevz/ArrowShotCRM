@@ -236,7 +236,18 @@ export function ClientDetailPage() {
           )}
         </div>
 
-        {client.notes && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-600">{client.notes}</p>}
+        <section aria-labelledby="client-notes-title" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <h2 id="client-notes-title" className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+            Observações: o que foi vendido e combinado
+          </h2>
+          {client.notes?.trim() ? (
+            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{client.notes}</p>
+          ) : (
+            <p className="mt-1 text-sm text-amber-800">
+              Nenhuma observação. Clique em Editar e escreva o que foi vendido ou prometido a este cliente.
+            </p>
+          )}
+        </section>
       </div>
 
       <ClientOnboardingMeetingsSection client={client} />

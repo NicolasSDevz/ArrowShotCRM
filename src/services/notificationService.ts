@@ -3,6 +3,7 @@ import {
   addDoc,
   doc,
   updateDoc,
+  setDoc,
   deleteDoc,
   where,
   query,
@@ -12,6 +13,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { AppNotification, EntityType, NotificationType } from '../types'
+import { isQuietNotificationType } from '../types/notification'
 import { collectionService } from './firestore'
 
 const COLLECTION = 'notifications'
@@ -29,6 +31,8 @@ export async function createNotification(params: {
   entityType?: EntityType
   entityId?: string
 }) {
+  // Avisos de rotina não viram mais notificação (ver QUIET_NOTIFICATION_TYPES).
+  if (isQuietNotificationType(params.type)) return
   // Secondary side-effect: a failure here (rules, rede) must never reject the
   // user action that triggered it — callers `await` this inline, sometimes
   // inside a Promise.all over several recipients.
@@ -45,6 +49,29 @@ export async function createNotification(params: {
     })
   } catch (err) {
     console.error('createNotification falhou (ação principal não afetada)', err)
+  }
+}
+
+/** Cria (ou regrava igual) uma notificação com id fixo — usada pelos avisos
+ *  automáticos que o navegador gera sozinho, pra várias abas abertas não
+ *  duplicarem o mesmo aviso. Só para o próprio usuário logado. */
+export async function upsertOwnNotification(
+  id: string,
+  params: { userId: string; type: NotificationType; message: string; entityType?: EntityType; entityId?: string }
+) {
+  try {
+    await setDoc(doc(db, COLLECTION, id), {
+      userId: params.userId,
+      type: params.type,
+      message: params.message,
+      actorName: null,
+      entityType: params.entityType ?? null,
+      entityId: params.entityId ?? null,
+      read: false,
+      createdAt: serverTimestamp(),
+    })
+  } catch (err) {
+    console.error('upsertOwnNotification falhou', err)
   }
 }
 
@@ -97,6 +124,7 @@ export async function notifyAdminsOfAction(params: {
   entityId?: string
   alreadyNotified?: string[]
 }) {
+  if (isQuietNotificationType(params.type)) return
   try {
     const adminIds = await getAdminUserIds()
     const skip = new Set([params.actorId, ...(params.alreadyNotified ?? [])])

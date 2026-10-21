@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { subscribeMyNotifications, deleteNotifications } from '../services/notificationService'
 import type { AppNotification } from '../types'
-import { isNotificationStale } from '../types/notification'
+import { isNotificationStale, isQuietNotificationType } from '../types/notification'
 import { useSharedSubscription } from './useCollectionSubscription'
 
 /** The viewer's own notifications. The platform owner isn't special here —
@@ -16,7 +16,7 @@ export function useNotifications(userId: string | undefined) {
   const sorted = useMemo(
     () =>
       [...data]
-        .filter((n) => !isNotificationStale(n))
+        .filter((n) => !isNotificationStale(n) && !isQuietNotificationType(n.type))
         .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0)),
     [data]
   )

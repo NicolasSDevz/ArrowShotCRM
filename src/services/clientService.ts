@@ -46,7 +46,9 @@ export async function createClient(
     hasLandingPage && 'Landing Page',
   ].filter((v): v is string => !!v)
   const serviceLabel = serviceParts.length > 0 ? serviceParts.join(' + ') : 'Não definido'
-  const message = `🆕 Novo cliente cadastrado: ${data.companyName}\nServiço: ${serviceLabel}\nCadastrado por: ${userName}`
+  const notes = data.notes?.trim()
+  const notesLine = notes ? `Observação: ${notes.length > 600 ? `${notes.slice(0, 600)}...` : notes}` : 'Observação: nenhuma escrita'
+  const message = `Novo cliente cadastrado: ${data.companyName}\nServiço: ${serviceLabel}\n${notesLine}\nCadastrado por: ${userName}`
 
   const recipientIds = getInternalStaffIds(users).filter((uid) => uid !== userId)
   await Promise.all(

@@ -75,6 +75,7 @@ export const NOTIFICATION_ICON: Record<NotificationType, IconType> = {
   store_refund_request: RotateCcw,
   store_refund: RotateCcw,
   store_capi_error: AlertTriangle,
+  consulting_pending: CalendarClock,
 }
 
 /** Icon chip background/text, per the spec's colors (azul, verde, vermelho,
@@ -118,6 +119,7 @@ export const NOTIFICATION_ICON_STYLE: Record<NotificationType, string> = {
   store_refund_request: 'bg-red-50 text-red-600',
   store_refund: 'bg-red-50 text-red-600',
   store_capi_error: 'bg-amber-50 text-amber-600',
+  consulting_pending: 'bg-amber-50 text-amber-600',
 }
 
 /** "há 5 minutos" / "há 2 horas" / "ontem às 14:30" / "dd/MM/yyyy às HH:mm". */

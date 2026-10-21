@@ -176,6 +176,47 @@ async function ensureMonthTask(month: Date, checklist: ChecklistItem[], assigned
   })
 }
 
+// --- aviso "Consultoria pendente" -------------------------------------------
+
+/** Dias em que o aviso sai: toda segunda-feira e, nos últimos 10 dias do mês,
+ *  todo dia útil — no começo do mês todo mundo está pendente e avisar todo
+ *  dia viraria barulho. */
+export function isConsultingReminderDay(now = new Date()): boolean {
+  const weekday = now.getDay()
+  if (weekday === 0 || weekday === 6) return false
+  if (weekday === 1) return true
+  return endOfMonth(now).getDate() - now.getDate() < 10
+}
+
+export function consultingReminderId(userId: string, now = new Date()): string {
+  return `consultoria-pendente-${userId}-${format(now, 'yyyy-MM-dd')}`
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`
+}
+
+/** Texto do aviso, pensado pra leitor de tela: sem emoji nem travessão,
+ *  quantidade primeiro e depois os nomes. Undefined quando não falta nada. */
+export function pendingConsultingMessage(rows: ConsultingStatusRow[], month: Date): string | undefined {
+  const pending = rows.filter((r) => !r.done)
+  if (pending.length === 0) return undefined
+  const notScheduled = pending.filter((r) => !r.scheduled).map((r) => r.client.companyName)
+  const scheduled = pending.filter((r) => r.scheduled).map((r) => r.client.companyName)
+  const total = pending.length
+  const parts = [
+    `Falta fazer a consultoria de ${format(month, 'MMMM', { locale: ptBR })} com ${total} ${total === 1 ? 'cliente' : 'clientes'}.`,
+  ]
+  if (notScheduled.length) parts.push(`Sem agendar: ${joinNames(notScheduled)}.`)
+  if (scheduled.length) parts.push(`Agendada, ainda não feita: ${joinNames(scheduled)}.`)
+  return parts.join('\n')
+}
+
+export function resolveConsultingOwnerId(users: AppUser[]): string | undefined {
+  return resolveJamilsonId(users)
+}
+
 export interface MonthlyConsultingSyncInput {
   clients: Client[]
   meetings: Meeting[]

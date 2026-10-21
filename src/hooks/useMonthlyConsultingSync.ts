@@ -4,7 +4,18 @@ import { useAllTasks } from './useTasks'
 import { useClients } from './useClients'
 import { useAllMeetings } from './useMeetings'
 import { useUsers } from './useUsers'
-import { syncMonthlyConsultingTask } from '../services/monthlyConsultingTask'
+import { useNotifications } from './useNotifications'
+import { startOfMonth } from 'date-fns'
+import {
+  consultingReminderId,
+  getConsultingStatus,
+  isConsultingReminderDay,
+  monthlyConsultingTaskId,
+  pendingConsultingMessage,
+  resolveConsultingOwnerId,
+  syncMonthlyConsultingTask,
+} from '../services/monthlyConsultingTask'
+import { upsertOwnNotification } from '../services/notificationService'
 
 /** Mounted once in AppLayout, ao lado de useTaskDueDateSweep — cria a tarefa
  *  "Consultorias do mês" do Jamilson e mantém o checklist dela em dia com as
@@ -17,6 +28,7 @@ export function useMonthlyConsultingSync() {
   const clients = useClients()
   const meetings = useAllMeetings()
   const users = useUsers()
+  const { notifications, loading: notificationsLoading } = useNotifications(profile?.id)
   const running = useRef(false)
   const pending = useRef(false)
   const latest = useRef<() => Promise<void>>(async () => {})
@@ -69,4 +81,31 @@ export function useMonthlyConsultingSync() {
     const timer = setTimeout(run, 1500)
     return () => clearTimeout(timer)
   }, [ready, tasks.data, clients.data, meetings.data, users.data])
+
+  // Aviso "Consultoria pendente" — só pro Jamilson (CS) e pros admins. Cada
+  // um gera o próprio aviso quando abre o CRM, no máximo um por dia (id fixo
+  // por pessoa e dia), nos dias de isConsultingReminderDay.
+  const isRecipient =
+    !!profile && (profile.role === 'admin' || profile.id === resolveConsultingOwnerId(users.data))
+  const reminderId = profile ? consultingReminderId(profile.id) : ''
+  const alreadySent = notifications.some((n) => n.id === reminderId)
+  useEffect(() => {
+    if (!ready || !profile || !isRecipient || notificationsLoading || alreadySent) return
+    const now = new Date()
+    if (!isConsultingReminderDay(now)) return
+    const month = startOfMonth(now)
+    const message = pendingConsultingMessage(getConsultingStatus(clients.data, meetings.data, month, now), month)
+    if (!message) return
+    const timer = setTimeout(() => {
+      upsertOwnNotification(reminderId, {
+        userId: profile.id,
+        type: 'consulting_pending',
+        message,
+        entityType: 'task',
+        entityId: monthlyConsultingTaskId(month),
+      })
+    }, 3000)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, isRecipient, notificationsLoading, alreadySent, reminderId])
 }
