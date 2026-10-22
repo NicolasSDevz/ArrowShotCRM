@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Save } from 'lucide-react'
 import { Button } from '../ui/Button'
 
-/** Peças comuns aos dois briefings (Tráfego Pago e Social Mídia). Quem
+/** Peças do formulário de briefing (Tráfego Pago). Quem
  *  preenche é o Jamilson, que usa leitor de tela: títulos de verdade (h3/h4)
  *  pra navegar por seção, caixas de marcar com rótulo, nada desabilitado
  *  (campo desabilitado some da navegação por Tab) e aviso falado ao salvar. */

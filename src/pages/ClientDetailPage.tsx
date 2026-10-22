@@ -8,7 +8,7 @@ import { useTasks } from '../hooks/useTasks'
 import { useContents } from '../hooks/useContents'
 import { useUsers } from '../hooks/useUsers'
 import { ClientFormModal } from '../components/clients/ClientFormModal'
-import { ClientBriefingTab } from '../components/clients/ClientBriefingTab'
+import { ClientPaidTrafficBriefingPanel } from '../components/clients/ClientPaidTrafficBriefingPanel'
 import { ClientCampaignPlanningPanel } from '../components/clients/ClientCampaignPlanningPanel'
 import { ClientLandingPagePanel } from '../components/clients/ClientLandingPagePanel'
 import { ClientServiceBadges } from '../components/clients/ServiceBadges'
@@ -259,7 +259,8 @@ export function ClientDetailPage() {
         <Tabs
           label={`Seções da ficha de ${client.companyName}`}
           tabs={[
-            { label: 'Briefing', content: <ClientBriefingTab client={client} /> },
+            // Briefing é só de Tráfego Pago: o de Social Mídia saiu em 22/10/2026 (ninguém usava).
+            ...(hasPT ? [{ label: 'Briefing', content: <ClientPaidTrafficBriefingPanel client={client} /> }] : []),
             { label: 'Acessos', content: <ClientAccessTab client={client} /> },
             ...trafficTabs,
             ...contentTab,

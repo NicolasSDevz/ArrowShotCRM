@@ -198,7 +198,7 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
       })
   }
 
-  // Resync only on client switch — see ClientBriefingPanel: depending on the
+  // Resync only on client switch — depending on the
   // sub-object identity would wipe unsaved edits on every `clients` snapshot.
   useEffect(() => {
     setForm(mergeCampaignPlanning(client.campaignPlanning))

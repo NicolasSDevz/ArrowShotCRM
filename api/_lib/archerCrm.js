@@ -752,7 +752,6 @@ export async function toolAgencyOverview(dir) {
     mrrClientesAtivos: active.reduce((s, c) => s + (Number(c.monthlyValue) || 0), 0),
     clientesAtivosSemValorMensal: active.filter((c) => !c.monthlyValue).map((c) => c.companyName),
     briefingTrafegoNaoPreenchido: trafficClients.filter((c) => !c.paidTrafficBriefing?.filledAt).map((c) => c.companyName),
-    briefingSocialNaoPreenchido: active.filter((c) => c.modules?.socialMedia && !c.briefing?.filledAt).map((c) => c.companyName),
     tarefas: {
       abertas: tasks.filter((t) => !TASK_DONE.has(t.status)).length,
       atrasadas: overdue.length,
@@ -964,8 +963,6 @@ async function writeBriefing({ dir, user, input, root, fields, label }) {
 export const toolWritePaidTrafficBriefing = (deps, input) =>
   writeBriefing({ ...deps, input, root: 'paidTrafficBriefing', fields: PAID_TRAFFIC_FIELDS, label: 'Briefing de Tráfego Pago' })
 
-export const toolWriteSocialBriefing = (deps, input) =>
-  writeBriefing({ ...deps, input, root: 'briefing', fields: SOCIAL_FIELDS, label: 'Briefing de Social Media' })
 
 // ---------------------------------------------------------------- escrita nos leads
 
@@ -1340,21 +1337,6 @@ export const CRM_TOOLS = [
       additionalProperties: false,
     },
   },
-  {
-    name: 'preencher_briefing_social',
-    description:
-      'GRAVA campos no Briefing de Social Media do cliente. Por padrão só preenche campos vazios; os já preenchidos voltam em "pulados" (sobrescrever=true só se o usuário pediu).',
-    input_schema: {
-      type: 'object',
-      properties: {
-        cliente: clienteProp,
-        campos: { type: 'object', properties: schemaFor(SOCIAL_FIELDS), additionalProperties: false },
-        sobrescrever: { type: 'boolean' },
-      },
-      required: ['cliente', 'campos'],
-      additionalProperties: false,
-    },
-  },
 ]
 
 export const CRM_TOOL_LABEL = {
@@ -1368,5 +1350,4 @@ export const CRM_TOOL_LABEL = {
   conteudos: 'conteúdos',
   otimizacoes: 'otimizações',
   preencher_briefing_trafego: 'gravou no briefing de tráfego',
-  preencher_briefing_social: 'gravou no briefing de social media',
 }

@@ -32,7 +32,6 @@ import {
   toolTasks,
   toolWritePaidTrafficBriefing,
   toolWriteBant,
-  toolWriteSocialBriefing,
 } from '../_lib/archerCrm.js'
 import {
   DATE_RE,
@@ -93,7 +92,7 @@ Você tem ferramentas que buscam dados reais e atualizados. Use-as sempre que a 
 - Análise de conta de anúncio fica melhor com contexto: cruze os números com o briefing (ticket médio, resultado esperado, região) e o planejamento (verba) que vêm em detalhes_cliente.
 
 ## Escrevendo no briefing
-- Use preencher_briefing_trafego / preencher_briefing_social quando o usuário pedir pra preencher, completar, salvar ou atualizar o briefing — por exemplo colando anotações ou a transcrição de uma reunião. Extraia de lá o que couber em cada campo.
+- Use preencher_briefing_trafego quando o usuário pedir pra preencher, completar, salvar ou atualizar o briefing — por exemplo colando anotações ou a transcrição de uma reunião. Extraia de lá o que couber em cada campo.
 - Grave SÓ o que o usuário disse ou colou. Nunca invente nem "complete" com suposição — o que não estiver no texto fica vazio.
 - Se o usuário só conversou sobre o cliente e não pediu pra gravar, não grave: ofereça ("quer que eu salve isso no briefing?").
 - Por padrão só preenche campo vazio. Se a ferramenta devolver "pulados" (campo já tinha valor), mostre o valor atual vs. o novo e pergunte se pode substituir — só então chame de novo com sobrescrever=true.
@@ -249,7 +248,6 @@ async function toolListClients(dir) {
       temGoogleAds: !!c.campaignPlanning?.acessos?.googleAdsAccountId,
       temMetaAds: !!c.campaignPlanning?.acessos?.metaAdsAccountId,
       briefingTrafegoPreenchido: !!c.paidTrafficBriefing?.filledAt,
-      briefingSocialPreenchido: !!c.briefing?.filledAt,
     }))
 }
 
@@ -321,8 +319,6 @@ async function runTool(name, input, deps) {
       return toolOptimizations(deps.dir, input)
     case 'preencher_briefing_trafego':
       return toolWritePaidTrafficBriefing(deps, input)
-    case 'preencher_briefing_social':
-      return toolWriteSocialBriefing(deps, input)
     default:
       throw new Error(`Ferramenta desconhecida: ${name}`)
   }
