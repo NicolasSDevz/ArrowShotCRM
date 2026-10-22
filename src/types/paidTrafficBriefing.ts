@@ -16,6 +16,29 @@ function emptyContact(): BriefingContact {
   return { id: crypto.randomUUID(), name: '', email: '', whatsapp: '', birthday: null }
 }
 
+/** Quem o cliente atende: decide quais perguntas de público aparecem. */
+export type PublicoAtendido = 'pf' | 'pj' | 'ambos'
+
+export const PUBLICO_ATENDIDO_LABEL: Record<PublicoAtendido, string> = {
+  pf: 'Pessoas físicas (casas e apartamentos)',
+  pj: 'Empresas e condomínios',
+  ambos: 'Os dois',
+}
+
+/** Papéis dos responsáveis (seção 1). No formulário cada pessoa aparece uma
+ *  vez só, com caixas de marcar para o que ela faz; ao salvar, ela vai para
+ *  a lista de cada papel marcado (o mesmo contato, com o mesmo id). */
+export type BriefingContactRole = 'socios' | 'decisores' | 'aprovadoresCampanhas' | 'financeiro' | 'marketing' | 'comercial'
+
+export const BRIEFING_CONTACT_ROLES: { key: BriefingContactRole; label: string }[] = [
+  { key: 'socios', label: 'Sócio ou dono' },
+  { key: 'decisores', label: 'Toma as decisões' },
+  { key: 'aprovadoresCampanhas', label: 'Aprova as campanhas' },
+  { key: 'financeiro', label: 'Financeiro' },
+  { key: 'marketing', label: 'Marketing' },
+  { key: 'comercial', label: 'Comercial' },
+]
+
 export type CreditCardForAds = 'sim' | 'nao' | 'boleto'
 
 export const CREDIT_CARD_FOR_ADS_LABEL: Record<CreditCardForAds, string> = {
@@ -41,6 +64,8 @@ export interface PaidTrafficBriefing {
   financeiro: BriefingContact[]
   marketing: BriefingContact[]
   comercial: BriefingContact[]
+
+  publicoAtendido?: PublicoAtendido
 
   // Seção 2 — Comercial
   estruturaTime?: string

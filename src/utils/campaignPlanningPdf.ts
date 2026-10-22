@@ -752,20 +752,33 @@ export async function generateCampaignPlanningPdf(client: Client, planning: Camp
   } else {
     const colGap = 12
     const colW = (CONTENT_W - colGap) / 2
-    const b2cEnd = profileBlock(doc, MARGIN, y, colW, 'Perfil B2C (Consumidor Final)', BLUE_BG, DARK_BLUE, [
-      ['Gênero', briefing.b2cGenero || '—'],
-      ['Estado civil/filhos', briefing.b2cEstadoCivilFilhos || '—'],
-      ['Faixa etária', briefing.b2cFaixaEtaria || '—'],
-      ['Escolaridade/profissão', briefing.b2cEscolaridadeProfissao || '—'],
-      ['Região', briefing.b2cRegiao || '—'],
+    // Só o público que o cliente atende e só as linhas com resposta (várias
+    // perguntas saíram do briefing em 22/10/2026).
+    const rows = (list: [string, string | undefined][]) => list.filter(([, v]) => v && v !== '—') as [string, string][]
+    const pfRows = rows([
+      ['Gênero', briefing.b2cGenero],
+      ['Faixa etária', briefing.b2cFaixaEtaria],
+      ['Região', briefing.b2cRegiao],
+      ['Estado civil/filhos', briefing.b2cEstadoCivilFilhos],
+      ['Escolaridade/profissão', briefing.b2cEscolaridadeProfissao],
     ])
-    const b2bEnd = profileBlock(doc, MARGIN + colW + colGap, y, colW, 'Perfil B2B (Empresas)', VIOLET_BG, VIOLET_TEXT, [
-      ['Setor', briefing.b2bSetor || '—'],
-      ['Faturamento mínimo', brl(briefing.b2bFaturamentoMinimo)],
-      ['Nº de funcionários', briefing.b2bQuantidadeFuncionarios || '—'],
-      ['Cargo do decisor', briefing.b2bCargoDecisor || '—'],
-      ['Localização', briefing.b2bLocalizacao || '—'],
+    const pjRows = rows([
+      ['Setor', briefing.b2bSetor],
+      ['Cargo do decisor', briefing.b2bCargoDecisor],
+      ['Localização', briefing.b2bLocalizacao],
+      ['Nº de funcionários', briefing.b2bQuantidadeFuncionarios],
+      ['Faturamento mínimo', briefing.b2bFaturamentoMinimo != null ? brl(briefing.b2bFaturamentoMinimo) : undefined],
     ])
+    const pub = briefing.publicoAtendido
+    const showPf = pub ? pub !== 'pj' : pfRows.length > 0 || pjRows.length === 0
+    const showPj = pub ? pub !== 'pf' : pjRows.length > 0
+    const blocks: [string, RGB, RGB, [string, string][]][] = []
+    if (showPf) blocks.push(['Perfil B2C (Consumidor Final)', BLUE_BG, DARK_BLUE, pfRows.length ? pfRows : [['Perfil', '—']]])
+    if (showPj) blocks.push(['Perfil B2B (Empresas)', VIOLET_BG, VIOLET_TEXT, pjRows.length ? pjRows : [['Perfil', '—']]])
+    const blockW = blocks.length > 1 ? colW : CONTENT_W
+    const ends = blocks.map(([title, bg, fg, list], i) => profileBlock(doc, MARGIN + i * (colW + colGap), y, blockW, title, bg, fg, list))
+    const b2cEnd = Math.max(y, ...ends)
+    const b2bEnd = b2cEnd
     let noteY = Math.max(b2cEnd, b2bEnd) + 8
     noteY = ensureSpace(doc, clientName, noteY, 30)
     const noteW = (CONTENT_W - colGap) / 2

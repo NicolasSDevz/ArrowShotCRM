@@ -781,6 +781,7 @@ export async function toolAgencyOverview(dir) {
 /** Campos do Briefing de Tráfego Pago (src/types/paidTrafficBriefing.ts) que
  *  o Archer pode preencher, com o tipo de cada um. */
 const PAID_TRAFFIC_FIELDS = {
+  publicoAtendido: ['pf', 'pj', 'ambos'],
   estruturaTime: 'string',
   processoVendas: 'string',
   sistemaGestaoLeads: 'string',
@@ -1276,7 +1277,7 @@ export const CRM_TOOLS = [
   {
     name: 'preencher_briefing_trafego',
     description:
-      'GRAVA campos no Briefing de Tráfego Pago do cliente. Por padrão só preenche campos vazios; campos já preenchidos voltam em "pulados" (use sobrescrever=true só se o usuário pediu pra substituir). Responsáveis são acrescentados, nunca apagados. Valores em R$ como número (ticketMedio 350, não "R$ 350").',
+      'GRAVA campos no Briefing de Tráfego Pago do cliente. Por padrão só preenche campos vazios; campos já preenchidos voltam em "pulados" (use sobrescrever=true só se o usuário pediu pra substituir). Responsáveis são acrescentados, nunca apagados. Valores em R$ como número (ticketMedio 350, não "R$ 350"). publicoAtendido: pf = só pessoa física (casas e apartamentos), pj = só empresas e condomínios, ambos = os dois. A dor principal do cliente vai em b2cDorPrincipal mesmo quando o público é empresa.',
     input_schema: {
       type: 'object',
       properties: {
