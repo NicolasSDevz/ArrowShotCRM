@@ -64,7 +64,8 @@ export function MetricCard({
       </div>
       <p className="relative mt-3 text-[12.5px] font-medium leading-snug text-slate-500">{label}</p>
       <p
-        className={`relative mt-0.5 whitespace-nowrap text-[22px] font-bold leading-tight tracking-tight tabular-nums ${valueColor ? '' : 'text-slate-900'}`}
+        title={value}
+        className={`relative mt-0.5 truncate text-[22px] font-bold leading-tight tracking-tight tabular-nums ${valueColor ? '' : 'text-slate-900'}`}
         style={valueColor ? { color: valueColor } : undefined}
       >
         {value}

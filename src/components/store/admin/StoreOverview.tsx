@@ -1,30 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { BarChart3, Clock, QrCode, Receipt, RotateCcw, ShoppingBag, ShoppingCart, Sparkles, TrendingUp, Wallet } from 'lucide-react'
 import { Badge } from '../../ui/Badge'
+import { MetricCard } from '../../ui/MetricCard'
 import { formatCents, STORE_METHOD_LABEL, type StoreAbandoned, type StoreOrder, type StoreProduct } from '../../../types/store'
 import { OrderStatusBadge } from './StoreOrdersTable'
 import { DateRangeFilter, inRange, resolveRange, type DateRange, type DateRangeValue } from './DateRangeFilter'
-
-const TONES = {
-  blue: 'bg-brand-50 text-brand-600',
-  green: 'bg-emerald-50 text-emerald-600',
-  violet: 'bg-violet-50 text-violet-600',
-  amber: 'bg-amber-50 text-amber-600',
-  teal: 'bg-teal-50 text-teal-600',
-}
-
-function Kpi({ icon, tone, label, value, hint }: { icon: ReactNode; tone: keyof typeof TONES; label: string; value: string | number; hint?: string }) {
-  return (
-    <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.05)]">
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${TONES[tone]}`} aria-hidden="true">{icon}</span>
-      <div className="min-w-0">
-        <p className="text-[13px] font-medium text-slate-500">{label}</p>
-        <p className="mt-0.5 text-[22px] font-extrabold leading-tight text-slate-900 tabular-nums">{value}</p>
-        {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
-      </div>
-    </div>
-  )
-}
 
 const initials = (name: string) =>
   name
@@ -73,14 +53,14 @@ export function StoreOverview({ orders, products, abandoned = [], compact = fals
       </div>
 
       <div className={`grid gap-3 ${compact ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'}`}>
-        <Kpi icon={<Wallet size={19} />} tone="green" label="Faturamento aprovado" value={formatCents(revenue)} hint={bumpRevenue > 0 ? `${formatCents(bumpRevenue)} vieram de order bumps` : undefined} />
-        <Kpi icon={<ShoppingBag size={19} />} tone="blue" label="Vendas aprovadas" value={approved.length} />
-        <Kpi icon={<TrendingUp size={19} />} tone="violet" label="Ticket médio" value={formatCents(approved.length ? Math.round(revenue / approved.length) : 0)} />
-        <Kpi icon={<Clock size={19} />} tone="amber" label="Aguardando pagamento" value={pending.length} />
-        <Kpi icon={<QrCode size={19} />} tone="teal" label="Pix pagos" value={pixAll.length ? `${Math.round((pixPaid.length / pixAll.length) * 100)}%` : '0%'} hint={pixAll.length ? `${pixPaid.length} de ${pixAll.length} Pix gerados` : undefined} />
-        <Kpi icon={<ShoppingCart size={19} />} tone="amber" label="Carrinhos abandonados" value={carts.length} hint={carts.length ? `${recovered.length} recuperados (${Math.round((recovered.length / carts.length) * 100)}%)` : undefined} />
-        <Kpi icon={<RotateCcw size={19} />} tone="violet" label="Reembolsos" value={refunded.length} hint={refunded.length ? formatCents(refunded.reduce((s, o) => s + o.amount, 0)) : undefined} />
-        <Kpi icon={<BarChart3 size={19} />} tone="blue" label="Conversão do checkout" value={convBase ? `${Math.round((approved.length / convBase) * 100)}%` : '–'} hint="Vendas ÷ quem preencheu os dados" />
+        <MetricCard icon={Wallet} accent="green" label="Faturamento aprovado" value={formatCents(revenue)} subtitle={bumpRevenue > 0 ? `${formatCents(bumpRevenue)} vieram de order bumps` : undefined} />
+        <MetricCard icon={ShoppingBag} accent="blue" label="Vendas aprovadas" value={String(approved.length)} />
+        <MetricCard icon={TrendingUp} accent="violet" label="Ticket médio" value={formatCents(approved.length ? Math.round(revenue / approved.length) : 0)} />
+        <MetricCard icon={Clock} accent="amber" label="Aguardando pagamento" value={String(pending.length)} />
+        <MetricCard icon={QrCode} accent="sky" label="Pix pagos" value={pixAll.length ? `${Math.round((pixPaid.length / pixAll.length) * 100)}%` : '0%'} subtitle={pixAll.length ? `${pixPaid.length} de ${pixAll.length} Pix gerados` : undefined} />
+        <MetricCard icon={ShoppingCart} accent="amber" label="Carrinhos abandonados" value={String(carts.length)} subtitle={carts.length ? `${recovered.length} recuperados (${Math.round((recovered.length / carts.length) * 100)}%)` : undefined} />
+        <MetricCard icon={RotateCcw} accent="pink" label="Reembolsos" value={String(refunded.length)} subtitle={refunded.length ? formatCents(refunded.reduce((s, o) => s + o.amount, 0)) : undefined} />
+        <MetricCard icon={BarChart3} accent="blue" label="Conversão do checkout" value={convBase ? `${Math.round((approved.length / convBase) * 100)}%` : '–'} subtitle="Vendas ÷ quem preencheu os dados" />
       </div>
 
       <DailyChart data={daily} />

@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   Filter,
+  Radio,
+  Trophy,
   AlertCircle,
   Banknote,
   BarChart3,
@@ -22,9 +24,7 @@ import {
   Plus,
   Receipt,
   Search,
-  ShoppingBag,
   ShoppingCart,
-  Store,
   Ticket,
   Users,
   Wallet,
@@ -35,6 +35,7 @@ import { useStoreAbandoned, useStoreComments, useStoreCoupons, useStoreEnrollmen
 import { createStoreProduct } from '../../services/storeService'
 import { storeAdminStatus } from '../../services/storeApi'
 import { Tabs } from '../../components/ui/Tabs'
+import { MetricCard } from '../../components/ui/MetricCard'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { Field, Input, Select } from '../../components/ui/Field'
@@ -57,10 +58,20 @@ import { copyText } from '../../components/store/admin/StoreOrdersTable'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
 import { canUsePrivate, formatCents, type StoreOrder, type StoreProduct } from '../../types/store'
 
-const STATUS_LABEL: Record<StoreProduct['status'], { text: string; cls: string }> = {
-  active: { text: 'No ar', cls: 'bg-emerald-50 text-emerald-700' },
-  draft: { text: 'Rascunho', cls: 'bg-slate-100 text-slate-600' },
-  archived: { text: 'Arquivado', cls: 'bg-slate-100 text-slate-400' },
+const STATUS_LABEL: Record<StoreProduct['status'], { text: string; cls: string; dot: string }> = {
+  active: { text: 'No ar', cls: 'bg-emerald-50 text-emerald-700', dot: '#4cc38a' },
+  draft: { text: 'Rascunho', cls: 'bg-slate-100 text-slate-600', dot: '#f5b544' },
+  archived: { text: 'Arquivado', cls: 'bg-slate-100 text-slate-400', dot: '#6b6b71' },
+}
+
+function ProductStatus({ status, className = '' }: { status: StoreProduct['status']; className?: string }) {
+  const s = STATUS_LABEL[status]
+  return (
+    <Badge className={`${s.cls} ${className}`}>
+      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ background: s.dot }} />
+      {s.text}
+    </Badge>
+  )
 }
 
 /** /loja — o "Kiwify" da Arrow Shot: produtos, checkout, vendas, alunos e área de membros. */
@@ -102,11 +113,6 @@ export function StorePage() {
   const salesBadgeLabel = [pixToConfirm && `${pixToConfirm} Pix para confirmar`, refundRequests && `${refundRequests} reembolso pedido`].filter(Boolean).join(', ')
   const openCarts = abandoned.filter((a) => !a.recoveredAt && !a.contactedAt && Date.now() - new Date(a.updatedAt).getTime() > 15 * 60_000).length
 
-  // Resumo do topo: últimos 30 dias, sem pedidos de teste.
-  const since = Date.now() - 30 * 86_400_000
-  const approved30 = orders.filter((o) => !o.test && o.status === 'approved' && new Date(o.approvedAt || o.createdAt).getTime() >= since)
-  const revenue30 = approved30.reduce((sum, o) => sum + o.amount, 0)
-  const live = products.filter((p) => p.status === 'active').length
   const ico = 15
 
   const tabs = [
@@ -116,57 +122,30 @@ export function StorePage() {
     { key: 'alunos', icon: <Users size={ico} />, label: 'Alunos', badge: members.length, badgeLabel: `${members.length} alunos`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} emailOn={status?.email ?? false} /> },
     { key: 'abandonados', icon: <ShoppingCart size={ico} />, label: 'Abandonados', badge: openCarts, badgeAlert: true, badgeLabel: `${openCarts} carrinhos sem contato`, content: <StoreAbandonedPanel carts={abandoned} /> },
     { key: 'funil', icon: <Filter size={ico} />, label: 'Funil', content: <StoreFunnelPanel orders={orders} products={products} /> },
-    { key: 'membros', icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel /> },
-    { key: 'recebimento', icon: <Wallet size={ico} />, label: 'Recebimento', content: <StorePaymentSettingsPanel principalReady={status?.mpPrincipal ?? status?.mercadoPago ?? false} principalEmail={status?.mpPrincipalEmail} principalInvalid={status?.mpPrincipalInvalid} /> },
-    { key: 'comentarios', icon: <MessageSquare size={ico} />, label: 'Comentários', badge: pendingComments, badgeAlert: true, badgeLabel: `${pendingComments} comentários novos`, content: <StoreCommentsPanel comments={comments} products={products} /> },
-    { key: 'cupons', icon: <Ticket size={ico} />, label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} /> },
-    { key: 'nota', icon: <FileText size={ico} />, label: 'Nota fiscal', content: <StoreInvoicePanel hasToken={status?.invoice?.hasToken ?? false} onTokenSaved={() => storeAdminStatus().then(setStatus).catch(() => {})} /> },
+    { key: 'membros', icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel />, secondary: true },
+    { key: 'recebimento', icon: <Wallet size={ico} />, label: 'Recebimento', content: <StorePaymentSettingsPanel principalReady={status?.mpPrincipal ?? status?.mercadoPago ?? false} principalEmail={status?.mpPrincipalEmail} principalInvalid={status?.mpPrincipalInvalid} />, secondary: true },
+    { key: 'comentarios', icon: <MessageSquare size={ico} />, label: 'Comentários', badge: pendingComments, badgeAlert: true, badgeLabel: `${pendingComments} comentários novos`, content: <StoreCommentsPanel comments={comments} products={products} />, secondary: pendingComments === 0 },
+    { key: 'cupons', icon: <Ticket size={ico} />, label: 'Cupons', content: <StoreCouponsPanel coupons={coupons} products={products} />, secondary: true },
+    { key: 'nota', icon: <FileText size={ico} />, label: 'Nota fiscal', content: <StoreInvoicePanel hasToken={status?.invoice?.hasToken ?? false} onTokenSaved={() => storeAdminStatus().then(setStatus).catch(() => {})} />, secondary: true },
   ]
   const activeTab = Math.max(0, tabs.findIndex((t) => t.key === params.get('aba')))
 
-  const kpis = [
-    { icon: <Wallet size={15} />, label: 'Faturamento (30 dias)', value: formatCents(revenue30) },
-    { icon: <ShoppingBag size={15} />, label: 'Vendas (30 dias)', value: String(approved30.length) },
-    { icon: <Package size={15} />, label: 'Produtos no ar', value: `${live} de ${products.length}` },
-    { icon: <Users size={15} />, label: 'Alunos', value: String(members.length) },
-  ]
 
   return (
-    <div className="space-y-4">
-      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 p-5 text-white shadow-lg shadow-brand-900/10 sm:p-6">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10" />
-        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-32 h-48 w-48 rounded-full bg-white/5" />
-        <div className="relative flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25" aria-hidden="true">
-              <Store size={22} />
-            </span>
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold leading-tight">{STORE_BRAND}</h1>
-              <p className="text-sm text-white/75">Checkout, área de membros e vendas dos produtos digitais</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <a href="/membros" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white/10 px-3.5 text-sm font-medium text-white ring-1 ring-white/25 hover:bg-white/20">
-              <ExternalLink size={15} aria-hidden="true" /> Ver área de membros
-            </a>
-            <button type="button" onClick={() => setCreating(true)} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white px-4 text-sm font-semibold text-brand-700 shadow-sm hover:bg-brand-50">
-              <Plus size={16} aria-hidden="true" /> Novo produto
-            </button>
-          </div>
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{STORE_BRAND}</h1>
+          <p className="mt-0.5 text-sm text-slate-500">Checkout, área de membros e vendas dos produtos digitais</p>
         </div>
-
-        <dl className="relative mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {kpis.map((k) => (
-            <div key={k.label} className="rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/15">
-              <dt className="flex items-center gap-1.5 text-xs font-medium text-white/75">
-                <span aria-hidden="true">{k.icon}</span>
-                {k.label}
-              </dt>
-              <dd className="mt-1 text-xl font-bold tabular-nums">{k.value}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className="flex flex-wrap items-center gap-2">
+          <a href="/membros" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-300 px-3.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
+            <ExternalLink size={15} aria-hidden="true" /> Ver área de membros
+          </a>
+          <button type="button" onClick={() => setCreating(true)} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-500">
+            <Plus size={16} aria-hidden="true" /> Novo produto
+          </button>
+        </div>
       </header>
 
       {(pixToConfirm > 0 || refundRequests > 0 || pendingComments > 0) && (
@@ -177,10 +156,11 @@ export function StorePage() {
         </ul>
       )}
 
-      <div className="overflow-clip rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div>
         <Tabs
           label="Seções da loja"
-          variant="pills"
+          variant="page"
+          moreLabel="Configurações"
           active={activeTab}
           onChange={(i) => setParams((p) => {
             const next = new URLSearchParams(p)
@@ -354,19 +334,10 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: 'No ar', value: `${counts.active} de ${products.length}`, bar: 'bg-emerald-500' },
-          { label: 'Faturamento total', value: formatCents(totalRevenue), bar: 'bg-brand-500', hint: 'Somando produto principal e order bump' },
-          { label: 'Mais vendido', value: best && totalOf(best.id) > 0 ? best.name : '-', bar: 'bg-violet-500', hint: best && totalOf(best.id) > 0 ? formatCents(totalOf(best.id)) : undefined },
-          { label: 'Faltando algo', value: String(notReady), bar: 'bg-amber-400', hint: notReady ? 'Sem imagem, aulas ou preço' : 'Tudo pronto' },
-        ].map((k) => (
-          <div key={k.label} className="relative overflow-hidden rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${k.bar}`} />
-            <p className="text-xs font-medium text-slate-500">{k.label}</p>
-            <p className="mt-0.5 truncate text-lg font-bold tabular-nums text-slate-900" title={k.value}>{k.value}</p>
-            {k.hint && <p className="text-xs text-slate-400">{k.hint}</p>}
-          </div>
-        ))}
+        <MetricCard icon={Radio} accent="green" label="No ar" value={`${counts.active} de ${products.length}`} />
+        <MetricCard icon={Wallet} accent="blue" label="Faturamento total" value={formatCents(totalRevenue)} subtitle="Somando produto principal e order bump" />
+        <MetricCard icon={Trophy} accent="violet" label="Mais vendido" value={best && totalOf(best.id) > 0 ? best.name : '–'} subtitle={best && totalOf(best.id) > 0 ? formatCents(totalOf(best.id)) : undefined} />
+        <MetricCard icon={AlertCircle} accent="amber" label="Faltando algo" value={String(notReady)} subtitle={notReady ? 'Sem imagem, aulas ou preço' : 'Tudo pronto'} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
@@ -424,7 +395,7 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
                       {p.privateTo && <Lock size={11} className="shrink-0 text-slate-400" aria-label="Privado" />}
                     </span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                      <Badge className={STATUS_LABEL[p.status].cls}>{STATUS_LABEL[p.status].text}</Badge>
+                      <ProductStatus status={p.status} />
                       <span className="flex items-center gap-1"><BookOpen size={12} aria-hidden="true" /> {p.lessonCount ?? 0} {(p.lessonCount ?? 0) === 1 ? 'aula' : 'aulas'}</span>
                       {missing.length > 0 && <span className="text-amber-700">Falta: {missing.join(', ')}</span>}
                     </span>
@@ -459,7 +430,7 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
                 <Link to={`/loja/produtos/${p.id}`} className="flex flex-1 flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
                   <div className="relative aspect-[16/9] overflow-hidden">
                     <ProductThumb url={p.imageUrl} name={p.name} />
-                    <Badge className={`absolute left-2.5 top-2.5 shadow-sm ${STATUS_LABEL[p.status].cls}`}>{STATUS_LABEL[p.status].text}</Badge>
+                    <ProductStatus status={p.status} className="absolute left-2.5 top-2.5 bg-black/60 backdrop-blur-sm" />
                     {p.privateTo && (
                       <span className="absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white" title="Privado: só você vê" aria-label="Privado">
                         <Lock size={11} aria-hidden="true" />

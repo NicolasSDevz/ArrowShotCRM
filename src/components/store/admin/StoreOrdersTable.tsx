@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Ban, CheckCircle2, ChevronDown, Copy, Download, FileText, RotateCcw, Trash2 } from 'lucide-react'
+import { Ban, CheckCircle2, ChevronDown, Clock, Copy, Download, FileText, Layers, Package, RotateCcw, Trash2, Wallet } from 'lucide-react'
+import { MetricCard } from '../../ui/MetricCard'
 import { useAuth } from '../../../context/AuthContext'
 import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
@@ -18,8 +19,21 @@ const STATUS_CLS: Record<StoreOrderStatus, string> = {
   refunded: 'bg-slate-100 text-slate-600',
 }
 
+/** Bolinha de cor do status (o tema escuro deixa o selo neutro; a cor fica só no ponto). */
+const STATUS_DOT: Record<StoreOrderStatus, string> = {
+  approved: '#4cc38a',
+  pending: '#f5b544',
+  refused: '#f28b8b',
+  refunded: '#85858b',
+}
+
 export function OrderStatusBadge({ status, manual, expired }: { status: StoreOrderStatus; manual?: boolean; expired?: boolean }) {
-  return <Badge className={STATUS_CLS[status]}>{status === 'pending' && manual ? 'Aguardando confirmação' : expired && status === 'refused' ? 'Expirado' : STORE_ORDER_STATUS_LABEL[status]}</Badge>
+  return (
+    <Badge className={`whitespace-nowrap ${STATUS_CLS[status]}`}>
+      <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: expired && status === 'refused' ? STATUS_DOT.refunded : STATUS_DOT[status] }} />
+      {status === 'pending' && manual ? 'Aguardando confirmação' : expired && status === 'refused' ? 'Expirado' : STORE_ORDER_STATUS_LABEL[status]}
+    </Badge>
+  )
 }
 
 export async function copyText(text: string, okMsg = 'Copiado') {
@@ -195,17 +209,6 @@ type OrderKind = '' | 'with_bump' | 'no_bump'
 const mainItems = (o: StoreOrder) => o.items.filter((i) => !i.bump)
 const bumpItems = (o: StoreOrder) => o.items.filter((i) => i.bump)
 
-function SummaryCard({ label, value, hint, tone = 'slate' }: { label: string; value: string; hint?: string; tone?: 'slate' | 'green' | 'violet' | 'amber' }) {
-  const bar = { slate: 'bg-slate-300', green: 'bg-emerald-500', violet: 'bg-violet-500', amber: 'bg-amber-400' }[tone]
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${bar}`} />
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{value}</p>
-      {hint && <p className="text-xs text-slate-400">{hint}</p>}
-    </div>
-  )
-}
 
 /** Vendas por produto, separando quando ele foi o produto principal e quando entrou como order bump. */
 function ProductBreakdown({ paid, products }: { paid: StoreOrder[]; products: StoreProduct[] }) {
@@ -349,15 +352,16 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <SummaryCard tone="green" label="Faturamento aprovado" value={formatCents(revenue)} hint={`${paid.length} ${paid.length === 1 ? 'venda' : 'vendas'}`} />
-        <SummaryCard label="Produto principal" value={formatCents(revenue - bumpRevenue)} hint="Sem contar os order bumps" />
-        <SummaryCard
-          tone="violet"
+        <MetricCard icon={Wallet} accent="green" label="Faturamento aprovado" value={formatCents(revenue)} subtitle={`${paid.length} ${paid.length === 1 ? 'venda' : 'vendas'}`} />
+        <MetricCard icon={Package} accent="blue" label="Produto principal" value={formatCents(revenue - bumpRevenue)} subtitle="Sem contar os order bumps" />
+        <MetricCard
+          icon={Layers}
+          accent="violet"
           label="Order bumps"
           value={formatCents(bumpRevenue)}
-          hint={paid.length ? `${withBump} de ${paid.length} pedidos levaram (${Math.round((withBump / paid.length) * 100)}%)` : undefined}
+          subtitle={paid.length ? `${withBump} de ${paid.length} pedidos levaram (${Math.round((withBump / paid.length) * 100)}%)` : undefined}
         />
-        <SummaryCard tone="amber" label="Aguardando pagamento" value={String(waiting)} hint={waiting ? 'Pix gerado e ainda não pago' : undefined} />
+        <MetricCard icon={Clock} accent="amber" label="Aguardando pagamento" value={String(waiting)} subtitle={waiting ? 'Pix gerado e ainda não pago' : undefined} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">

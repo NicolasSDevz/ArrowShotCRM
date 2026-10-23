@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
-import { ChevronDown, KeyRound, Link2, Mail, Trash2, UserPlus, XCircle } from 'lucide-react'
+import { Activity, ChevronDown, GraduationCap, KeyRound, Link2, Mail, Trash2, UserPlus, Users, UserX, XCircle } from 'lucide-react'
+import { MetricCard } from '../../ui/MetricCard'
 import { Button } from '../../ui/Button'
 import { Field, Input, Select } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
@@ -23,18 +24,6 @@ const initialsOf = (name: string) =>
     .join('')
     .toUpperCase()
 
-const STAT_TONE = { slate: 'bg-slate-300', green: 'bg-emerald-500', amber: 'bg-amber-400', blue: 'bg-brand-500' }
-
-function MiniStat({ label, value, hint, tone = 'slate' }: { label: string; value: string; hint?: string; tone?: keyof typeof STAT_TONE }) {
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${STAT_TONE[tone]}`} />
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{value}</p>
-      {hint && <p className="text-xs text-slate-400">{hint}</p>}
-    </div>
-  )
-}
 
 /** Alunos: quem tem acesso a quê, progresso, link de acesso e liberação manual. */
 export function StoreMembersTable({
@@ -163,10 +152,10 @@ export function StoreMembersTable({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MiniStat label="Alunos" value={String(counts.all)} />
-        <MiniStat label="Ativos esta semana" value={String(counts.active)} tone="green" />
-        <MiniStat label="Nunca acessaram" value={String(counts.never)} tone="amber" hint={counts.never ? 'Mande o link ou uma senha provisória' : undefined} />
-        <MiniStat label="Conclusão média" value={`${avgAll}%`} tone="blue" />
+        <MetricCard icon={Users} accent="blue" label="Alunos" value={String(counts.all)} />
+        <MetricCard icon={Activity} accent="green" label="Ativos esta semana" value={String(counts.active)} />
+        <MetricCard icon={UserX} accent="amber" label="Nunca acessaram" value={String(counts.never)} subtitle={counts.never ? 'Mande o link ou uma senha provisória' : undefined} />
+        <MetricCard icon={GraduationCap} accent="violet" label="Conclusão média" value={`${avgAll}%`} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">

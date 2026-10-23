@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Check, Mail, MessageCircle, ShoppingCart, Sparkles, Trash2, Undo2 } from 'lucide-react'
+import { Check, Mail, MessageCircle, PhoneCall, RotateCcw, ShoppingCart, Sparkles, Trash2, Undo2 } from 'lucide-react'
+import { MetricCard } from '../../ui/MetricCard'
 import { EmptyState } from '../../ui/EmptyState'
 import { Badge } from '../../ui/Badge'
 import { storeAbandonedAction } from '../../../services/storeApi'
@@ -64,18 +65,6 @@ export function whatsappLink(a: StoreAbandoned) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
 }
 
-const STAT_TONE = { slate: 'bg-slate-300', green: 'bg-emerald-500', amber: 'bg-amber-400', violet: 'bg-violet-500' }
-
-function Stat({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone: keyof typeof STAT_TONE }) {
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${STAT_TONE[tone]}`} />
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{value}</p>
-      {hint && <p className="text-xs text-slate-400">{hint}</p>}
-    </div>
-  )
-}
 
 /** Loja > Abandonados: quem preencheu os dados no checkout e não pagou. */
 export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAbandoned[]; compact?: boolean }) {
@@ -124,15 +113,16 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
     <div className="space-y-4">
       {!compact && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Stat tone="amber" label="Para chamar" value={String(groups.open.length)} hint={lost > 0 ? `${formatCents(lost)} parados em carrinhos` : undefined} />
-          <Stat
-            tone="green"
+          <MetricCard icon={PhoneCall} accent="amber" label="Para chamar" value={String(groups.open.length)} subtitle={lost > 0 ? `${formatCents(lost)} parados em carrinhos` : undefined} />
+          <MetricCard
+            icon={RotateCcw}
+            accent="green"
             label="Recuperados"
             value={String(groups.recovered.length)}
-            hint={totalCarts ? `${formatCents(recoveredValue)} (${Math.round((groups.recovered.length / totalCarts) * 100)}% dos carrinhos)` : undefined}
+            subtitle={totalCarts ? `${formatCents(recoveredValue)} (${Math.round((groups.recovered.length / totalCarts) * 100)}% dos carrinhos)` : undefined}
           />
-          <Stat tone="violet" label="E-mails do Archer enviados" value={String(emailsSent)} />
-          <Stat tone="violet" label="Recuperados pelo Archer" value={String(byArcher)} hint="Por e-mail ou pelo chat do checkout" />
+          <MetricCard icon={Mail} accent="violet" label="E-mails do Archer enviados" value={String(emailsSent)} />
+          <MetricCard icon={Sparkles} accent="violet" label="Recuperados pelo Archer" value={String(byArcher)} subtitle="Por e-mail ou pelo chat do checkout" />
         </div>
       )}
 

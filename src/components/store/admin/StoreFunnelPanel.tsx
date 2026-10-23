@@ -168,19 +168,19 @@ export function StoreFunnelPanel({ orders, products }: { orders: StoreOrder[]; p
           <p className="text-sm text-slate-500">Até onde cada pessoa chegou na página de pagamento antes de desistir.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select aria-label="Período" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <Select aria-label="Período" className="!w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             <option value={1}>Últimas 24 horas</option>
             <option value={7}>Últimos 7 dias</option>
             <option value={30}>Últimos 30 dias</option>
             <option value={90}>Últimos 90 dias</option>
           </Select>
-          <Select aria-label="Produto" value={productId} onChange={(e) => setProductId(e.target.value)}>
+          <Select aria-label="Produto" className="!w-auto max-w-[220px]" value={productId} onChange={(e) => setProductId(e.target.value)}>
             <option value="">Todos os produtos</option>
             {visibleProducts.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </Select>
-          <Select aria-label="Aparelho" value={device} onChange={(e) => setDevice(e.target.value as typeof device)}>
+          <Select aria-label="Aparelho" className="!w-auto" value={device} onChange={(e) => setDevice(e.target.value as typeof device)}>
             <option value="">Celular e computador</option>
             <option value="mobile">Só celular</option>
             <option value="desktop">Só computador</option>
@@ -188,7 +188,7 @@ export function StoreFunnelPanel({ orders, products }: { orders: StoreOrder[]; p
           <button
             type="button"
             onClick={() => setReload((n) => n + 1)}
-            className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="flex h-[38px] items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
           >
             <RefreshCw size={15} aria-hidden="true" /> Atualizar
           </button>

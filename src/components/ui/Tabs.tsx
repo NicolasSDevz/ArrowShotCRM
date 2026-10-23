@@ -13,6 +13,7 @@ export function Tabs({
   active: activeProp,
   onChange,
   variant = 'underline',
+  moreLabel = 'Mais',
 }: {
   tabs: {
     label: string
@@ -31,10 +32,14 @@ export function Tabs({
   /** Aba aberta controlada de fora (ex.: lembrada na URL). */
   active?: number
   onChange?: (i: number) => void
-  /** underline = sublinhado (padrão); pills = aba aberta em botão azul cheio. */
-  variant?: 'underline' | 'pills'
+  /** underline = sublinhado (padrão); pills = aba aberta em botão azul cheio;
+   *  page = barra de abas solta na página (sem caixa em volta), aba aberta sublinhada. */
+  variant?: 'underline' | 'pills' | 'page'
+  /** Nome do botão que mostra as abas extras (secondary). */
+  moreLabel?: string
 }) {
   const pills = variant === 'pills'
+  const page = variant === 'page'
   const [activeState, setActiveState] = useState(0)
   const active = activeProp ?? activeState
   const setActive = (i: number) => {
@@ -95,7 +100,11 @@ export function Tabs({
       onClick={() => select(t.i)}
       onKeyDown={(e) => onTabKeyDown(e, t.i)}
       className={
-        pills
+        page
+          ? `-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-brand-400 ${
+              active === t.i ? 'border-brand-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`
+          : pills
           ? `shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1 ${
               active === t.i ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
             }`
@@ -105,7 +114,7 @@ export function Tabs({
       }
     >
       <span className="flex items-center gap-1.5">
-        {t.icon && <span aria-hidden="true" className={pills && active === t.i ? '' : 'opacity-80'}>{t.icon}</span>}
+        {t.icon && <span aria-hidden="true" className={page ? (active === t.i ? 'text-brand-500' : 'opacity-70') : pills && active === t.i ? '' : 'opacity-80'}>{t.icon}</span>}
         {t.label}
         {!!t.badge && (
           <span
@@ -133,11 +142,11 @@ export function Tabs({
 
   return (
     <div>
-      <div className={pills ? 'flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4' : 'flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6'}>
+      <div className={page ? 'flex items-center gap-2 border-b border-slate-200' : pills ? 'flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4' : 'flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6'}>
         <div
           role="tablist"
           aria-label={label}
-          className={pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
+          className={page ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]' : pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
         >
           {visible.map(tabButton)}
         </div>
@@ -154,7 +163,7 @@ export function Tabs({
                 ? 'Mostrar menos abas'
                 : `Mostrar mais abas: ${hiddenSecondary.map((t) => t.label).join(', ')}`
             }
-            className={pills ? 'flex shrink-0 items-center gap-1 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800' : 'flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600'}
+            className={page ? 'flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800' : pills ? 'flex shrink-0 items-center gap-1 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800' : 'flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600'}
           >
             {showAll ? (
               <>
@@ -162,13 +171,13 @@ export function Tabs({
               </>
             ) : (
               <>
-                Mais ({hiddenSecondary.length}) <ChevronDown size={13} aria-hidden="true" />
+                {moreLabel} ({hiddenSecondary.length}) <ChevronDown size={13} aria-hidden="true" />
               </>
             )}
           </button>
         )}
       </div>
-      <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className={pills ? 'p-5' : 'px-5 py-4'}>
+      <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className={page ? 'pt-6' : pills ? 'p-5' : 'px-5 py-4'}>
         {exitButton('inicio')}
         {tabs[active].content}
         {exitButton('fim')}
