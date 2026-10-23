@@ -12,12 +12,10 @@ import {
   KeyRound,
   BookOpenText,
   CalendarRange,
-  ShoppingBag,
   Receipt,
   Package,
   Store,
   Palette,
-  Settings,
   ChevronDown,
   X,
   PanelLeftClose,
@@ -135,7 +133,7 @@ export function Sidebar({
         return `sb-link sb-${kind} ${active ? 'sb-active' : ''} ${linkLayout}`
       }}
     >
-      <Icon size={kind === 'main' ? 18 : kind === 'tool' ? 16 : 15} className="sb-icon shrink-0" aria-hidden="true" />
+      <Icon size={kind === 'sub' ? 15 : 17} className="sb-icon shrink-0" aria-hidden="true" />
       <span className={`truncate ${labelCls}`}>{label}</span>
     </NavLink>
   )
@@ -184,7 +182,7 @@ export function Sidebar({
         </div>
 
         <nav aria-label="Menu" className={`sidebar flex-1 overflow-y-auto pb-3 pt-2 ${c ? 'px-3 md:px-3' : 'px-3'}`}>
-          <ul className="space-y-1" aria-label="Principal">
+          <ul className="space-y-0.5" aria-label="Principal">
             {visibleMain.map((item) => (
               <li key={item.to}>{renderLink(item, 'main')}</li>
             ))}
@@ -194,10 +192,7 @@ export function Sidebar({
             <div className="sb-group">
               {sectionTitle(
                 'sidebar-loja',
-                <>
-                  <ShoppingBag size={11} aria-hidden="true" />
-                  {STORE_BRAND}
-                </>,
+                STORE_BRAND,
               )}
               <ul className="space-y-0.5" aria-labelledby="sidebar-loja">
                 {storeNav.map((item) => (
@@ -226,7 +221,6 @@ export function Sidebar({
                 aria-expanded={showSettings}
                 className="sb-section sb-section-btn"
               >
-                <Settings size={11} aria-hidden="true" />
                 Configurações
                 <ChevronDown size={13} aria-hidden="true" className={`ml-auto transition-transform ${showSettings ? 'rotate-180' : ''}`} />
               </button>
@@ -243,7 +237,7 @@ export function Sidebar({
         </nav>
 
         {profile && (
-          <div className="p-3 pt-0">
+          <div className="border-t border-[#18181a] p-2">
             <div className={`sb-profile ${c ? 'md:justify-center md:bg-transparent md:p-1' : ''}`} title={c ? profile.name : undefined}>
               <Avatar name={profile.name} photoURL={profile.photoURL} size="sm" />
               <div className={`min-w-0 ${labelCls}`}>

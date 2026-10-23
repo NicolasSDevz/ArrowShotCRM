@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ExternalLink, RefreshCw } from 'lucide-react'
+import { ExternalLink, RefreshCw, Wallet, Target, MousePointerClick, Percent } from 'lucide-react'
+import { MetricCard } from '../components/ui/MetricCard'
 import toast from 'react-hot-toast'
 import { openErrorDialog, toFriendlyError } from '../utils/notifyError'
 import { useClients } from '../hooks/useClients'
@@ -11,7 +12,6 @@ import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Field'
 import { EmptyState } from '../components/ui/EmptyState'
-import { InfoTip } from '../components/ui/InfoTip'
 import { usePrivacy } from '../context/PrivacyContext'
 import { updateClient } from '../services/clientService'
 import { getGoogleAdsInsights, type GoogleAdsInsightsSummary } from '../services/googleAdsApi'
@@ -209,7 +209,7 @@ export function GoogleAdsPage() {
   }, [successResults])
 
   const noAccountsConfigured = googleAdsClients.length > 0 && clientsWithAccount.length === 0
-  const ctrColor = totals ? (totals.ctr > 3 ? '#059669' : totals.ctr >= 1 ? '#D97706' : '#DC2626') : undefined
+  const ctrColor = totals ? (totals.ctr > 3 ? '#4cc38a' : totals.ctr >= 1 ? '#fbbf24' : '#f28b8b') : undefined
 
   return (
     <div className="flex flex-col gap-4">
@@ -273,26 +273,40 @@ export function GoogleAdsPage() {
       </div>
 
       {/* Seção 1 — cards consolidados */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: 'Total Investido', value: totals ? (isPrivacyMode ? 'R$ •.•••,••' : BRL(totals.cost)) : '--', tip: TIPS.cost },
-          { label: 'Total de Conversões', value: totals ? (isPrivacyMode ? '•••' : INT(totals.conversions)) : '--', tip: TIPS.conversions },
-          { label: 'CPC Médio', value: totals ? (isPrivacyMode ? 'R$ •,••' : BRL(totals.cpc)) : '--', tip: TIPS.cpc },
-          { label: 'CTR Médio', value: totals ? (isPrivacyMode ? '•,••%' : `${totals.ctr.toFixed(2)}%`) : '--', tip: TIPS.ctr, color: ctrColor },
-        ].map((card) => (
-          <div key={card.label} className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[13px] font-medium text-slate-500">{card.label}</p>
-              <InfoTip title={card.label}>{card.tip}</InfoTip>
-            </div>
-            <p
-              className={`mt-1 text-[24px] font-extrabold leading-tight ${!totals ? 'text-slate-400' : !card.color ? 'text-slate-900' : ''}`}
-              style={totals && card.color ? { color: card.color } : undefined}
-            >
-              {card.value}
-            </p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <MetricCard
+          label="Total investido"
+          icon={Wallet}
+          accent="blue"
+          value={totals ? (isPrivacyMode ? 'R$ •.•••,••' : BRL(totals.cost)) : '--'}
+          subtitle="Soma de todas as contas"
+          tip={TIPS.cost}
+        />
+        <MetricCard
+          label="Conversões"
+          icon={Target}
+          accent="green"
+          value={totals ? (isPrivacyMode ? '•••' : INT(totals.conversions)) : '--'}
+          subtitle="Leads, ligações e compras"
+          tip={TIPS.conversions}
+        />
+        <MetricCard
+          label="CPC médio"
+          icon={MousePointerClick}
+          accent="amber"
+          value={totals ? (isPrivacyMode ? 'R$ •,••' : BRL(totals.cpc)) : '--'}
+          subtitle="Custo por clique"
+          tip={TIPS.cpc}
+        />
+        <MetricCard
+          label="CTR médio"
+          icon={Percent}
+          accent="pink"
+          value={totals ? (isPrivacyMode ? '•,••%' : `${totals.ctr.toFixed(2)}%`) : '--'}
+          valueColor={totals ? ctrColor : '#6b6b71'}
+          subtitle="Acima de 3% é bom"
+          tip={TIPS.ctr}
+        />
       </div>
 
       {/* Seção 2 — filtro por gestor + tabela de clientes */}
