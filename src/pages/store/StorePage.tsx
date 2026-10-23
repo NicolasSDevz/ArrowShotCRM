@@ -374,7 +374,6 @@ function ProductsGrid({ products, orders, onCreate }: { products: StoreProduct[]
             <List size={15} aria-hidden="true" />
           </button>
         </div>
-        <Button icon={<Plus size={15} />} onClick={onCreate}>Novo produto</Button>
       </div>
 
       {list.length === 0 ? (

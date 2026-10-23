@@ -146,7 +146,7 @@ export function Tabs({
         <div
           role="tablist"
           aria-label={label}
-          className={page ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]' : pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
+          className={page ? 'flex min-w-0 flex-1 flex-wrap items-center gap-x-1' : pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
         >
           {visible.map(tabButton)}
         </div>

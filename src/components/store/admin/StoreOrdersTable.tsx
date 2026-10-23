@@ -380,8 +380,8 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
             <option key={k} value={k}>{v}</option>
           ))}
         </Select>
-        <Select aria-label="Order bump" value={kind} onChange={(e) => setKind(e.target.value as OrderKind)} className="!w-48">
-          <option value="">Com e sem order bump</option>
+        <Select aria-label="Order bump" value={kind} onChange={(e) => setKind(e.target.value as OrderKind)} className="!w-auto">
+          <option value="">Com e sem bump</option>
           <option value="with_bump">Só com order bump</option>
           <option value="no_bump">Só sem order bump</option>
         </Select>
