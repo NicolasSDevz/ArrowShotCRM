@@ -237,8 +237,10 @@ export async function listDocs(collectionPath) {
  *  `wheres` ([campo, valor]) batem por igualdade. */
 export async function queryDocs(collectionPath, wheres = []) {
   const token = await getAccessToken()
-  const filters = wheres.map(([field, value]) => ({
-    fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: toValue(value) },
+  // [campo, valor] = igual; [campo, valor, '>='] etc. para intervalo (um campo só, sem índice composto).
+  const OPS = { '==': 'EQUAL', '>=': 'GREATER_THAN_OR_EQUAL', '>': 'GREATER_THAN', '<=': 'LESS_THAN_OR_EQUAL', '<': 'LESS_THAN' }
+  const filters = wheres.map(([field, value, op = '==']) => ({
+    fieldFilter: { field: { fieldPath: field }, op: OPS[op] || 'EQUAL', value: toValue(value) },
   }))
   const structuredQuery = {
     from: [{ collectionId: collectionPath.split('/').pop() }],

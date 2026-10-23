@@ -368,6 +368,29 @@ export interface StoreCoupon extends BaseDoc {
   privateTo?: string | null
 }
 
+/** Visita ao checkout (storeCheckoutVisits/{sid}): até onde a pessoa chegou.
+ *  step: 1 abriu · 2 começou a preencher · 3 dados completos · 4 clicou em pagar · 5 gerou o pedido. */
+export interface StoreCheckoutVisit {
+  id: string
+  productId: string
+  productName: string
+  device: 'mobile' | 'desktop'
+  source: string
+  campaign?: string | null
+  step: number
+  /** Último campo em que a pessoa mexeu (nome, email, telefone, cpf, pagamento, cartao...). */
+  lastField?: string | null
+  fields?: string[]
+  method?: string | null
+  /** Erro que apareceu ao clicar em pagar. */
+  error?: string | null
+  orderId?: string | null
+  /** Tempo com a página aberta na tela. */
+  seconds?: number
+  createdAt: string
+  updatedAt: string
+}
+
 /** Carrinho abandonado: a pessoa preencheu nome e contato no checkout e não pagou.
  *  storeAbandoned/{productId}_{hash do e-mail}. Some quando a compra é aprovada. */
 export interface StoreAbandoned {

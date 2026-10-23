@@ -7,6 +7,7 @@
 //   GET  checkout&slug=           dados da página de pagamento
 //   POST coupon     { slug, code }
 //   POST checkout-lead { slug, buyer, amount, utm }  carrinho abandonado (preencheu e não pagou)
+//   POST checkout-visit { sid, slug, step, field, method, error, seconds }  funil do checkout (onde a pessoa parou)
 //   POST order      { slug, bumpIds, coupon, buyer, method: pix|card|test, card, utm }
 //   GET  order&id=&key=           status do pedido (consulta o MP e libera o acesso)
 //   POST webhook                  notificação do Mercado Pago
@@ -44,6 +45,7 @@
 //   POST admin-invoice-sync  { orderIds }  atualiza notas em processamento
 //   POST admin-set-private { productId, private }  produto "só eu vejo" (leva pedidos, cupons e carrinhos)
 //   POST admin-abandoned { id, op: contacted|uncontacted|delete }  carrinho abandonado
+//   GET  admin-funnel&days=          visitas do checkout no período (funil)
 //   POST admin-mp-account { id?, label, publicKey, accessToken?, private }  conta do Mercado Pago (token cifrado)
 //   POST admin-mp-account-delete { id }
 //   POST admin-preview { area }   ver como aluno: libera os cursos da área pra quem é da equipe
@@ -299,6 +301,7 @@ async function actionOrder(req) {
     tracking: trackingFromRequest(req, body.tracking),
     // Conversou com o Archer no checkout antes de pagar.
     archerChat: body.archerChat === true,
+    visitSid: validSid(body.visitSid) ? String(body.visitSid) : null,
     privateTo: product.privateTo || null,
     createdAt: nowIso(),
     updatedAt: nowIso(),
@@ -397,6 +400,7 @@ async function actionOrder(req) {
     await notifyStaff('store_pix_generated', `Pix gerado: ${buyer.name} gerou um Pix de ${total} (${description}). Aviso quando for pago.`, 'Loja', { privateTo: order.privateTo })
   }
   // Gerou o pedido e não pagou (Pix em aberto, cartão recusado): fica no carrinho abandonado com o pedido junto.
+  await markVisitOrder(String(body.visitSid || ''), order, orderId).catch((err) => console.warn('[loja] funil:', err?.message))
   if (order.status !== 'approved') await saveAbandoned(product, buyer, { amount, utm: order.utm, orderId, orderStatus: order.status }).catch((err) => console.warn('[loja] carrinho:', err?.message))
 
   return {
@@ -426,6 +430,93 @@ function cardRefusalReason(detail) {
     cc_rejected_blacklist: 'recusado por segurança',
   }
   return map[detail] || 'recusado pelo banco'
+}
+
+/* ---------------------------- funil do checkout ---------------------------- */
+// Cada visita ao checkout vira storeCheckoutVisits/{sid} com a etapa mais longe que a
+// pessoa chegou. É o que mostra em Loja > Funil onde a galera desiste.
+//   1 abriu · 2 começou a preencher · 3 dados completos · 4 clicou em pagar · 5 gerou o pedido
+// (pago sai do status do pedido, no painel).
+
+const VISIT_FIELDS = new Set(['nome', 'email', 'email2', 'cpf', 'telefone', 'cupom', 'bump', 'pagamento', 'cartao'])
+const validSid = (sid) => /^v_[A-Za-z0-9]{10,40}$/.test(String(sid || ''))
+
+async function actionCheckoutVisit(req) {
+  const body = req.body || {}
+  const sid = String(body.sid || '')
+  if (!validSid(sid)) return { ok: true }
+  const path = `storeCheckoutVisits/${sid}`
+  const snap = await getDoc(path)
+  const prev = snap.exists ? snap.data() : null
+  const step = Math.max(1, Math.min(4, Number(body.step) || 1))
+  const field = VISIT_FIELDS.has(body.field) ? body.field : null
+  const now = nowIso()
+  if (!prev) {
+    const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'sem-ip'
+    if (!(await rateLimit(`visit:${ip}`, 40, 15 * 60_000))) return { ok: true }
+    const product = await loadActiveProduct(String(body.slug || ''))
+    const utm = cleanUtm(body.utm)
+    let ref = null
+    try {
+      ref = body.referrer ? new URL(String(body.referrer)).hostname.replace(/^www\./, '').slice(0, 80) : null
+    } catch {}
+    await setDoc(path, {
+      productId: product.id,
+      productName: product.name,
+      privateTo: product.privateTo || null,
+      device: body.device === 'mobile' ? 'mobile' : 'desktop',
+      source: utm.utm_source || (utm.fbclid ? 'facebook' : body.utm?.gclid ? 'google' : ref) || 'direto',
+      campaign: utm.utm_campaign || null,
+      step,
+      lastField: field,
+      fields: field ? [field] : [],
+      method: null,
+      error: null,
+      orderId: null,
+      seconds: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+    return { ok: true }
+  }
+  // Visita de mais de 1 dia não muda mais (alguém voltando na aba esquecida conta como nova).
+  if (Date.now() - new Date(prev.createdAt).getTime() > 24 * 3600_000) return { ok: true }
+  const patch = { updatedAt: now }
+  if (step > (prev.step || 1)) patch.step = step
+  if (field) {
+    patch.lastField = field
+    const fields = Array.isArray(prev.fields) ? prev.fields : []
+    if (!fields.includes(field)) patch.fields = [...fields, field].slice(0, 12)
+  }
+  if (body.method === 'pix' || body.method === 'card') patch.method = body.method
+  // Erro que apareceu na tela ao clicar em pagar ("Informe seu celular com DDD").
+  if (typeof body.error === 'string') patch.error = body.error.slice(0, 140) || null
+  const secs = Math.round(Number(body.seconds) || 0)
+  if (secs > (prev.seconds || 0)) patch.seconds = Math.min(secs, 6 * 3600)
+  await updateDoc(path, patch)
+  return { ok: true }
+}
+
+/** Pedido criado: a visita chega na etapa 5 e guarda o pedido (o painel vê se pagou). */
+async function markVisitOrder(sid, order, orderId) {
+  if (!validSid(sid)) return
+  const path = `storeCheckoutVisits/${sid}`
+  const snap = await getDoc(path)
+  if (!snap.exists) return
+  await updateDoc(path, { step: 5, orderId, method: order.method, error: null, updatedAt: nowIso() })
+}
+
+/** Visitas do período (máx. 92 dias) que este usuário pode ver. */
+async function actionAdminFunnel(req, user) {
+  const days = Math.max(1, Math.min(92, Number(req.query.days) || 30))
+  const since = new Date(Date.now() - days * 86_400_000).toISOString()
+  const rows = await queryDocs('storeCheckoutVisits', [['createdAt', since, '>=']])
+  const visits = rows
+    .filter((v) => visibleTo(v, user.uid))
+    .map(({ id, productId, productName, device, source, campaign, step, lastField, fields, method, error, orderId, seconds, createdAt, updatedAt }) => ({
+      id, productId, productName, device, source, campaign, step, lastField, fields, method, error, orderId, seconds, createdAt, updatedAt,
+    }))
+  return { visits, since }
 }
 
 /* -------------------------- carrinho abandonado -------------------------- */
@@ -1203,6 +1294,7 @@ const PUBLIC = {
   'GET members-catalog': actionMembersCatalog,
   'POST coupon': actionCoupon,
   'POST checkout-lead': actionCheckoutLead,
+  'POST checkout-visit': actionCheckoutVisit,
   'POST checkout-chat': actionCheckoutChat,
   'GET recovery-stop': actionRecoveryStop,
   'GET recovery-sweep': actionRecoverySweep,
@@ -1253,6 +1345,7 @@ const ADMIN = {
   'POST admin-invoice-emit': actionAdminInvoiceEmit,
   'POST admin-set-private': actionAdminSetPrivate,
   'POST admin-abandoned': actionAdminAbandoned,
+  'GET admin-funnel': actionAdminFunnel,
   'POST admin-preview': actionAdminPreview,
   'POST admin-mp-account': actionAdminMpAccount,
   'POST admin-mp-account-delete': actionAdminMpAccountDelete,

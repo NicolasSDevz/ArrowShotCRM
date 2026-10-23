@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
+  Filter,
   AlertCircle,
   Banknote,
   BarChart3,
@@ -50,6 +51,7 @@ import { StoreInvoicePanel } from '../../components/store/admin/StoreInvoicePane
 import { DuplicateProductModal } from '../../components/store/admin/DuplicateProductModal'
 import { StoreMembersThemePanel } from '../../components/store/admin/StoreMembersThemePanel'
 import { StoreAbandonedPanel } from '../../components/store/admin/StoreAbandonedPanel'
+import { StoreFunnelPanel } from '../../components/store/admin/StoreFunnelPanel'
 import { STORE_BRAND } from '../../config/storeBrand'
 import { copyText } from '../../components/store/admin/StoreOrdersTable'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
@@ -113,6 +115,7 @@ export function StorePage() {
     { key: 'produtos', icon: <Package size={ico} />, label: 'Produtos', badge: products.length, badgeLabel: `${products.length} produtos`, content: <ProductsGrid products={products} orders={orders} onCreate={() => setCreating(true)} /> },
     { key: 'alunos', icon: <Users size={ico} />, label: 'Alunos', badge: members.length, badgeLabel: `${members.length} alunos`, content: <StoreMembersTable members={members} enrollments={enrollments} progress={progress} products={products} lessonCounts={lessonCounts} emailOn={status?.email ?? false} /> },
     { key: 'abandonados', icon: <ShoppingCart size={ico} />, label: 'Abandonados', badge: openCarts, badgeAlert: true, badgeLabel: `${openCarts} carrinhos sem contato`, content: <StoreAbandonedPanel carts={abandoned} /> },
+    { key: 'funil', icon: <Filter size={ico} />, label: 'Funil', content: <StoreFunnelPanel orders={orders} products={products} /> },
     { key: 'membros', icon: <Palette size={ico} />, label: 'Área de membros', content: <StoreMembersThemePanel /> },
     { key: 'recebimento', icon: <Wallet size={ico} />, label: 'Recebimento', content: <StorePaymentSettingsPanel principalReady={status?.mpPrincipal ?? status?.mercadoPago ?? false} principalEmail={status?.mpPrincipalEmail} principalInvalid={status?.mpPrincipalInvalid} /> },
     { key: 'comentarios', icon: <MessageSquare size={ico} />, label: 'Comentários', badge: pendingComments, badgeAlert: true, badgeLabel: `${pendingComments} comentários novos`, content: <StoreCommentsPanel comments={comments} products={products} /> },

@@ -122,6 +122,8 @@ export const checkCoupon = (slug: string, code: string) => call<{ code: string; 
 export const createOrder = (body: unknown) => call<OrderResult>('order', { body })
 /** Nome e contato de quem está no checkout (vira carrinho abandonado se não pagar). */
 export const sendCheckoutLead = (body: unknown) => call<{ ok: true }>('checkout-lead', { body })
+/** Funil: até onde a pessoa chegou no checkout (Loja > Funil). */
+export const sendCheckoutVisit = (body: Record<string, unknown>) => call<{ ok: true }>('checkout-visit', { body })
 /** Chat do Archer na página de pagamento. */
 export const checkoutChat = (body: { slug: string; messages: { role: 'user' | 'assistant'; content: string }[]; context: Record<string, unknown> }) => call<{ reply: string }>('checkout-chat', { body })
 export const fetchOrderStatus = (id: string, key: string) => call<OrderStatus>('order', { params: { id, key } })
@@ -215,6 +217,9 @@ export async function storeSetPrivate(productId: string, isPrivate: boolean) {
 /** Ver como aluno: libera os cursos da área no seu e-mail e devolve o link de entrada. */
 export async function storePreviewAsMember(area: string | null) {
   return call<{ accessUrl: string; courses: number }>('admin-preview', { body: { area: area || null }, token: await staffToken() })
+}
+export async function fetchStoreFunnel(days: number) {
+  return call<{ visits: import('../types/store').StoreCheckoutVisit[]; since: string }>('admin-funnel', { params: { days: String(days) }, token: await staffToken() })
 }
 export async function storeAbandonedAction(id: string, op: 'contacted' | 'uncontacted' | 'delete') {
   return call<{ ok: true }>('admin-abandoned', { body: { id, op }, token: await staffToken() })

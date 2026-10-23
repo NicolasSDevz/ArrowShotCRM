@@ -6,6 +6,7 @@ import { maskDocument, maskPhone } from '../../utils/masks'
 import { trackMetaPixel } from '../../utils/metaPixel'
 import { checkoutSeals, formatCents, sealCopy, type StoreSealKey } from '../../types/store'
 import { CheckoutArcher } from './CheckoutArcher'
+import { FUNNEL_STEP, useCheckoutFunnel } from './checkoutFunnel'
 
 const SEAL_ICONS: Record<StoreSealKey, LucideIcon> = {
   secure: Lock,
@@ -56,6 +57,10 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   // Archer: cartão recusado abre o chat; quem conversou com ele fica marcado no pedido.
   const [refusal, setRefusal] = useState<{ reason: string; at: number } | null>(null)
   const archerUsed = useRef(false)
+  const narrow = useIsNarrow()
+  // Funil (Loja > Funil): até onde a pessoa chega antes de desistir.
+  const funnel = useCheckoutFunnel(data.slug, !preview, narrow)
+  const funnelReach = funnel.reach
 
   // Link do e-mail de recuperação (?nome=&email=&tel=): volta com os dados preenchidos.
   useEffect(() => {
@@ -112,6 +117,12 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     return null
   }
 
+  // Tudo preenchido certinho: etapa "dados completos" do funil.
+  const filledOk = validate() === null
+  useEffect(() => {
+    if (filledOk) funnelReach(FUNNEL_STEP.filled)
+  }, [filledOk, funnelReach])
+
   const basePayload = () => ({
     slug: data.slug,
     bumpIds: bumps,
@@ -120,6 +131,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     utm: readUtms(),
     tracking: readTracking(),
     archerChat: archerUsed.current,
+    visitSid: funnel.sid.current || null,
   })
 
   const goToThanks = (orderId: string, key: string) => {
@@ -130,6 +142,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const submitCardRef = useRef<(d: CardBrickFormData) => Promise<void>>(async () => {})
   const submitCard = async (d: CardBrickFormData) => {
     const problem = validate()
+    funnelReach(FUNNEL_STEP.clickedPay, { method: 'card', error: problem || '' })
     if (problem) {
       setError(problem)
       formRef.current?.querySelector<HTMLInputElement>('input')?.focus()
@@ -143,6 +156,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
       card: { token: d.token, installments: d.installments, paymentMethodId: d.payment_method_id, issuerId: d.issuer_id, identification: d.payer?.identification, deviceId: window.MP_DEVICE_SESSION_ID || null },
     }).catch((err: Error) => {
       setError(err.message)
+      funnelReach(FUNNEL_STEP.clickedPay, { error: err.message })
       throw err
     })
     if (result.status === 'refused') {
@@ -180,10 +194,27 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     }
   }, [preview, method, total, data.gateway.publicKey, data.maxInstallments, c.primaryColor, c.design?.colors?.button, brickId])
 
+  // O cartão é um iframe do Mercado Pago: o foco nele só aparece como "a janela perdeu o foco".
+  const funnelTouch = funnel.touch
+  useEffect(() => {
+    if (preview || method !== 'card') return
+    const onBlur = () => {
+      const el = document.activeElement
+      if (el?.tagName === 'IFRAME' && el.closest(`#${brickId}`)) funnelTouch('cartao')
+    }
+    window.addEventListener('blur', onBlur)
+    return () => window.removeEventListener('blur', onBlur)
+  }, [preview, method, brickId, funnelTouch])
+  const onFunnelEvent = (e: { target: EventTarget }) => {
+    const f = (e.target as HTMLElement).closest?.('[data-funnel]')?.getAttribute('data-funnel')
+    if (f) funnelTouch(f)
+  }
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (preview) return
     const problem = validate()
+    funnelReach(FUNNEL_STEP.clickedPay, { method: method === 'card' ? 'card' : 'pix', error: problem || '' })
     if (problem) {
       setError(problem)
       return
@@ -196,6 +227,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
       goToThanks(result.orderId, result.key)
     } catch (err) {
       setError((err as Error).message)
+      funnelReach(FUNNEL_STEP.clickedPay, { error: (err as Error).message })
     } finally {
       setBusy(false)
     }
@@ -215,7 +247,6 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   }
 
   // No link público o dispositivo vem do tamanho da tela; na prévia, do botão Computador/Celular.
-  const narrow = useIsNarrow()
   const mobile = preview ? device === 'mobile' : narrow
   const color = c.primaryColor
   const d = c.design ?? {}
@@ -291,6 +322,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     return (
       <label
         key={b.productId}
+        data-funnel="bump"
         className={`block cursor-pointer border-2 border-dashed p-4 ${!on && b.animation && !['none', 'arrow', 'blink'].includes(b.animation) ? `ob-anim ob-${b.animation}` : ''}`}
         style={{
           // Com fundo próprio a borda fica cheia mesmo desmarcado (senão o cinza some no fundo colorido).
@@ -384,7 +416,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   )
 
   const form = (
-          <form ref={formRef} onSubmit={onSubmit} className="space-y-5" noValidate>
+          <form ref={formRef} onSubmit={onSubmit} onFocusCapture={onFunnelEvent} onClickCapture={onFunnelEvent} className="space-y-5" noValidate>
             {cdPos === 'form' && countdownBox}
             {/* Cabeçalho do produto */}
             <section className={`flex items-center gap-4 p-4 shadow-sm ${d.titleAlign === 'center' ? 'flex-col text-center' : ''}`} style={cardStyle}>
@@ -414,11 +446,11 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               <h2 id={`${uid}-dados`} className="text-base font-semibold" style={titleStyle}>Seus dados</h2>
               <label className="block">
                 <span className={labelCls}>Nome completo</span>
-                <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
+                <input className={inputCls} data-funnel="nome" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
               </label>
               <label className="block">
                 <span className={labelCls}>E-mail (é por ele que você vai acessar)</span>
-                <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required aria-describedby={emailFix ? `${uid}-email-fix` : undefined} />
+                <input className={inputCls} data-funnel="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required aria-describedby={emailFix ? `${uid}-email-fix` : undefined} />
               </label>
               {emailFix && (
                 <p id={`${uid}-email-fix`} className="-mt-1 text-sm text-amber-700" aria-live="polite">
@@ -429,20 +461,20 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               {c.confirmEmail && (
                 <label className="block">
                   <span className={labelCls}>Confirme o e-mail</span>
-                  <input className={inputCls} type="email" value={email2} onChange={(e) => setEmail2(e.target.value)} required />
+                  <input className={inputCls} data-funnel="email2" type="email" value={email2} onChange={(e) => setEmail2(e.target.value)} required />
                 </label>
               )}
               <div className={`grid gap-3 ${mobile ? '' : 'grid-cols-2'}`}>
                 {c.askCpf && (
                   <label className="block">
                     <span className={labelCls}>CPF ou CNPJ</span>
-                    <input className={inputCls} inputMode="numeric" value={cpf} onChange={(e) => setCpf(maskDocument(e.target.value))} required />
+                    <input className={inputCls} data-funnel="cpf" inputMode="numeric" value={cpf} onChange={(e) => setCpf(maskDocument(e.target.value))} required />
                   </label>
                 )}
                 {c.askPhone && (
                   <label className="block">
                     <span className={labelCls}>Celular com DDD</span>
-                    <input className={inputCls} inputMode="tel" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} autoComplete="tel" required />
+                    <input className={inputCls} data-funnel="telefone" inputMode="tel" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} autoComplete="tel" required />
                   </label>
                 )}
               </div>
@@ -458,7 +490,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               {methods.length === 0 ? (
                 <p className="text-sm text-amber-700">Nenhuma forma de pagamento disponível. Fale com o vendedor.</p>
               ) : (
-                <div role="radiogroup" aria-label="Forma de pagamento" className={`grid gap-2 ${methods.length > 1 ? 'grid-cols-2' : ''}`}>
+                <div role="radiogroup" data-funnel="pagamento" aria-label="Forma de pagamento" className={`grid gap-2 ${methods.length > 1 ? 'grid-cols-2' : ''}`}>
                   {methods.map((m) => (
                     <button
                       key={m}
@@ -494,11 +526,11 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
                   Aqui aparece o formulário seguro do cartão (Mercado Pago), com parcelamento em até {data.maxInstallments}x.
                 </div>
               ) : (
-                <div id={brickId} />
+                <div id={brickId} data-funnel="cartao" />
               ))}
 
               {/* Cupom */}
-              <div>
+              <div data-funnel="cupom">
                 {!couponOpen ? (
                   <button type="button" onClick={() => setCouponOpen(true)} className="flex items-center gap-1.5 text-sm opacity-70 underline-offset-2 hover:underline">
                     <Ticket size={15} /> Tenho um cupom de desconto
