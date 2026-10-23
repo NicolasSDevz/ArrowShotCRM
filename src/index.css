@@ -110,19 +110,14 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
-.sidebar::-webkit-scrollbar-track {
-  background: #1e293b;
-}
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
 .sidebar::-webkit-scrollbar-thumb {
-  background: #475569;
-  border: 2px solid #1e293b;
+  background: #2a2a2e;
+  border: 0;
 }
-.sidebar::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
-}
-.sidebar {
-  scrollbar-color: #475569 #1e293b;
-}
+.sidebar::-webkit-scrollbar-thumb:hover { background: #3a3a3f; }
+.sidebar { scrollbar-color: #2a2a2e transparent; scrollbar-width: thin; }
 
 /* ---------- Calendário de otimizações (células por carga, chips por completude) ---------- */
 .opt-cell[data-load="empty"] { background-color: #f8fafc; }
@@ -318,21 +313,81 @@ body {
 
 /* ---- sidebar ---- */
 :root[data-theme="dark"] aside { border-right: 1px solid var(--dk-line-soft); }
-:root[data-theme="dark"] nav.sidebar a[class*="bg-brand"] {
-  background-color: var(--color-brand-600);
-  color: #ffffff;
-  border-radius: 6px;
+/* Menu lateral (sb-*): fundo quase preto com um brilho azul no topo, item
+   aberto com faixa azul à esquerda e fundo em degradê. */
+.sb-aside {
+  background:
+    radial-gradient(120% 40% at 0% 0%, rgb(37 99 235 / 0.10), transparent 60%),
+    #0a0a0b;
+  border-right: 1px solid #1c1c1f;
 }
-:root[data-theme="dark"] nav.sidebar a[class*="bg-brand"] svg { color: #ffffff; }
-:root[data-theme="dark"] nav.sidebar a:not([class*="bg-brand"]) { color: var(--dk-text-4); }
-:root[data-theme="dark"] nav.sidebar a:not([class*="bg-brand"]) svg { color: var(--dk-text-5); }
-:root[data-theme="dark"] nav.sidebar a:not([class*="bg-brand"]):hover { background-color: var(--dk-surface-2); color: var(--dk-text); }
-:root[data-theme="dark"] nav.sidebar a:not([class*="bg-brand"]):hover svg { color: var(--dk-text-3); }
-:root[data-theme="dark"] nav.sidebar p { color: var(--dk-text-6); }
-:root[data-theme="dark"] nav.sidebar .cursor-not-allowed { color: var(--dk-text-6); }
-:root[data-theme="dark"] nav.sidebar .cursor-not-allowed svg { color: #4a4a4f; }
-:root[data-theme="dark"] nav.sidebar button { color: var(--dk-text-4); }
-:root[data-theme="dark"] nav.sidebar button:hover { color: var(--dk-text); }
+:root[data-theme="dark"] aside.sb-aside { border-right: 1px solid #1c1c1f; }
+.sb-toggle {
+  border-radius: 8px;
+  padding: 6px;
+  color: #6b6b71;
+  transition: background-color .15s, color .15s;
+}
+.sb-toggle:hover { background-color: rgb(255 255 255 / 0.06); color: #ededef; }
+.sb-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-radius: 10px;
+  padding: 0 12px;
+  color: #a1a1a8;
+  transition: background-color .15s, color .15s;
+}
+.sb-link .sb-icon { color: #6f6f76; transition: color .15s; }
+.sb-main { height: 40px; font-size: 14.5px; font-weight: 500; }
+.sb-tool { height: 36px; font-size: 13.5px; }
+.sb-sub { height: 32px; font-size: 12.5px; }
+.sb-link:hover { background-color: rgb(255 255 255 / 0.045); color: #f4f4f5; }
+.sb-link:hover .sb-icon { color: #c4c4ca; }
+.sb-link:focus-visible { outline: 2px solid var(--color-brand-500); outline-offset: 1px; }
+.sb-link.sb-active {
+  background: linear-gradient(90deg, rgb(37 99 235 / 0.24), rgb(37 99 235 / 0.06));
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.22);
+}
+.sb-link.sb-active .sb-icon { color: #60a5fa; }
+.sb-link.sb-active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #3b82f6;
+  box-shadow: 0 0 12px rgb(59 130 246 / 0.8);
+}
+.sb-group { margin-top: 18px; padding-top: 14px; border-top: 1px solid #1c1c1f; }
+.sb-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #6b6b71;
+}
+.sb-section-btn { width: 100%; border-radius: 8px; padding-top: 4px; padding-bottom: 6px; transition: color .15s; }
+.sb-section-btn:hover { color: #d0d0d5; }
+.sb-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px;
+  background: rgb(255 255 255 / 0.035);
+  border: 1px solid #1f1f22;
+}
+.sb-profile-name { font-size: 13px; font-weight: 600; color: #f4f4f5; }
+.sb-profile-role { font-size: 11px; color: #85858b; }
 
 /* ---- badges (contorno discreto; cor só em pontos de status) ---- */
 :root[data-theme="dark"] .badge {

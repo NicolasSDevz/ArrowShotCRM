@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { LogOut, Search, Camera, Menu, Moon, Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { LogOut, Search, Camera, Menu, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { useTheme } from '../../context/ThemeContext'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { Avatar } from '../ui/Avatar'
 import { NotificationBell } from './NotificationBell'
@@ -21,7 +20,6 @@ export function Topbar({
   onOpenMobileNav?: () => void
 }) {
   const { profile, signOut } = useAuth()
-  const { theme, toggleTheme } = useTheme()
   const { isPrivacyMode, togglePrivacyMode } = usePrivacy()
   const [menuOpen, setMenuOpen] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
@@ -115,7 +113,6 @@ export function Topbar({
                   </div>
                 </div>
                 <div className="my-1 h-px bg-slate-100" />
-                <MenuSwitch icon={<Moon size={14} />} label="Modo escuro" checked={theme === 'dark'} onChange={toggleTheme} />
                 <MenuSwitch
                   icon={<EyeOff size={14} />}
                   label="Modo apresentação"

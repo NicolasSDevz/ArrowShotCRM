@@ -14,8 +14,6 @@ import { OperationalDashboard } from './pages/OperationalDashboard'
 import { RootRedirect } from './pages/RootRedirect'
 import { ClientsPage } from './pages/ClientsPage'
 import { ClientDetailPage } from './pages/ClientDetailPage'
-import { SocialMediaPage } from './pages/SocialMediaPage'
-import { SocialMediaClientPage } from './pages/SocialMediaClientPage'
 import { CalendarMeetingsPage } from './pages/CalendarMeetingsPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { LeadsPage } from './pages/LeadsPage'
@@ -114,8 +112,8 @@ function App() {
             <Route path="/operacional" element={<OperationalDashboard />} />
             <Route path="/clientes" element={<ClientsPage />} />
             <Route path="/clientes/:id" element={<ClientDetailPage />} />
-            <Route path="/social-media" element={<SocialMediaPage />} />
-            <Route path="/social-media/:clientId" element={<SocialMediaClientPage />} />
+            {/* Social Mídia saiu do menu (não era usado): links antigos caem em Clientes */}
+            <Route path="/social-media/*" element={<Navigate to="/clientes" replace />} />
             <Route path="/calendario" element={<CalendarMeetingsPage initialTab="calendario" />} />
             <Route path="/reunioes" element={<CalendarMeetingsPage initialTab="reunioes" />} />
             <Route path="/leads" element={<LeadsPage />} />

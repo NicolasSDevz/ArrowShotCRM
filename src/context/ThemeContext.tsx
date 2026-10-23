@@ -10,14 +10,9 @@ const STORAGE_KEY = 'arrowshot-theme'
 const PUBLIC_PAGE = /^\/(pay|membros|m|captura|aprovar|relatorio|acessos|privacidade|termos)(\/|$)/
 const CHECKOUT_HOST = typeof window !== 'undefined' && /^(pay|checkout|compra|loja)\./i.test(window.location.hostname)
 
+/** O CRM é só escuro: a opção de tela branca saiu (ninguém usava). */
 function readStored(): Theme {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY)
-    if (v === 'light' || v === 'dark') return v
-  } catch {
-    /* private mode / storage bloqueado — usa o padrão */
-  }
-  return 'light'
+  return 'dark'
 }
 
 interface ThemeContextValue {

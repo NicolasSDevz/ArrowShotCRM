@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
-import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, FileBarChart, KeyRound } from 'lucide-react'
+import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, FileBarChart, KeyRound, Wallet, MessageCircle, Coins, Users, Eye, MousePointerClick, type LucideIcon } from 'lucide-react'
 import { MetaTokenRenewModal } from '../components/clients/MetaTokenRenewModal'
 import { useAuth } from '../context/AuthContext'
 import { useUsers } from '../hooks/useUsers'
@@ -70,6 +70,16 @@ function Card({ children }: { children: ReactNode }) {
   )
 }
 
+/** Cor de destaque de cada cartão (ícone e brilho do canto). */
+const ACCENTS = {
+  blue: { fg: '#60a5fa', bg: 'rgb(59 130 246 / 0.14)', glow: 'rgb(59 130 246 / 0.16)' },
+  green: { fg: '#4cc38a', bg: 'rgb(16 185 129 / 0.14)', glow: 'rgb(16 185 129 / 0.14)' },
+  amber: { fg: '#fbbf24', bg: 'rgb(245 158 11 / 0.14)', glow: 'rgb(245 158 11 / 0.13)' },
+  violet: { fg: '#a78bfa', bg: 'rgb(139 92 246 / 0.15)', glow: 'rgb(139 92 246 / 0.14)' },
+  sky: { fg: '#38bdf8', bg: 'rgb(14 165 233 / 0.14)', glow: 'rgb(14 165 233 / 0.13)' },
+  pink: { fg: '#f472b6', bg: 'rgb(236 72 153 / 0.14)', glow: 'rgb(236 72 153 / 0.13)' },
+} as const
+
 function MetricCard({
   label,
   value,
@@ -77,6 +87,8 @@ function MetricCard({
   delta,
   subtitle,
   tip,
+  icon: Icon,
+  accent = 'blue',
 }: {
   label: string
   value: string
@@ -84,24 +96,42 @@ function MetricCard({
   delta?: number | null
   subtitle?: string
   tip?: ReactNode
+  icon: LucideIcon
+  accent?: keyof typeof ACCENTS
 }) {
+  const a = ACCENTS[accent]
+  const hasDelta = delta !== undefined && delta !== null && Number.isFinite(delta)
   return (
-    <Card>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[13px] font-medium text-slate-500">{label}</p>
-        <div className="flex items-center gap-2">
-          {delta !== undefined && <Delta value={delta ?? null} />}
-          {tip && <InfoTip title={label}>{tip}</InfoTip>}
-        </div>
+    <div className="relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full blur-2xl"
+        style={{ background: a.glow }}
+      />
+      <div className="relative flex items-start justify-between gap-2">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: a.bg, color: a.fg }}>
+          <Icon size={18} aria-hidden="true" />
+        </span>
+        {tip && <InfoTip title={label}>{tip}</InfoTip>}
       </div>
+      <p className="relative mt-3 text-[12.5px] font-medium leading-snug text-slate-500">{label}</p>
       <p
-        className={`mt-1 text-[24px] font-extrabold leading-tight ${valueColor ? '' : 'text-slate-900'}`}
+        className={`relative mt-0.5 whitespace-nowrap text-[22px] font-bold leading-tight tracking-tight tabular-nums ${valueColor ? '' : 'text-slate-900'}`}
         style={valueColor ? { color: valueColor } : undefined}
       >
         {value}
       </p>
-      {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}
-    </Card>
+      <div className="relative mt-auto flex min-h-[18px] items-center gap-1.5 pt-1.5 text-[11.5px] text-slate-400">
+        {hasDelta ? (
+          <>
+            <Delta value={delta ?? null} />
+            <span className="truncate">vs. período anterior</span>
+          </>
+        ) : (
+          subtitle && <span className="truncate">{subtitle}</span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -252,8 +282,8 @@ export function MetaAdsPage() {
 
   const t = data?.totals
   const p = data?.prevTotals
-  const cpcColor = t ? (t.costPerConversation < 20 ? '#059669' : t.costPerConversation <= 40 ? '#D97706' : '#DC2626') : undefined
-  const ctrColor = t ? (t.ctr > 1 ? '#059669' : t.ctr >= 0.5 ? '#D97706' : '#DC2626') : undefined
+  const cpcColor = t ? (t.costPerConversation < 20 ? '#4cc38a' : t.costPerConversation <= 40 ? '#fbbf24' : '#f28b8b') : undefined
+  const ctrColor = t ? (t.ctr > 1 ? '#4cc38a' : t.ctr >= 0.5 ? '#fbbf24' : '#f28b8b') : undefined
 
   return (
     <div className="flex flex-col gap-4">
@@ -324,24 +354,57 @@ export function MetaAdsPage() {
       {data && (
         <>
           {/* LINHA 1 — cards consolidados */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <MetricCard label="Total Investido" value={isPrivacyMode ? 'R$ •.•••,••' : BRL(t!.spend)} delta={pct(t!.spend, p!.spend)} tip={TIPS.spend} />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
             <MetricCard
-              label="Conversas Iniciadas"
+              label="Total investido"
+              icon={Wallet}
+              accent="blue"
+              value={isPrivacyMode ? 'R$ •.•••,••' : BRL(t!.spend)}
+              delta={pct(t!.spend, p!.spend)}
+              tip={TIPS.spend}
+            />
+            <MetricCard
+              label="Conversas iniciadas"
+              icon={MessageCircle}
+              accent="green"
               value={isPrivacyMode ? '•••' : INT(t!.conversations)}
               delta={pct(t!.conversations, p!.conversations)}
               tip={TIPS.conversations}
             />
             <MetricCard
-              label="Custo por Conversa"
+              label="Custo por conversa"
+              icon={Coins}
+              accent="amber"
               value={isPrivacyMode ? 'R$ ••,••' : BRL(t!.costPerConversation)}
               valueColor={cpcColor}
-              subtitle="Total investido / conversas"
+              subtitle="Investido ÷ conversas"
               tip={TIPS.costPerConversation}
             />
-            <MetricCard label="Alcance Total" value={isPrivacyMode ? '•••.•••' : INT(t!.reach)} delta={pct(t!.reach, p!.reach)} tip={TIPS.reach} />
-            <MetricCard label="Impressões Totais" value={isPrivacyMode ? '•••.•••' : INT(t!.impressions)} tip={TIPS.impressions} />
-            <MetricCard label="CTR Médio" value={isPrivacyMode ? '•,••%' : `${t!.ctr.toFixed(2)}%`} valueColor={ctrColor} subtitle="Média ponderada" tip={TIPS.ctr} />
+            <MetricCard
+              label="Alcance total"
+              icon={Users}
+              accent="violet"
+              value={isPrivacyMode ? '•••.•••' : INT(t!.reach)}
+              delta={pct(t!.reach, p!.reach)}
+              tip={TIPS.reach}
+            />
+            <MetricCard
+              label="Impressões totais"
+              icon={Eye}
+              accent="sky"
+              value={isPrivacyMode ? '•••.•••' : INT(t!.impressions)}
+              subtitle="Vezes que os anúncios apareceram"
+              tip={TIPS.impressions}
+            />
+            <MetricCard
+              label="CTR médio"
+              icon={MousePointerClick}
+              accent="pink"
+              value={isPrivacyMode ? '•,••%' : `${t!.ctr.toFixed(2)}%`}
+              valueColor={ctrColor}
+              subtitle="Média ponderada"
+              tip={TIPS.ctr}
+            />
           </div>
 
           {/* LINHA 2 — gráfico */}

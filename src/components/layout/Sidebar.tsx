@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   ListChecks,
   Users,
-  Sparkles,
   CalendarDays,
   Gauge,
   UserPlus,
@@ -24,7 +23,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { Avatar } from '../ui/Avatar'
@@ -77,7 +76,6 @@ const storeNav: NavItem[] = [
 // O resto fica num grupo menor, mais apagado, logo abaixo.
 const toolsNav: NavItem[] = [
   { to: '/metricas', label: 'Métricas', icon: Gauge },
-  { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
   { to: '/universidade', label: 'Universidade', icon: GraduationCap, show: (p) => p.canSeeUniversity },
   { to: '/equipe', label: 'Equipe', icon: UserCog, show: (p) => p.canSeeUniversity },
 ]
@@ -126,77 +124,81 @@ export function Sidebar({
   const inSettingsRoute = pathname.startsWith('/configuracoes') || pathname.startsWith('/otimizacoes')
   const showSettings = settingsOpen || inSettingsRoute
 
-  const renderLink = ({ to, label, icon: Icon, alsoActive, aba }: NavItem, kind: 'main' | 'tool') => {
-    const isMain = kind === 'main'
-    return (
-      <NavLink
-        to={to}
-        title={c ? label : undefined}
-        aria-label={c ? label : undefined}
-        onClick={onCloseMobile}
-        className={({ isActive }) => {
-          const active = aba ? storeAba === aba : isActive || alsoActive?.some((p) => pathname.startsWith(p))
-          const size = isMain ? 'px-4 py-2.5 text-[15px] font-medium' : 'px-4 py-2 text-[13px]'
-          const color = active
-            ? 'bg-brand-600 text-white'
-            : isMain
-              ? 'text-slate-300 hover:bg-navy-800 hover:text-white'
-              : 'text-slate-500 hover:bg-navy-800 hover:text-slate-200'
-          return `flex items-center gap-2.5 rounded-lg transition-all duration-150 ease-in-out ${size} ${linkLayout} ${color}`
-        }}
-      >
-        <Icon size={isMain ? 18 : 15} className="shrink-0" aria-hidden="true" />
-        <span className={labelCls}>{label}</span>
-      </NavLink>
-    )
-  }
+  const renderLink = ({ to, label, icon: Icon, alsoActive, aba }: NavItem, kind: 'main' | 'tool' | 'sub') => (
+    <NavLink
+      to={to}
+      title={c ? label : undefined}
+      aria-label={c ? label : undefined}
+      onClick={onCloseMobile}
+      className={({ isActive }) => {
+        const active = aba ? storeAba === aba : isActive || alsoActive?.some((p) => pathname.startsWith(p))
+        return `sb-link sb-${kind} ${active ? 'sb-active' : ''} ${linkLayout}`
+      }}
+    >
+      <Icon size={kind === 'main' ? 18 : kind === 'tool' ? 16 : 15} className="sb-icon shrink-0" aria-hidden="true" />
+      <span className={`truncate ${labelCls}`}>{label}</span>
+    </NavLink>
+  )
+
+  const sectionTitle = (id: string, text: ReactNode) => (
+    <p id={id} className={`sb-section ${labelCls}`}>
+      {text}
+    </p>
+  )
+
+  const settingsLinks: NavItem[] = [
+    ...(canManageTokens ? [{ to: '/configuracoes/tokens', label: 'Tokens Meta Ads', icon: KeyRound }] : []),
+    ...(canSeeBaseVendas ? [{ to: '/configuracoes/base-vendas', label: 'Base de Vendas', icon: BookOpenText }] : []),
+    ...(isGestorTrafego ? [{ to: '/otimizacoes/calendario', label: 'Calendário de Otimizações', icon: CalendarRange }] : []),
+  ]
 
   return (
     <>
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onCloseMobile} />
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] md:hidden" onClick={onCloseMobile} />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[220px] shrink-0 flex-col bg-navy-950 transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0 ${
-          c ? 'md:w-[68px]' : ''
+        className={`sb-aside fixed inset-y-0 left-0 z-50 flex w-[236px] shrink-0 flex-col transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0 ${
+          c ? 'md:w-[72px]' : ''
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className={`relative flex items-center justify-center border-b border-navy-800 px-3 py-3 ${c ? 'md:min-h-[81px]' : ''}`}>
-          <img src="/logo-white.png" alt="Arrow Shot" className={`h-14 w-auto ${c ? 'md:hidden' : ''}`} />
+        <div className={`relative flex items-center justify-center px-3 pb-2 pt-4 ${c ? 'md:min-h-[72px] md:pt-3' : ''}`}>
+          <img src="/logo-white.png" alt="Arrow Shot" className={`h-12 w-auto ${c ? 'md:hidden' : ''}`} />
           <button
             type="button"
             onClick={toggleCollapsed}
             title={c ? 'Abrir o menu' : 'Recolher o menu'}
             aria-label={c ? 'Abrir o menu' : 'Recolher o menu'}
-            className={`hidden rounded-md p-1.5 text-slate-500 transition-colors hover:bg-navy-800 hover:text-white md:block ${c ? '' : 'absolute right-1.5 top-1.5'}`}
+            className={`sb-toggle hidden md:block ${c ? '' : 'absolute right-2 top-2'}`}
           >
             {c ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={16} />}
           </button>
           <button
             onClick={onCloseMobile}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-white md:hidden"
+            aria-label="Fechar o menu"
+            className="sb-toggle absolute right-3 top-1/2 -translate-y-1/2 md:hidden"
           >
             <X size={18} />
           </button>
         </div>
 
-        <nav aria-label="Menu" className={`sidebar flex-1 overflow-y-auto py-2 ${c ? 'px-2 md:px-2.5' : 'px-2'}`}>
-          <ul className="space-y-0.5" aria-label="Principal">
+        <nav aria-label="Menu" className={`sidebar flex-1 overflow-y-auto pb-3 pt-2 ${c ? 'px-3 md:px-3' : 'px-3'}`}>
+          <ul className="space-y-1" aria-label="Principal">
             {visibleMain.map((item) => (
               <li key={item.to}>{renderLink(item, 'main')}</li>
             ))}
           </ul>
 
           {canManageTokens && (
-            <div className="mt-4 border-t border-navy-800 pt-3">
-              <p
-                id="sidebar-loja"
-                className={`flex items-center gap-1.5 px-4 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 ${labelCls}`}
-              >
-                <ShoppingBag size={12} aria-hidden="true" />
-                {STORE_BRAND}
-              </p>
+            <div className="sb-group">
+              {sectionTitle(
+                'sidebar-loja',
+                <>
+                  <ShoppingBag size={11} aria-hidden="true" />
+                  {STORE_BRAND}
+                </>,
+              )}
               <ul className="space-y-0.5" aria-labelledby="sidebar-loja">
                 {storeNav.map((item) => (
                   <li key={item.to}>{renderLink(item, 'tool')}</li>
@@ -206,13 +208,8 @@ export function Sidebar({
           )}
 
           {visibleTools.length > 0 && (
-            <div className="mt-4 border-t border-navy-800 pt-3">
-              <p
-                id="sidebar-ferramentas"
-                className={`px-4 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 ${labelCls}`}
-              >
-                Ferramentas
-              </p>
+            <div className="sb-group">
+              {sectionTitle('sidebar-ferramentas', 'Ferramentas')}
               <ul className="space-y-0.5" aria-labelledby="sidebar-ferramentas">
                 {visibleTools.map((item) => (
                   <li key={item.to}>{renderLink(item, 'tool')}</li>
@@ -221,80 +218,38 @@ export function Sidebar({
             </div>
           )}
 
-          {showSettingsSection && (
-            <div className={`mt-4 border-t border-navy-800 pt-2 ${c ? 'md:hidden' : ''}`}>
+          {showSettingsSection && settingsLinks.length > 0 && (
+            <div className={`sb-group ${c ? 'md:hidden' : ''}`}>
               <button
                 type="button"
                 onClick={() => setSettingsOpen((v) => !v)}
                 aria-expanded={showSettings}
-                className="flex w-full items-center gap-2 rounded-lg px-4 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:text-slate-300"
+                className="sb-section sb-section-btn"
               >
-                <Settings size={13} aria-hidden="true" />
+                <Settings size={11} aria-hidden="true" />
                 Configurações
                 <ChevronDown size={13} aria-hidden="true" className={`ml-auto transition-transform ${showSettings ? 'rotate-180' : ''}`} />
               </button>
 
               {showSettings && (
-                <div className="flex flex-col gap-0.5 pb-1">
-                  {canManageTokens && (
-                    <NavLink
-                      to="/configuracoes/tokens"
-                      onClick={onCloseMobile}
-                      className={({ isActive }) =>
-                        `flex items-center gap-2 rounded-lg px-4 py-2 text-[11px] transition-colors ${
-                          isActive ? 'text-slate-200' : 'hover:text-slate-300'
-                        }`
-                      }
-                      style={{ color: '#64748B' }}
-                    >
-                      <KeyRound size={14} />
-                      Tokens Meta Ads
-                    </NavLink>
-                  )}
-
-                  {canSeeBaseVendas && (
-                    <NavLink
-                      to="/configuracoes/base-vendas"
-                      onClick={onCloseMobile}
-                      className={({ isActive }) =>
-                        `flex items-center gap-2 rounded-lg px-4 py-2 text-[11px] transition-colors ${
-                          isActive ? 'text-slate-200' : 'hover:text-slate-300'
-                        }`
-                      }
-                      style={{ color: '#64748B' }}
-                    >
-                      <BookOpenText size={14} />
-                      Base de Vendas
-                    </NavLink>
-                  )}
-
-                  {isGestorTrafego && (
-                    <NavLink
-                      to="/otimizacoes/calendario"
-                      onClick={onCloseMobile}
-                      className={({ isActive }) =>
-                        `flex items-center gap-2 rounded-lg px-4 py-2 text-[11px] transition-colors ${
-                          isActive ? 'text-slate-200' : 'hover:text-slate-300'
-                        }`
-                      }
-                      style={{ color: '#64748B' }}
-                    >
-                      <CalendarRange size={14} />
-                      Calendário de Otimizações
-                    </NavLink>
-                  )}
-                </div>
+                <ul className="space-y-0.5">
+                  {settingsLinks.map((item) => (
+                    <li key={item.to}>{renderLink(item, 'sub')}</li>
+                  ))}
+                </ul>
               )}
             </div>
           )}
         </nav>
 
         {profile && (
-          <div className={`flex items-center gap-2.5 border-t border-navy-800 p-4 ${c ? 'md:justify-center md:px-0' : ''}`} title={c ? profile.name : undefined}>
-            <Avatar name={profile.name} photoURL={profile.photoURL} size="sm" />
-            <div className={`min-w-0 ${labelCls}`}>
-              <p className="truncate text-[13px] font-medium text-white">{profile.name}</p>
-              <p className="truncate text-[11px] text-slate-500">{myProfileCargo ?? USER_ROLE_LABEL[profile.role]}</p>
+          <div className="p-3 pt-0">
+            <div className={`sb-profile ${c ? 'md:justify-center md:bg-transparent md:p-1' : ''}`} title={c ? profile.name : undefined}>
+              <Avatar name={profile.name} photoURL={profile.photoURL} size="sm" />
+              <div className={`min-w-0 ${labelCls}`}>
+                <p className="sb-profile-name truncate">{profile.name}</p>
+                <p className="sb-profile-role truncate">{myProfileCargo ?? USER_ROLE_LABEL[profile.role]}</p>
+              </div>
             </div>
           </div>
         )}
