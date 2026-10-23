@@ -1,7 +1,6 @@
 /** Mensagem de chat — só role+content, o suficiente pra reenviar como
- *  histórico pra API da Anthropic (ver services/aiChatService.ts). Guardado
- *  só em memória (useState) enquanto o painel do assistente está aberto —
- *  nunca persistido no Firebase (ver AiAssistantWidget). */
+ *  histórico pra API da Anthropic (ver services/aiChatService.ts). Salvo
+ *  no Firestore em aiChats (ver services/archerChatStore.ts). */
 export interface AiChatMessage {
   role: 'user' | 'assistant'
   content: string

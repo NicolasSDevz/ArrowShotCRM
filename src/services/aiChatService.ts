@@ -36,18 +36,20 @@ export async function getAiQuota(): Promise<AiQuota | null> {
 /** Manda uma mensagem pro assistente de IA (/api/ai/chat) — o backend
  *  verifica login+limite diário e chama a API da Anthropic, nunca expondo a
  *  chave no frontend (ver api/ai/chat.js). `history` são as mensagens
- *  anteriores da mesma conversa (só em memória, ver AiAssistantWidget). */
+ *  anteriores da mesma conversa (salva no Firestore, ver archerChatStore). */
 export async function sendAiChatMessage(
   message: string,
   context: AiPageContext,
-  history: AiChatMessage[]
+  history: AiChatMessage[],
+  /** Conversa salva (aiChats/{chatId}) onde o servidor grava a resposta. */
+  chatId?: string
 ): Promise<{ text: string; quota: AiQuota | null; sources: string[] }> {
   let res: Response
   try {
     res = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-      body: JSON.stringify({ message, context, history: history.map(({ role, content }) => ({ role, content })) }),
+      body: JSON.stringify({ message, context, chatId, history: history.map(({ role, content }) => ({ role, content })) }),
       // Sem timeout, uma resposta lenta (Anthropic, Firestore) deixa o
       // Archer "digitando" pra sempre sem erro nenhum aparecer. 115s: agora
       // ele pode consultar Google/Meta Ads algumas vezes antes de responder

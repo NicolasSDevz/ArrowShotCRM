@@ -11,12 +11,14 @@
 // do Google Ads e campanhas/conjuntos/anúncios do Meta Ads, de qualquer
 // cliente e qualquer período. O loop roda aqui no servidor (ver runArcher).
 //
-// POST /api/ai/chat { message, context, history } -> { response, usage, quota, toolsUsed }
+// POST /api/ai/chat { message, context, history, chatId? } -> { response, usage, quota, toolsUsed }
+//   chatId: conversa salva em aiChats/{chatId} — a resposta é gravada lá também,
+//   pra não sumir se a pessoa der F5 enquanto o Archer pensa.
 // GET  /api/ai/chat -> { quota: { used, limit } }  (quantas mensagens o usuário já usou hoje)
 
 import Anthropic from '@anthropic-ai/sdk'
 import { withInternalAuth } from '../_lib/auth.js'
-import { getDoc, setDoc } from '../_lib/firebaseAdmin.js'
+import { getDoc, setDoc, updateDoc } from '../_lib/firebaseAdmin.js'
 import {
   CRM_TOOLS,
   CRM_TOOL_LABEL,
@@ -505,6 +507,58 @@ async function handleResumo(req, res, user) {
   }
 }
 
+const CHAT_ID_RE = /^[A-Za-z0-9]{10,40}$/
+const CHAT_MAX_SAVED = 120
+
+/** Acrescenta a resposta na conversa salva (aiChats/{chatId}) do próprio
+ *  usuário. Se o front não conseguiu gravar a pergunta antes, monta a
+ *  conversa com o histórico recebido. Falha aqui nunca derruba a resposta. */
+async function saveReplyToChat(chatId, uid, { history, message, reply, sources }) {
+  if (!chatId || !CHAT_ID_RE.test(chatId)) return
+  try {
+    const path = `aiChats/${chatId}`
+    const snap = await getDoc(path)
+    const data = snap.exists ? snap.data() : null
+    if (data && data.uid !== uid) return
+    let base = Array.isArray(data?.messages) ? data.messages : []
+    const last = base[base.length - 1]
+    if (!last || last.role !== 'user' || last.content !== message) {
+      base = [...history, { role: 'user', content: message }]
+    }
+    const assistant = { role: 'assistant', content: reply }
+    if (sources && sources.length) assistant.sources = sources
+    const messages = [...base, assistant].slice(-CHAT_MAX_SAVED)
+    const now = Date.now()
+    if (data) {
+      await updateDoc(path, { messages, pending: false, pendingAt: 0, updatedAt: now })
+    } else {
+      const first = String(message).trim().replace(/\s+/g, ' ')
+      await setDoc(path, {
+        uid,
+        title: first.length > 70 ? `${first.slice(0, 70)}…` : first,
+        messages,
+        pending: false,
+        pendingAt: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+  } catch (err) {
+    console.warn('[ai/chat] não gravou a resposta na conversa salva', err?.message)
+  }
+}
+
+/** Tira o "digitando" da conversa salva quando a resposta falhou. */
+async function clearChatPending(chatId, uid) {
+  if (!chatId || !CHAT_ID_RE.test(chatId)) return
+  try {
+    const snap = await getDoc(`aiChats/${chatId}`)
+    if (snap.exists && snap.data().uid === uid) await updateDoc(`aiChats/${chatId}`, { pending: false, pendingAt: 0 })
+  } catch {
+    /* ignora */
+  }
+}
+
 async function handler(req, res, user) {
   // Mesmo arquivo (não uma rota nova) porque o projeto está no limite de
   // Functions do plano da Vercel.
@@ -529,7 +583,7 @@ async function handler(req, res, user) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada no servidor' })
   }
 
-  const { message, context, history } = req.body || {}
+  const { message, context, history, chatId } = req.body || {}
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message é obrigatório' })
   }
@@ -539,6 +593,7 @@ async function handler(req, res, user) {
     const usageCount = await incrementDailyUsage(user.uid)
     quota = quotaOf(usageCount)
     if (usageCount > DAILY_MESSAGE_LIMIT) {
+      await clearChatPending(chatId, user.uid)
       return res.status(429).json({ error: 'Limite diário de mensagens atingido. Tente novamente amanhã.', quota })
     }
   } catch (err) {
@@ -553,8 +608,10 @@ async function handler(req, res, user) {
 
   try {
     const { text, usage, toolsUsed } = await runArcher({ message, context, history: cleanHistory, user })
+    await saveReplyToChat(chatId, user.uid, { history: cleanHistory, message, reply: text, sources: toolsUsed })
     return res.status(200).json({ response: text, usage, quota, toolsUsed })
   } catch (err) {
+    await clearChatPending(chatId, user.uid)
     if (err instanceof Anthropic.APIError) {
       console.error('[ai/chat] Anthropic API error:', err.status, err.message)
       return res.status(502).json({ error: err.message || 'Falha ao consultar o assistente de IA' })

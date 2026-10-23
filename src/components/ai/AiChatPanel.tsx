@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Minus, X, Send } from 'lucide-react'
+import { Minus, X, Send, History, SquarePen, ArrowLeft, Trash2 } from 'lucide-react'
 import type { AiChatMessage } from '../../types/ai'
 import type { AiQuota } from '../../services/aiChatService'
+import type { ArcherChat } from '../../services/archerChatStore'
 
 const WELCOME_MESSAGE = `Olá! Sou o **Archer**, assistente de IA do Quiver. 🏹
 
@@ -103,6 +104,80 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
   )
 }
 
+function formatWhen(ms: number) {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const today = new Date()
+  const sameDay = d.toDateString() === today.toDateString()
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (sameDay) return `Hoje, ${time}`
+  return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}, ${time}`
+}
+
+/** Lista das conversas salvas do usuário (mais recente primeiro). */
+function HistoryList({
+  chats,
+  currentChatId,
+  onPick,
+  onDelete,
+}: {
+  chats: ArcherChat[] | null
+  currentChatId: string | null
+  onPick: (id: string) => void
+  onDelete: (id: string) => void
+}) {
+  if (chats === null) {
+    return (
+      <p className="text-center text-xs" role="status" style={{ color: C.muted }}>
+        Carregando conversas…
+      </p>
+    )
+  }
+  if (chats.length === 0) {
+    return (
+      <p className="text-center text-xs" role="status" style={{ color: C.muted }}>
+        Nenhuma conversa salva ainda.
+      </p>
+    )
+  }
+  return (
+    <ul className="flex flex-col gap-2" aria-label="Conversas anteriores">
+      {chats.map((c) => {
+        const count = Array.isArray(c.messages) ? c.messages.length : 0
+        const active = c.id === currentChatId
+        return (
+          <li key={c.id} className="ai-bubble flex items-stretch overflow-hidden rounded-xl" style={{ border: `1px solid ${active ? C.brand : C.border}`, backgroundColor: C.white }}>
+            <button
+              onClick={() => onPick(c.id)}
+              aria-current={active ? 'true' : undefined}
+              className="ai-hist-item min-w-0 flex-1 px-3 py-2 text-left"
+            >
+              <span className="block truncate text-[13px] font-semibold" style={{ color: C.dark }}>
+                <span className="ai-hist-title">{c.title || 'Conversa'}</span>
+              </span>
+              <span className="block text-[11px]" style={{ color: C.muted }}>
+                {formatWhen(c.updatedAt)} · {count} {count === 1 ? 'mensagem' : 'mensagens'}
+                {active ? ' · aberta' : ''}
+              </span>
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm('Apagar esta conversa do histórico?')) onDelete(c.id)
+              }}
+              aria-label={`Apagar conversa: ${c.title || 'Conversa'}`}
+              title="Apagar conversa"
+              className="ai-hist-del shrink-0 px-2.5"
+              style={{ color: C.slate400 }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 /** Painel de chat do assistente de IA — 380x520, header escuro, mensagens
  *  num fundo #F8FAFC-equivalente, chips de pergunta sugerida no estado
  *  vazio. Puramente apresentacional; todo o estado (mensagens, envio,
@@ -134,6 +209,14 @@ export function AiChatPanel({
   onSuggestedClick,
   onMinimize,
   onClose,
+  historyOpen,
+  history,
+  currentChatId,
+  onOpenHistory,
+  onCloseHistory,
+  onPickChat,
+  onNewChat,
+  onDeleteChat,
 }: {
   messages: AiChatMessage[]
   /** Mensagens usadas hoje / limite diário (null = ainda carregando). */
@@ -146,6 +229,16 @@ export function AiChatPanel({
   onSuggestedClick: (question: string) => void
   onMinimize: () => void
   onClose: () => void
+  /** Mostrando a lista de conversas salvas no lugar do chat. */
+  historyOpen: boolean
+  /** null = carregando. */
+  history: ArcherChat[] | null
+  currentChatId: string | null
+  onOpenHistory: () => void
+  onCloseHistory: () => void
+  onPickChat: (id: string) => void
+  onNewChat: () => void
+  onDeleteChat: (id: string) => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputBoxRef = useRef<HTMLTextAreaElement>(null)
@@ -205,6 +298,9 @@ export function AiChatPanel({
         .ai-chip:hover { border-color: ${C.brand} !important; color: ${C.brandDark} !important; }
         .ai-icon-btn { transition: color 120ms, background-color 120ms; }
         .ai-icon-btn:hover { background-color: rgba(255,255,255,0.1); color: ${C.white} !important; }
+        .ai-hist-item:hover .ai-hist-title { color: ${C.brand}; }
+        .ai-hist-del:hover { color: ${C.red} !important; }
+        :root[data-theme="dark"] .ai-hist-item .ai-hist-title { color: #f1f1f3; }
         .ai-input:focus { outline: none; border-color: ${C.brand} !important; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
       `}</style>
 
@@ -218,6 +314,19 @@ export function AiChatPanel({
         </div>
         <div className="flex items-center gap-1">
           {quota && <QuotaBadge quota={quota} />}
+          <button
+            onClick={historyOpen ? onCloseHistory : onOpenHistory}
+            aria-label={historyOpen ? 'Voltar para a conversa' : 'Histórico de conversas'}
+            aria-pressed={historyOpen}
+            title={historyOpen ? 'Voltar para a conversa' : 'Histórico de conversas'}
+            className="ai-icon-btn rounded-md p-1.5"
+            style={{ color: historyOpen ? C.white : C.slate400 }}
+          >
+            {historyOpen ? <ArrowLeft size={15} /> : <History size={15} />}
+          </button>
+          <button onClick={onNewChat} aria-label="Nova conversa" title="Nova conversa" className="ai-icon-btn rounded-md p-1.5" style={{ color: C.slate400 }}>
+            <SquarePen size={15} />
+          </button>
           <button onClick={onMinimize} aria-label="Minimizar" className="ai-icon-btn rounded-md p-1.5" style={{ color: C.slate400 }}>
             <Minus size={15} />
           </button>
@@ -228,7 +337,14 @@ export function AiChatPanel({
       </div>
 
       <div ref={scrollRef} className="ai-body flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: C.panelBg }}>
-        {messages.length === 0 ? (
+        {historyOpen ? (
+          <div className="flex flex-col gap-3">
+            <h2 className="text-xs font-bold uppercase tracking-wide" style={{ color: C.muted }}>
+              Histórico de conversas
+            </h2>
+            <HistoryList chats={history} currentChatId={currentChatId} onPick={onPickChat} onDelete={onDeleteChat} />
+          </div>
+        ) : messages.length === 0 ? (
           <div className="flex flex-col gap-4">
             <MessageBubble message={{ role: 'assistant', content: WELCOME_MESSAGE }} />
             {suggestedQuestions.length > 0 && (

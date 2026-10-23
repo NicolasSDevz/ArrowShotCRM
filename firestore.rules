@@ -538,6 +538,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ---------- aiChats (conversas salvas do Archer, ver
+    // src/services/archerChatStore.ts). Cada um só lê/grava as próprias;
+    // a resposta é gravada pelo servidor (api/ai/index.js, service account). ----------
+    match /aiChats/{chatId} {
+      allow read: if isInternal() && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if isInternal() && request.resource.data.uid == request.auth.uid;
+      allow update: if isInternal() && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isInternal() && resource.data.uid == request.auth.uid;
+    }
+
     // ---------- celebrationEvents (comemoração em tempo real quando um lead
     // vira cliente). Efêmero: o CelebrationOverlay escuta os últimos eventos,
     // dispara confete+som só nos que têm < 10s e faz prune dos antigos.
