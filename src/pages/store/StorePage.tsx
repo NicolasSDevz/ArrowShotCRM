@@ -160,6 +160,7 @@ export function StorePage() {
         <Tabs
           label="Seções da loja"
           variant="page"
+          moreLabel="Configurações"
           active={activeTab}
           onChange={(i) => setParams((p) => {
             const next = new URLSearchParams(p)

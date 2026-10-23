@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Settings2 } from 'lucide-react'
 
 /** Abas com `secondary: true` ficam escondidas atrás do botão "Mais" até a pessoa abrir.
  *
@@ -55,8 +55,7 @@ export function Tabs({
   const primary = indexed.filter((t) => !t.secondary)
   const secondary = indexed.filter((t) => t.secondary)
   // Com as extras fechadas, a aba extra que estiver aberta continua aparecendo.
-  // page: todas aparecem (as extras depois de um divisor).
-  const visibleSecondary = showAll || page ? secondary : secondary.filter((t) => t.i === active)
+  const visibleSecondary = showAll && !page ? secondary : secondary.filter((t) => t.i === active)
   const visible = [...primary, ...visibleSecondary]
   const hiddenSecondary = secondary.filter((t) => !visibleSecondary.includes(t))
 
@@ -147,19 +146,56 @@ export function Tabs({
         <div
           role="tablist"
           aria-label={label}
-          className={page ? 'flex min-w-0 flex-1 flex-wrap items-center gap-x-1' : pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
+          className={page ? 'flex min-w-0 flex-1 items-center gap-x-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
         >
-          {visible.map((t, n) =>
-            page && t.secondary && n > 0 && !visible[n - 1].secondary ? (
-              <span key={`div-${t.i}`} className="contents">
-                <span aria-hidden="true" className="mx-2 h-5 w-px bg-slate-200" />
-                {tabButton(t)}
-              </span>
-            ) : (
-              tabButton(t)
-            )
-          )}
+          {visible.map(tabButton)}
         </div>
+        {secondary.length > 0 && page && (
+          <div
+            className="relative shrink-0"
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setShowAll(false)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setShowAll(false)
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              aria-expanded={showAll}
+              aria-haspopup="true"
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 hover:text-slate-800 ${showAll ? 'bg-slate-100 text-slate-800' : 'text-slate-500'}`}
+            >
+              <Settings2 size={15} aria-hidden="true" /> {moreLabel} <ChevronDown size={14} aria-hidden="true" className={showAll ? 'rotate-180 transition' : 'transition'} />
+            </button>
+            {showAll && (
+              <ul className="absolute right-0 top-full z-30 mt-1.5 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                {secondary.map((t) => (
+                  <li key={t.i}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAll(false)
+                        select(t.i, true)
+                      }}
+                      aria-current={active === t.i ? 'page' : undefined}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100 ${active === t.i ? 'text-slate-900' : 'text-slate-600'}`}
+                    >
+                      {t.icon && <span aria-hidden="true" className="opacity-70">{t.icon}</span>}
+                      <span className="flex-1">{t.label}</span>
+                      {!!t.badge && (
+                        <span className="rounded-full bg-amber-500 px-1.5 text-[11px] font-bold leading-[18px] text-white" aria-label={t.badgeLabel ?? String(t.badge)}>
+                          {t.badge}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         {secondary.length > 0 && !page && (
           <button
             type="button"
