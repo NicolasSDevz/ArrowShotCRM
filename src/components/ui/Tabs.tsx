@@ -55,7 +55,8 @@ export function Tabs({
   const primary = indexed.filter((t) => !t.secondary)
   const secondary = indexed.filter((t) => t.secondary)
   // Com as extras fechadas, a aba extra que estiver aberta continua aparecendo.
-  const visibleSecondary = showAll ? secondary : secondary.filter((t) => t.i === active)
+  // page: todas aparecem (as extras depois de um divisor).
+  const visibleSecondary = showAll || page ? secondary : secondary.filter((t) => t.i === active)
   const visible = [...primary, ...visibleSecondary]
   const hiddenSecondary = secondary.filter((t) => !visibleSecondary.includes(t))
 
@@ -148,9 +149,18 @@ export function Tabs({
           aria-label={label}
           className={page ? 'flex min-w-0 flex-1 flex-wrap items-center gap-x-1' : pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
         >
-          {visible.map(tabButton)}
+          {visible.map((t, n) =>
+            page && t.secondary && n > 0 && !visible[n - 1].secondary ? (
+              <span key={`div-${t.i}`} className="contents">
+                <span aria-hidden="true" className="mx-2 h-5 w-px bg-slate-200" />
+                {tabButton(t)}
+              </span>
+            ) : (
+              tabButton(t)
+            )
+          )}
         </div>
-        {secondary.length > 0 && (
+        {secondary.length > 0 && !page && (
           <button
             type="button"
             onClick={() => {
