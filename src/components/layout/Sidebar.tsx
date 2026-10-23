@@ -17,6 +17,7 @@ import {
   Store,
   Palette,
   ChevronDown,
+  ChevronsUpDown,
   X,
   PanelLeftClose,
   PanelLeftOpen,
@@ -25,6 +26,7 @@ import { useState, type ReactNode } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { Avatar } from '../ui/Avatar'
+import { AccountMenu } from './AccountMenu'
 import { USER_ROLE_LABEL } from '../../types/user'
 import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
 import { temAcessoAoCopiloto } from '../../config/copilotoAccess'
@@ -89,6 +91,7 @@ export function Sidebar({
   const { pathname, search } = useLocation()
   const { data: teamMembers } = useTeamMembers()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   // Recolhido (só no computador): vira uma faixa fina só com ícones — bom pra
   // apresentar pro cliente sem o menu ocupando a tela. Fica salvo no navegador.
   const [collapsed, setCollapsed] = useState(readCollapsed)
@@ -237,14 +240,30 @@ export function Sidebar({
         </nav>
 
         {profile && (
-          <div className="border-t border-[#18181a] p-2">
-            <div className={`sb-profile ${c ? 'md:justify-center md:bg-transparent md:p-1' : ''}`} title={c ? profile.name : undefined}>
+          <div className="relative border-t border-[#18181a] p-2">
+            <button
+              type="button"
+              onClick={() => setAccountOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
+              aria-label={`Minha conta: ${profile.name}`}
+              title={c ? profile.name : undefined}
+              className={`sb-profile w-full text-left ${c ? 'md:justify-center md:p-1' : ''}`}
+            >
               <Avatar name={profile.name} photoURL={profile.photoURL} size="sm" />
-              <div className={`min-w-0 ${labelCls}`}>
+              <div className={`min-w-0 flex-1 ${labelCls}`}>
                 <p className="sb-profile-name truncate">{profile.name}</p>
                 <p className="sb-profile-role truncate">{myProfileCargo ?? USER_ROLE_LABEL[profile.role]}</p>
               </div>
-            </div>
+              <ChevronsUpDown size={14} aria-hidden="true" className={`shrink-0 text-[#6b6b71] ${labelCls}`} />
+            </button>
+            {accountOpen && (
+              <AccountMenu
+                onClose={() => setAccountOpen(false)}
+                subtitle={myProfileCargo ?? USER_ROLE_LABEL[profile.role]}
+                className={`absolute bottom-full left-2 mb-2 ${c ? 'md:bottom-2 md:left-full md:mb-0 md:ml-2' : ''}`}
+              />
+            )}
           </div>
         )}
       </aside>

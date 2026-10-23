@@ -20,6 +20,7 @@ import { listDocs, getDoc, setDoc } from '../_lib/firebaseAdmin.js'
 import { resolveMetaToken, listAllTokenStatuses, setClientToken, deleteClientToken, getClientTokenStatus } from '../_lib/metaTokenStore.js'
 import { credentialsHandler } from '../_lib/credentialsHandler.js'
 import { exchangeTokenHandler } from '../_lib/exchangeTokenHandler.js'
+import { errorReportHandler } from '../_lib/errorReport.js'
 
 // ─── account ────────────────────────────────────────────────────────────────
 
@@ -498,6 +499,8 @@ export default function route(req, res) {
     case 'campaigns':        return campaignsRoute(req, res)
     case 'insights':         return insightsRoute(req, res)
     case 'agency-overview':  return agencyOverviewRoute(req, res)
+    // Aviso de erro das telas (público: o checkout não tem login). Ver _lib/errorReport.js.
+    case 'erro':             return errorReportHandler(req, res)
     default:
       return res.status(404).json({ error: `Rota Meta inválida: ${acao}` })
   }

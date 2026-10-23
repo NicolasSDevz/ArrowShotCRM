@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { Spinner } from '../ui/FullPageSpinner'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
@@ -41,7 +42,16 @@ export function AppLayout() {
             com espaço vazio na ficha do cliente. */}
         <main className="relative flex-1 overflow-y-auto p-8 pb-28 print:static print:overflow-visible print:p-0">
           <ErrorBoundary resetKey={location.pathname}>
-            <Outlet />
+            {/* Menu e topo ficam na tela enquanto a página nova baixa. */}
+            <Suspense
+              fallback={
+                <div className="flex h-64 items-center justify-center" role="status" aria-label="Carregando">
+                  <Spinner className="h-6 w-6" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>

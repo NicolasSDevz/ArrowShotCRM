@@ -60,6 +60,10 @@ export async function updateUserActive(uid: string, active: boolean, actingUserI
   await base.update(uid, { active }, actingUserId)
 }
 
+export async function updateUserName(uid: string, name: string) {
+  await base.update(uid, { name }, uid)
+}
+
 export async function updateUserPhoto(uid: string, photoURL: string) {
   await base.update(uid, { photoURL }, uid)
 }

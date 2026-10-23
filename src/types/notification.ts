@@ -44,6 +44,7 @@ export type NotificationType =
   | 'store_refund' // Loja: reembolso/chargeback feito no Mercado Pago (acesso removido)
   | 'store_capi_error' // Loja: o Meta recusou a venda na API de Conversões
   | 'consulting_pending' // Consultoria do mês ainda não feita com algum cliente ativo
+  | 'system_error' // Uma tela do CRM/checkout quebrou (api/_lib/errorReport.js)
 
 export interface AppNotification {
   id: string
@@ -99,6 +100,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   store_refund: 'Estorno no Mercado Pago',
   store_capi_error: 'Venda não marcada no Meta',
   consulting_pending: 'Consultoria pendente',
+  system_error: 'Erro numa tela',
 }
 
 /** Avisos de rotina que deixaram de ser enviados (21/10/2026): o sino ficava

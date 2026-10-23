@@ -9,6 +9,7 @@ import {
   CalendarClock,
   CheckCircle2,
   AlertTriangle,
+  Bug,
   UserPlus,
   ClipboardList,
   Palette,
@@ -76,6 +77,7 @@ export const NOTIFICATION_ICON: Record<NotificationType, IconType> = {
   store_refund: RotateCcw,
   store_capi_error: AlertTriangle,
   consulting_pending: CalendarClock,
+  system_error: Bug,
 }
 
 /** Icon chip background/text, per the spec's colors (azul, verde, vermelho,
@@ -120,6 +122,7 @@ export const NOTIFICATION_ICON_STYLE: Record<NotificationType, string> = {
   store_refund: 'bg-red-50 text-red-600',
   store_capi_error: 'bg-amber-50 text-amber-600',
   consulting_pending: 'bg-amber-50 text-amber-600',
+  system_error: 'bg-red-50 text-red-600',
 }
 
 /** "há 5 minutos" / "há 2 horas" / "ontem às 14:30" / "dd/MM/yyyy às HH:mm". */
@@ -157,7 +160,7 @@ export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'enti
     case 'task':
       return n.entityId ? `/operacional?task=${n.entityId}` : '/operacional'
     case 'content':
-      return n.entityId ? `/social-media?content=${n.entityId}` : '/social-media'
+      return '/clientes' // o Social Mídia saiu; conteúdos ficam na ficha do cliente
     case 'lead':
       return '/leads'
     case 'meeting':

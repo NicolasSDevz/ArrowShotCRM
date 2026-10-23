@@ -27,7 +27,6 @@ const JAMILSON_LAYOUT = layout([
   ['consultorias_mes', 'full'],
   ['tarefas_hoje', 'half'],
   ['tarefas_atrasadas', 'half'],
-  ['proximas_publicacoes', 'full'],
   ['aniversarios', 'full'],
 ])
 
@@ -36,10 +35,8 @@ const GESTORES_LAYOUT = layout([
   ['relatorios_semanais', 'full'],
   ['otimizacoes', 'full'],
   ['otimizacoes_equipe', 'full'],
-  ['conteudos_produzir', 'full'],
   ['tarefas_atrasadas', 'half'],
   ['tarefas_hoje', 'half'],
-  ['proximas_publicacoes', 'full'],
   ['resumo_clientes', 'full'],
 ])
 

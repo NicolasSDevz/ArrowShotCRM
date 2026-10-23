@@ -1,14 +1,11 @@
-import { useRef, useState } from 'react'
-import toast from 'react-hot-toast'
-import { LogOut, Search, Camera, Menu, Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import { Search, Menu, EyeOff, ChevronDown } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { Avatar } from '../ui/Avatar'
 import { NotificationBell } from './NotificationBell'
 import { TeamPresence } from './TeamPresence'
-import { compressImageToDataUrl } from '../../utils/imageToDataUrl'
-import { updateUserPhoto } from '../../services/userService'
-import { showError } from '../../utils/notifyError'
+import { AccountMenu, usePresentationToggle } from './AccountMenu'
 
 export function Topbar({
   search,
@@ -19,35 +16,11 @@ export function Topbar({
   onSearchChange?: (v: string) => void
   onOpenMobileNav?: () => void
 }) {
-  const { profile, signOut } = useAuth()
-  const { isPrivacyMode, togglePrivacyMode } = usePrivacy()
+  const { profile } = useAuth()
+  const { isPrivacyMode } = usePrivacy()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const photoInputRef = useRef<HTMLInputElement>(null)
 
-  const togglePresentation = () => {
-    const next = !isPrivacyMode
-    togglePrivacyMode()
-    toast(next ? 'Modo apresentação ligado: dados sensíveis ocultos' : 'Modo apresentação desligado', {
-      duration: 2500,
-      icon: next ? <EyeOff size={16} className="text-brand-600" /> : <Eye size={16} className="text-slate-500" />,
-    })
-  }
-
-  const handlePhotoChange = async (file: File | null) => {
-    if (!file || !profile) return
-    setUploadingPhoto(true)
-    try {
-      const dataUrl = await compressImageToDataUrl(file, 256, 0.85)
-      await updateUserPhoto(profile.id, dataUrl)
-      toast.success('Foto atualizada')
-    } catch (err) {
-      console.error(err)
-      showError(err, 'Erro ao atualizar foto')
-    } finally {
-      setUploadingPhoto(false)
-    }
-  }
+  const togglePresentation = usePresentationToggle()
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 sm:gap-3 sm:px-5">
@@ -101,74 +74,9 @@ export function Topbar({
             <Avatar name={profile?.name ?? '?'} photoURL={profile?.photoURL} size="sm" />
             <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
           </button>
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-100 bg-white p-1.5 shadow-lg">
-                <div className="flex items-center gap-2.5 px-2.5 py-2">
-                  <Avatar name={profile?.name ?? '?'} photoURL={profile?.photoURL} size="md" />
-                  <div className="min-w-0 text-xs text-slate-400">
-                    <p className="truncate text-sm font-medium text-slate-700">{profile?.name}</p>
-                    <p className="truncate">{profile?.email}</p>
-                  </div>
-                </div>
-                <div className="my-1 h-px bg-slate-100" />
-                <MenuSwitch
-                  icon={<EyeOff size={14} />}
-                  label="Modo apresentação"
-                  hint="Esconde valores e contatos"
-                  checked={isPrivacyMode}
-                  onChange={togglePresentation}
-                />
-                <div className="my-1 h-px bg-slate-100" />
-                <button
-                  onClick={() => photoInputRef.current?.click()}
-                  disabled={uploadingPhoto}
-                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <Camera size={14} /> {uploadingPhoto ? 'Enviando...' : 'Trocar foto'}
-                </button>
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handlePhotoChange(e.target.files?.[0] ?? null)}
-                />
-                <button
-                  onClick={signOut}
-                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
-                >
-                  <LogOut size={14} /> Sair
-                </button>
-              </div>
-            </>
-          )}
+          {menuOpen && <AccountMenu onClose={() => setMenuOpen(false)} className="absolute right-0 mt-2" />}
         </div>
       </div>
     </header>
-  )
-}
-
-/** Linha do menu da conta com um interruptor (modo escuro, modo apresentação). */
-function MenuSwitch({ icon, label, hint, checked, onChange }: { icon: React.ReactNode; label: string; hint?: string; checked: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onChange}
-      className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-slate-600 hover:bg-slate-50"
-    >
-      <span className="text-slate-500">{icon}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block">{label}</span>
-        {hint && <span className="block text-[11px] text-slate-400">{hint}</span>}
-      </span>
-      <span className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${checked ? 'bg-brand-600' : 'bg-slate-300'}`}>
-        {/* Cor fixa (#fefefe, não #fff): bg-white e o branco inline puro viram escuros no modo escuro (ver index.css). */}
-        <span className={`absolute top-0.5 h-3 w-3 rounded-full shadow transition-all ${checked ? 'left-[14px]' : 'left-0.5'}`} style={{ background: '#fefefe' }} />
-      </span>
-    </button>
   )
 }

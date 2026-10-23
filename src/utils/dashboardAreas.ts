@@ -126,7 +126,18 @@ export function canSeeOverviewSection(area: DashboardArea | undefined, section: 
   return OVERVIEW_BY_AREA[area].includes(section)
 }
 
+/** Quadros de conteúdo do Social Mídia: o módulo saiu do CRM (23/10/2026),
+ *  então somem de todo painel, até dos que já estavam salvos. */
+export const RETIRED_WIDGETS: ReadonlySet<DashboardWidgetId> = new Set<DashboardWidgetId>([
+  'conteudos_produzir',
+  'em_producao',
+  'aguardando_aprovacao',
+  'conteudos_aprovados',
+  'proximas_publicacoes',
+])
+
 export function isWidgetAllowed(area: DashboardArea | undefined, id: DashboardWidgetId): boolean {
+  if (RETIRED_WIDGETS.has(id)) return false
   if (!area || area === 'comercial') return true
   return WIDGETS_BY_AREA[area].includes(id)
 }

@@ -1,4 +1,7 @@
+import { Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazyPage } from './utils/lazyPage'
+import { Spinner } from './components/ui/FullPageSpinner'
 import { Toaster } from 'react-hot-toast'
 import { ErrorDialogHost } from './components/ui/ErrorDialogHost'
 import { ConfirmDialogHost } from './components/ui/ConfirmDialogHost'
@@ -7,45 +10,50 @@ import { ThemeApplier, ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
 import { PrivacyProvider } from './context/PrivacyContext'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
-import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { OperationalDashboard } from './pages/OperationalDashboard'
 import { RootRedirect } from './pages/RootRedirect'
-import { ClientsPage } from './pages/ClientsPage'
-import { ClientDetailPage } from './pages/ClientDetailPage'
-import { CalendarMeetingsPage } from './pages/CalendarMeetingsPage'
-import { NotificationsPage } from './pages/NotificationsPage'
-import { LeadsPage } from './pages/LeadsPage'
-import { MetricsPage } from './pages/MetricsPage'
-import { ReportsPage } from './pages/ReportsPage'
-import { MonthlyReportPage } from './pages/MonthlyReportPage'
-import { TeamPage } from './pages/TeamPage'
-import { PublicApprovalPage } from './pages/PublicApprovalPage'
-import { PublicReportPage } from './pages/PublicReportPage'
-import { PublicAccessPage } from './pages/PublicAccessPage'
-import { LeadCapturePage } from './pages/LeadCapturePage'
-import { PrivacyPolicyPage, TermsOfServicePage } from './pages/LegalPages'
-import { MetaTokensPage } from './pages/MetaTokensPage'
-import { UniversityPage } from './pages/UniversityPage'
-import { UniversityTrailPage } from './pages/UniversityTrailPage'
-import { UniversityModulePage } from './pages/UniversityModulePage'
-import { UniversityProgressPage } from './pages/UniversityProgressPage'
-import { UniversityAdminPage } from './pages/UniversityAdminPage'
-import { OptimizationCalendarPage } from './pages/OptimizationCalendarPage'
-import { CopilotoPage } from './pages/CopilotoPage'
-import { BaseVendasPage } from './pages/BaseVendasPage'
 import { COPILOTO_ALLOWED_EMAILS } from './config/copilotoAccess'
-import { StorePage } from './pages/store/StorePage'
-import { StoreProductPage } from './pages/store/StoreProductPage'
-import { StoreAppPage } from './pages/store/StoreAppPage'
-import { CheckoutPage } from './pages/store/CheckoutPage'
-import { CheckoutThanksPage } from './pages/store/CheckoutThanksPage'
-import { MembersLayout } from './components/store/members/MembersLayout'
-import { MembersEnterPage, MembersLoginPage, MembersProfilePage } from './pages/store/members/MembersAuthPages'
-import { MembersHomePage } from './pages/store/members/MembersHomePage'
-import { MembersCoursePage } from './pages/store/members/MembersCoursePage'
-import { MembersLessonPage } from './pages/store/members/MembersLessonPage'
+
+// Cada tela vira um arquivo separado, baixado só quando abre.
+const AppLayout = lazyPage(() => import('./components/layout/AppLayout'), 'AppLayout')
+const DashboardPage = lazyPage(() => import('./pages/DashboardPage'), 'DashboardPage')
+const OperationalDashboard = lazyPage(() => import('./pages/OperationalDashboard'), 'OperationalDashboard')
+const ClientsPage = lazyPage(() => import('./pages/ClientsPage'), 'ClientsPage')
+const ClientDetailPage = lazyPage(() => import('./pages/ClientDetailPage'), 'ClientDetailPage')
+const CalendarMeetingsPage = lazyPage(() => import('./pages/CalendarMeetingsPage'), 'CalendarMeetingsPage')
+const NotificationsPage = lazyPage(() => import('./pages/NotificationsPage'), 'NotificationsPage')
+const LeadsPage = lazyPage(() => import('./pages/LeadsPage'), 'LeadsPage')
+const MetricsPage = lazyPage(() => import('./pages/MetricsPage'), 'MetricsPage')
+const ReportsPage = lazyPage(() => import('./pages/ReportsPage'), 'ReportsPage')
+const MonthlyReportPage = lazyPage(() => import('./pages/MonthlyReportPage'), 'MonthlyReportPage')
+const TeamPage = lazyPage(() => import('./pages/TeamPage'), 'TeamPage')
+const PublicApprovalPage = lazyPage(() => import('./pages/PublicApprovalPage'), 'PublicApprovalPage')
+const PublicReportPage = lazyPage(() => import('./pages/PublicReportPage'), 'PublicReportPage')
+const PublicAccessPage = lazyPage(() => import('./pages/PublicAccessPage'), 'PublicAccessPage')
+const LeadCapturePage = lazyPage(() => import('./pages/LeadCapturePage'), 'LeadCapturePage')
+const PrivacyPolicyPage = lazyPage(() => import('./pages/LegalPages'), 'PrivacyPolicyPage')
+const TermsOfServicePage = lazyPage(() => import('./pages/LegalPages'), 'TermsOfServicePage')
+const MetaTokensPage = lazyPage(() => import('./pages/MetaTokensPage'), 'MetaTokensPage')
+const UniversityPage = lazyPage(() => import('./pages/UniversityPage'), 'UniversityPage')
+const UniversityTrailPage = lazyPage(() => import('./pages/UniversityTrailPage'), 'UniversityTrailPage')
+const UniversityModulePage = lazyPage(() => import('./pages/UniversityModulePage'), 'UniversityModulePage')
+const UniversityProgressPage = lazyPage(() => import('./pages/UniversityProgressPage'), 'UniversityProgressPage')
+const UniversityAdminPage = lazyPage(() => import('./pages/UniversityAdminPage'), 'UniversityAdminPage')
+const OptimizationCalendarPage = lazyPage(() => import('./pages/OptimizationCalendarPage'), 'OptimizationCalendarPage')
+const CopilotoPage = lazyPage(() => import('./pages/CopilotoPage'), 'CopilotoPage')
+const BaseVendasPage = lazyPage(() => import('./pages/BaseVendasPage'), 'BaseVendasPage')
+const StorePage = lazyPage(() => import('./pages/store/StorePage'), 'StorePage')
+const StoreProductPage = lazyPage(() => import('./pages/store/StoreProductPage'), 'StoreProductPage')
+const StoreAppPage = lazyPage(() => import('./pages/store/StoreAppPage'), 'StoreAppPage')
+const CheckoutPage = lazyPage(() => import('./pages/store/CheckoutPage'), 'CheckoutPage')
+const CheckoutThanksPage = lazyPage(() => import('./pages/store/CheckoutThanksPage'), 'CheckoutThanksPage')
+const MembersLayout = lazyPage(() => import('./components/store/members/MembersLayout'), 'MembersLayout')
+const MembersEnterPage = lazyPage(() => import('./pages/store/members/MembersAuthPages'), 'MembersEnterPage')
+const MembersLoginPage = lazyPage(() => import('./pages/store/members/MembersAuthPages'), 'MembersLoginPage')
+const MembersProfilePage = lazyPage(() => import('./pages/store/members/MembersAuthPages'), 'MembersProfilePage')
+const MembersHomePage = lazyPage(() => import('./pages/store/members/MembersHomePage'), 'MembersHomePage')
+const MembersCoursePage = lazyPage(() => import('./pages/store/members/MembersCoursePage'), 'MembersCoursePage')
+const MembersLessonPage = lazyPage(() => import('./pages/store/members/MembersLessonPage'), 'MembersLessonPage')
 
 /** Domínio curto do checkout (pay., checkout., compra. ou loja.): o link fica
  *  pay.seudominio.com.br/nome-do-produto, sem o /pay. Mesmo app, mesma API. */
@@ -62,6 +70,15 @@ function membersRoutes() {
   ]
 }
 
+/** Enquanto o arquivo da tela baixa (fundo transparente: serve no CRM escuro e no checkout claro). */
+function ScreenLoading() {
+  return (
+    <div className="flex h-screen w-full items-center justify-center" role="status" aria-label="Carregando">
+      <Spinner className="h-7 w-7" />
+    </div>
+  )
+}
+
 const CHECKOUT_HOST = typeof window !== 'undefined' && /^(pay|checkout|compra|loja)\./i.test(window.location.hostname)
 
 function App() {
@@ -75,6 +92,7 @@ function App() {
         <ErrorDialogHost />
         <ConfirmDialogHost />
         <SessionIssueHost />
+        <Suspense fallback={<ScreenLoading />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/aprovar/:contentId/:token" element={<PublicApprovalPage />} />
@@ -213,6 +231,7 @@ function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </PrivacyProvider>
     </AuthProvider>

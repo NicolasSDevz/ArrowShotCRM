@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { format, subDays, startOfMonth, endOfMonth, subMonths, differenceInCalendarDays, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ExternalLink, RefreshCw, Wallet, Target, MousePointerClick, Percent } from 'lucide-react'
 import { MetricCard } from '../components/ui/MetricCard'
+import { SpendChart } from '../components/ui/SpendChart'
 import toast from 'react-hot-toast'
 import { openErrorDialog, toFriendlyError } from '../utils/notifyError'
 import { useClients } from '../hooks/useClients'
@@ -14,7 +15,7 @@ import { Input } from '../components/ui/Field'
 import { EmptyState } from '../components/ui/EmptyState'
 import { usePrivacy } from '../context/PrivacyContext'
 import { updateClient } from '../services/clientService'
-import { getGoogleAdsInsights, type GoogleAdsInsightsSummary } from '../services/googleAdsApi'
+import { getGoogleAdsInsights, type GoogleAdsInsightsDaily, type GoogleAdsInsightsSummary } from '../services/googleAdsApi'
 import { maskGoogleAdsId } from '../utils/masks'
 import { findUserIdByName } from '../utils/userLookup'
 import { EMPTY_CAMPAIGN_PLANNING, EMPTY_CAMPAIGN_PLANNING_ACCESS } from '../types/campaignPlanning'
@@ -37,7 +38,7 @@ const INT = (v: number) => (Number.isFinite(v) ? v : 0).toLocaleString('pt-BR', 
 /** Explicações do ícone "i" de cada card — mesmo padrão do painel Visão
  *  Geral (ver TIPS em OverviewDashboard.tsx). */
 const TIPS = {
-  cost: 'Soma do custo de todas as campanhas ativas de todos os clientes, no período de 30 dias exibido.',
+  cost: 'Soma do custo das campanhas de todos os clientes no período escolhido.',
   conversions: 'Ações completadas atribuídas aos anúncios (leads, ligações, compras…), conforme as conversões configuradas em cada conta do Google Ads.',
   cpc: 'Custo total dividido pelo total de cliques no período — quanto menor, melhor.',
   ctr: 'Percentual de pessoas que clicaram no anúncio em relação a quantas o viram (cliques ÷ impressões). Acima de 3% é considerado bom para Rede de Pesquisa.',
@@ -45,7 +46,7 @@ const TIPS = {
 
 type ClientResult =
   | { status: 'loading' }
-  | { status: 'ok'; summary: GoogleAdsInsightsSummary }
+  | { status: 'ok'; summary: GoogleAdsInsightsSummary; prev: GoogleAdsInsightsSummary | null; daily: GoogleAdsInsightsDaily[] }
   | { status: 'error'; message: string }
 
 function periodRange(preset: PeriodPreset, customSince: string, customUntil: string) {
@@ -66,6 +67,51 @@ function periodRange(preset: PeriodPreset, customSince: string, customUntil: str
     default:
       return { dateFrom: format(subDays(yesterday, 6), 'yyyy-MM-dd'), dateTo: format(yesterday, 'yyyy-MM-dd') }
   }
+}
+
+/** Mesmo número de dias, logo antes do período escolhido (pra comparar). */
+function previousRange(dateFrom: string, dateTo: string) {
+  const from = parseISO(dateFrom)
+  const days = differenceInCalendarDays(parseISO(dateTo), from) + 1
+  return { dateFrom: format(subDays(from, days), 'yyyy-MM-dd'), dateTo: format(subDays(from, 1), 'yyyy-MM-dd') }
+}
+
+function pct(curr: number, prev: number | undefined): number | null {
+  if (!prev) return null
+  return ((curr - prev) / prev) * 100
+}
+
+type SummaryTotals = { cost: number; conversions: number; clicks: number; impressions: number; cpc: number; ctr: number }
+
+function sumSummaries(list: GoogleAdsInsightsSummary[]): SummaryTotals {
+  const cost = list.reduce((s, r) => s + r.cost, 0)
+  const conversions = list.reduce((s, r) => s + r.conversions, 0)
+  const clicks = list.reduce((s, r) => s + r.clicks, 0)
+  const impressions = list.reduce((s, r) => s + r.impressions, 0)
+  return {
+    cost,
+    conversions,
+    clicks,
+    impressions,
+    cpc: clicks > 0 ? cost / clicks : 0,
+    ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+  }
+}
+
+type AlertKey = 'error' | 'noAccount' | 'noSpend' | 'noConversions'
+
+function AlertChip({ children, active, onClick }: { children: ReactNode; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+        active ? 'border-amber-500 bg-amber-500 text-white' : 'border-amber-300 bg-white text-amber-700 hover:bg-amber-100'
+      }`}
+    >
+      {children}
+    </button>
+  )
 }
 
 function AccountIdCell({ client }: { client: Client }) {
@@ -168,8 +214,16 @@ export function GoogleAdsPage() {
         clientsWithAccount.map(async (c) => {
           const customerId = c.campaignPlanning!.acessos!.googleAdsAccountId!
           try {
-            const body = await getGoogleAdsInsights(customerId, dateFrom, dateTo)
-            setResults((prev) => ({ ...prev, [c.id]: { status: 'ok', summary: body.summary } }))
+            const before = previousRange(dateFrom, dateTo)
+            // O período anterior é só pra comparação: se falhar, a linha segue sem o "vs."
+            const [body, prevBody] = await Promise.all([
+              getGoogleAdsInsights(customerId, dateFrom, dateTo),
+              getGoogleAdsInsights(customerId, before.dateFrom, before.dateTo).catch(() => null),
+            ])
+            setResults((prev) => ({
+              ...prev,
+              [c.id]: { status: 'ok', summary: body.summary, prev: prevBody?.summary ?? null, daily: body.daily ?? [] },
+            }))
           } catch (err) {
             setResults((prev) => ({
               ...prev,
@@ -194,19 +248,32 @@ export function GoogleAdsPage() {
   const hasAnyData = successResults.length > 0
   const anyError = Object.values(results).some((r) => r.status === 'error')
 
-  const totals = useMemo(() => {
-    if (successResults.length === 0) return null
-    const cost = successResults.reduce((s, r) => s + r.summary.cost, 0)
-    const conversions = successResults.reduce((s, r) => s + r.summary.conversions, 0)
-    const clicks = successResults.reduce((s, r) => s + r.summary.clicks, 0)
-    const impressions = successResults.reduce((s, r) => s + r.summary.impressions, 0)
-    return {
-      cost,
-      conversions,
-      cpc: clicks > 0 ? cost / clicks : 0,
-      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
-    }
+  const totals = useMemo(() => (successResults.length === 0 ? null : sumSummaries(successResults.map((r) => r.summary))), [successResults])
+  // Só compara se todas as contas trouxeram o período anterior (senão a soma fica torta).
+  const prevTotals = useMemo(() => {
+    if (successResults.length === 0 || successResults.some((r) => !r.prev)) return null
+    return sumSummaries(successResults.map((r) => r.prev!))
   }, [successResults])
+  const daily = useMemo(() => {
+    const byDate = new Map<string, number>()
+    for (const r of successResults) for (const d of r.daily) byDate.set(d.date, (byDate.get(d.date) ?? 0) + d.cost)
+    return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, spend]) => ({ date, spend }))
+  }, [successResults])
+
+  const [alertFilter, setAlertFilter] = useState<AlertKey | null>(null)
+  const alerts = useMemo(() => {
+    const ids: Record<AlertKey, string[]> = { error: [], noAccount: [], noSpend: [], noConversions: [] }
+    for (const c of googleAdsClients) {
+      const r = results[c.id]
+      if (!c.campaignPlanning?.acessos?.googleAdsAccountId) ids.noAccount.push(c.id)
+      else if (r?.status === 'error') ids.error.push(c.id)
+      else if (r?.status === 'ok' && r.summary.cost === 0) ids.noSpend.push(c.id)
+      else if (r?.status === 'ok' && r.summary.cost >= 50 && r.summary.conversions === 0) ids.noConversions.push(c.id)
+    }
+    return ids
+  }, [googleAdsClients, results])
+  const tableClients = alertFilter ? visibleClients.filter((c) => alerts[alertFilter].includes(c.id)) : visibleClients
+  const toggleAlert = (k: AlertKey) => setAlertFilter((f) => (f === k ? null : k))
 
   const noAccountsConfigured = googleAdsClients.length > 0 && clientsWithAccount.length === 0
   const ctrColor = totals ? (totals.ctr > 3 ? '#4cc38a' : totals.ctr >= 1 ? '#fbbf24' : '#f28b8b') : undefined
@@ -279,6 +346,7 @@ export function GoogleAdsPage() {
           icon={Wallet}
           accent="blue"
           value={totals ? (isPrivacyMode ? 'R$ •.•••,••' : BRL(totals.cost)) : '--'}
+          delta={totals && prevTotals ? pct(totals.cost, prevTotals.cost) : undefined}
           subtitle="Soma de todas as contas"
           tip={TIPS.cost}
         />
@@ -287,6 +355,7 @@ export function GoogleAdsPage() {
           icon={Target}
           accent="green"
           value={totals ? (isPrivacyMode ? '•••' : INT(totals.conversions)) : '--'}
+          delta={totals && prevTotals ? pct(totals.conversions, prevTotals.conversions) : undefined}
           subtitle="Leads, ligações e compras"
           tip={TIPS.conversions}
         />
@@ -304,10 +373,46 @@ export function GoogleAdsPage() {
           accent="pink"
           value={totals ? (isPrivacyMode ? '•,••%' : `${totals.ctr.toFixed(2)}%`) : '--'}
           valueColor={totals ? ctrColor : '#6b6b71'}
+          delta={totals && prevTotals ? pct(totals.ctr, prevTotals.ctr) : undefined}
           subtitle="Acima de 3% é bom"
           tip={TIPS.ctr}
         />
       </div>
+
+      {hasAnyData && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+          <p className="mb-3 text-[15px] font-semibold text-slate-900">Investimento diário consolidado</p>
+          <SpendChart daily={daily} />
+        </div>
+      )}
+
+      {(alerts.error.length > 0 || alerts.noAccount.length > 0 || alerts.noSpend.length > 0 || alerts.noConversions.length > 0) && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="mb-2 text-sm font-semibold text-amber-800">⚠️ Atenção necessária</p>
+          <div className="flex flex-wrap gap-2">
+            {alerts.error.length > 0 && (
+              <AlertChip active={alertFilter === 'error'} onClick={() => toggleAlert('error')}>
+                {alerts.error.length} conta(s) com erro ao buscar dados
+              </AlertChip>
+            )}
+            {alerts.noSpend.length > 0 && (
+              <AlertChip active={alertFilter === 'noSpend'} onClick={() => toggleAlert('noSpend')}>
+                {alerts.noSpend.length} conta(s) sem gastar no período
+              </AlertChip>
+            )}
+            {alerts.noConversions.length > 0 && (
+              <AlertChip active={alertFilter === 'noConversions'} onClick={() => toggleAlert('noConversions')}>
+                {alerts.noConversions.length} conta(s) gastando sem conversão
+              </AlertChip>
+            )}
+            {alerts.noAccount.length > 0 && (
+              <AlertChip active={alertFilter === 'noAccount'} onClick={() => toggleAlert('noAccount')}>
+                {alerts.noAccount.length} cliente(s) sem ID da conta
+              </AlertChip>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Seção 2 — filtro por gestor + tabela de clientes */}
       {googleAdsClients.length > 0 && (
@@ -342,14 +447,18 @@ export function GoogleAdsPage() {
               </tr>
             </thead>
             <tbody>
-              {visibleClients.length === 0 ? (
+              {tableClients.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-3 py-6 text-center text-slate-400">
-                    {googleAdsClients.length === 0 ? 'Nenhum cliente com Google Ads contratado' : 'Nenhum cliente com Google Ads para este gestor'}
+                    {googleAdsClients.length === 0
+                      ? 'Nenhum cliente com Google Ads contratado'
+                      : alertFilter
+                        ? 'Nenhum cliente deste aviso para este gestor'
+                        : 'Nenhum cliente com Google Ads para este gestor'}
                   </td>
                 </tr>
               ) : (
-                visibleClients.map((client) => {
+                tableClients.map((client) => {
                   const result = results[client.id]
                   const hasAccount = !!client.campaignPlanning?.acessos?.googleAdsAccountId
                   const status = !hasAccount

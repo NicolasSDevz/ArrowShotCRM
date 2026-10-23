@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { setErrorReportUser } from '../utils/errorReporter'
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -44,6 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null)
   const [profile, setProfile] = useState<AppUser | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // O aviso de erro diz quem estava usando quando a tela quebrou.
+  useEffect(() => setErrorReportUser(profile?.name ?? null), [profile?.name])
 
   useEffect(() => {
     let stopProfile: (() => void) | null = null
