@@ -1,21 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Bot, BellOff, BellRing, MessageSquarePlus, Search, Send, Sparkles, UserRound } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Bot, Check, CheckCheck, Clock, MessageCircle, Plus, Search, Send, ShoppingCart, Sparkles, UserRound, X } from 'lucide-react'
+import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
-import { Field, Input, Select, Textarea } from '../ui/Field'
+import { Field, Input, Select } from '../ui/Field'
 import { listenConversations, listenMessages, replyWithAi, sendWaTemplate, sendWaText, updateWaConversation } from '../../services/whatsappService'
 import { waInWindow, type WaConversation, type WaMessage, type WaTemplate } from '../../types/whatsapp'
 
 type Filter = 'all' | 'unread' | 'ai' | 'human' | 'cart'
 
-const FILTER_LABEL: Record<Filter, string> = {
-  all: 'Todas',
-  unread: 'Não lidas',
-  ai: 'IA atendendo',
-  human: 'Com a equipe',
-  cart: 'Carrinho abandonado',
-}
+const FILTERS: { id: Filter; label: string; long: string }[] = [
+  { id: 'all', label: 'Todas', long: 'Todas as conversas' },
+  { id: 'unread', label: 'Não lidas', long: 'Só não lidas' },
+  { id: 'ai', label: 'IA', long: 'IA atendendo' },
+  { id: 'human', label: 'Equipe', long: 'Com a equipe' },
+  { id: 'cart', label: 'Carrinho', long: 'Carrinho abandonado' },
+]
 
 const STATUS_LABEL: Record<string, string> = {
   received: 'recebida',
@@ -25,51 +26,85 @@ const STATUS_LABEL: Record<string, string> = {
   failed: 'não enviada',
 }
 
-function timeLabel(iso: string) {
+const AUTO = new Set(['ai', 'followup', 'cart'])
+
+const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+function listTime(iso: string) {
   if (!iso) return ''
   const d = new Date(iso)
   const now = new Date()
-  const sameDay = d.toDateString() === now.toDateString()
-  if (sameDay) return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  const yesterday = new Date(now.getTime() - 86400_000).toDateString() === d.toDateString()
-  if (yesterday) return `ontem ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return hhmm(d)
+  if (new Date(now.getTime() - 86400_000).toDateString() === d.toDateString()) return 'ontem'
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+function dayLabel(iso: string) {
+  const d = new Date(iso)
+  const now = new Date()
+  if (d.toDateString() === now.toDateString()) return 'Hoje'
+  if (new Date(now.getTime() - 86400_000).toDateString() === d.toDateString()) return 'Ontem'
+  return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
 }
 
 function authorLabel(m: WaMessage, conv: WaConversation) {
   if (m.direction === 'in') return conv.name || 'Contato'
   if (m.by === 'ai') return 'IA'
   if (m.by === 'followup') return m.byName || 'Follow-up automático'
-  if (m.by === 'cart') return 'Carrinho abandonado (automático)'
+  if (m.by === 'cart') return 'Carrinho abandonado'
   return m.byName || 'Equipe'
 }
 
 const displayName = (c: WaConversation) => c.name || c.phone
 
-/* ------------------------------ composer ------------------------------ */
+/* ------------------------------ peças ------------------------------ */
 
-function TemplateComposer({
-  to,
-  name,
-  templates,
-  onSent,
-}: {
-  to: string
-  name?: string
-  templates: WaTemplate[]
-  onSent: (waId: string) => void
-}) {
+/** Chave liga/desliga acessível (role="switch"). */
+function Switch({ checked, onChange, label, busy }: { checked: boolean; onChange: () => void; label: string; busy?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={busy}
+      onClick={onChange}
+      className="inline-flex items-center gap-2 rounded-full border border-slate-200 py-1 pl-1 pr-3 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+    >
+      <span className={`relative h-5 w-9 rounded-full transition ${checked ? 'bg-emerald-500' : 'bg-slate-300'}`} aria-hidden="true">
+        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${checked ? 'left-[18px]' : 'left-0.5'}`} />
+      </span>
+      {label}
+    </button>
+  )
+}
+
+function EmptyPane({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="m-auto flex max-w-xs flex-col items-center gap-3 p-6 text-center">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600" aria-hidden="true">
+        <MessageCircle size={26} />
+      </span>
+      <p className="text-sm font-semibold text-slate-700">{title}</p>
+      <p className="text-sm text-slate-400">{text}</p>
+    </div>
+  )
+}
+
+/* ------------------------------ modelo ------------------------------ */
+
+function TemplateComposer({ to, name, templates, onSent }: { to: string; name?: string; templates: WaTemplate[]; onSent: (waId: string) => void }) {
   const approved = templates.filter((t) => t.status === 'APPROVED')
   const [tplKey, setTplKey] = useState('')
   const [params, setParams] = useState<string[]>([])
   const [sending, setSending] = useState(false)
   const tpl = approved.find((t) => `${t.name}|${t.language}` === tplKey)
 
-  useEffect(() => {
-    if (!tpl) return setParams([])
+  const pick = (key: string) => {
+    setTplKey(key)
+    const next = approved.find((t) => `${t.name}|${t.language}` === key)
     const first = (name || '').trim().split(/\s+/)[0] || ''
-    setParams(Array.from({ length: tpl.vars }, (_, i) => (i === 0 ? first : '')))
-  }, [tplKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    setParams(next ? Array.from({ length: next.vars }, (_, i) => (i === 0 ? first : '')) : [])
+  }
 
   const preview = tpl ? tpl.body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => params[Number(n) - 1] || `{{${n}}}`) : ''
 
@@ -80,7 +115,7 @@ function TemplateComposer({
     try {
       const out = await sendWaTemplate(to, { name: tpl.name, lang: tpl.language, params }, name)
       toast.success('Mensagem de modelo enviada')
-      setTplKey('')
+      pick('')
       onSent(out.waId)
     } catch (e) {
       toast.error((e as Error).message)
@@ -93,9 +128,9 @@ function TemplateComposer({
     return <p className="text-sm text-slate-500">Nenhum modelo aprovado ainda. Crie um no Gerenciador do WhatsApp do Meta e espere a aprovação.</p>
   }
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <Field label="Mensagem de modelo">
-        <Select value={tplKey} onChange={(e) => setTplKey(e.target.value)}>
+        <Select value={tplKey} onChange={(e) => pick(e.target.value)}>
           <option value="">Escolha um modelo</option>
           {approved.map((t) => (
             <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
@@ -104,34 +139,51 @@ function TemplateComposer({
           ))}
         </Select>
       </Field>
-      {tpl &&
-        params.map((p, i) => (
-          <Field key={i} label={`Variável ${i + 1}`}>
-            <Input value={p} onChange={(e) => setParams((cur) => cur.map((x, j) => (j === i ? e.target.value : x)))} />
-          </Field>
-        ))}
-      {tpl && (
-        <p className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm text-slate-600" aria-label="Prévia da mensagem">
-          {preview}
-        </p>
+      {tpl && params.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {params.map((p, i) => (
+            <Field key={i} label={`Variável ${i + 1}`}>
+              <Input value={p} onChange={(e) => setParams((cur) => cur.map((x, j) => (j === i ? e.target.value : x)))} />
+            </Field>
+          ))}
+        </div>
       )}
-      <Button onClick={send} loading={sending} disabled={!tpl} icon={<Send size={15} aria-hidden="true" />}>
-        Enviar modelo
-      </Button>
+      {tpl && (
+        <div>
+          <span className="mb-1 block text-xs font-medium text-slate-500">Prévia</span>
+          <p className="whitespace-pre-wrap rounded-2xl rounded-br-md bg-brand-600 px-3 py-2 text-sm text-white">{preview}</p>
+        </div>
+      )}
+      <div className="flex justify-end">
+        <Button onClick={send} loading={sending} disabled={!tpl} icon={<Send size={15} aria-hidden="true" />}>
+          Enviar modelo
+        </Button>
+      </div>
     </div>
   )
 }
 
+/* ------------------------------ caixa de texto ------------------------------ */
+
 function Composer({ conv, templates }: { conv: WaConversation; templates: WaTemplate[] }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false)
   const [, tick] = useState(0)
+  const taRef = useRef<HTMLTextAreaElement>(null)
   // A janela de 24h fecha com o tempo: reavalia a cada minuto.
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 60_000)
     return () => clearInterval(t)
   }, [])
   const open = waInWindow(conv)
+
+  const grow = () => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`
+  }
 
   const send = async () => {
     const clean = text.trim()
@@ -140,6 +192,7 @@ function Composer({ conv, templates }: { conv: WaConversation; templates: WaTemp
     try {
       await sendWaText(conv.waId, clean)
       setText('')
+      requestAnimationFrame(grow)
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -147,12 +200,26 @@ function Composer({ conv, templates }: { conv: WaConversation; templates: WaTemp
     }
   }
 
+  const aiReply = async () => {
+    setAiBusy(true)
+    try {
+      const out = await replyWithAi(conv.waId)
+      if (out.replied) toast.success('A IA respondeu')
+      else toast(out.skipped ? `A IA não respondeu: ${out.skipped}` : 'A IA não respondeu')
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
   if (!open) {
     return (
-      <div className="flex flex-col gap-2 border-t border-slate-200 p-3">
-        <p className="text-sm text-amber-700">
+      <div className="flex flex-col gap-3 border-t border-slate-200 bg-white p-4">
+        <p className="flex items-start gap-2 text-sm text-slate-600">
+          <Clock size={16} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
           {conv.lastInboundAt
-            ? 'Passou de 24 horas desde a última mensagem do contato. O WhatsApp só deixa mandar mensagem de modelo até ele responder.'
+            ? 'Passou de 24 horas desde a última mensagem do contato. Até ele responder, o WhatsApp só deixa mandar mensagem de modelo.'
             : 'O contato ainda não mandou mensagem. Para começar, use uma mensagem de modelo.'}
         </p>
         <TemplateComposer to={conv.waId} name={conv.name} templates={templates} onSent={() => {}} />
@@ -160,36 +227,68 @@ function Composer({ conv, templates }: { conv: WaConversation; templates: WaTemp
     )
   }
   return (
-    <div className="flex items-end gap-2 border-t border-slate-200 p-3">
-      <label className="flex-1">
-        <span className="sr-only">Mensagem para {displayName(conv)}</span>
-        <Textarea
-          value={text}
-          rows={2}
-          placeholder="Escreva a mensagem. Ctrl + Enter envia."
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault()
-              send()
-            }
-          }}
-        />
-      </label>
-      <Button onClick={send} loading={sending} disabled={!text.trim()} icon={<Send size={15} aria-hidden="true" />}>
-        Enviar
-      </Button>
+    <div className="border-t border-slate-200 bg-white p-3">
+      <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 pl-3 focus-within:border-brand-400">
+        <label className="flex-1">
+          <span className="sr-only">Mensagem para {displayName(conv)}. Enter envia, Shift + Enter pula linha.</span>
+          <textarea
+            ref={taRef}
+            value={text}
+            rows={1}
+            placeholder="Escreva uma mensagem"
+            onChange={(e) => {
+              setText(e.target.value)
+              grow()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                send()
+              }
+            }}
+            className="block max-h-[140px] w-full resize-none border-0 bg-transparent py-1.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
+            style={{ background: 'transparent', border: 0 }}
+          />
+        </label>
+        {conv.lastDirection === 'in' && (
+          <button
+            type="button"
+            onClick={aiReply}
+            disabled={aiBusy}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-violet-600 hover:bg-violet-50 disabled:opacity-60"
+          >
+            <Sparkles size={15} aria-hidden="true" className={aiBusy ? 'animate-pulse' : ''} />
+            {aiBusy ? 'Pensando…' : 'Responder com IA'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={send}
+          disabled={!text.trim() || sending}
+          aria-label="Enviar mensagem"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-40"
+        >
+          <Send size={16} aria-hidden="true" />
+        </button>
+      </div>
     </div>
   )
 }
 
 /* ------------------------------ conversa ------------------------------ */
 
+function StatusTicks({ status }: { status: string }) {
+  if (status === 'read') return <CheckCheck size={14} className="text-sky-300" aria-hidden="true" />
+  if (status === 'delivered') return <CheckCheck size={14} aria-hidden="true" />
+  if (status === 'failed') return <AlertTriangle size={13} className="text-red-200" aria-hidden="true" />
+  return <Check size={14} aria-hidden="true" />
+}
+
 function Thread({ conv, templates, onBack }: { conv: WaConversation; templates: WaTemplate[]; onBack: () => void }) {
   const [messages, setMessages] = useState<WaMessage[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [announce, setAnnounce] = useState('')
-  const listRef = useRef<HTMLOListElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const lastCount = useRef(0)
 
   useEffect(() => {
@@ -197,7 +296,7 @@ function Thread({ conv, templates, onBack }: { conv: WaConversation; templates: 
     return listenMessages(conv.waId, setMessages, () => toast.error('Não consegui carregar as mensagens.'))
   }, [conv.waId])
 
-  // Mensagem nova do contato: anuncia no leitor de tela e rola até o fim.
+  // Mensagem nova: anuncia no leitor de tela e rola até o fim.
   useEffect(() => {
     if (messages.length > lastCount.current && lastCount.current > 0) {
       const last = messages[messages.length - 1]
@@ -217,7 +316,6 @@ function Thread({ conv, templates, onBack }: { conv: WaConversation; templates: 
     setBusy(key)
     try {
       await fn()
-      toast.success(ok)
       setAnnounce(ok)
     } catch (e) {
       toast.error((e as Error).message)
@@ -230,75 +328,98 @@ function Thread({ conv, templates, onBack }: { conv: WaConversation; templates: 
   const followOn = !conv.followUpStopped
 
   return (
-    <section className="flex h-full min-h-0 flex-col" aria-label={`Conversa com ${displayName(conv)}`}>
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
-        <button type="button" onClick={onBack} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 md:hidden" aria-label="Voltar para a lista de conversas">
+    <section className="flex h-full min-h-0 flex-1 flex-col" aria-label={`Conversa com ${displayName(conv)}`}>
+      <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
+        <button type="button" onClick={onBack} className="-ml-1 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 md:hidden" aria-label="Voltar para a lista de conversas">
           <ArrowLeft size={18} aria-hidden="true" />
         </button>
+        <Avatar name={displayName(conv)} size="lg" />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-semibold text-slate-800">{displayName(conv)}</h2>
-          <p className="text-xs text-slate-500">
+          <h2 className="truncate text-[15px] font-semibold text-slate-800">{displayName(conv)}</h2>
+          <p className="truncate text-xs text-slate-500">
             {conv.phone}
-            {conv.kind === 'cart' && conv.productName ? `. Carrinho abandonado de ${conv.productName}` : ''}
+            {conv.kind === 'cart' && conv.productName ? ` · Carrinho de ${conv.productName}` : ''}
           </p>
         </div>
-        {conv.leadId && (
-          <Link to="/leads" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-            <UserRound size={14} aria-hidden="true" /> Ver nos Leads
-          </Link>
-        )}
-        <Button
-          size="sm"
-          variant={aiOn ? 'primary' : 'secondary'}
-          aria-pressed={aiOn}
-          loading={busy === 'ai'}
-          icon={<Bot size={14} aria-hidden="true" />}
-          onClick={() => run('ai', () => updateWaConversation(conv.waId, { aiMode: aiOn ? 'off' : 'auto' }), aiOn ? 'IA desligada nesta conversa' : 'IA ligada nesta conversa')}
-        >
-          {aiOn ? 'IA respondendo: ligada' : 'IA respondendo: desligada'}
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-pressed={followOn}
-          loading={busy === 'fu'}
-          icon={followOn ? <BellRing size={14} aria-hidden="true" /> : <BellOff size={14} aria-hidden="true" />}
-          onClick={() => run('fu', () => updateWaConversation(conv.waId, { followUpStopped: followOn }), followOn ? 'Follow-up parado' : 'Follow-up ligado')}
-        >
-          {followOn ? 'Follow-up: ligado' : 'Follow-up: parado'}
-        </Button>
-        {conv.lastDirection === 'in' && waInWindow(conv) && (
-          <Button size="sm" variant="secondary" loading={busy === 'reply'} icon={<Sparkles size={14} aria-hidden="true" />} onClick={() => run('reply', () => replyWithAi(conv.waId), 'A IA respondeu')}>
-            Responder com IA
-          </Button>
-        )}
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Switch checked={aiOn} busy={busy === 'ai'} label="IA" onChange={() => run('ai', () => updateWaConversation(conv.waId, { aiMode: aiOn ? 'off' : 'auto' }), aiOn ? 'IA desligada nesta conversa' : 'IA ligada nesta conversa')} />
+          <Switch checked={followOn} busy={busy === 'fu'} label="Follow-up" onChange={() => run('fu', () => updateWaConversation(conv.waId, { followUpStopped: followOn }), followOn ? 'Follow-up parado' : 'Follow-up ligado')} />
+          {conv.leadId && (
+            <Link to="/leads" className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Ver este contato nos Leads" title="Ver nos Leads">
+              <UserRound size={15} aria-hidden="true" />
+            </Link>
+          )}
+        </div>
+      </header>
 
       {conv.aiMode === 'off' && conv.handoffReason && (
-        <p className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">
-          A IA passou para a equipe. Motivo: {conv.handoffReason}
-        </p>
+        <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800" role="status">
+          <AlertTriangle size={15} className="shrink-0" aria-hidden="true" />
+          <span className="flex-1">A IA passou para a equipe: {conv.handoffReason}</span>
+          <button type="button" className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold hover:bg-amber-100" onClick={() => run('ai', () => updateWaConversation(conv.waId, { aiMode: 'auto' }), 'Conversa devolvida para a IA')}>
+            Devolver para a IA
+          </button>
+        </div>
       )}
-      {conv.followUpError && <p className="border-b border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">Último follow-up falhou: {conv.followUpError}</p>}
+      {conv.followUpError && (
+        <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          <AlertTriangle size={15} className="shrink-0" aria-hidden="true" />
+          Último follow-up falhou: {conv.followUpError}
+        </div>
+      )}
 
-      <ol ref={listRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-label="Mensagens">
-        {messages.map((m) => {
-          const mine = m.direction === 'out'
-          return (
-            <li key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${mine ? (m.by === 'ai' || m.by === 'followup' || m.by === 'cart' ? 'bg-violet-50 text-slate-800' : 'bg-emerald-50 text-slate-800') : 'border border-slate-200 bg-white text-slate-800'}`}>
-                <p className="mb-0.5 text-[11px] font-semibold text-slate-500">{authorLabel(m, conv)}</p>
-                <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                <p className="mt-1 text-right text-[11px] text-slate-400">
-                  {timeLabel(m.at)}
-                  {mine && `. ${STATUS_LABEL[m.status] || m.status}`}
-                </p>
-                {m.status === 'failed' && m.error && <p className="mt-1 text-xs text-red-600">Motivo: {m.error}</p>}
-              </div>
-            </li>
-          )
-        })}
-      </ol>
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-4 py-4">
+        {messages.length === 0 ? (
+          <p className="py-10 text-center text-sm text-slate-400">Ainda não há mensagens nesta conversa.</p>
+        ) : (
+          <ol className="mx-auto flex max-w-3xl flex-col" aria-label="Mensagens">
+            {messages.map((m, i) => {
+              const prev = messages[i - 1]
+              const mine = m.direction === 'out'
+              const newDay = !prev || new Date(prev.at).toDateString() !== new Date(m.at).toDateString()
+              const author = authorLabel(m, conv)
+              const sameAuthor = prev && !newDay && prev.direction === m.direction && authorLabel(prev, conv) === author
+              const showAuthor = !sameAuthor && mine
+              const auto = AUTO.has(m.by)
+              return (
+                <Fragment key={m.id}>
+                  {newDay && (
+                    <li className="my-3 flex justify-center" aria-hidden="true">
+                      <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium capitalize text-slate-500 shadow-sm">{dayLabel(m.at)}</span>
+                    </li>
+                  )}
+                  <li className={`flex flex-col ${mine ? 'items-end' : 'items-start'} ${sameAuthor ? 'mt-1' : 'mt-3'}`}>
+                    {showAuthor && (
+                      <span className={`mb-1 flex items-center gap-1 px-1 text-[11px] font-medium ${auto ? 'text-violet-600' : 'text-slate-500'}`}>
+                        {auto && <Bot size={12} aria-hidden="true" />}
+                        {author}
+                      </span>
+                    )}
+                    <div
+                      className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                        mine ? `rounded-br-md text-white ${m.status === 'failed' ? 'bg-red-600' : 'bg-brand-600'}` : 'rounded-bl-md border border-slate-200 bg-white text-slate-800'
+                      }`}
+                    >
+                      <span className="sr-only">{author}: </span>
+                      <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                      <p className={`mt-0.5 flex items-center justify-end gap-1 text-[10.5px] ${mine ? 'text-white/70' : 'text-slate-400'}`}>
+                        {hhmm(new Date(m.at))}
+                        {mine && (
+                          <>
+                            <StatusTicks status={m.status} />
+                            <span className="sr-only">, {STATUS_LABEL[m.status] || m.status}</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    {m.status === 'failed' && m.error && <span className="mt-1 px-1 text-xs text-red-600">Não enviada: {m.error}</span>}
+                  </li>
+                </Fragment>
+              )
+            })}
+          </ol>
+        )}
+      </div>
       <p className="sr-only" aria-live="polite">
         {announce}
       </p>
@@ -314,21 +435,27 @@ function NewConversation({ templates, onDone }: { templates: WaTemplate[]; onDon
   const [name, setName] = useState('')
   const ok = phone.replace(/\D/g, '').length >= 10
   return (
-    <section className="flex flex-col gap-3 p-4" aria-label="Nova conversa">
-      <div className="flex items-center gap-2">
-        <button type="button" onClick={() => onDone(null)} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Cancelar nova conversa">
-          <ArrowLeft size={18} aria-hidden="true" />
+    <section className="flex min-h-0 flex-1 flex-col" aria-label="Nova conversa">
+      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
+        <h2 className="flex-1 text-[15px] font-semibold text-slate-800">Nova conversa</h2>
+        <button type="button" onClick={() => onDone(null)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Cancelar nova conversa">
+          <X size={18} aria-hidden="true" />
         </button>
-        <h2 className="text-base font-semibold text-slate-800">Nova conversa</h2>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4">
+        <div className="mx-auto flex max-w-lg flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="text-sm text-slate-500">Para quem ainda não chamou, a primeira mensagem precisa ser um modelo aprovado no Meta. Quando a pessoa responder, dá para escrever livre.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="WhatsApp com DDD" required>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 98765-4321" inputMode="tel" />
+            </Field>
+            <Field label="Nome">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+          </div>
+          {ok ? <TemplateComposer to={phone} name={name} templates={templates} onSent={(waId) => onDone(waId)} /> : <p className="text-sm text-slate-400">Digite o número para escolher o modelo.</p>}
+        </div>
       </div>
-      <p className="text-sm text-slate-500">A primeira mensagem para quem ainda não chamou precisa ser um modelo aprovado no Meta. Depois que a pessoa responder, dá para escrever livre.</p>
-      <Field label="WhatsApp com DDD" required>
-        <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 98765-4321" inputMode="tel" />
-      </Field>
-      <Field label="Nome">
-        <Input value={name} onChange={(e) => setName(e.target.value)} />
-      </Field>
-      {ok ? <TemplateComposer to={phone} name={name} templates={templates} onSent={(waId) => onDone(waId)} /> : <p className="text-sm text-slate-400">Digite o número para escolher o modelo.</p>}
     </section>
   )
 }
@@ -366,51 +493,64 @@ export function WhatsappInbox({ templates }: { templates: WaTemplate[] }) {
   }, [rows, search, filter])
 
   const current = (rows || []).find((c) => c.waId === selected) || null
-  const unreadTotal = (rows || []).reduce((s, c) => s + (c.unread > 0 ? 1 : 0), 0)
+  const unreadTotal = (rows || []).filter((c) => c.unread > 0).length
   const showThread = Boolean(current) || creating
 
   return (
-    <div className="grid h-[calc(100vh-220px)] min-h-[480px] grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[320px_1fr]">
-      <aside className={`flex min-h-0 flex-col border-r border-slate-200 ${showThread ? 'hidden md:flex' : 'flex'}`} aria-label="Lista de conversas">
-        <div className="flex flex-col gap-2 border-b border-slate-200 p-3">
-          <div className="flex items-center gap-2">
-            <label className="relative flex-1">
-              <span className="sr-only">Buscar conversa por nome, número ou mensagem</span>
-              <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar" className="pl-8" />
-            </label>
-            <Button
-              size="md"
-              variant="secondary"
-              aria-label="Nova conversa"
-              icon={<MessageSquarePlus size={16} aria-hidden="true" />}
+    <div className="flex h-[calc(100vh-210px)] min-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <aside className={`w-full shrink-0 flex-col border-r border-slate-200 md:flex md:w-[340px] ${showThread ? 'hidden' : 'flex'}`} aria-label="Lista de conversas">
+        <div className="flex flex-col gap-3 border-b border-slate-200 p-3">
+          <div className="flex items-center justify-between gap-2 px-1">
+            <h2 className="text-[15px] font-semibold text-slate-800">
+              Conversas
+              {unreadTotal > 0 && <span className="ml-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-bold text-white">{unreadTotal} não lidas</span>}
+            </h2>
+            <button
+              type="button"
               onClick={() => {
                 select(null)
                 setCreating(true)
               }}
-            />
+              className="flex h-8 items-center gap-1 rounded-lg bg-brand-600 px-2.5 text-xs font-medium text-white hover:bg-brand-700"
+            >
+              <Plus size={14} aria-hidden="true" /> Nova
+            </button>
           </div>
-          <label>
-            <span className="sr-only">Filtrar conversas</span>
-            <Select value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
-              {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
-                <option key={f} value={f}>
-                  {FILTER_LABEL[f]}
-                  {f === 'unread' && unreadTotal ? ` (${unreadTotal})` : ''}
-                </option>
-              ))}
-            </Select>
+          <label className="relative block">
+            <span className="sr-only">Buscar conversa por nome, número ou mensagem</span>
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar nome, número ou mensagem"
+              className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-brand-400"
+            />
           </label>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar conversas">
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                aria-pressed={filter === f.id}
+                aria-label={f.long}
+                onClick={() => setFilter(f.id)}
+                className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${filter === f.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
         {rows === null ? (
-          <p className="p-4 text-sm text-slate-400">Carregando conversas…</p>
+          <p className="p-6 text-center text-sm text-slate-400">Carregando conversas…</p>
         ) : list.length === 0 ? (
-          <p className="p-4 text-sm text-slate-400">{rows.length ? 'Nenhuma conversa nesse filtro.' : 'Nenhuma conversa ainda. Quando alguém chamar no WhatsApp, aparece aqui.'}</p>
+          <p className="p-6 text-center text-sm text-slate-400">{rows.length ? 'Nenhuma conversa nesse filtro.' : 'Nenhuma conversa ainda. Quando alguém chamar no WhatsApp, aparece aqui.'}</p>
         ) : (
-          <ul className="min-h-0 flex-1 overflow-y-auto">
+          <ul className="min-h-0 flex-1 overflow-y-auto p-1.5">
             {list.map((c) => {
               const active = c.waId === selected
               const status = c.aiMode === 'off' ? 'com a equipe' : 'IA atendendo'
+              const unread = c.unread > 0
               return (
                 <li key={c.waId}>
                   <button
@@ -420,23 +560,29 @@ export function WhatsappInbox({ templates }: { templates: WaTemplate[] }) {
                       select(c.waId)
                     }}
                     aria-current={active ? 'true' : undefined}
-                    aria-label={`${displayName(c)}. ${c.unread > 0 ? `${c.unread} não lidas. ` : ''}${status}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${timeLabel(c.lastMessageAt)}`}
-                    className={`flex w-full flex-col gap-0.5 border-b border-slate-100 px-3 py-2.5 text-left hover:bg-slate-50 ${active ? 'bg-brand-50' : ''}`}
+                    aria-label={`${displayName(c)}. ${unread ? `${c.unread} não lidas. ` : ''}${status}${c.kind === 'cart' ? ', carrinho abandonado' : ''}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
+                    className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition ${active ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
                   >
-                    <span className="flex items-center gap-2">
-                      <span className={`flex-1 truncate text-sm ${c.unread > 0 ? 'font-bold text-slate-900' : 'font-medium text-slate-700'}`}>{displayName(c)}</span>
-                      <span className="shrink-0 text-[11px] text-slate-400">{timeLabel(c.lastMessageAt)}</span>
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="flex-1 truncate text-xs text-slate-500">
-                        {c.lastDirection === 'out' ? 'Você: ' : ''}
-                        {c.lastMessageText}
+                    <Avatar name={displayName(c)} size="lg" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline gap-2">
+                        <span className={`flex-1 truncate text-sm ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>{displayName(c)}</span>
+                        <span className={`shrink-0 text-[11px] ${unread ? 'font-semibold text-emerald-600' : 'text-slate-400'}`}>{listTime(c.lastMessageAt)}</span>
                       </span>
-                      {c.unread > 0 && <span className="shrink-0 rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">{c.unread}</span>}
-                    </span>
-                    <span className={`text-[11px] ${c.aiMode === 'off' ? 'text-amber-600' : 'text-violet-600'}`}>
-                      {status}
-                      {c.kind === 'cart' ? '. Carrinho' : ''}
+                      <span className="mt-0.5 flex items-center gap-1.5">
+                        {c.kind === 'cart' ? (
+                          <ShoppingCart size={13} className="shrink-0 text-amber-500" aria-hidden="true" />
+                        ) : c.aiMode === 'off' ? (
+                          <UserRound size={13} className="shrink-0 text-amber-500" aria-hidden="true" />
+                        ) : (
+                          <Bot size={13} className="shrink-0 text-violet-500" aria-hidden="true" />
+                        )}
+                        <span className={`flex-1 truncate text-xs ${unread ? 'text-slate-700' : 'text-slate-500'}`}>
+                          {c.lastDirection === 'out' ? 'Você: ' : ''}
+                          {c.lastMessageText}
+                        </span>
+                        {unread && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">{c.unread}</span>}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -445,7 +591,7 @@ export function WhatsappInbox({ templates }: { templates: WaTemplate[] }) {
           </ul>
         )}
       </aside>
-      <div className={`min-h-0 ${showThread ? 'flex' : 'hidden md:flex'} flex-col`}>
+      <div className={`min-h-0 min-w-0 flex-1 flex-col ${showThread ? 'flex' : 'hidden md:flex'}`}>
         {creating ? (
           <NewConversation
             templates={templates}
@@ -457,7 +603,9 @@ export function WhatsappInbox({ templates }: { templates: WaTemplate[] }) {
         ) : current ? (
           <Thread conv={current} templates={templates} onBack={() => select(null)} />
         ) : (
-          <p className="m-auto p-6 text-center text-sm text-slate-400">Escolha uma conversa na lista.</p>
+          <div className="flex flex-1 bg-slate-50">
+            <EmptyPane title="Nenhuma conversa aberta" text="Escolha uma conversa na lista ou comece uma nova. A IA continua respondendo enquanto isso." />
+          </div>
         )}
       </div>
     </div>
