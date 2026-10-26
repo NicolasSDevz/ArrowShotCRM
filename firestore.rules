@@ -739,6 +739,28 @@ service cloud.firestore {
       allow update: if isCopiloto() && updatedBySelf();
     }
 
+    // ---------- WhatsApp (api/_lib/whatsapp.js). Conversas e mensagens são
+    // gravadas só pelo servidor (webhook do Meta, IA, envio pelo CRM); a
+    // equipe lê em tempo real. Credenciais e travas: só o servidor. ----------
+    match /waConversations/{waId} {
+      allow read: if isInternal();
+      allow write: if false;
+      match /messages/{messageId} {
+        allow read: if isInternal();
+        allow write: if false;
+      }
+    }
+    match /waSettings/{key} {
+      allow read: if isInternal();
+      allow write: if isAdminOrManager();
+    }
+    match /waSecrets/{key} {
+      allow read, write: if false;
+    }
+    match /waLocks/{key} {
+      allow read, write: if false;
+    }
+
     // ---------- future modules ----------
     // When googleAdsCampaigns, metaAdsCampaigns, leads, reports, finance, etc.
     // are introduced, add a `match /{collection}/{docId}` block here following

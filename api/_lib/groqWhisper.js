@@ -28,13 +28,13 @@ export class GroqRateLimitError extends Error {
  *  utils.encodeWAV do @ricky0123/vad-web no frontend). Lança
  *  GroqRateLimitError em 429 (com o retry-after, se vier) pro chamador
  *  decidir o que fazer — a pausa/reenvio é controlada no navegador. */
-export async function transcribeWithGroq(audioBuffer, mimeType = 'audio/wav') {
+export async function transcribeWithGroq(audioBuffer, mimeType = 'audio/wav', fileName = 'audio.wav') {
   if (!process.env.GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY não configurada no servidor')
   }
 
   const form = new FormData()
-  form.append('file', new Blob([audioBuffer], { type: mimeType }), 'audio.wav')
+  form.append('file', new Blob([audioBuffer], { type: mimeType }), fileName)
   form.append('model', GROQ_MODEL)
   form.append('language', 'pt')
   form.append('prompt', NICHE_PROMPT)

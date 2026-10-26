@@ -1,5 +1,6 @@
 # Carrinhos abandonados da Loja: dispara os e-mails de recuperação do Archer
-# e os avisos no celular sem depender de alguém abrir o CRM. O plano Hobby
+# e os avisos no celular sem depender de alguém abrir o CRM. Também roda os
+# follow-ups do WhatsApp e o WhatsApp do carrinho abandonado (api/whatsapp). O plano Hobby
 # da Vercel só deixa cron 1x por dia, por isso fica aqui.
 name: Loja - recuperação de carrinhos
 
@@ -15,3 +16,6 @@ jobs:
     steps:
       - name: Disparar varredura
         run: curl -fsS --max-time 120 'https://arrowshotcrm.vercel.app/api/loja?action=recovery-sweep'
+      - name: WhatsApp (follow-up e carrinho)
+        if: always()
+        run: curl -fsS --max-time 120 'https://arrowshotcrm.vercel.app/api/whatsapp/sweep'

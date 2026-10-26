@@ -42,6 +42,7 @@ const UniversityAdminPage = lazyPage(() => import('./pages/UniversityAdminPage')
 const OptimizationCalendarPage = lazyPage(() => import('./pages/OptimizationCalendarPage'), 'OptimizationCalendarPage')
 const CopilotoPage = lazyPage(() => import('./pages/CopilotoPage'), 'CopilotoPage')
 const BaseVendasPage = lazyPage(() => import('./pages/BaseVendasPage'), 'BaseVendasPage')
+const WhatsappPage = lazyPage(() => import('./pages/WhatsappPage'), 'WhatsappPage')
 const StorePage = lazyPage(() => import('./pages/store/StorePage'), 'StorePage')
 const StoreProductPage = lazyPage(() => import('./pages/store/StoreProductPage'), 'StoreProductPage')
 const StoreAppPage = lazyPage(() => import('./pages/store/StoreAppPage'), 'StoreAppPage')
@@ -135,6 +136,7 @@ function App() {
             <Route path="/calendario" element={<CalendarMeetingsPage initialTab="calendario" />} />
             <Route path="/reunioes" element={<CalendarMeetingsPage initialTab="reunioes" />} />
             <Route path="/leads" element={<LeadsPage />} />
+            <Route path="/whatsapp" element={<WhatsappPage />} />
               <Route path="/copiloto/:leadId" element={<ProtectedRoute allowedRoles={['admin', 'manager']}><CopilotoPage /></ProtectedRoute>} />
             <Route path="/metricas" element={<MetricsPage />} />
             <Route path="/relatorios" element={<ReportsPage />} />

@@ -9,6 +9,10 @@
       "destination": "/api/ai?acao=:acao"
     },
     {
+      "source": "/api/whatsapp/:acao",
+      "destination": "/api/whatsapp?acao=:acao"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },

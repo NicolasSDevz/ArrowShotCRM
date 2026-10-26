@@ -21,6 +21,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  MessageCircle,
 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useAuth } from '../../context/AuthContext'
@@ -59,6 +60,7 @@ const mainNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/operacional', label: 'Operacional', icon: ListChecks },
   { to: '/leads', label: 'Leads', icon: UserPlus },
+  { to: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { to: '/clientes', label: 'Clientes', icon: Users },
   // Reuniões e Calendário são a mesma página (abas) — o item fica aceso nas duas rotas.
   { to: '/reunioes', label: 'Reuniões', icon: CalendarDays, alsoActive: ['/calendario'] },

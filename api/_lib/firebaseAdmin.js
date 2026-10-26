@@ -261,6 +261,30 @@ export async function queryDocs(collectionPath, wheres = []) {
     .map((r) => ({ id: r.document.name.split('/').pop(), ...fromFields(r.document.fields || {}) }))
 }
 
+/** Últimos `limit` documentos de uma subcoleção (ex: mensagens de uma conversa),
+ *  ordenados por `orderField` do mais novo pro mais velho. `parentPath` é o doc
+ *  dono da subcoleção ('waConversations/5511...'), `collectionId` o nome dela. */
+export async function queryRecent(parentPath, collectionId, orderField, limit = 30) {
+  const token = await getAccessToken()
+  const res = await fetch(`${FS_BASE}/${parentPath}:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId }],
+        orderBy: [{ field: { fieldPath: orderField }, direction: 'DESCENDING' }],
+        limit,
+      },
+    }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
+  const rows = await res.json().catch(() => [])
+  if (!res.ok) throw new Error(`Firestore runQuery ${parentPath}/${collectionId}: ${rows?.error?.message || res.status}`)
+  return (Array.isArray(rows) ? rows : [])
+    .filter((r) => r.document)
+    .map((r) => ({ id: r.document.name.split('/').pop(), ...fromFields(r.document.fields || {}) }))
+}
+
 /** Apaga um documento (404 é tratado como sucesso). */
 export async function deleteDoc(path) {
   const token = await getAccessToken()

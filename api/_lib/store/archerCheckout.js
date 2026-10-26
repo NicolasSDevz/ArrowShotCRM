@@ -33,7 +33,7 @@ function anthropic() {
 const brl = (cents) => (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 /** Tudo o que o Archer pode dizer sobre o produto (só o que está cadastrado). */
-function productBrief(product, { bumps = [], methods = null } = {}) {
+export function productBrief(product, { bumps = [], methods = null } = {}) {
   const c = product.checkout || {}
   const pix = pixDiscount(product)
   const lines = [
@@ -116,7 +116,7 @@ const STEPS = [
 const START_WITHIN_MS = 48 * 3600_000
 const MAX_PER_SWEEP = 8
 
-function situationOf(cart) {
+export function situationOf(cart) {
   if (cart.orderStatus === 'pending') return 'gerou o Pix e não pagou'
   if (cart.orderStatus === 'refused') return 'tentou pagar e o pagamento foi recusado'
   return 'preencheu os dados no checkout e não finalizou'
@@ -177,8 +177,8 @@ Responda APENAS com JSON: {"subject": "...", "paragraphs": ["...", "..."]}`,
 }
 
 /** Link de volta ao checkout com os dados preenchidos e a origem marcada. */
-function checkoutLink(origin, product, cart, step) {
-  const qs = new URLSearchParams({ nome: cart.name || '', email: cart.email, utm_source: 'archer', utm_medium: 'email', utm_campaign: `recuperacao-${step + 1}` })
+export function checkoutLink(origin, product, cart, step, medium = 'email') {
+  const qs = new URLSearchParams({ nome: cart.name || '', email: cart.email, utm_source: 'archer', utm_medium: medium, utm_campaign: `recuperacao-${step + 1}` })
   if (cart.phone) qs.set('tel', cart.phone)
   return `${origin}/pay/${product.slug}?${qs}`
 }
