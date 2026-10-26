@@ -258,7 +258,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
   const cartTpl = s ? templates.find((t) => t.name === s.cart.templateName && t.language === s.cart.templateLang) : undefined
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 pb-24">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 pb-10">
       <ConnectionCard status={status} onSaved={() => (onReloadStatus(), onReloadTemplates())} />
 
       {s && (
@@ -360,7 +360,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
             )}
           </Card>
 
-          <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg">
+          <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
             <span className={`flex items-center gap-2 text-sm ${dirty ? 'text-amber-600' : 'text-slate-500'}`} role="status">
               <span className={`h-2 w-2 rounded-full ${dirty ? 'bg-amber-500' : 'bg-emerald-500'}`} aria-hidden="true" />
               {dirty ? 'Alterações não salvas' : 'Tudo salvo'}
