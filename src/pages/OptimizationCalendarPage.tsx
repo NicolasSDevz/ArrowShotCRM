@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import toast from 'react-hot-toast'
 import {
   DndContext,
@@ -9,7 +9,20 @@ import {
   useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { CalendarRange, Wand2, LayoutGrid, List, Download, GripVertical, AlertTriangle } from 'lucide-react'
+import {
+  CalendarRange,
+  Wand2,
+  LayoutGrid,
+  List,
+  Download,
+  GripVertical,
+  AlertTriangle,
+  Search,
+  X,
+  ChevronDown,
+  CheckCircle2,
+  Info,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useClients } from '../hooks/useClients'
 import { useUsers } from '../hooks/useUsers'
@@ -17,11 +30,13 @@ import { useOptimizationSchedule } from '../hooks/useOptimizations'
 import { setOptimizationSchedule } from '../services/optimizationService'
 import { seedOptimizationSchedule } from '../services/optimizationSeed'
 import { findUserIdByName } from '../utils/userLookup'
-import { trafficServices, platformBadgeLabel, hasContractedPaidTraffic } from '../utils/clientServices'
+import { trafficServices, hasContractedPaidTraffic, PLATFORM_BADGE } from '../utils/clientServices'
 import { OPTIMIZATION_WEEKDAYS, type OptimizationScheduleRow } from '../types/optimization'
 import { getClientOwnerIds, isClientInOperation, type Client } from '../types/client'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
+import { Avatar } from '../components/ui/Avatar'
+import { Spinner } from '../components/ui/FullPageSpinner'
 
 const GESTORES = ['Ciane', 'Nicolas']
 /** Combinações de 2 dias não-consecutivos preferidas pro auto-balancear —
@@ -35,6 +50,7 @@ const PREFERRED_PAIRS: [number, number][] = [
   [3, 5],
 ]
 const WEEKDAY_COL_LABEL: Record<number, string> = { 1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta', 5: 'Sexta' }
+const WEEKDAY_SHORT_LABEL: Record<number, string> = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex' }
 const WEEKDAY_FULL_LABEL: Record<number, string> = {
   1: 'Segunda-feira',
   2: 'Terça-feira',
@@ -65,24 +81,59 @@ function cellDropId(gestorId: string, weekday: number) {
 }
 
 // Cada cliente aparece 2x por semana — os limiares de carga por célula
-// consideram isso (ver "CORES DE CARGA ATUALIZADAS" do pedido).
-// As cores de cada faixa ficam em index.css (.opt-cell[data-load]) — assim
-// o tema escuro consegue trocá-las.
-function cellLoad(count: number): 'empty' | 'low' | 'mid' | 'high' {
+// consideram isso. As cores de cada faixa ficam em index.css
+// (.opt-load[data-load]).
+type Load = 'empty' | 'low' | 'mid' | 'high'
+function cellLoad(count: number): Load {
   if (count === 0) return 'empty'
   if (count <= 5) return 'low'
   if (count <= 8) return 'mid'
   return 'high'
 }
+const LOAD_LABEL: Record<Load, string> = { empty: 'Livre', low: 'Leve', mid: 'Médio', high: 'Cheio' }
 
 /** Estado do chip pela completude (não onde ele está renderizado): 2 dias =
- *  completo (azul), 1 dia = falta o segundo (âmbar, tracejado fica só pro
- *  "zero dias" que só existe na área "Sem dia definido"). Cores em
- *  index.css (.opt-chip[data-chip]). */
+ *  completo (azul), 1 dia = falta o segundo (âmbar), 0 dias = tracejado (só
+ *  existe na área "Sem dia definido"). Cores em index.css (.opt-chip[data-chip]). */
 function chipState(daysCount: number): 'full' | 'half' | 'none' {
   if (daysCount >= 2) return 'full'
   if (daysCount === 1) return 'half'
   return 'none'
+}
+
+/** Busca sem acento e sem diferenciar maiúscula. */
+function normalize(s: string) {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
+
+/** Dia da semana de hoje (1 = segunda … 5 = sexta); fim de semana = null. */
+function todayWeekday(): number | null {
+  const d = new Date().getDay()
+  return d >= 1 && d <= 5 ? d : null
+}
+
+/** Busca e "abrir edição" chegam em qualquer chip sem passar prop por prop. */
+const CalendarCtx = createContext<{ query: string; openEdit: (clientId: string, gestorId: string) => void }>({
+  query: '',
+  openEdit: () => {},
+})
+
+function PlatformTags({ platforms }: { platforms: ('meta' | 'google')[] }) {
+  const list: ('meta' | 'google')[] = platforms.length ? platforms : ['meta']
+  return (
+    <span className="flex shrink-0 items-center gap-0.5">
+      {list.includes('meta') && (
+        <span title="Meta Ads" className={`rounded px-1 py-px text-[9px] font-bold leading-none ${PLATFORM_BADGE.meta}`}>
+          M
+        </span>
+      )}
+      {list.includes('google') && (
+        <span title="Google Ads" className={`rounded px-1 py-px text-[9px] font-bold leading-none ${PLATFORM_BADGE.google}`}>
+          G
+        </span>
+      )}
+    </span>
+  )
 }
 
 function Chip({
@@ -98,35 +149,58 @@ function Chip({
    *  um dia específico pra remover. */
   onRemove?: () => void
 }) {
+  const { query, openEdit } = useContext(CalendarCtx)
   const id = chipDragId(chip.clientId, gestorId, weekday)
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data: { clientId: chip.clientId, gestorId, weekday },
   })
-  const badge = platformBadgeLabel(chip.platforms)
+  const q = normalize(query)
+  const match = !q || normalize(chip.companyName).includes(q)
 
   return (
     <div
       ref={setNodeRef}
       data-chip={chipState(chip.daysCount)}
-      className={`opt-chip flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs shadow-sm ${isDragging ? 'opacity-30' : ''}`}
+      className={`opt-chip group flex items-center gap-1 rounded-md py-1 pl-0.5 pr-1 text-xs transition-opacity ${
+        isDragging ? 'opacity-30' : !match ? 'opacity-20' : ''
+      } ${q && match ? 'ring-2 ring-brand-400' : ''}`}
     >
-      <button {...attributes} {...listeners} type="button" className="flex shrink-0 cursor-grab items-center active:cursor-grabbing">
-        <GripVertical size={11} className="text-slate-300" />
+      <button
+        {...attributes}
+        {...listeners}
+        type="button"
+        aria-label={`Arrastar ${chip.companyName}`}
+        className="flex shrink-0 cursor-grab items-center rounded p-0.5 text-slate-300 hover:text-slate-500 active:cursor-grabbing"
+      >
+        <GripVertical size={12} />
       </button>
-      <span className="min-w-0 flex-1 truncate font-medium text-slate-700">{chip.companyName}</span>
+      <button
+        type="button"
+        onClick={() => openEdit(chip.clientId, gestorId)}
+        title="Clique para escolher os dias"
+        className="min-w-0 flex-1 truncate text-left font-medium text-slate-700 hover:text-brand-600"
+      >
+        {chip.companyName}
+      </button>
       {chip.daysCount === 1 && (
-        <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">Falta 1 dia</span>
+        <span
+          title="Só tem 1 dia — falta o segundo"
+          className="shrink-0 rounded bg-amber-100 px-1 py-px text-[9px] font-bold leading-none text-amber-700"
+        >
+          1/2
+        </span>
       )}
-      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${badge.className}`}>{badge.label}</span>
+      <PlatformTags platforms={chip.platforms} />
       {onRemove && (
         <button
           type="button"
           onClick={onRemove}
-          title="Remover este dia de otimização"
-          className="shrink-0 rounded p-0.5 text-slate-300 hover:bg-red-50 hover:text-red-500"
+          title="Tirar este dia"
+          aria-label={`Tirar ${chip.companyName} deste dia`}
+          className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500 focus:opacity-100 md:opacity-0 md:group-hover:opacity-100"
         >
-          ×
+          <X size={12} />
         </button>
       )}
     </div>
@@ -138,53 +212,107 @@ function Cell({
   weekday,
   chips,
   compact,
+  isToday,
   onRemoveChip,
 }: {
   gestorId: string
   weekday: number
   chips: ChipData[]
   compact?: boolean
+  isToday?: boolean
   onRemoveChip: (clientId: string, weekday: number) => void
 }) {
   const id = cellDropId(gestorId, weekday)
   const { setNodeRef, isOver } = useDroppable({ id })
+  const load = cellLoad(chips.length)
 
   return (
     <div
       ref={setNodeRef}
-      className={`opt-cell flex min-h-[86px] flex-col gap-1.5 rounded-lg p-2 transition-shadow ${isOver ? 'ring-2 ring-brand-400' : ''}`}
-      data-load={cellLoad(chips.length)}
+      data-today={isToday ? '1' : undefined}
+      className={`opt-cell flex min-h-[110px] flex-col rounded-lg transition-shadow ${isOver ? 'ring-2 ring-brand-400' : ''}`}
     >
-      {!compact && <p className="px-0.5 text-[11px] font-semibold text-slate-500">{chips.length} cliente{chips.length === 1 ? '' : 's'}</p>}
-      <div className="flex flex-col gap-1">
+      {!compact && (
+        <div className="flex items-center justify-between gap-1 px-2 pt-1.5">
+          <span className="text-[11px] font-semibold tabular-nums text-slate-500">
+            {chips.length} cliente{chips.length === 1 ? '' : 's'}
+          </span>
+          <span data-load={load} className="opt-load rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none">
+            {LOAD_LABEL[load]}
+          </span>
+        </div>
+      )}
+      <div className="flex flex-1 flex-col gap-1 p-1.5">
         {chips.map((c) => (
           <Chip key={c.clientId} chip={c} gestorId={gestorId} weekday={weekday} onRemove={() => onRemoveChip(c.clientId, weekday)} />
         ))}
-        {chips.length === 0 && <p className="px-0.5 py-1.5 text-center text-[11px] text-slate-300">Solte aqui</p>}
+        {chips.length === 0 && (
+          <div className="flex min-h-[44px] flex-1 items-center justify-center rounded-md border border-dashed border-slate-200 text-[11px] text-slate-400">
+            Solte aqui
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-/** Só é renderizada quando há pelo menos 1 cliente sem dia — a página some
- *  com a área inteira assim que todo mundo fica com os 2 dias definidos. */
+/** Só é renderizada quando há pelo menos 1 cliente sem os 2 dias — some
+ *  assim que todo mundo fica completo. */
 function BankArea({ name, gestorId, chips }: { name: string; gestorId: string; chips: ChipData[] }) {
   const total = chips.length
   return (
     <div className="opt-bank rounded-xl p-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-slate-700">📋 Sem dia definido — {name}</p>
-        <span className="flex items-center gap-1 text-xs font-medium text-amber-600">
-          <AlertTriangle size={12} /> {total} cliente{total === 1 ? '' : 's'} sem dia definido
-        </span>
+      <div className="mb-1 flex items-center gap-2">
+        <AlertTriangle size={15} className="shrink-0 text-amber-500" />
+        <p className="text-sm font-semibold text-slate-700">Faltando dia · {name}</p>
+        <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-700">{total}</span>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <p className="mb-2.5 text-xs text-slate-400">Arraste para um dia da grade ou clique no nome para escolher os dias.</p>
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
         {chips.map((c) => (
-          <div key={c.clientId} className="w-[190px]">
-            <Chip chip={c} gestorId={gestorId} weekday="bank" />
-          </div>
+          <Chip key={c.clientId} chip={c} gestorId={gestorId} weekday="bank" />
         ))}
       </div>
+    </div>
+  )
+}
+
+function Stat({ label, value, tone }: { label: string; value: string | number; tone?: 'warn' }) {
+  return (
+    <div className="min-w-0">
+      <p className={`text-lg font-bold tabular-nums leading-tight ${tone === 'warn' ? 'text-amber-600' : 'text-slate-800'}`}>{value}</p>
+      <p className="truncate text-[11px] text-slate-400">{label}</p>
+    </div>
+  )
+}
+
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: T
+  options: { value: T; label: string; icon?: ReactNode }[]
+  onChange: (v: T) => void
+  label: string
+}) {
+  return (
+    <div role="group" aria-label={label} className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={`flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
+            value === o.value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {o.icon}
+          {o.label}
+        </button>
+      ))}
     </div>
   )
 }
@@ -207,6 +335,8 @@ export function OptimizationCalendarPage() {
   const [seeding, setSeeding] = useState(false)
   const [pendingMove, setPendingMove] = useState<{ row: OptimizationScheduleRow[]; label: string } | null>(null)
   const [balancePreview, setBalancePreview] = useState<{ rows: OptimizationScheduleRow[]; changed: number } | null>(null)
+  const [query, setQuery] = useState('')
+  const [editing, setEditing] = useState<{ clientId: string; gestorId: string; weekdays: number[] } | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -490,209 +620,452 @@ export function OptimizationCalendarPage() {
       })
   }
 
+  /** Abre a janela de edição (clique no nome do cliente) — alternativa ao
+   *  arrastar, que também funciona no celular e no teclado. */
+  const openEdit = (clientId: string, fallbackGestorId: string) => {
+    const row = rows.find((r) => r.clientId === clientId)
+    setEditing({
+      clientId,
+      gestorId: row?.userId ?? fallbackGestorId,
+      weekdays: [...(row?.weekdays ?? [])].sort((a, b) => a - b),
+    })
+  }
+
+  const toggleEditDay = (d: number) =>
+    setEditing((prev) =>
+      prev
+        ? {
+            ...prev,
+            weekdays: prev.weekdays.includes(d) ? prev.weekdays.filter((x) => x !== d) : [...prev.weekdays, d].sort((a, b) => a - b),
+          }
+        : prev
+    )
+
+  const handleSaveEdit = () => {
+    if (!editing) return
+    const client = clientById[editing.clientId]
+    const next: OptimizationScheduleRow[] = rows.map((r) => ({ ...r, weekdays: [...r.weekdays] }))
+    let row = next.find((r) => r.clientId === editing.clientId)
+    if (!row) {
+      row = { clientId: editing.clientId, userId: editing.gestorId, weekdays: [] }
+      next.push(row)
+    }
+    row.userId = editing.gestorId
+    row.weekdays = [...editing.weekdays].sort((a, b) => a - b)
+    setEditing(null)
+    persist(next)
+      .then(() => toast.success(`✅ ${client?.companyName ?? 'Cliente'} atualizado`))
+      .catch((err) => {
+        console.error(err)
+        toast.error('Erro ao salvar os dias')
+      })
+  }
+
+  const today = todayWeekday()
+  const editingClient = editing ? clientById[editing.clientId] : undefined
+  const editingGestorName = editing ? GESTORES.find((n) => gestorIds[n] === editing.gestorId) : undefined
+  const editingHasNeighbors = editing ? editing.weekdays.some((d) => editing.weekdays.includes(d + 1)) : false
+  const dayTotal = (d: number) => visibleGestores.reduce((sum, n) => sum + (chipsByGestorDay[n]?.[d]?.length ?? 0), 0)
+  const missingTotal = visibleGestores.reduce((sum, n) => sum + (bankByGestor[n]?.length ?? 0), 0)
+  const queryHits = query.trim()
+    ? clients.filter(
+        (c) => isClientInOperation(c) && hasContractedPaidTraffic(c) && normalize(c.companyName).includes(normalize(query))
+      ).length
+    : 0
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-[28px] font-extrabold leading-tight text-slate-900">
-            <CalendarRange size={26} className="text-brand-600" /> Calendário de Otimizações
-          </h1>
-          <p className="text-[15px] text-[#64748B]">Organize e balanceie as otimizações da equipe por dia da semana</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" icon={<Wand2 size={14} />} onClick={handleAutoBalancePreview}>
-            Auto-balancear
-          </Button>
-          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
-            <button
-              onClick={() => setView('grid')}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
-                view === 'grid' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
-              }`}
-            >
-              <LayoutGrid size={14} /> Grade
-            </button>
-            <button
-              onClick={() => setView('list')}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
-                view === 'list' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
-              }`}
-            >
-              <List size={14} /> Lista
-            </button>
+    <CalendarCtx.Provider value={{ query, openEdit }}>
+      <div className="flex flex-col gap-5">
+        {/* Cabeçalho */}
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="flex items-center gap-2 text-[26px] font-extrabold leading-tight text-slate-900">
+              <CalendarRange size={24} className="text-brand-600" /> Calendário de Otimizações
+            </h1>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Cada cliente de tráfego é otimizado 2 vezes por semana. Arraste entre os dias ou clique no nome para editar.
+            </p>
           </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        {(['all', 'ciane', 'nicolas'] as const).map((g) => (
-          <button
-            key={g}
-            onClick={() => setGestorFilter(g)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              gestorFilter === g ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {g === 'all' ? 'Todos' : g === 'ciane' ? 'Ciane' : 'Nicolas'}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-slate-400">Carregando…</p>
-      ) : (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          {visibleGestores.some((name) => (bankByGestor[name]?.length ?? 0) > 0) && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {visibleGestores
-                .filter((name) => (bankByGestor[name]?.length ?? 0) > 0)
-                .map((name) => (
-                  <BankArea key={name} name={name} gestorId={gestorIds[name] ?? ''} chips={bankByGestor[name] ?? []} />
-                ))}
-            </div>
+          {rows.length > 0 && (
+            <Button variant="secondary" icon={<Wand2 size={14} />} onClick={handleAutoBalancePreview}>
+              Auto-balancear
+            </Button>
           )}
+        </div>
 
-          {rows.length === 0 ? (
-            <div className="mt-3 flex flex-col items-start gap-2 rounded-xl border border-slate-100 bg-white p-6">
-              <p className="text-sm text-slate-500">Nenhum calendário cadastrado ainda.</p>
-              <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={handleSeed} loading={seeding}>
-                Importar calendário padrão
-              </Button>
-            </div>
-          ) : view === 'grid' ? (
-            <div className="mt-3 overflow-x-auto rounded-xl border border-slate-100 bg-white p-3">
-              <div className="grid min-w-[720px] gap-2" style={{ gridTemplateColumns: '110px repeat(5, 1fr)' }}>
-                <div />
-                {OPTIMIZATION_WEEKDAYS.map((d) => (
-                  <p key={d} className="px-1 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    {WEEKDAY_COL_LABEL[d]}
-                  </p>
-                ))}
-                {visibleGestores.map((name) => (
-                  <Fragment key={name}>
-                    <div className="flex items-center text-sm font-semibold text-slate-700">{name}</div>
-                    {OPTIMIZATION_WEEKDAYS.map((d) => (
-                      <Cell
-                        key={`${name}-${d}`}
-                        gestorId={gestorIds[name] ?? ''}
-                        weekday={d}
-                        chips={chipsByGestorDay[name]?.[d] ?? []}
-                        onRemoveChip={handleRemoveDay}
-                      />
-                    ))}
-                  </Fragment>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-3 flex flex-col gap-3">
-              {OPTIMIZATION_WEEKDAYS.map((d) => {
-                const isCollapsed = collapsedDays.has(d)
+        {/* Resumo por gestor */}
+        {!loading && rows.length > 0 && (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {summaryByGestor
+              .filter((s) => visibleGestores.includes(s.name))
+              .map((s) => {
+                const gid = gestorIds[s.name]
+                const photo = users.find((u) => u.id === gid)?.photoURL
+                const missing = bankByGestor[s.name]?.length ?? 0
+                const spread = s.max.count - s.min.count
+                const balanced = spread <= 2
+                const weekly = s.entries.reduce((sum, e) => sum + e.count, 0)
                 return (
-                  <div key={d} className="overflow-hidden rounded-xl border border-slate-100 bg-white">
-                    <button
-                      onClick={() =>
-                        setCollapsedDays((prev) => {
-                          const next = new Set(prev)
-                          if (next.has(d)) next.delete(d)
-                          else next.add(d)
-                          return next
-                        })
-                      }
-                      className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm font-semibold uppercase tracking-wide text-slate-700 hover:bg-slate-50"
-                    >
-                      {WEEKDAY_FULL_LABEL[d]}
-                      <span className="text-xs text-slate-400">{isCollapsed ? '▶' : '▼'}</span>
-                    </button>
-                    {!isCollapsed && (
-                      <div className="grid grid-cols-1 gap-3 border-t border-slate-100 p-3 sm:grid-cols-2">
-                        {visibleGestores.map((name) => {
-                          const chips = chipsByGestorDay[name]?.[d] ?? []
+                  <div key={s.name} className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex items-center gap-2.5">
+                      <Avatar name={s.name} photoURL={photo} size="sm" />
+                      <p className="font-semibold text-slate-800">{s.name}</p>
+                      <span
+                        className={`ml-auto flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                        }`}
+                        title={`Diferença entre o dia mais cheio e o mais vazio: ${spread}`}
+                      >
+                        {balanced ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
+                        {balanced ? 'Equilibrado' : 'Desequilibrado'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+                      <div className="grid flex-1 grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+                        <Stat label="Clientes" value={s.total} />
+                        <Stat label="Otimizações / semana" value={weekly} />
+                        <Stat label="Média por dia" value={(weekly / 5).toFixed(1).replace('.', ',')} />
+                        <Stat label="Faltando dia" value={missing} tone={missing > 0 ? 'warn' : undefined} />
+                      </div>
+                      <div className="flex h-[74px] items-end gap-1.5" aria-label={`Carga por dia de ${s.name}`}>
+                        {s.entries.map((e) => {
+                          const h = Math.max(4, Math.round((e.count / s.maxCount) * 48))
+                          const isMax = !balanced && e.day === s.max.day
                           return (
-                            <div key={name}>
-                              <p className="mb-1.5 text-xs font-semibold text-slate-500">
-                                ▼ {name} ({chips.length} cliente{chips.length === 1 ? '' : 's'})
-                              </p>
-                              <Cell gestorId={gestorIds[name] ?? ''} weekday={d} chips={chips} compact onRemoveChip={handleRemoveDay} />
+                            <div key={e.day} className="flex w-7 flex-col items-center gap-1" title={`${WEEKDAY_COL_LABEL[e.day]}: ${e.count}`}>
+                              <span className="text-[10px] font-semibold tabular-nums text-slate-500">{e.count}</span>
+                              <div
+                                className={`w-full rounded-sm ${isMax ? 'bg-amber-400' : e.day === today ? 'bg-brand-500' : 'bg-slate-300'}`}
+                                style={{ height: h }}
+                              />
+                              <span className={`text-[10px] ${e.day === today ? 'font-bold text-brand-600' : 'text-slate-400'}`}>
+                                {WEEKDAY_SHORT_LABEL[e.day]}
+                              </span>
                             </div>
                           )
                         })}
                       </div>
-                    )}
+                    </div>
                   </div>
                 )
               })}
-            </div>
-          )}
-        </DndContext>
-      )}
+          </div>
+        )}
 
-      {!loading && rows.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {summaryByGestor
-            .filter((s) => visibleGestores.includes(s.name))
-            .map((s) => (
-              <div key={s.name} className="rounded-xl border border-slate-100 bg-white p-4">
-                <p className="mb-2 text-sm font-semibold text-slate-800">{s.name}</p>
-                <p className="text-xs text-slate-500">Total de clientes: <span className="font-semibold text-slate-700">{s.total}</span></p>
-                <p className="text-xs text-slate-500">
-                  Otimizações por semana: <span className="font-semibold text-slate-700">{s.total} × 2 = {s.total * 2}</span>
-                </p>
-                <p className="text-xs text-slate-500">
-                  Média por dia: <span className="font-semibold text-slate-700">{s.total * 2} ÷ 5 = {((s.total * 2) / 5).toFixed(1)}</span>
-                </p>
-                <p className="text-xs text-slate-500">
-                  Dia mais cheio: <span className="font-semibold text-slate-700">{WEEKDAY_COL_LABEL[s.max.day]} ({s.max.count})</span>
-                </p>
-                <p className="text-xs text-slate-500">
-                  Dia mais vazio: <span className="font-semibold text-slate-700">{WEEKDAY_COL_LABEL[s.min.day]} ({s.min.count})</span>
-                </p>
-                <div className="mt-2.5 flex flex-col gap-1">
-                  {s.entries.map((e) => (
-                    <div key={e.day} className="flex items-center gap-2">
-                      <span className="w-14 shrink-0 text-[11px] text-slate-400">{WEEKDAY_COL_LABEL[e.day]}</span>
-                      <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-brand-500"
-                          style={{ width: `${(e.count / s.maxCount) * 100}%` }}
-                        />
-                      </div>
-                      <span className="w-4 shrink-0 text-right text-[11px] text-slate-400">{e.count}</span>
+        {/* Barra de ferramentas */}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmented
+              label="Gestor"
+              value={gestorFilter}
+              onChange={setGestorFilter}
+              options={[
+                { value: 'all', label: 'Todos' },
+                { value: 'ciane', label: 'Ciane' },
+                { value: 'nicolas', label: 'Nicolas' },
+              ]}
+            />
+            <label className="relative min-w-[200px] flex-1">
+              <span className="sr-only">Buscar cliente</span>
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar cliente…"
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              />
+            </label>
+            {query.trim() && (
+              <span className="text-xs text-slate-500">
+                {queryHits} encontrado{queryHits === 1 ? '' : 's'}
+              </span>
+            )}
+            <Segmented
+              label="Visualização"
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'grid', label: 'Grade', icon: <LayoutGrid size={14} /> },
+                { value: 'list', label: 'Lista', icon: <List size={14} /> },
+              ]}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+            <span className="flex items-center gap-1.5">
+              <span className="opt-legend-chip" data-chip="full" /> 2 dias
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="opt-legend-chip" data-chip="half" /> Falta 1 dia
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="opt-legend-chip" data-chip="none" /> Sem dia
+            </span>
+            <span className="hidden h-3 w-px bg-slate-200 sm:block" />
+            <span className="flex items-center gap-1.5">
+              <span data-load="low" className="opt-load rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none">Leve</span> até 5
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span data-load="mid" className="opt-load rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none">Médio</span> 6 a 8
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span data-load="high" className="opt-load rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none">Cheio</span> 9 ou mais
+            </span>
+          </div>
+        </div>
+
+        {loading ? (
+          <Spinner />
+        ) : (
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            {missingTotal > 0 && (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {visibleGestores
+                  .filter((name) => (bankByGestor[name]?.length ?? 0) > 0)
+                  .map((name) => (
+                    <BankArea key={name} name={name} gestorId={gestorIds[name] ?? ''} chips={bankByGestor[name] ?? []} />
+                  ))}
+              </div>
+            )}
+
+            {rows.length === 0 ? (
+              <div className="flex flex-col items-start gap-3 rounded-xl border border-slate-200 bg-white p-6">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Info size={16} className="text-slate-400" />
+                  <p className="text-sm">Nenhum calendário cadastrado ainda.</p>
+                </div>
+                <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={handleSeed} loading={seeding}>
+                  Importar calendário padrão
+                </Button>
+              </div>
+            ) : view === 'grid' ? (
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-3">
+                <div className="grid min-w-[880px] gap-2" style={{ gridTemplateColumns: '128px repeat(5, minmax(0, 1fr))' }}>
+                  <div />
+                  {OPTIMIZATION_WEEKDAYS.map((d) => (
+                    <div
+                      key={d}
+                      className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold uppercase tracking-wide ${
+                        d === today ? 'bg-brand-50 text-brand-700' : 'text-slate-500'
+                      }`}
+                    >
+                      {WEEKDAY_COL_LABEL[d]}
+                      <span className="font-medium normal-case tabular-nums text-slate-400">· {dayTotal(d)}</span>
+                      {d === today && (
+                        <span className="rounded-full bg-brand-600 px-1.5 py-px text-[9px] font-bold normal-case tracking-normal text-white">hoje</span>
+                      )}
                     </div>
                   ))}
+                  {visibleGestores.map((name) => {
+                    const gid = gestorIds[name]
+                    const photo = users.find((u) => u.id === gid)?.photoURL
+                    const total = summaryByGestor.find((s) => s.name === name)?.total ?? 0
+                    return (
+                      <Fragment key={name}>
+                        <div className="flex flex-col items-start justify-center gap-1.5 pr-2">
+                          <Avatar name={name} photoURL={photo} size="sm" />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">{name}</p>
+                            <p className="text-[11px] text-slate-400">
+                              {total} cliente{total === 1 ? '' : 's'}
+                            </p>
+                          </div>
+                        </div>
+                        {OPTIMIZATION_WEEKDAYS.map((d) => (
+                          <Cell
+                            key={`${name}-${d}`}
+                            gestorId={gid ?? ''}
+                            weekday={d}
+                            isToday={d === today}
+                            chips={chipsByGestorDay[name]?.[d] ?? []}
+                            onRemoveChip={handleRemoveDay}
+                          />
+                        ))}
+                      </Fragment>
+                    )
+                  })}
                 </div>
               </div>
-            ))}
-        </div>
-      )}
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {OPTIMIZATION_WEEKDAYS.map((d) => {
+                  const isCollapsed = collapsedDays.has(d)
+                  return (
+                    <div
+                      key={d}
+                      className={`overflow-hidden rounded-xl border bg-white ${d === today ? 'border-brand-300' : 'border-slate-200'}`}
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={!isCollapsed}
+                        onClick={() =>
+                          setCollapsedDays((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(d)) next.delete(d)
+                            else next.add(d)
+                            return next
+                          })
+                        }
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-slate-50"
+                      >
+                        <ChevronDown size={16} className={`text-slate-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                        <span className="text-sm font-semibold text-slate-800">{WEEKDAY_FULL_LABEL[d]}</span>
+                        {d === today && (
+                          <span className="rounded-full bg-brand-600 px-1.5 py-px text-[10px] font-bold text-white">hoje</span>
+                        )}
+                        <span className="ml-auto text-xs tabular-nums text-slate-400">
+                          {dayTotal(d)} otimizaç{dayTotal(d) === 1 ? 'ão' : 'ões'}
+                        </span>
+                      </button>
+                      {!isCollapsed && (
+                        <div className="grid grid-cols-1 gap-3 border-t border-slate-100 p-3 sm:grid-cols-2">
+                          {visibleGestores.map((name) => {
+                            const chips = chipsByGestorDay[name]?.[d] ?? []
+                            const load = cellLoad(chips.length)
+                            return (
+                              <div key={name}>
+                                <div className="mb-1.5 flex items-center gap-2">
+                                  <p className="text-xs font-semibold text-slate-600">{name}</p>
+                                  <span className="text-[11px] tabular-nums text-slate-400">
+                                    {chips.length} cliente{chips.length === 1 ? '' : 's'}
+                                  </span>
+                                  <span data-load={load} className="opt-load ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none">
+                                    {LOAD_LABEL[load]}
+                                  </span>
+                                </div>
+                                <Cell
+                                  gestorId={gestorIds[name] ?? ''}
+                                  weekday={d}
+                                  chips={chips}
+                                  compact
+                                  isToday={d === today}
+                                  onRemoveChip={handleRemoveDay}
+                                />
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </DndContext>
+        )}
 
-      <Modal open={!!pendingMove} onClose={() => setPendingMove(null)} title="⚠️ Dia sobrecarregado">
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-slate-600">Esse dia já tem muitos clientes. Deseja continuar mesmo assim?</p>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setPendingMove(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmPendingMove}>Mover mesmo assim</Button>
+        <Modal open={!!pendingMove} onClose={() => setPendingMove(null)} title="Dia sobrecarregado">
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-slate-600">Esse dia já tem 9 clientes ou mais. Mover mesmo assim?</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setPendingMove(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmPendingMove}>Mover mesmo assim</Button>
+            </div>
           </div>
-        </div>
-      </Modal>
+        </Modal>
 
-      <Modal open={!!balancePreview} onClose={() => setBalancePreview(null)} title="Auto-balancear calendário">
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-slate-600">
-            Isso vai mover {balancePreview?.changed} cliente{balancePreview?.changed === 1 ? '' : 's'} para equilibrar a
-            carga por dia, mantendo os 2 dias de otimização por cliente (evitando dias consecutivos quando possível).
-            Confirmar?
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setBalancePreview(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmAutoBalance}>Confirmar</Button>
+        <Modal open={!!balancePreview} onClose={() => setBalancePreview(null)} title="Auto-balancear calendário">
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-slate-600">
+              Isso vai mover {balancePreview?.changed} cliente{balancePreview?.changed === 1 ? '' : 's'} para equilibrar a
+              carga por dia, mantendo os 2 dias de otimização por cliente (evitando dias seguidos quando possível).
+              {gestorFilter !== 'all' && ` Só os clientes de ${visibleGestores[0]} entram.`}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setBalancePreview(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmAutoBalance}>Confirmar</Button>
+            </div>
           </div>
-        </div>
-      </Modal>
-    </div>
+        </Modal>
+
+        <Modal open={!!editing} onClose={() => setEditing(null)} title={editingClient?.companyName ?? 'Editar dias'}>
+          {editing && (
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-slate-500">Quem otimiza</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {GESTORES.map((n) => {
+                    const gid = gestorIds[n]
+                    if (!gid) return null
+                    const active = editing.gestorId === gid
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setEditing((prev) => (prev ? { ...prev, gestorId: gid } : prev))}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                          active ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Avatar name={n} photoURL={users.find((u) => u.id === gid)?.photoURL} size="xs" />
+                        {n}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-slate-500">Dias da semana</p>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {OPTIMIZATION_WEEKDAYS.map((d) => {
+                    const active = editing.weekdays.includes(d)
+                    const others = editingGestorName
+                      ? (chipsByGestorDay[editingGestorName]?.[d] ?? []).filter((c) => c.clientId !== editing.clientId).length
+                      : 0
+                    const load = cellLoad(others + 1)
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        aria-pressed={active}
+                        aria-label={`${WEEKDAY_FULL_LABEL[d]}, ${others} outros clientes`}
+                        onClick={() => toggleEditDay(d)}
+                        className={`flex flex-col items-center gap-1 rounded-lg border px-1 py-2 transition-colors ${
+                          active ? 'border-brand-500 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className={`text-sm font-semibold ${active ? 'text-brand-700' : 'text-slate-700'}`}>{WEEKDAY_SHORT_LABEL[d]}</span>
+                        <span data-load={load} className="opt-load rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums">
+                          {others}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="mt-1.5 text-[11px] text-slate-400">O número é quantos outros clientes já estão naquele dia.</p>
+              </div>
+
+              {editing.weekdays.length !== 2 ? (
+                <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  <AlertTriangle size={13} className="shrink-0" />
+                  {editing.weekdays.length === 0
+                    ? 'Sem nenhum dia, o cliente vai para "Faltando dia".'
+                    : editing.weekdays.length === 1
+                      ? 'O padrão são 2 dias por semana.'
+                      : `${editing.weekdays.length} dias marcados — o padrão são 2.`}
+                </p>
+              ) : editingHasNeighbors ? (
+                <p className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  <Info size={13} className="shrink-0" /> Dias seguidos deixam muito tempo sem otimizar no resto da semana.
+                </p>
+              ) : null}
+
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setEditing(null)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSaveEdit}>Salvar</Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      </div>
+    </CalendarCtx.Provider>
   )
 }

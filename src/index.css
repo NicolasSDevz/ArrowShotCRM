@@ -120,14 +120,19 @@ body {
 .sidebar { scrollbar-color: #2a2a2e transparent; scrollbar-width: thin; }
 
 /* ---------- Calendário de otimizações (células por carga, chips por completude) ---------- */
-.opt-cell[data-load="empty"] { background-color: #f8fafc; }
-.opt-cell[data-load="low"] { background-color: #d1fae5; }
-.opt-cell[data-load="mid"] { background-color: #fef3c7; }
-.opt-cell[data-load="high"] { background-color: #fee2e2; }
-.opt-chip { background: #ffffff; border: 2px solid #2563eb; }
-.opt-chip[data-chip="half"] { border-color: #f59e0b; }
-.opt-chip[data-chip="none"] { background: #f8fafc; border: 2px dashed #94a3b8; }
-.opt-bank { background-color: #f8fafc; border: 2px dashed #cbd5e1; }
+.opt-cell { background-color: #f8fafc; }
+.opt-cell[data-today="1"] { background-color: #eff6ff; box-shadow: inset 0 0 0 1px #bfdbfe; }
+.opt-load[data-load="empty"] { background-color: #f1f5f9; color: #64748b; }
+.opt-load[data-load="low"] { background-color: #d1fae5; color: #047857; }
+.opt-load[data-load="mid"] { background-color: #fef3c7; color: #b45309; }
+.opt-load[data-load="high"] { background-color: #fee2e2; color: #b91c1c; }
+.opt-chip { background: #ffffff; border: 1px solid #e2e8f0; border-left: 3px solid #2563eb; }
+.opt-chip[data-chip="half"] { border-left-color: #f59e0b; }
+.opt-chip[data-chip="none"] { background: #f8fafc; border: 1px dashed #94a3b8; border-left: 3px dashed #94a3b8; }
+.opt-legend-chip { display: inline-block; width: 14px; height: 10px; border-radius: 3px; background: #fff; border: 1px solid #e2e8f0; border-left: 3px solid #2563eb; }
+.opt-legend-chip[data-chip="half"] { border-left-color: #f59e0b; }
+.opt-legend-chip[data-chip="none"] { border: 1px dashed #94a3b8; border-left: 3px dashed #94a3b8; }
+.opt-bank { background-color: #fffbeb; border: 1px dashed #fcd34d; }
 
 /* serviço — Landing Page (única com regra de modo claro definida; as
    badge-service-* de tráfego/social não têm regra em modo claro, só escuro,
@@ -456,14 +461,20 @@ body {
 }
 
 /* ---- calendário de otimizações ---- */
-:root[data-theme="dark"] .opt-cell[data-load="empty"] { background-color: var(--dk-surface-2); }
-:root[data-theme="dark"] .opt-cell[data-load="low"] { background-color: rgb(52 211 153 / 0.09); }
-:root[data-theme="dark"] .opt-cell[data-load="mid"] { background-color: rgb(245 158 11 / 0.1); }
-:root[data-theme="dark"] .opt-cell[data-load="high"] { background-color: rgb(239 68 68 / 0.11); }
-:root[data-theme="dark"] .opt-chip { background: var(--dk-surface-3); border: 1px solid hsl(217 40% 42%); }
-:root[data-theme="dark"] .opt-chip[data-chip="half"] { border-color: hsl(38 55% 46%); }
-:root[data-theme="dark"] .opt-chip[data-chip="none"] { background: var(--dk-surface-2); border: 1px dashed var(--dk-line-3); }
-:root[data-theme="dark"] .opt-bank { background-color: var(--dk-surface-2); border: 1px dashed var(--dk-line-3); }
+:root[data-theme="dark"] .opt-cell { background-color: var(--dk-surface-2); }
+:root[data-theme="dark"] .opt-cell[data-today="1"] { background-color: rgb(59 130 246 / 0.07); box-shadow: inset 0 0 0 1px rgb(96 165 250 / 0.28); }
+:root[data-theme="dark"] .opt-load[data-load="empty"] { background-color: var(--dk-surface-4); color: var(--dk-text-4); }
+:root[data-theme="dark"] .opt-load[data-load="low"] { background-color: rgb(52 211 153 / 0.14); color: #6fd3a4; }
+:root[data-theme="dark"] .opt-load[data-load="mid"] { background-color: rgb(245 158 11 / 0.15); color: #e6ac55; }
+:root[data-theme="dark"] .opt-load[data-load="high"] { background-color: rgb(239 68 68 / 0.16); color: #f28b8b; }
+:root[data-theme="dark"] .opt-chip { background: var(--dk-surface-3); border: 1px solid var(--dk-line-2); border-left: 3px solid #5b8def; }
+:root[data-theme="dark"] .opt-chip:hover { background: var(--dk-surface-4); }
+:root[data-theme="dark"] .opt-chip[data-chip="half"] { border-left-color: #dea23a; }
+:root[data-theme="dark"] .opt-chip[data-chip="none"] { background: var(--dk-surface-2); border: 1px dashed var(--dk-line-3); border-left: 3px dashed var(--dk-line-3); }
+:root[data-theme="dark"] .opt-legend-chip { background: var(--dk-surface-3); border: 1px solid var(--dk-line-2); border-left: 3px solid #5b8def; }
+:root[data-theme="dark"] .opt-legend-chip[data-chip="half"] { border-left-color: #dea23a; }
+:root[data-theme="dark"] .opt-legend-chip[data-chip="none"] { background: transparent; border: 1px dashed var(--dk-line-3); border-left: 3px dashed var(--dk-line-3); }
+:root[data-theme="dark"] .opt-bank { background-color: rgb(245 158 11 / 0.04); border: 1px dashed rgb(222 162 58 / 0.35); }
 
 /* ---- notificações ---- */
 :root[data-theme="dark"] .notif-count { background-color: #ffffff; color: #000000; }
