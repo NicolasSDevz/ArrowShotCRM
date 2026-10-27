@@ -30,7 +30,8 @@ async function readSecrets() {
   return snap.exists ? snap.data()?.pixels || {} : {}
 }
 
-async function tokenFor(pixelId) {
+/** Token salvo para o pixel (também usado pelos formulários de captura). */
+export async function tokenFor(pixelId) {
   const entry = (await readSecrets())[pixelId]
   if (!entry) return null
   try {

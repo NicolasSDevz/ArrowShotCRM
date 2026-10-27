@@ -339,6 +339,9 @@ export interface LeadForm extends BaseDoc {
   endBlocks?: LeadFormBlock[]
   /** Id do Meta Pixel carregado na página pública (PageView ao abrir, Lead ao enviar). */
   metaPixelId?: string | null
+  /** Código de teste do Meta (Eventos de teste). Só vale por 3 h depois de salvo. */
+  capiTestCode?: string | null
+  capiTestCodeAt?: string | null
   /** Qual pergunta de escolha única decide a tela de resultado. */
   qualificationQuestionId?: string | null
   /** Para onde vai cada resposta: 'questionnaires' (padrão) = aba
@@ -385,4 +388,32 @@ export interface LeadFormEvent {
    *  serverTimestamp() em documentos diferentes pra calcular a diferença). */
   durationMs?: number
   createdAt: Timestamp
+}
+
+/** Uma visita ao link público do formulário (gravada só pelo servidor,
+ *  api/_lib/leadFormVisits.js). Etapa: 1 abriu, 2 começou, 3 deixou o contato, 4 enviou. */
+export interface LeadFormVisit {
+  id: string
+  formId: string
+  formName?: string
+  totalQuestions?: number
+  device: 'mobile' | 'desktop'
+  source: string
+  medium?: string | null
+  campaign?: string | null
+  adset?: string | null
+  ad?: string | null
+  referrer?: string | null
+  team?: boolean
+  step: number
+  lastQuestionId?: string | null
+  lastQuestionLabel?: string | null
+  lastQuestionIndex?: number
+  contact?: { name?: string; whatsapp?: string; email?: string }
+  answers?: { label: string; value: string }[]
+  seconds?: number
+  submittedAt?: string | null
+  capi?: { ok: boolean; skipped?: string; error?: string; test?: boolean; at?: string } | null
+  createdAt: string
+  updatedAt: string
 }

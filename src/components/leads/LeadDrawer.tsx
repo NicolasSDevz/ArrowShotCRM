@@ -193,6 +193,12 @@ function InfoTab({ lead }: { lead: Lead }) {
       {lead.formAnswers && lead.formAnswers.length > 0 && (
         <div className="rounded-lg border border-slate-200 p-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Respostas do formulário</p>
+          {lead.origin && (
+            <p className="mb-2 text-xs text-slate-500">
+              <span className="text-slate-400">Veio de: </span>
+              {[lead.origin.source, lead.origin.campaign, lead.origin.adset, lead.origin.ad].filter(Boolean).join(' · ')} · {lead.origin.device === 'mobile' ? 'celular' : 'computador'}
+            </p>
+          )}
           <div className="flex flex-col gap-2">
             {lead.formAnswers.map((a) => (
               <div key={a.questionId}>

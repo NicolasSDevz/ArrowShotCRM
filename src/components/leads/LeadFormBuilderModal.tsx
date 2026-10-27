@@ -684,7 +684,7 @@ export function LeadFormBuilderModal({
             </button>
             <div className={`p-4 ${showPreview ? '' : 'mx-auto max-w-2xl'}`}>
               {sel.kind === 'welcome' && <WelcomeScreenEditor design={design} onDesignChange={setDesign} formId={slug || 'preview'} canUpload={canUpload} />}
-              {sel.kind === 'tracking' && <TrackingEditor value={metaPixelId} onChange={setMetaPixelId} />}
+              {sel.kind === 'tracking' && <TrackingEditor value={metaPixelId} onChange={setMetaPixelId} formId={form?.id} testCode={form?.capiTestCode} testCodeAt={form?.capiTestCodeAt} />}
               {sel.kind === 'theme' && <ThemeEditor design={design} onDesignChange={setDesign} onPreviewScreen={setThemePreview} />}
               {sel.kind === 'question' && selectedQuestionIndex >= 0 && (
                 <LeadFormQuestionEditor

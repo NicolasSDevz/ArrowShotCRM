@@ -10,6 +10,7 @@
 //   agency-overview → GET  visão consolidada de todos os clientes com Meta Ads
 //   campaigns       → GET  campanhas ativas da conta
 //   insights        → GET  insights (impressões, cliques, gasto, conversões…)
+//   form-visit      → POST visita do formulário de captura (público)
 //   token           → GET/POST/DELETE gerenciamento de token por cliente
 //                     + ?scope=credentials → acessos (login/senha)
 //                     + ?scope=exchange   → troca token curto por longo
@@ -21,6 +22,7 @@ import { resolveMetaToken, listAllTokenStatuses, setClientToken, deleteClientTok
 import { credentialsHandler } from '../_lib/credentialsHandler.js'
 import { exchangeTokenHandler } from '../_lib/exchangeTokenHandler.js'
 import { errorReportHandler } from '../_lib/errorReport.js'
+import { formVisitHandler } from '../_lib/leadFormVisits.js'
 
 // ─── account ────────────────────────────────────────────────────────────────
 
@@ -501,6 +503,8 @@ export default function route(req, res) {
     case 'agency-overview':  return agencyOverviewRoute(req, res)
     // Aviso de erro das telas (público: o checkout não tem login). Ver _lib/errorReport.js.
     case 'erro':             return errorReportHandler(req, res)
+    // Visitas dos formulários de captura + Lead pela API de Conversões (público). Ver _lib/leadFormVisits.js.
+    case 'form-visit':       return formVisitHandler(req, res)
     default:
       return res.status(404).json({ error: `Rota Meta inválida: ${acao}` })
   }

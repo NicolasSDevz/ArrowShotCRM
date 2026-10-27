@@ -14,9 +14,12 @@ async function deleteInBatches(refs: DocumentReference[]) {
  *  tempo e desistência por pergunta) — apaga os eventos gravados pela
  *  página pública. Devolve quantos eventos foram apagados. */
 export async function clearLeadFormMetrics(formId: string): Promise<number> {
-  const snap = await getDocs(query(collection(db, 'leadFormEvents'), where('formId', '==', formId)))
-  await deleteInBatches(snap.docs.map((d) => d.ref))
-  return snap.size
+  const [events, visits] = await Promise.all([
+    getDocs(query(collection(db, 'leadFormEvents'), where('formId', '==', formId))),
+    getDocs(query(collection(db, 'leadFormVisits'), where('formId', '==', formId))),
+  ])
+  await deleteInBatches([...events.docs, ...visits.docs].map((d) => d.ref))
+  return events.size + visits.size
 }
 
 /** Apaga os leads que chegaram por esse formulário (ex: os envios de teste).

@@ -133,14 +133,16 @@ function answerToText(q: LeadFormQuestion, raw: string | string[], otherText?: s
     .join(', ')
 }
 
-export async function submitLeadFormResponse(
-  form: LeadForm,
+/** Respostas em texto legível + o contato (perguntas marcadas como nome,
+ *  WhatsApp, e-mail e empresa). Usado no envio e no registro da visita. */
+export function summarizeLeadFormAnswers(
+  questions: LeadFormQuestion[],
   answersByQuestionId: Record<string, string | string[]>,
   otherTexts: Record<string, string> = {}
-): Promise<void> {
+) {
   const flatAnswers: Record<string, string> = {}
   const formAnswers: LeadFormAnswer[] = []
-  for (const q of form.questions) {
+  for (const q of questions) {
     const raw = answersByQuestionId[q.id]
     if (raw === undefined || raw === null) continue
     const value = answerToText(q, raw, otherTexts[q.id])
@@ -148,11 +150,38 @@ export async function submitLeadFormResponse(
     flatAnswers[q.id] = value
     formAnswers.push({ questionId: q.id, label: q.label, value })
   }
+  return {
+    formAnswers,
+    contact: {
+      name: findRoleAnswer(questions, flatAnswers, 'name'),
+      whatsapp: findRoleAnswer(questions, flatAnswers, 'whatsapp'),
+      email: findRoleAnswer(questions, flatAnswers, 'email'),
+      company: findRoleAnswer(questions, flatAnswers, 'company'),
+    },
+  }
+}
 
-  const contactName = findRoleAnswer(form.questions, flatAnswers, 'name') || 'Lead sem nome'
-  const whatsapp = findRoleAnswer(form.questions, flatAnswers, 'whatsapp') || ''
-  const email = findRoleAnswer(form.questions, flatAnswers, 'email')
-  const companyName = findRoleAnswer(form.questions, flatAnswers, 'company')
+/** De onde o lead veio (gravado no lead, aparece na ficha). */
+export interface LeadFormOrigin {
+  visitId: string
+  source: string
+  campaign?: string
+  adset?: string
+  ad?: string
+  device: 'mobile' | 'desktop'
+}
+
+export async function submitLeadFormResponse(
+  form: LeadForm,
+  answersByQuestionId: Record<string, string | string[]>,
+  otherTexts: Record<string, string> = {},
+  origin?: LeadFormOrigin | null
+): Promise<void> {
+  const { formAnswers, contact } = summarizeLeadFormAnswers(form.questions, answersByQuestionId, otherTexts)
+  const contactName = contact.name || 'Lead sem nome'
+  const whatsapp = contact.whatsapp || ''
+  const email = contact.email
+  const companyName = contact.company
 
   const payload: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'> = {
     contactName,
@@ -169,6 +198,7 @@ export async function submitLeadFormResponse(
     contactHistory: [],
     sourceFormId: form.id,
     formAnswers,
+    ...(origin ? { origin: Object.fromEntries(Object.entries(origin).filter(([, v]) => v)) as unknown as LeadFormOrigin } : {}),
     // Formulário que manda direto pra vendas: pula a aba Questionários.
     ...(form.destination === 'sales'
       ? { formStage: 'sent' as const, ...(form.destinationPipelineId ? { pipelineId: form.destinationPipelineId } : {}) }

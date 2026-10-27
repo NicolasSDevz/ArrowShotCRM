@@ -170,6 +170,8 @@ export interface Lead extends BaseDoc {
    *  do Lead. */
   sourceFormId?: string
   formAnswers?: LeadFormAnswer[]
+  /** De onde veio a resposta do formulário (UTMs do link do anúncio + aparelho). */
+  origin?: { visitId: string; source: string; campaign?: string; adset?: string; ad?: string; device: 'mobile' | 'desktop' }
   /** Triagem na aba Questionários (só leads de formulário). Sem valor =
    *  resposta nova, ainda não vista. 'sent' = já foi para o pipeline de vendas. */
   formStage?: LeadFormStage | null

@@ -1,4 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { storeCapiStatus, storeSaveCapiToken } from '../../services/storeApi'
+import { updateLeadForm } from '../../services/leadFormService'
+import { useAuth } from '../../context/AuthContext'
 import { Trash2, Info, Flag, Plus, ArrowUp, ArrowDown, GitBranch } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { ColorField, ColorPresetPicker, EditorSection, Toggle, ImageUploadField, VideoField } from './LeadFormBuilderParts'
@@ -357,10 +360,74 @@ export function ThemeEditor({
 }
 
 /** Pixel do Meta do formulário: aceita o número ou o código inteiro que o
- *  Meta entrega (a gente extrai o id). */
-export function TrackingEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+ *  Meta entrega (a gente extrai o id). Também guarda o token da API de
+ *  Conversões (o mesmo cadastro da Loja, por pixel) e o código de teste. */
+export function TrackingEditor({
+  value,
+  onChange,
+  formId,
+  testCode,
+  testCodeAt,
+}: {
+  value: string
+  onChange: (v: string) => void
+  formId?: string | null
+  testCode?: string | null
+  testCodeAt?: string | null
+}) {
   const id = parseMetaPixelId(value)
   const filled = !!value.trim()
+  const { firebaseUser } = useAuth()
+  const [hasToken, setHasToken] = useState<boolean | null>(null)
+  const [token, setToken] = useState('')
+  const [tokenMsg, setTokenMsg] = useState('')
+  const [savingToken, setSavingToken] = useState(false)
+  const [code, setCode] = useState(testCode || '')
+  const [codeMsg, setCodeMsg] = useState('')
+  const [codeOn, setCodeOn] = useState(() => !!testCode && !!testCodeAt && Date.now() - new Date(testCodeAt).getTime() < 3 * 3600_000)
+
+  useEffect(() => {
+    if (!id) return
+    let alive = true
+    setHasToken(null)
+    storeCapiStatus()
+      .then((r) => alive && setHasToken(!!r.pixels[id]))
+      .catch(() => alive && setHasToken(null))
+    return () => {
+      alive = false
+    }
+  }, [id])
+
+  const saveToken = async (remove = false) => {
+    if (!id) return
+    setSavingToken(true)
+    setTokenMsg('')
+    try {
+      await storeSaveCapiToken(id, remove ? '' : token.trim())
+      setHasToken(!remove)
+      setToken('')
+      setTokenMsg(remove ? 'Token removido.' : 'Token salvo. Os próximos leads já vão pelo servidor também.')
+    } catch (err) {
+      setTokenMsg((err as Error).message || 'Não deu pra salvar o token.')
+    } finally {
+      setSavingToken(false)
+    }
+  }
+
+  const saveCode = async (clear = false) => {
+    if (!formId || !firebaseUser) return
+    setCodeMsg('')
+    try {
+      const c = clear ? '' : code.trim()
+      await updateLeadForm(formId, { capiTestCode: c || null, capiTestCodeAt: c ? new Date().toISOString() : null }, firebaseUser.uid)
+      if (clear) setCode('')
+      setCodeOn(!!c)
+      setCodeMsg(c ? 'Teste ligado por 3 horas. Envie o formulário e veja em Eventos de teste no Gerenciador.' : 'Teste desligado.')
+    } catch (err) {
+      setCodeMsg((err as Error).message || 'Não deu pra salvar.')
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -381,15 +448,97 @@ export function TrackingEditor({ value, onChange }: { value: string; onChange: (
           </button>
         )}
       </EditorSection>
+
+      {id && (
+        <EditorSection
+          title="API de Conversões (recomendado)"
+          hint="Com o token, o servidor também avisa o Meta de cada lead. Assim o lead conta mesmo com bloqueador de anúncio ou iPhone, e o Meta junta com o do navegador (não conta em dobro)."
+        >
+          {hasToken === true ? (
+            <p className="text-xs font-medium text-emerald-600">✓ Token salvo para o pixel {id}.</p>
+          ) : hasToken === false ? (
+            <p className="text-xs font-medium text-amber-600">Sem token: os leads vão só pelo navegador, e parte deles se perde.</p>
+          ) : null}
+          <Input
+            type="password"
+            autoComplete="off"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder={hasToken ? 'Colar um token novo pra trocar' : 'Cole o token gerado no Gerenciador de Eventos'}
+            aria-label="Token da API de Conversões"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={savingToken || token.trim().length < 30}
+              onClick={() => saveToken()}
+              className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {savingToken ? 'Salvando...' : 'Salvar token'}
+            </button>
+            {hasToken && (
+              <button type="button" onClick={() => saveToken(true)} className="text-xs font-medium text-slate-400 underline hover:text-slate-600">
+                Remover token
+              </button>
+            )}
+          </div>
+          {tokenMsg && (
+            <p className="text-xs text-slate-500" role="status">
+              {tokenMsg}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400">
+            Onde pegar: Gerenciador de Eventos → seu pixel → Configurações → API de Conversões → Gerar token de acesso. Se for o mesmo pixel da Loja, é o mesmo token.
+          </p>
+        </EditorSection>
+      )}
+
+      {id && (
+        <EditorSection title="Testar no Meta" hint="Cole o código de Eventos de teste (ex: TEST12345). Por 3 horas os leads do servidor vão pra aba de teste, sem contar nas campanhas.">
+          {formId ? (
+            <>
+              <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="TEST12345" aria-label="Código de teste do Meta" />
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={!code.trim()}
+                  onClick={() => saveCode()}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  Ligar teste por 3 h
+                </button>
+                {codeOn && (
+                  <button type="button" onClick={() => saveCode(true)} className="text-xs font-medium text-slate-400 underline hover:text-slate-600">
+                    Desligar agora
+                  </button>
+                )}
+              </div>
+              {codeOn && !codeMsg && <p className="text-xs font-medium text-amber-600">Teste ligado: os leads do servidor estão indo pra Eventos de teste.</p>}
+              {codeMsg && (
+                <p className="text-xs text-slate-500" role="status">
+                  {codeMsg}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-slate-400">Salve o formulário primeiro.</p>
+          )}
+        </EditorSection>
+      )}
+
       <EditorSection title="O que é enviado pro Meta">
         <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-slate-500">
           <li>
-            <strong>PageView</strong> quando alguém abre o formulário.
+            <strong>PageView</strong> quando alguém abre o formulário (uma vez por visita).
           </li>
           <li>
-            <strong>Lead</strong> quando a pessoa envia as respostas — dá pra usar como conversão nas campanhas.
+            <strong>Lead</strong> só quando a pessoa envia as respostas, pelo navegador e pelo servidor com o mesmo código — o Meta conta 1 lead só. Use como conversão nas campanhas.
           </li>
           <li>Nada é enviado no preview daqui do construtor, só na página pública.</li>
+          <li>
+            Pra ver campanha e anúncio em Métricas, coloque nos parâmetros de URL do anúncio:{' '}
+            <code className="break-all">utm_source=facebook&amp;utm_campaign={'{{campaign.name}}'}&amp;utm_term={'{{adset.name}}'}&amp;utm_content={'{{ad.name}}'}</code>
+          </li>
         </ul>
       </EditorSection>
     </div>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Send } from 'lucide-react'
 import { Spinner } from '../ui/FullPageSpinner'
-import { trackLeadFormEvent } from '../../services/leadFormAnalyticsService'
+import { summarizeLeadFormAnswers } from '../../services/leadFormService'
+import { useLeadFormVisit } from './leadFormVisit'
 import { ADDRESS_PARTS, ADDRESS_REQUIRED_PARTS, OTHER_OPTION_ID, type AddressPart, type LeadFormAlign, type LeadFormQuestion } from '../../types/leadForm'
 import { AddressQuestionField } from './AddressQuestionField'
 import { FieldGroupQuestionField } from './FieldGroupQuestionField'
@@ -51,7 +52,8 @@ export function LeadFormRenderer({
    *  analytics; ausente no preview do construtor (formulário ainda não
    *  salvo), o que já basta pra desligar o rastreamento ali. */
   formId?: string
-  onSubmitted?: (answers: LeadFormAnswers, otherTexts: Record<string, string>) => Promise<void>
+  /** visitId = id da visita registrada (vira o event_id do Lead no Pixel e na API de Conversões). */
+  onSubmitted?: (answers: LeadFormAnswers, otherTexts: Record<string, string>, visitId: string) => Promise<void>
   /** true na página pública real (ocupa a tela toda via 100vh); false (padrão)
    *  no preview do construtor, onde o componente pai já define a altura. */
   fillViewport?: boolean
@@ -59,23 +61,18 @@ export function LeadFormRenderer({
 }) {
   const isTracking = !!onSubmitted && !!formId
   const forced = previewScreen
-  const [sessionId] = useState(() => crypto.randomUUID())
   const [phase, setPhase] = useState<Phase>('welcome')
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<LeadFormAnswers>({})
   const [otherTexts, setOtherTexts] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, FieldError | undefined>>({})
   const startedAtRef = useRef<number | null>(null)
-  const seenQuestionsRef = useRef<Set<string>>(new Set())
   // Trava contra envio duplicado (duplo clique, Enter + clique, avanço automático).
   const submittingRef = useRef(false)
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [submitError, setSubmitError] = useState(false)
 
-  useEffect(() => {
-    if (isTracking) trackLeadFormEvent(formId!, sessionId, 'view')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const visit = useLeadFormVisit(formId, isTracking, form.questions.length)
 
   // No preview fixado todas as perguntas contam (a lógica condicional depende
   // de respostas que ainda não existem), no fluxo real só as visíveis.
@@ -85,12 +82,16 @@ export function LeadFormRenderer({
     forced?.kind === 'question' ? Math.max(0, form.questions.findIndex((q) => q.id === forced.questionId)) : currentIndex
   const currentQuestion = shownPhase === 'question' || shownPhase === 'submitting' ? visibleQuestions[questionIndex] : undefined
 
+  // Cada pergunta nova que aparece: registra onde a pessoa está e o que já
+  // respondeu (assim dá pra ver o contato de quem desistiu no meio).
+  const answersRef = useRef({ answers, otherTexts })
+  answersRef.current = { answers, otherTexts }
   useEffect(() => {
     if (!currentQuestion || !isTracking) return
-    if (seenQuestionsRef.current.has(currentQuestion.id)) return
-    seenQuestionsRef.current.add(currentQuestion.id)
-    trackLeadFormEvent(formId!, sessionId, 'question_view', { questionId: currentQuestion.id, stepIndex: currentIndex })
-  }, [currentQuestion, currentIndex, isTracking, formId, sessionId])
+    const { formAnswers, contact } = summarizeLeadFormAnswers(form.questions, answersRef.current.answers, answersRef.current.otherTexts)
+    visit.question(currentIndex, { id: currentQuestion.id, label: currentQuestion.label }, contact, formAnswers.map(({ label, value }) => ({ label, value })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuestion?.id, currentIndex, isTracking])
 
   const setAnswer = (id: string, value: string | string[]) => {
     setAnswers((prev) => ({ ...prev, [id]: value }))
@@ -118,10 +119,10 @@ export function LeadFormRenderer({
       for (const [id, value] of Object.entries(answers)) {
         if (visibleIds.has(id)) payload[id] = value
       }
-      await onSubmitted(payload, otherTexts)
+      await onSubmitted(payload, otherTexts, visit.sid.current)
       if (isTracking) {
-        const durationMs = startedAtRef.current ? Date.now() - startedAtRef.current : undefined
-        trackLeadFormEvent(formId!, sessionId, 'submit', { durationMs })
+        const { formAnswers, contact } = summarizeLeadFormAnswers(form.questions, payload, otherTexts)
+        void visit.submitted(contact, formAnswers.map(({ label, value }) => ({ label, value })))
       }
       setPhase('done')
     } catch (err) {
@@ -200,7 +201,7 @@ export function LeadFormRenderer({
   const handleStart = () => {
     if (forced) return
     startedAtRef.current = Date.now()
-    if (isTracking) trackLeadFormEvent(formId!, sessionId, 'start')
+    if (isTracking) visit.started()
     setPhase('question')
     setCurrentIndex(0)
   }

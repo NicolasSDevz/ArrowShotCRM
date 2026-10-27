@@ -296,7 +296,8 @@ service cloud.firestore {
               || request.resource.data.pipelineId == get(/databases/$(database)/documents/leadForms/$(request.resource.data.sourceFormId)).data.get('destinationPipelineId', null))
         && request.resource.data.keys().hasOnly(['contactName', 'companyName', 'whatsapp', 'email', 'services',
               'source', 'status', 'order', 'stageChangedAt', 'contactHistory', 'sourceFormId', 'formAnswers',
-              'formStage', 'pipelineId', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
+              'formStage', 'pipelineId', 'origin', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'])
+        && (!('origin' in request.resource.data) || (request.resource.data.origin is map && request.resource.data.origin.size() <= 8));
     }
 
     match /leads/{leadId} {
@@ -339,6 +340,14 @@ service cloud.firestore {
         && request.resource.data.type in ['view', 'start', 'question_view', 'submit']
         && request.resource.data.createdAt == request.time
         && request.resource.data.keys().hasOnly(['formId', 'sessionId', 'type', 'questionId', 'stepIndex', 'durationMs', 'createdAt']);
+    }
+
+    // ---------- leadFormVisits (cada visita ao link público: origem, aparelho,
+    // até onde chegou e o contato digitado — ver api/_lib/leadFormVisits.js).
+    // Só o servidor grava; a equipe lê e apaga ("Limpar dados"). ----------
+    match /leadFormVisits/{visitId} {
+      allow read, delete: if isInternal();
+      allow create, update: if false;
     }
 
     match /leadFormEvents/{eventId} {

@@ -5,6 +5,8 @@ import type { LeadForm } from '../types/leadForm'
 import { Spinner } from '../components/ui/FullPageSpinner'
 import { LeadFormRenderer } from '../components/leads/LeadFormRenderer'
 import { loadMetaPixel, trackMetaPixel } from '../utils/metaPixel'
+import { captureAttribution, readUtms } from '../components/store/checkoutUtils'
+import type { LeadFormOrigin } from '../services/leadFormService'
 
 type Phase = 'loading' | 'invalid' | 'ready'
 
@@ -50,6 +52,13 @@ export function LeadCapturePage() {
       .catch(() => setPhase('invalid'))
   }, [formId])
 
+  // Guarda UTMs/fbclid logo ao abrir (antes de qualquer coisa mexer na URL).
+  useEffect(() => {
+    try {
+      captureAttribution()
+    } catch {}
+  }, [])
+
   // Pixel do Meta do formulário (se configurado): PageView ao abrir.
   useEffect(() => {
     if (form?.metaPixelId) loadMetaPixel(form.metaPixelId)
@@ -73,10 +82,22 @@ export function LeadCapturePage() {
     )
   }
 
-  return <LeadFormRenderer form={form} formId={form.id} onSubmitted={async (answers, otherTexts) => {
-        await submitLeadFormResponse(form, answers, otherTexts)
+  return <LeadFormRenderer form={form} formId={form.id} onSubmitted={async (answers, otherTexts, visitId) => {
+        const utm = readUtms()
+        const origin: LeadFormOrigin | null = visitId
+          ? {
+              visitId,
+              source: utm.utm_source || (utm.fbclid ? 'facebook' : 'direto'),
+              campaign: utm.utm_campaign,
+              adset: utm.utm_term,
+              ad: utm.utm_content,
+              device: window.matchMedia?.('(max-width: 1023px)').matches ? 'mobile' : 'desktop',
+            }
+          : null
+        await submitLeadFormResponse(form, answers, otherTexts, origin)
         try {
-          if (form.metaPixelId) trackMetaPixel('Lead', { content_name: form.name })
+          // Mesmo event_id que o servidor manda pela API de Conversões: o Meta conta 1 lead só.
+          if (form.metaPixelId) trackMetaPixel('Lead', { content_name: form.name }, visitId ? `lead-${visitId}` : undefined)
         } catch (err) {
           console.warn('Pixel do Meta falhou (o lead já foi salvo)', err)
         }
