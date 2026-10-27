@@ -123,7 +123,7 @@ function ConvList({ rows, empty }: { rows: { label: string; total: number; sent:
         <li key={s.label} className="flex justify-between gap-3">
           <span className="min-w-0 truncate font-medium text-slate-700" title={s.label}>{s.label}</span>
           <span className="shrink-0 text-slate-500">
-            {plural(s.total, 'visita', 'visitas')} · <b className="font-semibold text-slate-800">{plural(s.sent, 'enviou', 'enviaram')}</b> ({pct(s.sent, s.total)}%)
+            <b className="font-semibold text-slate-800">{s.sent}</b> de {s.total} viraram lead <span className="text-slate-400">({pct(s.sent, s.total)}%)</span>
           </span>
         </li>
       ))}
@@ -479,24 +479,47 @@ export function LeadFormAnalyticsModal({
     const diff = isRate ? now - prev : prev ? Math.round(((now - prev) / prev) * 100) : null
     if (diff === null) return { text: 'novo', up: true }
     if (diff === 0) return { text: 'igual', up: null }
-    return { text: `${diff > 0 ? '+' : ''}${diff}${isRate ? ' p.p.' : '%'}`, up: diff > 0 }
+    return { text: `${diff > 0 ? '+' : ''}${diff}${isRate ? (Math.abs(diff) === 1 ? ' ponto' : ' pontos') : '%'}`, up: diff > 0 }
   }
-  const rate = (a: number, b: number) => pct(a, b)
   const prevText = days === 1 ? 'vs. 24 h antes' : `vs. ${days} dias antes`
-  const tiles: { label: string; value: string; hint: string; d: ReturnType<typeof delta>; tone: string }[] = [
-    { label: 'Visitas', value: String(kpis.now.views), hint: 'Abriram o link', d: delta(kpis.now.views, kpis.prev?.views), tone: 'text-slate-900' },
-    { label: 'Começaram', value: String(kpis.now.starts), hint: `${rate(kpis.now.starts, kpis.now.views)}% de quem abriu`, d: delta(kpis.now.starts, kpis.prev?.starts), tone: 'text-slate-900' },
-    { label: 'Enviaram', value: String(kpis.now.sent), hint: `${rate(kpis.now.sent, kpis.now.starts)}% de quem começou`, d: delta(kpis.now.sent, kpis.prev?.sent), tone: 'text-emerald-700' },
-    {
-      label: 'Conversão',
-      value: `${rate(kpis.now.sent, kpis.now.views)}%`,
-      hint: 'De quem abriu, quantos enviaram',
-      d: delta(rate(kpis.now.sent, kpis.now.views), kpis.prev ? rate(kpis.prev.sent, kpis.prev.views) : undefined, true),
-      tone: 'text-emerald-700',
-    },
-    { label: 'Contato sem enviar', value: String(kpis.now.warm), hint: 'Dá pra chamar no WhatsApp', d: null, tone: kpis.now.warm ? 'text-amber-700' : 'text-slate-900' },
-    { label: 'Tempo pra enviar', value: minutes(kpis.now.secs), hint: 'Mediana de quem enviou', d: null, tone: 'text-slate-900' },
-  ]
+  const periodLabel = { 0: 'desde o início', 1: 'últimas 24 horas', 7: 'últimos 7 dias', 30: 'últimos 30 dias', 90: 'últimos 90 dias' }[days] ?? `últimos ${days} dias`
+  const conversionDelta = delta(pct(kpis.now.sent, kpis.now.views), kpis.prev ? pct(kpis.prev.sent, kpis.prev.views) : undefined, true)
+
+  // Pixel em semáforo: verde = navegador + servidor; amarelo = só navegador; vermelho = sem pixel ou falhando.
+  const pixelState = !hasPixel
+    ? { dot: 'bg-red-500', box: 'bg-red-50 text-red-800', title: 'Sem pixel', text: 'O Meta não recebe nada deste formulário. Cole o pixel na tela "Pixel do Meta" do construtor.' }
+    : stats.capiErrors.length > 0
+      ? { dot: 'bg-red-500', box: 'bg-red-50 text-red-800', title: 'Com erro no servidor', text: 'O navegador manda o lead, mas o servidor está falhando. Confira o token na tela "Pixel do Meta".' }
+      : stats.sent > 0 && stats.capiOk + stats.capiTest === stats.sent
+        ? { dot: 'bg-emerald-500', box: 'bg-emerald-50 text-emerald-800', title: 'Tudo certo', text: 'Cada lead chega no Meta pelo navegador e pelo servidor, e conta uma vez só.' }
+        : stats.capiNoToken > 0
+          ? { dot: 'bg-amber-400', box: 'bg-amber-50 text-amber-900', title: 'Funcionando pela metade', text: 'Os leads vão só pelo navegador. Quem usa iPhone ou bloqueador pode não contar. Cole o token na tela "Pixel do Meta".' }
+          : { dot: 'bg-slate-400', box: 'bg-slate-50 text-slate-700', title: 'Pixel instalado', text: 'Ainda sem envios no período pra conferir.' }
+
+  // Lista de ações em português claro, da mais importante pra menos.
+  const todo: { text: string; icon: ReactNode; tone: string; action?: { label: string; onClick: () => void } }[] = []
+  if (stats.warm > 0)
+    todo.push({
+      text: `${plural(stats.warm, 'pessoa deixou', 'pessoas deixaram')} o WhatsApp e não ${stats.warm === 1 ? 'enviou' : 'enviaram'}. Chame no WhatsApp: é lead quente.`,
+      icon: <MessageCircle size={18} />,
+      tone: 'bg-emerald-50 text-emerald-900',
+      action: { label: 'Ver quem são', onClick: () => { setTab('pessoas'); setPeople('quit') } },
+    })
+  if (stats.questionStop[0] && stats.questionStop[0].value >= 2)
+    todo.push({
+      text: `Muita gente desiste em "${stats.questionStop[0].label.replace(/^\d+\.\s*/, '')}". Vale simplificar ou deixar opcional.`,
+      icon: <TrendingDown size={18} />,
+      tone: 'bg-amber-50 text-amber-900',
+    })
+  if (hasPixel && stats.capiNoToken > 0)
+    todo.push({ text: 'Cole o token da API de Conversões na tela "Pixel do Meta" do construtor, pra o Meta não perder leads.', icon: <Radio size={18} />, tone: 'bg-amber-50 text-amber-900' })
+  if (!hasPixel) todo.push({ text: 'Este formulário está sem pixel do Meta: a campanha não aprende com os leads.', icon: <AlertTriangle size={18} />, tone: 'bg-red-50 text-red-800' })
+  if (stats.total >= 5 && stats.byCampaign.length === 0)
+    todo.push({
+      text: 'Coloque UTMs no link do anúncio pra ver qual campanha e anúncio trazem lead: utm_source=facebook&utm_campaign={{campaign.name}}&utm_term={{adset.name}}&utm_content={{ad.name}}',
+      icon: <Megaphone size={18} />,
+      tone: 'bg-slate-50 text-slate-700',
+    })
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-2 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="fm-title">
@@ -520,7 +543,7 @@ export function LeadFormAnalyticsModal({
           <div className="flex rounded-lg bg-slate-100 p-0.5" role="tablist" aria-label="Visão">
             {(
               [
-                ['funil', 'Funil', <BarChart3 key="i" size={14} aria-hidden="true" />],
+                ['funil', 'Resumo', <BarChart3 key="i" size={14} aria-hidden="true" />],
                 ['pessoas', `Pessoas (${list.length})`, <Users key="i" size={14} aria-hidden="true" />],
               ] as const
             ).map(([k, label, icon]) => (
@@ -579,83 +602,47 @@ export function LeadFormAnalyticsModal({
             </div>
           ) : tab === 'funil' ? (
             <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                {tiles.map((t) => (
-                  <div key={t.label} className="flex flex-col gap-0.5 rounded-2xl border border-slate-200 bg-white p-4">
-                    <span className="text-xs font-medium text-slate-500">{t.label}</span>
-                    <span className={`text-2xl font-extrabold leading-tight tabular-nums ${t.tone}`}>{t.value}</span>
-                    <span className="text-[11px] text-slate-400">{t.hint}</span>
-                    {t.d && (
-                      <span
-                        className={`mt-1 w-fit rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${t.d.up === null ? 'bg-slate-100 text-slate-500' : t.d.up ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}
-                        title={prevText}
-                      >
-                        {t.d.text} <span className="font-normal opacity-70">{prevText}</span>
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-
+              {/* 1. Resumo em uma frase */}
               <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                <h3 className="text-[15px] font-semibold text-slate-800">Movimento por dia</h3>
-                <p className="mt-0.5 text-xs text-slate-400">Abriram, começaram e enviaram. Passe o mouse pra ver cada dia.</p>
-                <div className="mt-3">
-                  <FormTrendChart daily={stats.daily} />
-                </div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Resumo · {periodLabel}</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-slate-700">
+                  <b className="text-slate-900">{plural(kpis.now.views, 'pessoa abriu', 'pessoas abriram')}</b> o formulário,{' '}
+                  <b className="text-slate-900">{kpis.now.starts} {kpis.now.starts === 1 ? 'começou' : 'começaram'}</b> a responder e{' '}
+                  <b className="text-emerald-700">{kpis.now.sent} {kpis.now.sent === 1 ? 'enviou' : 'enviaram'}</b>. De cada 100 que abrem,{' '}
+                  <b className="text-emerald-700">{pct(kpis.now.sent, kpis.now.views)} viram lead</b>
+                  {conversionDelta && (
+                    <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${conversionDelta.up === null ? 'bg-slate-100 text-slate-500' : conversionDelta.up ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                      {conversionDelta.text} {prevText}
+                    </span>
+                  )}
+                  .{kpis.now.secs > 0 && <> Quem envia leva uns <b className="text-slate-900">{minutes(kpis.now.secs)}</b>.</>}
+                </p>
               </section>
 
-              {stats.worst >= 0 && stats.stoppedAt[stats.worst] > 0 && (
-                <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4" role="status">
-                  <TrendingDown size={20} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
-                  <p className="text-sm text-amber-900">
-                    <b>Onde mais gente desiste:</b> {STEPS[stats.worst].lost.toLowerCase()}. Foram {plural(stats.stoppedAt[stats.worst], 'pessoa', 'pessoas')} ({pct(stats.stoppedAt[stats.worst], stats.total)}% de quem abriu).
-                  </p>
-                </div>
-              )}
-
-              {stats.warm > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTab('pessoas')
-                    setPeople('quit')
-                  }}
-                  className="flex w-full items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left hover:bg-emerald-100/60"
-                >
-                  <MessageCircle size={20} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
-                  <span className="text-sm text-emerald-900">
-                    <b>{plural(stats.warm, 'pessoa deixou', 'pessoas deixaram')} o contato e não {stats.warm === 1 ? 'enviou' : 'enviaram'}.</b> Dá pra chamar no WhatsApp — ver quem são.
-                  </span>
-                </button>
-              )}
-
+              {/* 2. Funil em blocos */}
               <section className="rounded-2xl border border-slate-200 bg-white p-5" aria-labelledby="fm-etapas">
-                <h3 id="fm-etapas" className="flex items-center gap-2 text-[15px] font-semibold text-slate-800">
-                  <Filter size={16} className="text-brand-600" aria-hidden="true" /> Etapas
-                </h3>
-                <p className="mt-0.5 text-xs text-slate-400">{plural(stats.total, 'visita', 'visitas')} ao formulário. A porcentagem é sobre quem abriu.</p>
-                <ol className="mt-4 space-y-3">
+                <h3 id="fm-etapas" className="text-[15px] font-semibold text-slate-800">Caminho das pessoas</h3>
+                <p className="mt-0.5 text-xs text-slate-400">Cada bloco é uma etapa. Entre eles, quantas pessoas saíram.</p>
+                <ol className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
                   {STEPS.map((s, i) => {
                     const n = stats.reached[i]
-                    const lost = stats.stoppedAt[i]
-                    const isWorst = i === stats.worst && lost > 0
+                    const left = i < STEPS.length - 1 ? stats.stoppedAt[i] : 0
+                    const isWorst = i === stats.worst && left > 0
+                    const last = s.key === 4
                     return (
-                      <li key={s.key}>
-                        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
-                          <span className="font-medium text-slate-700">{i + 1}. {s.label}</span>
-                          <span className="text-slate-500">
-                            <b className="font-semibold text-slate-800">{n}</b> · {pct(n, stats.total)}%
+                      <li key={s.key} className={`relative flex flex-col rounded-xl border p-4 ${last ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                        <span className="text-xs font-semibold text-slate-500">
+                          {i + 1}. {s.label}
+                        </span>
+                        <span className={`mt-1 text-3xl font-extrabold tabular-nums ${last ? 'text-emerald-700' : 'text-slate-900'}`}>{n}</span>
+                        <span className="text-xs text-slate-500">{pct(n, stats.total)}% de quem abriu</span>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white" aria-hidden="true">
+                          <div className={`h-full rounded-full ${last ? 'bg-emerald-500' : 'bg-brand-500'}`} style={{ width: `${Math.max(n ? 3 : 0, pct(n, stats.total))}%` }} />
+                        </div>
+                        {left > 0 && (
+                          <span className={`mt-2 w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${isWorst ? 'bg-amber-100 text-amber-800' : 'bg-white text-slate-500'}`}>
+                            ↓ {plural(left, 'saiu', 'saíram')} aqui{isWorst ? ' (maior perda)' : ''}
                           </span>
-                        </div>
-                        <div className="h-3 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
-                          <div className={`h-full rounded-full ${s.key === 4 ? 'bg-emerald-500' : 'bg-brand-500'}`} style={{ width: `${Math.max(n ? 2 : 0, pct(n, stats.total))}%` }} />
-                        </div>
-                        {s.lost && lost > 0 && (
-                          <p className={`mt-1 text-xs ${isWorst ? 'font-semibold text-amber-700' : 'text-slate-500'}`}>
-                            {isWorst ? 'Maior perda: ' : ''}
-                            {plural(lost, 'parou', 'pararam')} aqui ({s.lost.toLowerCase()})
-                          </p>
                         )}
                       </li>
                     )
@@ -663,84 +650,110 @@ export function LeadFormAnalyticsModal({
                 </ol>
               </section>
 
-              <div className="grid gap-5 lg:grid-cols-2">
-                <Card icon={<MousePointerClick size={16} />} title="Em qual pergunta pararam" hint="Quem começou e não enviou: a última pergunta que viu.">
-                  <Bars rows={stats.questionStop} empty="Ninguém parou no meio." />
-                </Card>
+              {/* 3. O que fazer agora */}
+              {todo.length > 0 && (
+                <section className="rounded-2xl border border-slate-200 bg-white p-5" aria-labelledby="fm-todo">
+                  <h3 id="fm-todo" className="text-[15px] font-semibold text-slate-800">O que fazer agora</h3>
+                  <ul className="mt-3 space-y-2">
+                    {todo.map((t) => (
+                      <li key={t.text} className={`flex items-start gap-3 rounded-xl p-3 text-sm ${t.tone}`}>
+                        <span className="mt-0.5 shrink-0" aria-hidden="true">{t.icon}</span>
+                        <span className="min-w-0 flex-1">{t.text}</span>
+                        {t.action && (
+                          <button type="button" onClick={t.action.onClick} className="shrink-0 rounded-lg bg-white/70 px-2.5 py-1 text-xs font-semibold hover:bg-white">
+                            {t.action.label}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
 
-                <Card icon={<Radio size={16} />} title="Pixel do Meta" hint="Leads que o servidor mandou pro Meta (junto com o Pixel do navegador, sem contar em dobro).">
-                  {!hasPixel ? (
-                    <p className="text-sm text-slate-500">Este formulário está sem pixel. Coloque na tela "Pixel do Meta" do construtor.</p>
-                  ) : stats.sent === 0 ? (
-                    <p className="text-sm text-slate-400">Nenhum envio no período.</p>
-                  ) : (
-                    <ul className="space-y-2 text-sm">
-                      <li className="flex justify-between gap-3"><span className="text-slate-700">Enviaram o formulário</span><b className="font-semibold text-slate-800">{stats.sent}</b></li>
-                      <li className="flex justify-between gap-3"><span className="text-slate-700">Lead confirmado pelo servidor</span><b className="font-semibold text-emerald-700">{stats.capiOk}</b></li>
-                      {stats.capiTest > 0 && <li className="flex justify-between gap-3"><span className="text-slate-700">Foram pra Eventos de teste</span><b className="font-semibold text-slate-800">{stats.capiTest}</b></li>}
-                      {stats.capiNoToken > 0 && (
-                        <li className="rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800">
-                          {plural(stats.capiNoToken, 'lead foi', 'leads foram')} só pelo navegador (sem a API de Conversões). Cole o token do pixel na tela "Pixel do Meta" do construtor pra o Meta não perder leads.
-                        </li>
-                      )}
-                      {stats.capiErrors.map((e) => (
-                        <li key={e.label} className="rounded-lg bg-red-50 p-2.5 text-xs text-red-700">
-                          {plural(e.value, 'falhou', 'falharam')}: {e.label}
-                        </li>
-                      ))}
+              <div className="grid gap-5 lg:grid-cols-2">
+                {/* 4. Pixel em semáforo */}
+                <Card icon={<Radio size={16} />} title="Pixel do Meta" hint="Se o Meta está recebendo os leads deste formulário.">
+                  <div className={`flex items-start gap-3 rounded-xl p-3 ${pixelState.box}`}>
+                    <span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${pixelState.dot}`} aria-hidden="true" />
+                    <div className="text-sm">
+                      <p className="font-semibold">{pixelState.title}</p>
+                      <p className="mt-0.5 text-xs opacity-90">{pixelState.text}</p>
+                    </div>
+                  </div>
+                  {hasPixel && stats.sent > 0 && (
+                    <ul className="mt-3 space-y-1.5 text-sm">
+                      <li className="flex justify-between gap-3"><span className="text-slate-600">Leads enviados no formulário</span><b className="text-slate-800">{stats.sent}</b></li>
+                      <li className="flex justify-between gap-3"><span className="text-slate-600">Confirmados também pelo servidor</span><b className="text-emerald-700">{stats.capiOk}</b></li>
+                      {stats.capiTest > 0 && <li className="flex justify-between gap-3"><span className="text-slate-600">Foram pra Eventos de teste</span><b className="text-slate-800">{stats.capiTest}</b></li>}
                     </ul>
                   )}
+                  {stats.capiErrors.map((e) => (
+                    <p key={e.label} className="mt-2 rounded-lg bg-red-50 p-2.5 text-xs text-red-700">
+                      {plural(e.value, 'falhou', 'falharam')} no servidor: {e.label}
+                    </p>
+                  ))}
                 </Card>
 
-                <Card icon={<Megaphone size={16} />} title="Por origem e campanha" hint="Visitas e quantas enviaram. Vem das UTMs do link do anúncio.">
+                {/* 5. Onde param */}
+                <Card icon={<MousePointerClick size={16} />} title="Em qual pergunta desistem" hint="Última pergunta que viu quem começou e não enviou.">
+                  <Bars rows={stats.questionStop} empty="Ninguém desistiu no meio. 👏" />
+                </Card>
+
+                {/* 6. De onde vêm */}
+                <Card icon={<Megaphone size={16} />} title="De onde vêm" hint="Quantas pessoas cada origem trouxe e quantas viraram lead.">
                   <ConvList rows={stats.bySource} empty="Sem origem registrada." />
                   {stats.byCampaign.length > 0 && (
                     <>
-                      <h4 className="mt-5 text-sm font-semibold text-slate-700">Campanha</h4>
-                      <div className="mt-2">
-                        <ConvList rows={stats.byCampaign} empty="" />
-                      </div>
+                      <h4 className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">Por campanha</h4>
+                      <div className="mt-2"><ConvList rows={stats.byCampaign} empty="" /></div>
                     </>
                   )}
                   {stats.byAd.length > 0 && (
                     <>
-                      <h4 className="mt-5 text-sm font-semibold text-slate-700">Anúncio</h4>
-                      <div className="mt-2">
-                        <ConvList rows={stats.byAd} empty="" />
-                      </div>
+                      <h4 className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">Por anúncio</h4>
+                      <div className="mt-2"><ConvList rows={stats.byAd} empty="" /></div>
                     </>
-                  )}
-                  {stats.byCampaign.length === 0 && (
-                    <p className="mt-4 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-500">
-                      Pra ver campanha e anúncio, use no link do anúncio do Meta: <code className="break-all">utm_source=facebook&amp;utm_campaign={'{{campaign.name}}'}&amp;utm_term={'{{adset.name}}'}&amp;utm_content={'{{ad.name}}'}</code>
-                    </p>
                   )}
                 </Card>
 
-                <Card icon={<Smartphone size={16} />} title="Celular x computador">
+                <Card icon={<Smartphone size={16} />} title="Celular ou computador">
                   <ConvList rows={stats.byDevice} empty="Sem visitas." />
-                  <h4 className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                    <Clock size={14} className="text-brand-600" aria-hidden="true" /> Tempo na página
+                  <h4 className="mt-5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <Clock size={13} aria-hidden="true" /> Tempo na página
                   </h4>
-                  <ul className="mt-2 space-y-2 text-sm">
-                    <li className="flex justify-between gap-3"><span className="text-slate-700">Quem desistiu</span><b className="font-semibold text-slate-800">{minutes(stats.timeQuit)}</b></li>
-                    <li className="flex justify-between gap-3"><span className="text-slate-700">Quem enviou</span><b className="font-semibold text-slate-800">{minutes(stats.timeSent)}</b></li>
+                  <ul className="mt-2 space-y-1.5 text-sm">
+                    <li className="flex justify-between gap-3"><span className="text-slate-600">Quem desistiu ficou</span><b className="text-slate-800">{minutes(stats.timeQuit)}</b></li>
+                    <li className="flex justify-between gap-3"><span className="text-slate-600">Quem enviou ficou</span><b className="text-slate-800">{minutes(stats.timeSent)}</b></li>
                   </ul>
                 </Card>
               </div>
 
+              {/* 7. Por dia */}
+              <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                <h3 className="text-[15px] font-semibold text-slate-800">Dia a dia</h3>
+                <p className="mt-0.5 text-xs text-slate-400">Quantos abriram, começaram e enviaram em cada dia. Passe o mouse no gráfico.</p>
+                <div className="mt-3">
+                  <FormTrendChart daily={stats.daily} />
+                </div>
+              </section>
+
+              {/* 8. Respostas (recolhido) */}
               {answers.length > 0 && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <h3 className="flex items-center gap-2 text-[15px] font-semibold text-slate-800">
-                    <CheckCircle2 size={16} className="text-brand-600" aria-hidden="true" /> O que responderam
-                  </h3>
-                  <p className="mt-0.5 text-xs text-slate-400">Nas perguntas de escolha, dos {plural(formLeads.length, 'lead recebido', 'leads recebidos')} no período.</p>
+                <details className="group rounded-2xl border border-slate-200 bg-white p-5">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-[15px] font-semibold text-slate-800">
+                      <CheckCircle2 size={16} className="text-brand-600" aria-hidden="true" /> O que os leads responderam
+                    </span>
+                    <span className="text-xs font-medium text-brand-600 group-open:hidden">Mostrar</span>
+                    <span className="hidden text-xs font-medium text-brand-600 group-open:inline">Esconder</span>
+                  </summary>
+                  <p className="mt-1 text-xs text-slate-400">Perguntas de escolha, dos {plural(formLeads.length, 'lead recebido', 'leads recebidos')} no período.</p>
                   <div className="mt-4 flex flex-col gap-4">
                     {answers.map((a) => (
                       <AnswerBars key={a.questionId} item={a} />
                     ))}
                   </div>
-                </section>
+                </details>
               )}
             </div>
           ) : (
