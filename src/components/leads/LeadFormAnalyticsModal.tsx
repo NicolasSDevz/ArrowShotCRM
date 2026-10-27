@@ -29,6 +29,7 @@ import type { LeadFormDailyPoint } from '../../services/leadFormAnalyticsService
 
 /** Registro detalhado das visitas começou aqui (antes só havia contagem). */
 const TRACKING_SINCE = '27/10/2026'
+const TRACKING_SINCE_MS = new Date(2026, 9, 27).getTime()
 
 const STEPS = [
   { key: 1, label: 'Abriram o link', lost: 'Abriram e saíram sem começar' },
@@ -320,6 +321,8 @@ export function LeadFormAnalyticsModal({
     const now = count(list)
     if (!days) return { now, prev: null }
     const span = days === 1 ? 86_400_000 : days * 86_400_000
+    // Período anterior começa antes do registro existir: comparar engana ("+100%").
+    if (sinceMs - span < TRACKING_SINCE_MS) return { now, prev: null }
     const prev = count(base.filter((v) => {
       const t = new Date(v.createdAt).getTime()
       return t >= sinceMs - span && t < sinceMs
