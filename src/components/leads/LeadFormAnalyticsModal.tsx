@@ -5,6 +5,7 @@ import {
   BarChart3,
   CheckCircle2,
   Clock,
+  Download,
   Eraser,
   Filter,
   Megaphone,
@@ -279,6 +280,7 @@ export function LeadFormAnalyticsModal({
       setTab('funil')
       setPeople('all')
       setSource('')
+      setSearch('')
     }
   }, [open])
 
@@ -291,16 +293,41 @@ export function LeadFormAnalyticsModal({
     return d.getTime()
   }, [days, reload])
 
-  const list = useMemo(
+  const base = useMemo(
     () =>
       (visits ?? [])
-        .filter((v) => new Date(v.createdAt).getTime() >= sinceMs)
         .filter((v) => showTeam || !v.team)
         .filter((v) => !device || v.device === device)
-        .filter((v) => !source || (v.source || 'direto') === source)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [visits, sinceMs, showTeam, device, source]
+        .filter((v) => !source || (v.source || 'direto') === source),
+    [visits, showTeam, device, source]
   )
+
+  const list = useMemo(
+    () => base.filter((v) => new Date(v.createdAt).getTime() >= sinceMs).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [base, sinceMs]
+  )
+
+  // Mesmo tamanho de período, logo antes (pra comparar). "Desde o início" não compara.
+  const kpis = useMemo(() => {
+    const count = (vs: LeadFormVisit[]) => ({
+      views: vs.length,
+      starts: vs.filter((v) => v.step >= 2).length,
+      contacts: vs.filter((v) => v.step >= 3).length,
+      sent: vs.filter((v) => v.step >= 4).length,
+      warm: vs.filter((v) => v.step === 3).length,
+      secs: median(vs.filter((v) => v.step >= 4).map((v) => v.seconds || 0)),
+    })
+    const now = count(list)
+    if (!days) return { now, prev: null }
+    const span = days === 1 ? 86_400_000 : days * 86_400_000
+    const prev = count(base.filter((v) => {
+      const t = new Date(v.createdAt).getTime()
+      return t >= sinceMs - span && t < sinceMs
+    }))
+    return { now, prev }
+  }, [list, base, days, sinceMs])
+
+  const [search, setSearch] = useState('')
 
   const sources = useMemo(() => [...new Set((visits ?? []).map((v) => v.source || 'direto'))].sort(), [visits])
   const teamCount = useMemo(() => (visits ?? []).filter((v) => v.team && new Date(v.createdAt).getTime() >= sinceMs).length, [visits, sinceMs])
@@ -396,16 +423,77 @@ export function LeadFormAnalyticsModal({
   const formLeads = useMemo(() => (form ? leads.filter((l) => l.sourceFormId === form.id && (l.createdAt?.toMillis?.() ?? Date.now()) >= sinceMs) : []), [leads, form, sinceMs])
   const answers = useMemo(() => (form ? buildAnswerBreakdowns(form, formLeads) : []), [form, formLeads])
 
-  const peopleList = useMemo(
-    () =>
-      list.filter((v) =>
+  const peopleList = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const digits = q.replace(/\D/g, '')
+    return list
+      .filter((v) =>
         people === 'contact' ? !!(v.contact?.name || v.contact?.whatsapp || v.contact?.email) : people === 'sent' ? v.step >= 4 : people === 'quit' ? v.step >= 2 && v.step < 4 : true
-      ),
-    [list, people]
-  )
+      )
+      .filter((v) => {
+        if (!q) return true
+        const c = v.contact || {}
+        const text = [c.name, c.email, v.campaign, v.ad, v.adset, sourceLabel(v.source)].filter(Boolean).join(' ').toLowerCase()
+        return text.includes(q) || (digits.length >= 3 && String(c.whatsapp || '').replace(/\D/g, '').includes(digits))
+      })
+  }, [list, people, search])
+
+  /** Planilha (CSV, abre no Excel/Google Planilhas) das pessoas filtradas. */
+  const exportCsv = () => {
+    if (!form) return
+    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const head = ['Data', 'Situação', 'Nome', 'WhatsApp', 'E-mail', 'Parou em', 'Aparelho', 'Origem', 'Campanha', 'Conjunto', 'Anúncio', 'Tempo (s)', 'Respostas']
+    const rows = peopleList.map((v) => [
+      new Date(v.createdAt).toLocaleString('pt-BR'),
+      STATUS[Math.max(1, Math.min(4, v.step || 1))].label,
+      v.contact?.name,
+      v.contact?.whatsapp,
+      v.contact?.email,
+      v.step >= 4 ? '' : v.lastQuestionLabel,
+      v.device === 'mobile' ? 'Celular' : 'Computador',
+      sourceLabel(v.source),
+      v.campaign,
+      v.adset,
+      v.ad,
+      v.seconds || 0,
+      (v.answers ?? []).map((a) => `${a.label}: ${a.value}`).join(' | '),
+    ])
+    const csv = '﻿' + [head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `visitas-${form.id}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 2000)
+  }
 
   if (!open || !form) return null
   const hasPixel = !!form.metaPixelId
+
+  const delta = (now: number, prev: number | undefined, isRate = false) => {
+    if (prev === undefined || kpis.prev === null) return null
+    if (!prev && !now) return null
+    const diff = isRate ? now - prev : prev ? Math.round(((now - prev) / prev) * 100) : null
+    if (diff === null) return { text: 'novo', up: true }
+    if (diff === 0) return { text: 'igual', up: null }
+    return { text: `${diff > 0 ? '+' : ''}${diff}${isRate ? ' p.p.' : '%'}`, up: diff > 0 }
+  }
+  const rate = (a: number, b: number) => pct(a, b)
+  const prevText = days === 1 ? 'vs. 24 h antes' : `vs. ${days} dias antes`
+  const tiles: { label: string; value: string; hint: string; d: ReturnType<typeof delta>; tone: string }[] = [
+    { label: 'Visitas', value: String(kpis.now.views), hint: 'Abriram o link', d: delta(kpis.now.views, kpis.prev?.views), tone: 'text-slate-900' },
+    { label: 'Começaram', value: String(kpis.now.starts), hint: `${rate(kpis.now.starts, kpis.now.views)}% de quem abriu`, d: delta(kpis.now.starts, kpis.prev?.starts), tone: 'text-slate-900' },
+    { label: 'Enviaram', value: String(kpis.now.sent), hint: `${rate(kpis.now.sent, kpis.now.starts)}% de quem começou`, d: delta(kpis.now.sent, kpis.prev?.sent), tone: 'text-emerald-700' },
+    {
+      label: 'Conversão',
+      value: `${rate(kpis.now.sent, kpis.now.views)}%`,
+      hint: 'De quem abriu, quantos enviaram',
+      d: delta(rate(kpis.now.sent, kpis.now.views), kpis.prev ? rate(kpis.prev.sent, kpis.prev.views) : undefined, true),
+      tone: 'text-emerald-700',
+    },
+    { label: 'Contato sem enviar', value: String(kpis.now.warm), hint: 'Dá pra chamar no WhatsApp', d: null, tone: kpis.now.warm ? 'text-amber-700' : 'text-slate-900' },
+    { label: 'Tempo pra enviar', value: minutes(kpis.now.secs), hint: 'Mediana de quem enviou', d: null, tone: 'text-slate-900' },
+  ]
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-2 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="fm-title">
@@ -488,6 +576,32 @@ export function LeadFormAnalyticsModal({
             </div>
           ) : tab === 'funil' ? (
             <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                {tiles.map((t) => (
+                  <div key={t.label} className="flex flex-col gap-0.5 rounded-2xl border border-slate-200 bg-white p-4">
+                    <span className="text-xs font-medium text-slate-500">{t.label}</span>
+                    <span className={`text-2xl font-extrabold leading-tight tabular-nums ${t.tone}`}>{t.value}</span>
+                    <span className="text-[11px] text-slate-400">{t.hint}</span>
+                    {t.d && (
+                      <span
+                        className={`mt-1 w-fit rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${t.d.up === null ? 'bg-slate-100 text-slate-500' : t.d.up ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}
+                        title={prevText}
+                      >
+                        {t.d.text} <span className="font-normal opacity-70">{prevText}</span>
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                <h3 className="text-[15px] font-semibold text-slate-800">Movimento por dia</h3>
+                <p className="mt-0.5 text-xs text-slate-400">Abriram, começaram e enviaram. Passe o mouse pra ver cada dia.</p>
+                <div className="mt-3">
+                  <FormTrendChart daily={stats.daily} />
+                </div>
+              </section>
+
               {stats.worst >= 0 && stats.stoppedAt[stats.worst] > 0 && (
                 <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4" role="status">
                   <TrendingDown size={20} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
@@ -612,14 +726,6 @@ export function LeadFormAnalyticsModal({
                 </Card>
               </div>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                <h3 className="text-[15px] font-semibold text-slate-800">Movimento por dia</h3>
-                <p className="mt-0.5 text-xs text-slate-400">Abriram, começaram e enviaram.</p>
-                <div className="mt-3">
-                  <FormTrendChart daily={stats.daily} />
-                </div>
-              </section>
-
               {answers.length > 0 && (
                 <section className="rounded-2xl border border-slate-200 bg-white p-5">
                   <h3 className="flex items-center gap-2 text-[15px] font-semibold text-slate-800">
@@ -656,6 +762,24 @@ export function LeadFormAnalyticsModal({
                   </button>
                 ))}
                 <span className="ml-auto text-xs text-slate-400">{plural(peopleList.length, 'visita', 'visitas')}</span>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar nome, WhatsApp, e-mail, campanha ou anúncio"
+                  aria-label="Buscar pessoas"
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={exportCsv}
+                  disabled={peopleList.length === 0}
+                  className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  <Download size={14} aria-hidden="true" /> Exportar planilha
+                </button>
               </div>
               {peopleList.length === 0 ? (
                 <p className="mt-4 text-sm text-slate-400">Ninguém nesse filtro.</p>
