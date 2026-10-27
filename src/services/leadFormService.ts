@@ -207,9 +207,13 @@ export async function submitLeadFormResponse(
     updatedBy: FORM_ACTOR,
   }
 
-  await addDoc(collection(db, 'leads'), {
-    ...payload,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  })
+  try {
+    await addDoc(collection(db, 'leads'), { ...payload, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+  } catch (err) {
+    // Regras antigas ainda sem o campo `origin`: grava sem ele (o lead nunca pode se perder).
+    if (!payload.origin || (err as { code?: string })?.code !== 'permission-denied') throw err
+    const rest: Partial<typeof payload> = { ...payload }
+    delete rest.origin
+    await addDoc(collection(db, 'leads'), { ...rest, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+  }
 }
