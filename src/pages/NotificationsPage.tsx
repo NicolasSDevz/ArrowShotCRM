@@ -62,10 +62,10 @@ export function NotificationsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-[28px] font-extrabold text-slate-900">
+          <h1 className="flex items-center gap-2 text-[26px] font-bold leading-tight tracking-tight text-slate-900">
             <Bell size={24} /> Notificações
           </h1>
-          <p className="text-[15px] text-[#64748B]">{unreadCount} não lida{unreadCount === 1 ? '' : 's'}</p>
+          <p className="mt-0.5 text-sm text-slate-500">{unreadCount} não lida{unreadCount === 1 ? '' : 's'}</p>
         </div>
         {unreadCount > 0 && (
           <Button variant="secondary" onClick={() => markAllNotificationsRead(ownNotifications)}>

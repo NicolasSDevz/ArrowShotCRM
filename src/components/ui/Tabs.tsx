@@ -14,6 +14,7 @@ export function Tabs({
   onChange,
   variant = 'underline',
   moreLabel = 'Mais',
+  compact = false,
 }: {
   tabs: {
     label: string
@@ -37,6 +38,8 @@ export function Tabs({
   variant?: 'underline' | 'pills' | 'page'
   /** Nome do botão que mostra as abas extras (secondary). */
   moreLabel?: string
+  /** Só visual (underline): abas juntas à esquerda em vez de espalhadas. Não muda a leitura nem o teclado. */
+  compact?: boolean
 }) {
   const pills = variant === 'pills'
   const page = variant === 'page'
@@ -108,6 +111,10 @@ export function Tabs({
           ? `shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1 ${
               active === t.i ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
             }`
+          : compact
+          ? `-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors focus:outline-none focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-brand-400 ${
+              active === t.i ? 'border-brand-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`
           : `shrink-0 whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
               active === t.i ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-400 hover:text-slate-600'
             }`
@@ -142,11 +149,11 @@ export function Tabs({
 
   return (
     <div>
-      <div className={page ? 'flex items-center gap-2 border-b border-slate-200' : pills ? 'flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4' : 'flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6'}>
+      <div className={page ? 'flex items-center gap-2 border-b border-slate-200' : pills ? 'flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4' : compact ? 'flex flex-wrap items-center gap-x-1 gap-y-1 border-b border-slate-100 px-3' : 'flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6'}>
         <div
           role="tablist"
           aria-label={label}
-          className={page ? 'flex min-w-0 flex-1 items-center gap-x-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
+          className={page ? 'flex min-w-0 flex-1 items-center gap-x-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : pills ? 'flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:thin]' : compact ? 'flex min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-0' : `flex flex-1 flex-wrap items-center gap-x-10 gap-y-1 ${showAll ? '' : 'justify-between'}`}
         >
           {visible.map(tabButton)}
         </div>
@@ -223,7 +230,7 @@ export function Tabs({
           </button>
         )}
       </div>
-      <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className={page ? 'pt-6' : pills ? 'p-5' : 'px-5 py-4'}>
+      <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className={page ? 'pt-6' : pills ? 'p-5' : compact ? 'p-5 sm:p-6' : 'px-5 py-4'}>
         {exitButton('inicio')}
         {tabs[active].content}
         {exitButton('fim')}

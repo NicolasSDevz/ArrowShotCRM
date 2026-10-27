@@ -9,7 +9,7 @@ import { sendLeadToSales, setLeadFormStage } from '../../services/leadService'
 import { Button } from '../ui/Button'
 import { Modal } from '../ui/Modal'
 import { Field, Select } from '../ui/Field'
-import { FormAnswerValue } from './FormAnswerValue'
+import { FormAnswersList } from './FormAnswerValue'
 import { leadFormColor } from './leadFormColors'
 import { LEAD_FORM_STAGE_LABEL, leadFormStage, locateLead, type Lead, type LeadFormStage, type ResolvedPipeline } from '../../types'
 import type { LeadForm } from '../../types/leadForm'
@@ -191,7 +191,6 @@ export function QuestionnairePanel({
             const stage = leadFormStage(lead)
             const answers = lead.formAnswers ?? []
             const open = !!expanded[lead.id]
-            const shown = open ? answers : answers.slice(0, PREVIEW_ANSWERS)
             const busy = busyId === lead.id
             const where = stage === 'sent' ? locateLead(pipelines, lead) : null
             const waDigits = (lead.whatsapp ?? '').replace(/\D/g, '')
@@ -235,14 +234,7 @@ export function QuestionnairePanel({
                   {answers.length > 0 && (
                     <div>
                       <h4 className="sr-only">Respostas</h4>
-                      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-                        {shown.map((a) => (
-                          <div key={a.questionId} className="min-w-0">
-                            <dt className="text-xs text-slate-400">{a.label}</dt>
-                            <dd>{isPrivacyMode ? <p className="text-sm text-slate-400">••••••</p> : <FormAnswerValue value={a.value} />}</dd>
-                          </div>
-                        ))}
-                      </dl>
+                      <FormAnswersList answers={answers} questions={form?.questions} hidden={isPrivacyMode} limit={open ? undefined : PREVIEW_ANSWERS} />
                       {answers.length > PREVIEW_ANSWERS && (
                         <button
                           type="button"

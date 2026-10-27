@@ -120,6 +120,14 @@ function DeltaChip({ pct }: { pct: number | null }) {
   )
 }
 
+/** Cores do ícone e do brilho do canto (mesmo visual do MetricCard das Métricas). */
+const ICON_ACCENT: Record<string, { fg: string; bg: string; glow: string }> = {
+  'bg-emerald-500': { fg: '#4cc38a', bg: 'rgb(16 185 129 / 0.14)', glow: 'rgb(16 185 129 / 0.14)' },
+  'bg-blue-500': { fg: '#60a5fa', bg: 'rgb(59 130 246 / 0.14)', glow: 'rgb(59 130 246 / 0.16)' },
+  'bg-slate-500': { fg: '#cbd5e1', bg: 'rgb(148 163 184 / 0.14)', glow: 'rgb(148 163 184 / 0.10)' },
+  'bg-violet-500': { fg: '#a78bfa', bg: 'rgb(139 92 246 / 0.15)', glow: 'rgb(139 92 246 / 0.14)' },
+}
+
 function MetricCard({
   icon,
   iconBg,
@@ -143,10 +151,14 @@ function MetricCard({
    *  no Churn Rate pra abrir o modal completo (ver ChurnDetailModal). */
   onInfoClick?: () => void
 }) {
+  const a = ICON_ACCENT[iconBg] ?? ICON_ACCENT['bg-blue-500']
   return (
-    <Card>
-      <div className="flex items-center justify-between">
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconBg}`}>{icon}</div>
+    <div className="relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full blur-2xl" style={{ background: a.glow }} />
+      <div className="relative flex items-center justify-between">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: a.bg, color: a.fg }}>
+          {icon}
+        </span>
         <div className="flex items-center gap-2">
           {delta !== undefined && <DeltaChip pct={delta} />}
           {onInfoClick ? (
@@ -163,15 +175,15 @@ function MetricCard({
           )}
         </div>
       </div>
-      <p className="mt-3 text-[13px] font-medium text-slate-500">{label}</p>
+      <p className="relative mt-3 text-[13px] font-medium text-slate-500">{label}</p>
       <p
-        className={`mt-0.5 text-[26px] font-extrabold leading-tight ${valueColor ? '' : 'text-slate-900'}`}
+        className={`relative mt-0.5 text-[26px] font-bold leading-tight tracking-tight tabular-nums ${valueColor ? '' : 'text-slate-900'}`}
         style={valueColor ? { color: valueColor } : undefined}
       >
         {value}
       </p>
-      <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
-    </Card>
+      <p className="relative mt-1 text-xs text-slate-400">{subtitle}</p>
+    </div>
   )
 }
 
@@ -446,11 +458,6 @@ export function OverviewDashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-xs text-slate-400">
-        Métricas calculadas ao vivo. Clique no ícone{' '}
-        <Info size={12} className="inline align-[-2px]" aria-label="informação" /> pra entender cada indicador.
-      </p>
-
       {/* Barra superior */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-400">
@@ -476,7 +483,7 @@ export function OverviewDashboard() {
         <div className={`grid gap-4 ${rowCols(metricCount, 4)}`}>
           {show('mrr') && (
             <MetricCard
-              icon={<DollarSign size={17} className="text-white" />}
+              icon={<DollarSign size={17} />}
               iconBg="bg-emerald-500"
               label="MRR"
               value={isPrivacyMode ? 'R$ ••.•••' : BRL(m.mrr)}
@@ -487,7 +494,7 @@ export function OverviewDashboard() {
           )}
           {show('clientes_ativos') && (
             <MetricCard
-              icon={<Users size={17} className="text-white" />}
+              icon={<Users size={17} />}
               iconBg="bg-blue-500"
               label="Clientes Ativos"
               value={String(m.activeClients)}
@@ -498,7 +505,7 @@ export function OverviewDashboard() {
           )}
           {show('churn') && (
             <MetricCard
-              icon={<ActivityIcon size={17} className="text-white" />}
+              icon={<ActivityIcon size={17} />}
               iconBg="bg-slate-500"
               label="Churn Rate"
               value={`${m.churnRate.toFixed(1)}%`}
@@ -509,7 +516,7 @@ export function OverviewDashboard() {
           )}
           {show('ltv') && (
             <MetricCard
-              icon={<Gem size={17} className="text-white" />}
+              icon={<Gem size={17} />}
               iconBg="bg-violet-500"
               label="LTV Médio"
               value={isPrivacyMode ? 'R$ •.•••' : BRL(m.ltv)}

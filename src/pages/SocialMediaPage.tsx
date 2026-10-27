@@ -27,8 +27,8 @@ export function SocialMediaPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-[28px] font-extrabold text-slate-900">Social Mídia</h1>
-        <p className="text-[15px] text-[#64748B]">Fluxo de produção de conteúdo, da ideia à publicação.</p>
+        <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">Social Mídia</h1>
+        <p className="mt-0.5 text-sm text-slate-500">Fluxo de produção de conteúdo, da ideia à publicação.</p>
       </div>
 
       <Tabs

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { BellRing, Camera, Check, Eye, EyeOff, LogOut, Pencil, X } from 'lucide-react'
@@ -23,9 +24,46 @@ export function usePresentationToggle() {
   }
 }
 
+/** Onde o menu abre em relação ao botão que o abriu. */
+export type AccountMenuPlacement = 'above' | 'right' | 'below-end'
+
+/** Posição fixa na tela, calculada a partir do botão. O menu é desenhado
+ *  direto no <body> (portal): dentro da barra lateral ele ficava preso no
+ *  empilhamento dela e partes da página passavam por cima. */
+function useAnchoredPosition(anchorRef: RefObject<HTMLElement | null>, placement: AccountMenuPlacement): CSSProperties {
+  const [style, setStyle] = useState<CSSProperties>({ visibility: 'hidden' })
+  useLayoutEffect(() => {
+    const place = () => {
+      const r = anchorRef.current?.getBoundingClientRect()
+      if (!r) return
+      const gap = 8
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      if (placement === 'above') setStyle({ left: Math.max(8, Math.min(r.left, vw - 296)), bottom: vh - r.top + gap })
+      else if (placement === 'right') setStyle({ left: r.right + gap, bottom: Math.max(8, vh - r.bottom) })
+      else setStyle({ right: Math.max(8, vw - r.right), top: r.bottom + gap })
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [anchorRef, placement])
+  return style
+}
+
 /** Menu da conta (foto do topo e nome no rodapé do menu lateral): nome, foto,
  *  modo apresentação, notificações e sair. Fecha com Esc ou clicando fora. */
-export function AccountMenu({ onClose, className, subtitle }: { onClose: () => void; className: string; subtitle?: string }) {
+export function AccountMenu({
+  onClose,
+  anchorRef,
+  placement,
+  subtitle,
+}: {
+  onClose: () => void
+  anchorRef: RefObject<HTMLElement | null>
+  placement: AccountMenuPlacement
+  subtitle?: string
+}) {
+  const position = useAnchoredPosition(anchorRef, placement)
   const { profile, signOut } = useAuth()
   const { isPrivacyMode } = usePrivacy()
   const togglePresentation = usePresentationToggle()
@@ -89,10 +127,16 @@ export function AccountMenu({ onClose, className, subtitle }: { onClose: () => v
     }
   }
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden="true" />
-      <div ref={panelRef} role="menu" aria-label="Minha conta" className={`z-50 w-72 rounded-xl border border-slate-100 bg-white p-1.5 shadow-lg ${className}`}>
+      <div className="fixed inset-0 z-[90]" onClick={onClose} aria-hidden="true" />
+      <div
+        ref={panelRef}
+        role="menu"
+        aria-label="Minha conta"
+        style={position}
+        className="fixed z-[91] w-72 rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
+      >
         <div className="flex items-center gap-3 px-2.5 py-2.5">
           <button
             type="button"
@@ -188,7 +232,8 @@ export function AccountMenu({ onClose, className, subtitle }: { onClose: () => v
           <LogOut size={14} /> Sair
         </button>
       </div>
-    </>
+    </>,
+    document.body
   )
 }
 

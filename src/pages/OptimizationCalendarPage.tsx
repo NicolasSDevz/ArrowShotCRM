@@ -679,7 +679,7 @@ export function OptimizationCalendarPage() {
         {/* Cabeçalho */}
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="flex items-center gap-2 text-[26px] font-extrabold leading-tight text-slate-900">
+            <h1 className="flex items-center gap-2 text-[26px] font-bold leading-tight tracking-tight text-slate-900">
               <CalendarRange size={24} className="text-brand-600" /> Calendário de Otimizações
             </h1>
             <p className="mt-0.5 text-sm text-slate-500">

@@ -120,18 +120,20 @@ export function ClientDetailPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <button onClick={() => navigate('/clientes')} className="flex w-fit items-center gap-1 text-xs text-slate-400 hover:text-slate-600">
+      <button onClick={() => navigate('/clientes')} className="flex w-fit items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
         <ArrowLeft size={13} /> Clientes
       </button>
 
-      <div className="rounded-xl border border-slate-100 bg-white p-5">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
+      <div className="rounded-2xl border border-slate-200 bg-white">
+        <div className="flex flex-wrap items-start justify-between gap-4 p-5">
+          <div className="flex min-w-0 items-center gap-4">
             <ClientLogoUpload client={client} />
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-semibold text-slate-800"><PrivateData value={client.companyName} /></h1>
+                <h1 className="truncate text-[22px] font-bold leading-tight tracking-tight text-slate-900"><PrivateData value={client.companyName} /></h1>
                 <Badge className={client.status === 'churned' && client.churnType === 'completed' ? 'bg-emerald-50 text-emerald-700' : CLIENT_STATUS_BADGE[client.status]}>{clientStatusLabel(client)}</Badge>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {client.categoria && (
                   <Badge className={CLIENT_CATEGORY_BADGE[client.categoria]}>{CLIENT_CATEGORY_LABEL[client.categoria]}</Badge>
                 )}
@@ -142,7 +144,7 @@ export function ClientDetailPage() {
                 {(hasPT || hasSM || hasLP) && <ClientServiceBadges client={client} />}
               </div>
               {client.contactName && (
-                <p className="text-sm text-slate-400">
+                <p className="mt-1.5 text-sm text-slate-500">
                   <PrivateData value={client.contactName} />
                 </p>
               )}
@@ -181,6 +183,8 @@ export function ClientDetailPage() {
             <div className="relative">
               <button
                 onClick={() => setOptionsOpen((v) => !v)}
+                aria-label="Mais opções do cliente"
+                aria-expanded={optionsOpen}
                 className="rounded-lg p-2 text-slate-400 transition-colors duration-150 ease-in-out hover:bg-slate-100 hover:text-slate-600"
               >
                 <MoreVertical size={16} />
@@ -205,30 +209,30 @@ export function ClientDetailPage() {
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 px-5 py-3 text-[13px] text-slate-500">
           {client.whatsapp && (
-            <span className="flex items-center gap-1">
-              <Phone size={12} /> <PrivateData value={client.whatsapp} mask="••• •••••-••••" />
+            <span className="flex items-center gap-1.5">
+              <Phone size={13} className="text-slate-400" /> <PrivateData value={client.whatsapp} mask="••• •••••-••••" />
             </span>
           )}
           {client.email && (
-            <span className="flex items-center gap-1">
-              <Mail size={12} /> <PrivateData value={client.email} mask="••••••@••••••.com" />
+            <span className="flex items-center gap-1.5">
+              <Mail size={13} className="text-slate-400" /> <PrivateData value={client.email} mask="••••••@••••••.com" />
             </span>
           )}
           {client.city && (
-            <span className="flex items-center gap-1">
-              <MapPin size={12} /> <PrivateData value={client.city} />
+            <span className="flex items-center gap-1.5">
+              <MapPin size={13} className="text-slate-400" /> <PrivateData value={client.city} />
             </span>
           )}
-          {client.instagram && <span className="flex items-center gap-1"><Camera size={12} /> {client.instagram}</span>}
-          {client.facebook && <span className="flex items-center gap-1"><ThumbsUp size={12} /> {client.facebook}</span>}
-          {client.website && <span className="flex items-center gap-1"><Globe size={12} /> {client.website}</span>}
+          {client.instagram && <span className="flex items-center gap-1.5"><Camera size={13} className="text-slate-400" /> {client.instagram}</span>}
+          {client.facebook && <span className="flex items-center gap-1.5"><ThumbsUp size={13} className="text-slate-400" /> {client.facebook}</span>}
+          {client.website && <span className="flex items-center gap-1.5"><Globe size={13} className="text-slate-400" /> {client.website}</span>}
           {owners.length > 0 && (
-            <span className="ml-auto flex items-center gap-1.5">
+            <span className="ml-auto flex items-center gap-2">
               Responsáveis:
               {owners.map((o) => (
-                <span key={o.id} className="flex items-center gap-1">
+                <span key={o.id} className="flex items-center gap-1 text-slate-700">
                   <Avatar name={o.name} photoURL={o.photoURL} size="xs" /> {o.name}
                 </span>
               ))}
@@ -236,14 +240,14 @@ export function ClientDetailPage() {
           )}
         </div>
 
-        <section aria-labelledby="client-notes-title" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
-          <h2 id="client-notes-title" className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+        <section aria-labelledby="client-notes-title" className="mx-5 mb-5 rounded-xl border-l-[3px] border-amber-400 bg-slate-50 px-4 py-3">
+          <h2 id="client-notes-title" className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
             Observações: o que foi vendido e combinado
           </h2>
           {client.notes?.trim() ? (
-            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{client.notes}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{client.notes}</p>
           ) : (
-            <p className="mt-1 text-sm text-amber-800">
+            <p className="mt-1 text-sm text-slate-500">
               Nenhuma observação. Clique em Editar e escreva o que foi vendido ou prometido a este cliente.
             </p>
           )}
@@ -252,11 +256,12 @@ export function ClientDetailPage() {
 
       <ClientOnboardingMeetingsSection client={client} />
 
-      <section aria-labelledby="client-sections-title" className="rounded-xl border border-slate-100 bg-white">
+      <section aria-labelledby="client-sections-title" className="rounded-2xl border border-slate-200 bg-white">
         <h2 id="client-sections-title" className="sr-only">
           Seções da ficha de {client.companyName}
         </h2>
         <Tabs
+          compact
           label={`Seções da ficha de ${client.companyName}`}
           tabs={[
             // Briefing é só de Tráfego Pago: o de Social Mídia saiu em 22/10/2026 (ninguém usava).

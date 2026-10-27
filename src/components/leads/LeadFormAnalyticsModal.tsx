@@ -25,6 +25,7 @@ import { FORM_VIZ_STYLE, FormTrendChart, AnswerBars, type AnswerBreakdown } from
 import { visibleOptions, isChoiceType } from './leadFormMeta'
 import type { LeadForm, LeadFormVisit } from '../../types/leadForm'
 import type { Lead } from '../../types/lead'
+import { FormAnswersList } from './FormAnswerValue'
 import type { LeadFormDailyPoint } from '../../services/leadFormAnalyticsService'
 
 /** Registro detalhado das visitas começou aqui (antes só havia contagem). */
@@ -191,16 +192,9 @@ function PersonRow({ v }: { v: LeadFormVisit }) {
         </div>
       </div>
       {open && (
-        <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs">
+        <div className="mt-2 flex flex-col gap-2 text-xs">
           {(v.answers ?? []).length > 0 ? (
-            <dl className="space-y-1.5">
-              {v.answers!.map((a, i) => (
-                <div key={i}>
-                  <dt className="text-slate-400">{a.label || 'Pergunta'}</dt>
-                  <dd className="whitespace-pre-wrap text-slate-700">{a.value}</dd>
-                </div>
-              ))}
-            </dl>
+            <FormAnswersList answers={v.answers!} />
           ) : (
             <p className="text-slate-400">Não respondeu nenhuma pergunta.</p>
           )}

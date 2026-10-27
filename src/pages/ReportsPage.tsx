@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { format, isWithinInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { format, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Plus, FileDown, Eye, FileBarChart, Search, Trash2, X, LayoutGrid, List as ListIcon, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Plus, FileDown, Eye, FileBarChart, Search, Trash2, X, LayoutGrid, List as ListIcon, CalendarDays, Users, History } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { RECENT_REPORTS_MONTHS, useReports } from '../hooks/useReports'
 import { useClients } from '../hooks/useClients'
@@ -17,10 +17,10 @@ import { ReportViewModal } from '../components/reports/ReportViewModal'
 import { ReportsClientCard } from '../components/reports/ReportsClientCard'
 import { ClientReportsDrawer } from '../components/reports/ClientReportsDrawer'
 import { StatCard } from '../components/ui/StatCard'
+import { PageHeader } from '../components/ui/PageHeader'
 import { generateWeeklyReportPdf } from '../utils/weeklyReportPdf'
 import { deleteReport } from '../services/reportService'
-import { REPORT_TYPE_LABEL, type Client, type Report, type ReportPlatform, type ReportType } from '../types'
-import { hasContractedPaidTraffic, trafficServices } from '../utils/clientServices'
+import { REPORT_TYPE_LABEL, type Report, type ReportType } from '../types'
 
 const TYPE_OPTIONS: { value: ReportType | ''; label: string }[] = [
   { value: '', label: 'Todos os tipos' },
@@ -44,7 +44,6 @@ export function ReportsPage() {
   const [clientFilter, setClientFilter] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [openClientId, setOpenClientId] = useState<string | null>(null)
-  const [pendingFor, setPendingFor] = useState<Client | null>(null)
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
   const viewingWeekly = reports.find((r) => r.id === viewingWeeklyId) ?? null
@@ -79,37 +78,17 @@ export function ReportsPage() {
     const now = new Date()
     const monthRange = { start: startOfMonth(now), end: endOfMonth(now) }
     const thisMonth = reports.filter((r) => r.createdAt && isWithinInterval(r.createdAt.toDate(), monthRange))
+    const latest = reports.reduce<Report | null>(
+      (best, r) => (r.createdAt && (!best?.createdAt || r.createdAt.toMillis() > best.createdAt.toMillis()) ? r : best),
+      null
+    )
     return {
       total: reports.length,
       thisMonth: thisMonth.length,
       clients: clientsWithReports.length,
+      latest,
     }
   }, [reports, clientsWithReports])
-
-  // Relatório mensal do mês passado que ainda não foi gerado — clientes de
-  // tráfego ativos que já eram clientes no mês passado e não têm um relatório
-  // mensal cobrindo aquele mês.
-  const lastMonth = useMemo(() => {
-    const m = subMonths(new Date(), 1)
-    return { start: startOfMonth(m), end: endOfMonth(m), label: format(m, 'MMMM', { locale: ptBR }) }
-  }, [])
-  const pendingMonthly = useMemo(() => {
-    const inLastMonth = (d: Date) => d >= lastMonth.start && d <= lastMonth.end
-    const done = new Set(
-      reports
-        .filter((r) => r.type === 'monthly' && (inLastMonth(r.periodStart.toDate()) || inLastMonth(r.periodEnd.toDate())))
-        .map((r) => r.clientId)
-    )
-    const eligible = clients.filter((c) => {
-      if (c.status !== 'active' || !hasContractedPaidTraffic(c)) return false
-      const since = c.contractStartDate?.toDate?.() ?? c.createdAt?.toDate?.()
-      return !since || since <= lastMonth.end
-    })
-    return {
-      total: eligible.length,
-      pending: eligible.filter((c) => !done.has(c.id)).sort((a, b) => a.companyName.localeCompare(b.companyName)),
-    }
-  }, [reports, clients, lastMonth])
 
   const hasActiveFilters = !!search || !!typeFilter || !!clientFilter
   const clearFilters = () => {
@@ -151,37 +130,41 @@ export function ReportsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-[28px] font-extrabold text-slate-900">Relatórios</h1>
-          <p className="text-[15px] text-[#64748B]">Desempenho mensal e semanal por cliente</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
-            <button
-              onClick={() => setView('blocks')}
-              title="Ver por cliente (blocos)"
-              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                view === 'blocks' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <LayoutGrid size={15} />
-            </button>
-            <button
-              onClick={() => setView('list')}
-              title="Ver em lista"
-              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                view === 'list' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <ListIcon size={15} />
-            </button>
-          </div>
-          <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
-            Novo relatório
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Relatórios"
+        subtitle="Relatórios mensais e semanais de cada cliente."
+        actions={
+          <>
+            <div role="group" aria-label="Modo de exibição" className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5">
+              <button
+                type="button"
+                onClick={() => setView('blocks')}
+                aria-pressed={view === 'blocks'}
+                title="Ver por cliente"
+                className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors ${
+                  view === 'blocks' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <LayoutGrid size={14} aria-hidden="true" /> Por cliente
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('list')}
+                aria-pressed={view === 'list'}
+                title="Ver em lista"
+                className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors ${
+                  view === 'list' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <ListIcon size={14} aria-hidden="true" /> Lista
+              </button>
+            </div>
+            <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>
+              Novo relatório
+            </Button>
+          </>
+        }
+      />
 
       {reports.length === 0 ? (
         <EmptyState
@@ -195,59 +178,34 @@ export function ReportsPage() {
         />
       ) : (
         <>
-          {pendingMonthly.total > 0 &&
-            (pendingMonthly.pending.length > 0 ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-                  <AlertCircle size={16} />
-                  Falta o relatório de {lastMonth.label} de {pendingMonthly.pending.length}{' '}
-                  {pendingMonthly.pending.length === 1 ? 'cliente' : 'clientes'}
-                  <span className="font-normal text-amber-700">
-                    ({pendingMonthly.total - pendingMonthly.pending.length} de {pendingMonthly.total} feitos)
-                  </span>
-                </p>
-                <div className="mt-2.5 flex flex-wrap gap-2">
-                  {pendingMonthly.pending.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setPendingFor(c)}
-                      title={`Gerar o relatório de ${lastMonth.label}`}
-                      className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-white px-3 py-1 text-sm text-slate-700 transition-colors hover:border-amber-400 hover:bg-amber-100"
-                    >
-                      <Plus size={13} className="text-amber-600" />
-                      {isPrivacyMode ? '••••••' : c.companyName}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="flex items-center gap-2 text-sm text-emerald-700">
-                <CheckCircle2 size={16} /> Todos os relatórios de {lastMonth.label} foram gerados.
-              </p>
-            ))}
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatCard label={showOld ? 'Total de relatórios' : `Relatórios (últimos ${RECENT_REPORTS_MONTHS} meses)`} value={stats.total} />
-            <StatCard label="Gerados este mês" value={stats.thisMonth} />
-            <StatCard label="Clientes com relatório" value={stats.clients} />
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard
+              label={showOld ? 'Relatórios no total' : `Relatórios (${RECENT_REPORTS_MONTHS} meses)`}
+              value={stats.total}
+              icon={FileBarChart}
+              accent="blue"
+              hint={showOld ? 'Todos os períodos' : 'Os mais antigos ficam ocultos'}
+            />
+            <StatCard label="Gerados este mês" value={stats.thisMonth} icon={CalendarDays} accent="green" hint={format(new Date(), 'MMMM', { locale: ptBR })} />
+            <StatCard label="Clientes com relatório" value={stats.clients} icon={Users} accent="violet" />
+            <StatCard
+              label="Último gerado"
+              value={stats.latest?.createdAt ? format(stats.latest.createdAt.toDate(), 'dd/MM', { locale: ptBR }) : '—'}
+              icon={History}
+              accent="sky"
+              hint={stats.latest ? (isPrivacyMode ? '••••••' : (clientMap[stats.latest.clientId]?.companyName ?? '')) : undefined}
+            />
           </div>
 
-          <p className="-mt-1 text-xs text-slate-400">
-            {showOld ? 'Mostrando todos os relatórios.' : `Relatórios de mais de ${RECENT_REPORTS_MONTHS} meses ficam ocultos para economizar leituras.`}{' '}
-            <button type="button" onClick={() => setShowOld((v) => !v)} className="font-semibold text-brand-600 hover:underline">
-              {showOld ? 'Ocultar antigos' : 'Mostrar antigos'}
-            </button>
-          </p>
-
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-white p-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3">
             <div className="relative">
               <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por cliente..."
-                className="h-[38px] rounded-lg border border-slate-200 pl-8 pr-3 text-sm outline-none transition-all duration-150 ease-in-out focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                aria-label="Buscar relatórios por cliente"
+                className="h-9 w-64 max-w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm outline-none transition-all duration-150 ease-in-out focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
               />
             </div>
             {view === 'list' && (
@@ -255,7 +213,7 @@ export function ReportsPage() {
                 <select
                   value={clientFilter}
                   onChange={(e) => setClientFilter(e.target.value)}
-                  className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100"
                 >
                   <option value="">Todos os clientes</option>
                   {clientsWithReports.map((c) => (
@@ -265,7 +223,7 @@ export function ReportsPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value as ReportType | '')}
-                  className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                  className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100"
                 >
                   {TYPE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -276,11 +234,20 @@ export function ReportsPage() {
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="flex h-[38px] items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                className="flex h-9 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
               >
                 <X size={13} /> Limpar filtros
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setShowOld((v) => !v)}
+              aria-pressed={showOld}
+              className="ml-auto flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+            >
+              <History size={14} aria-hidden="true" />
+              {showOld ? 'Esconder os antigos' : `Mostrar os de mais de ${RECENT_REPORTS_MONTHS} meses`}
+            </button>
           </div>
 
           {view === 'blocks' ? (
@@ -301,10 +268,10 @@ export function ReportsPage() {
           ) : filtered.length === 0 ? (
             <EmptyState title="Nenhum relatório encontrado" description="Ajuste os filtros para ver outros relatórios." />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left text-sm">
-                  <thead className="border-b border-slate-100 bg-slate-50 text-[13px] font-semibold uppercase tracking-wide text-slate-400">
+                  <thead className="border-b border-slate-100 bg-slate-50 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
                     <tr>
                       <th className="px-4 py-2.5">Cliente</th>
                       <th className="px-4 py-2.5">Período</th>
@@ -366,18 +333,6 @@ export function ReportsPage() {
       )}
 
       <ReportFormModal open={creating} onClose={() => setCreating(false)} />
-      {pendingFor && (
-        <ReportFormModal
-          key={pendingFor.id}
-          open
-          onClose={() => setPendingFor(null)}
-          initialClientId={pendingFor.id}
-          initialType="monthly"
-          initialPlatforms={trafficServices(pendingFor).platforms as ReportPlatform[]}
-          initialStartStr={format(lastMonth.start, 'yyyy-MM-dd')}
-          initialEndStr={format(lastMonth.end, 'yyyy-MM-dd')}
-        />
-      )}
       <ReportViewModal
         report={viewingWeekly}
         clientName={viewingWeekly ? clientMap[viewingWeekly.clientId]?.companyName ?? 'Cliente' : ''}

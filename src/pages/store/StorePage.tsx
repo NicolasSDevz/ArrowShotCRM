@@ -135,7 +135,7 @@ export function StorePage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{STORE_BRAND}</h1>
+          <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">{STORE_BRAND}</h1>
           <p className="mt-0.5 text-sm text-slate-500">Checkout, área de membros e vendas dos produtos digitais</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

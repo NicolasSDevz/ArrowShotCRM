@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { FormAnswerValue } from './FormAnswerValue'
+import { FormAnswersList } from './FormAnswerValue'
+import { useLeadForms } from '../../hooks/useLeadForms'
 import { useNavigate } from 'react-router-dom'
 import { Timestamp } from 'firebase/firestore'
 import { format } from 'date-fns'
@@ -166,6 +167,9 @@ function InfoTab({ lead }: { lead: Lead }) {
   const { data: users } = useUsers()
   const { data: products } = useProducts()
   const { pipelines } = useLeadPipelines()
+  const { isPrivacyMode } = usePrivacy()
+  const { data: leadForms } = useLeadForms()
+  const sourceForm = lead.sourceFormId ? leadForms.find((f) => f.id === lead.sourceFormId) : undefined
   const [form, setForm] = useState<LeadFormState>(() => leadToFormState(lead))
   const [saving, setSaving] = useState(false)
 
@@ -191,23 +195,19 @@ function InfoTab({ lead }: { lead: Lead }) {
   return (
     <div className="flex flex-col gap-4">
       {lead.formAnswers && lead.formAnswers.length > 0 && (
-        <div className="rounded-lg border border-slate-200 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Respostas do formulário</p>
-          {lead.origin && (
-            <p className="mb-2 text-xs text-slate-500">
-              <span className="text-slate-400">Veio de: </span>
-              {[lead.origin.source, lead.origin.campaign, lead.origin.adset, lead.origin.ad].filter(Boolean).join(' · ')} · {lead.origin.device === 'mobile' ? 'celular' : 'computador'}
-            </p>
-          )}
-          <div className="flex flex-col gap-2">
-            {lead.formAnswers.map((a) => (
-              <div key={a.questionId}>
-                <p className="text-xs text-slate-400">{a.label}</p>
-                <FormAnswerValue value={a.value} />
-              </div>
-            ))}
+        <section aria-labelledby={`form-answers-${lead.id}`} className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <h3 id={`form-answers-${lead.id}`} className="text-sm font-semibold text-slate-800">
+              Respostas do formulário{sourceForm ? `: ${sourceForm.name}` : ''}
+            </h3>
+            {lead.origin && (
+              <p className="text-xs text-slate-500">
+                Veio de {[lead.origin.source, lead.origin.campaign, lead.origin.adset, lead.origin.ad].filter(Boolean).join(', ')}, pelo {lead.origin.device === 'mobile' ? 'celular' : 'computador'}
+              </p>
+            )}
           </div>
-        </div>
+          <FormAnswersList answers={lead.formAnswers} questions={sourceForm?.questions} hidden={isPrivacyMode} />
+        </section>
       )}
       <LeadForm value={form} onChange={setForm} users={users} originalProductIds={lead.contractedProductIds ?? []} pipelineFields={locateLead(pipelines, lead).pipeline.fields} />
       <Button onClick={handleSave} loading={saving} className="self-start">

@@ -739,3 +739,27 @@ body {
   /* Toque sem o "flash" cinza do navegador. */
   [role="dialog"] { -webkit-tap-highlight-color: transparent; }
 }
+
+/* ---------- Topo do Dashboard: flecha no alvo ---------- */
+@keyframes hero-arrow-in {
+  0% { transform: translateX(-140px); opacity: 0; }
+  70% { transform: translateX(4px); opacity: 1; }
+  85% { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
+}
+@keyframes hero-trails-in {
+  0% { opacity: 0; transform: translateX(-60px); }
+  60% { opacity: 1; }
+  100% { opacity: 0.55; transform: translateX(0); }
+}
+@keyframes hero-ping {
+  0% { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(3.4); }
+}
+.hero-art .hero-arrow { animation: hero-arrow-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.hero-art .hero-trails { animation: hero-trails-in 0.9s ease-out both; }
+.hero-art .hero-ping { transform-box: fill-box; transform-origin: center; opacity: 0; animation: hero-ping 1.1s ease-out 0.75s 1 both; }
+@media (prefers-reduced-motion: reduce) {
+  .hero-art .hero-arrow, .hero-art .hero-trails, .hero-art .hero-ping { animation: none; }
+  .hero-art .hero-ping { opacity: 0; }
+}

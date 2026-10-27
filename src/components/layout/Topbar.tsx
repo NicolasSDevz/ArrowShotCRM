@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Search, Menu, EyeOff, ChevronDown } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
@@ -19,6 +19,7 @@ export function Topbar({
   const { profile } = useAuth()
   const { isPrivacyMode } = usePrivacy()
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuBtnRef = useRef<HTMLButtonElement>(null)
 
   const togglePresentation = usePresentationToggle()
 
@@ -67,6 +68,7 @@ export function Topbar({
 
         <div className="relative">
           <button
+            ref={menuBtnRef}
             onClick={() => setMenuOpen((v) => !v)}
             aria-label="Menu da conta"
             className="flex items-center gap-1 rounded-full p-0.5 pr-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
@@ -74,7 +76,7 @@ export function Topbar({
             <Avatar name={profile?.name ?? '?'} photoURL={profile?.photoURL} size="sm" />
             <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
           </button>
-          {menuOpen && <AccountMenu onClose={() => setMenuOpen(false)} className="absolute right-0 mt-2" />}
+          {menuOpen && <AccountMenu onClose={() => setMenuOpen(false)} anchorRef={menuBtnRef} placement="below-end" />}
         </div>
       </div>
     </header>

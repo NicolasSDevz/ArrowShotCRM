@@ -187,7 +187,7 @@ function Composer({ conv, templates }: { conv: WaConversation; templates: WaTemp
 
   const send = async () => {
     const clean = text.trim()
-    if (!clean) return
+    if (!clean || sending) return
     setSending(true)
     try {
       await sendWaText(conv.waId, clean)
@@ -241,7 +241,7 @@ function Composer({ conv, templates }: { conv: WaConversation; templates: WaTemp
               grow()
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault()
                 send()
               }
@@ -497,9 +497,9 @@ export function WhatsappInbox({ templates }: { templates: WaTemplate[] }) {
   const showThread = Boolean(current) || creating
 
   return (
-    <div className="flex h-[calc(100vh-210px)] min-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    <div className="flex h-[calc(100dvh-230px)] min-h-[480px] overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <aside className={`w-full shrink-0 flex-col border-r border-slate-200 md:flex md:w-[340px] ${showThread ? 'hidden' : 'flex'}`} aria-label="Lista de conversas">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-3">
+        <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200 p-3">
           <div className="flex items-center justify-between gap-2 px-1">
             <h2 className="text-[15px] font-semibold text-slate-800">
               Conversas
@@ -601,7 +601,7 @@ export function WhatsappInbox({ templates }: { templates: WaTemplate[] }) {
             }}
           />
         ) : current ? (
-          <Thread conv={current} templates={templates} onBack={() => select(null)} />
+          <Thread key={current.waId} conv={current} templates={templates} onBack={() => select(null)} />
         ) : (
           <div className="flex flex-1 bg-slate-50">
             <EmptyPane title="Nenhuma conversa aberta" text="Escolha uma conversa na lista ou comece uma nova. A IA continua respondendo enquanto isso." />

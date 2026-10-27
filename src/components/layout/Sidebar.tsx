@@ -9,7 +9,6 @@ import {
   BarChart3,
   UserCog,
   GraduationCap,
-  KeyRound,
   BookOpenText,
   CalendarRange,
   Receipt,
@@ -23,7 +22,7 @@ import {
   PanelLeftOpen,
   MessageCircle,
 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { Avatar } from '../ui/Avatar'
@@ -94,6 +93,7 @@ export function Sidebar({
   const { data: teamMembers } = useTeamMembers()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const accountBtnRef = useRef<HTMLButtonElement>(null)
   // Recolhido (só no computador): vira uma faixa fina só com ícones — bom pra
   // apresentar pro cliente sem o menu ocupando a tela. Fica salvo no navegador.
   const [collapsed, setCollapsed] = useState(readCollapsed)
@@ -150,7 +150,6 @@ export function Sidebar({
   )
 
   const settingsLinks: NavItem[] = [
-    ...(canManageTokens ? [{ to: '/configuracoes/tokens', label: 'Tokens Meta Ads', icon: KeyRound }] : []),
     ...(canSeeBaseVendas ? [{ to: '/configuracoes/base-vendas', label: 'Base de Vendas', icon: BookOpenText }] : []),
     ...(isGestorTrafego ? [{ to: '/otimizacoes/calendario', label: 'Calendário de Otimizações', icon: CalendarRange }] : []),
   ]
@@ -244,6 +243,7 @@ export function Sidebar({
         {profile && (
           <div className="relative border-t border-[#18181a] p-2">
             <button
+              ref={accountBtnRef}
               type="button"
               onClick={() => setAccountOpen((v) => !v)}
               aria-haspopup="menu"
@@ -262,8 +262,9 @@ export function Sidebar({
             {accountOpen && (
               <AccountMenu
                 onClose={() => setAccountOpen(false)}
+                anchorRef={accountBtnRef}
+                placement={c && window.matchMedia('(min-width: 768px)').matches ? 'right' : 'above'}
                 subtitle={myProfileCargo ?? USER_ROLE_LABEL[profile.role]}
-                className={`absolute bottom-full left-2 mb-2 ${c ? 'md:bottom-2 md:left-full md:mb-0 md:ml-2' : ''}`}
               />
             )}
           </div>

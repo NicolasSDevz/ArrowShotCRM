@@ -33,7 +33,6 @@ const PublicAccessPage = lazyPage(() => import('./pages/PublicAccessPage'), 'Pub
 const LeadCapturePage = lazyPage(() => import('./pages/LeadCapturePage'), 'LeadCapturePage')
 const PrivacyPolicyPage = lazyPage(() => import('./pages/LegalPages'), 'PrivacyPolicyPage')
 const TermsOfServicePage = lazyPage(() => import('./pages/LegalPages'), 'TermsOfServicePage')
-const MetaTokensPage = lazyPage(() => import('./pages/MetaTokensPage'), 'MetaTokensPage')
 const UniversityPage = lazyPage(() => import('./pages/UniversityPage'), 'UniversityPage')
 const UniversityTrailPage = lazyPage(() => import('./pages/UniversityTrailPage'), 'UniversityTrailPage')
 const UniversityModulePage = lazyPage(() => import('./pages/UniversityModulePage'), 'UniversityModulePage')
@@ -158,14 +157,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/configuracoes/tokens"
-              element={
-                <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                  <MetaTokensPage />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/configuracoes/tokens" element={<Navigate to="/metricas?aba=contas" replace />} />
             <Route
               path="/configuracoes/base-vendas"
               element={

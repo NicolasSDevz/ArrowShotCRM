@@ -151,8 +151,8 @@ export function ClientsPage() {
       <JornadaMigrationBanner clients={clients} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-[28px] font-extrabold text-slate-900">Clientes</h1>
-          <p className="text-[15px] text-[#64748B]">{filtered.length} cliente(s)</p>
+          <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">Clientes</h1>
+          <p className="mt-0.5 text-sm text-slate-500">{filtered.length} cliente(s)</p>
         </div>
         <Button style={{ height: '40px' }} icon={<Plus size={14} />} onClick={() => setCreating(true)}>
           Novo cliente

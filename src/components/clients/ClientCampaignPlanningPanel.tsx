@@ -3,7 +3,8 @@ import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Save, Plus, Trash2, FileDown, KeyRound, ShieldCheck, Loader2, RefreshCw } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Save, Plus, Trash2, FileDown, KeyRound, ArrowUpRight } from 'lucide-react'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
@@ -11,12 +12,11 @@ import { updateClient } from '../../services/clientService'
 import { notifyAdminsOfAction } from '../../services/notificationService'
 import { maskPhone, maskGoogleAdsId } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
-import { ensureActPrefix, normalizeMetaAccountId } from '../../utils/metaReportData'
-import { getMetaTokenStatus, saveMetaToken, deleteMetaToken, testMetaConnection, type MetaTokenStatus } from '../../services/metaApi'
-import { tokenValidity, fmtExpiry } from '../../utils/metaTokenValidity'
+import { ensureActPrefix } from '../../utils/metaReportData'
+import { getMetaTokenStatus, type MetaTokenStatus } from '../../services/metaApi'
+import { tokenValidity } from '../../utils/metaTokenValidity'
 import { trafficServices } from '../../utils/clientServices'
 import { metaTotals, googleTotals } from '../../utils/campaignPlanningStats'
-import { MetaTokenRenewModal } from './MetaTokenRenewModal'
 import {
   EMPTY_CAMPAIGN_PLANNING,
   EMPTY_CAMPAIGN_PLANNING_ACCESS,
@@ -39,7 +39,6 @@ import {
   type GoogleBidType,
   type PaidTrafficBriefing,
 } from '../../types'
-import { showError } from '../../utils/notifyError'
 
 function toNumberOrUndefined(v: string) {
   return v === '' ? undefined : Number(v)
@@ -164,6 +163,48 @@ function mergeCampaignPlanning(saved?: CampaignPlanning): CampaignPlanning {
   }
 }
 
+/** Resumo das conexões (ID do Meta, token e ID do Google). A edição fica em
+ *  Métricas > Contas e tokens; aqui só mostra o que está ligado. */
+function ConnectionsSummary({ client, meta, google }: { client: Client; meta: boolean; google: boolean }) {
+  const [status, setStatus] = useState<MetaTokenStatus | null>(null)
+  useEffect(() => {
+    if (!meta) return
+    let alive = true
+    getMetaTokenStatus(client.id)
+      .then((s) => alive && setStatus(s))
+      .catch(() => alive && setStatus(null))
+    return () => {
+      alive = false
+    }
+  }, [client.id, meta])
+  const acc = client.campaignPlanning?.acessos
+  const metaId = acc?.metaAdsAccountId ? ensureActPrefix(acc.metaAdsAccountId) : ''
+  const googleId = acc?.googleAdsAccountId ? maskGoogleAdsId(acc.googleAdsAccountId) : ''
+  const tv = status ? tokenValidity(status) : null
+  const tokenLabel = !tv ? 'verificando' : tv.level === 'none' ? 'sem token' : tv.level === 'red' ? 'token vencido' : tv.level === 'yellow' ? `token vence em ${tv.daysLeft} dias` : 'token ok'
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+      <KeyRound size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
+      {meta && (
+        <p className="text-slate-600">
+          <span className="text-slate-400">Meta Ads: </span>
+          <span className="font-mono text-[13px]">{metaId || 'sem ID'}</span>
+          <span className="text-slate-400">, {tokenLabel}</span>
+        </p>
+      )}
+      {google && (
+        <p className="text-slate-600">
+          <span className="text-slate-400">Google Ads: </span>
+          <span className="font-mono text-[13px]">{googleId || 'sem ID'}</span>
+        </p>
+      )}
+      <Link to="/metricas?aba=contas" className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">
+        Editar ID e token em Métricas <ArrowUpRight size={14} aria-hidden="true" />
+      </Link>
+    </div>
+  )
+}
+
 export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
   const { profile } = useAuth()
   const svc = trafficServices(client)
@@ -175,100 +216,12 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
   const [form, setForm] = useState<CampaignPlanning>(mergeCampaignPlanning(client.campaignPlanning))
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
-
-  // Token de acesso Meta Ads específico deste cliente — nunca fica no
-  // Firestore/`campaignPlanning` como os demais campos de "Acessos": vive
-  // numa coleção server-only, criptografado (ver api/_lib/metaTokenStore.js).
-  // Aqui só guardamos o STATUS (configurado? por quem? quando?) — o valor em
-  // si nunca volta pro frontend depois de salvo.
-  const [tokenStatus, setTokenStatus] = useState<MetaTokenStatus | null>(null)
-  const [tokenStatusLoading, setTokenStatusLoading] = useState(true)
-  const [tokenInput, setTokenInput] = useState('')
-  const [tokenSaving, setTokenSaving] = useState(false)
-  const [tokenDeleting, setTokenDeleting] = useState(false)
-  const [renewOpen, setRenewOpen] = useState(false)
-
-  const refreshTokenStatus = () => {
-    getMetaTokenStatus(client.id)
-      .then(setTokenStatus)
-      .catch((err) => {
-        console.error(err)
-      })
-  }
-
   // Resync only on client switch — depending on the
   // sub-object identity would wipe unsaved edits on every `clients` snapshot.
   useEffect(() => {
     setForm(mergeCampaignPlanning(client.campaignPlanning))
-    setTestResult(null)
-    setTokenInput('')
-    setTokenStatusLoading(true)
-    getMetaTokenStatus(client.id)
-      .then(setTokenStatus)
-      .catch((err) => {
-        console.error(err)
-        setTokenStatus(null)
-      })
-      .finally(() => setTokenStatusLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id])
-
-  const handleTestConnection = async () => {
-    const accountId = normalizeMetaAccountId(form.acessos.metaAdsAccountId ?? '')
-    if (!accountId) {
-      setTestResult({ ok: false, message: 'Preencha o ID da conta Meta Ads antes de testar.' })
-      return
-    }
-    setTesting(true)
-    setTestResult(null)
-    try {
-      const res = await testMetaConnection(accountId, client.id)
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setTestResult({ ok: false, message: body?.error || `Erro ${res.status} ao consultar a API do Meta` })
-        return
-      }
-      setTestResult({ ok: true, message: '✅ Conexão OK — conta encontrada' })
-    } catch (err) {
-      setTestResult({ ok: false, message: err instanceof Error ? err.message : 'Falha de rede ao consultar a API do Meta' })
-    } finally {
-      setTesting(false)
-    }
-  }
-
-  const handleSaveToken = async () => {
-    if (!tokenInput.trim()) {
-      toast.error('Cole o token gerado no Explorador da API do Graph.')
-      return
-    }
-    setTokenSaving(true)
-    try {
-      await saveMetaToken(client.id, tokenInput.trim())
-      setTokenInput('')
-      setTokenStatus(await getMetaTokenStatus(client.id))
-      toast.success('Token salvo — relatórios deste cliente já usam esse token.')
-    } catch (err) {
-      showError(err, 'Erro ao salvar token')
-    } finally {
-      setTokenSaving(false)
-    }
-  }
-
-  const handleDeleteToken = async () => {
-    if (!confirm('Remover o token deste cliente? Os relatórios voltam a usar o token padrão da agência (se houver acesso).')) return
-    setTokenDeleting(true)
-    try {
-      await deleteMetaToken(client.id)
-      setTokenStatus(await getMetaTokenStatus(client.id))
-      toast.success('Token removido')
-    } catch (err) {
-      showError(err, 'Erro ao remover token')
-    } finally {
-      setTokenDeleting(false)
-    }
-  }
 
   const set = <K extends keyof CampaignPlanning>(key: K, value: CampaignPlanning[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -327,10 +280,10 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
         ...form,
         acessos: {
           ...form.acessos,
-          // Sempre grava o id da conta Meta Ads com o prefixo "act_".
-          metaAdsAccountId: ensureActPrefix(form.acessos.metaAdsAccountId) || undefined,
-          // Google Ads Customer ID: grava só dígitos (sem os hífens da máscara).
-          googleAdsAccountId: form.acessos.googleAdsAccountId?.replace(/\D/g, '') || undefined,
+          // IDs das contas são editados em Métricas > Contas e tokens: grava
+          // sempre o valor mais novo do cadastro, nunca o que estava no formulário.
+          metaAdsAccountId: client.campaignPlanning?.acessos?.metaAdsAccountId || undefined,
+          googleAdsAccountId: client.campaignPlanning?.acessos?.googleAdsAccountId || undefined,
         },
         preenchidoPor: profile.name,
         filledAt: Timestamp.now(),
@@ -480,176 +433,10 @@ export function ClientCampaignPlanningPanel({ client }: { client: Client }) {
             <Input value={form.acessos.linkDrive ?? ''} onChange={(e) => setAccess('linkDrive', e.target.value)} />
           </Field>
 
-          {svc.meta && (
-          <>
-          <div>
-            <Field label="ID da conta Meta Ads">
-              <div className="flex items-center gap-2">
-                <Input
-                  className="flex-1"
-                  value={form.acessos.metaAdsAccountId ?? ''}
-                  onChange={(e) => setAccess('metaAdsAccountId', e.target.value)}
-                  onBlur={(e) => setAccess('metaAdsAccountId', ensureActPrefix(e.target.value) || undefined)}
-                  placeholder="Ex: 27994847453538948 (o act_ é adicionado automaticamente)"
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleTestConnection}
-                  loading={testing}
-                  className="shrink-0"
-                >
-                  {testing ? 'Testando…' : 'Testar conexão'}
-                </Button>
-              </div>
-            </Field>
-            {testResult && (
-              <p
-                className={`mt-1 whitespace-pre-wrap text-xs font-medium ${
-                  testResult.ok ? 'text-emerald-600' : 'text-red-600'
-                }`}
-              >
-                {testResult.ok ? testResult.message : `❌ ${testResult.message}`}
-              </p>
-            )}
-            <p className="mt-1 text-xs text-slate-400">
-              Encontre em Meta Business Suite → Gerenciador de Anúncios → ID da conta
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 p-3">
-            <SubTitle>Token de Acesso Meta Ads</SubTitle>
-            <p className="mb-2 text-xs text-slate-400">
-              Necessário quando a conta de anúncios deste cliente fica no Business Manager DELE, fora do alcance do
-              usuário automático da Quiver. Gere um token no{' '}
-              <a
-                href="https://developers.facebook.com/tools/explorer/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-brand-600 underline"
-              >
-                Explorador da API do Graph
-              </a>{' '}
-              do Business Manager do cliente, com as permissões <code className="text-[11px]">ads_read</code>,{' '}
-              <code className="text-[11px]">read_insights</code> e <code className="text-[11px]">ads_management</code>.
-            </p>
-
-            {tokenStatusLoading ? (
-              <p className="flex items-center gap-1.5 text-xs text-slate-400">
-                <Loader2 size={12} className="animate-spin" /> Verificando status do token…
-              </p>
-            ) : tokenStatus?.hasToken ? (
-              <div className="mb-2 flex flex-col gap-1.5 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                <div className="flex items-center justify-between gap-2">
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                      tokenValidity(tokenStatus).badgeClass
-                    }`}
-                  >
-                    {tokenValidity(tokenStatus).label}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleDeleteToken}
-                    loading={tokenDeleting}
-                    className="text-red-500 hover:bg-red-50"
-                  >
-                    Remover
-                  </Button>
-                </div>
-                <span className="flex items-center gap-1.5 text-slate-500">
-                  <ShieldCheck size={12} />
-                  {tokenStatus.updatedBy ? (
-                    <>
-                      Configurado por <strong>{tokenStatus.updatedBy}</strong>
-                    </>
-                  ) : (
-                    'Configurado'
-                  )}
-                  {tokenStatus.updatedAt && (
-                    <> em {format(new Date(tokenStatus.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</>
-                  )}
-                  {tokenStatus.expiresAt && <> · expira em {fmtExpiry(tokenStatus.expiresAt)}</>}
-                </span>
-              </div>
-            ) : (
-              <p className="mb-2 flex items-center gap-1.5 text-xs text-slate-400">
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
-                  ⚪ Token não configurado
-                </span>
-                — os relatórios usam o token padrão da agência (se ele tiver acesso a esta conta).
-              </p>
-            )}
-
-            <div className="mb-2 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                icon={<RefreshCw size={13} />}
-                onClick={() => setRenewOpen(true)}
-              >
-                🔄 Renovar token (60 dias)
-              </Button>
-            </div>
-
-            <details className="text-xs">
-              <summary className="cursor-pointer text-slate-500 hover:text-slate-700">
-                Ou colar um token manualmente
-              </summary>
-              <div className="mt-2 flex items-center gap-2">
-                <Input
-                  className="flex-1"
-                  type="password"
-                  autoComplete="off"
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="Cole o token aqui — nunca é exibido novamente após salvar"
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  icon={<KeyRound size={13} />}
-                  onClick={handleSaveToken}
-                  loading={tokenSaving}
-                  className="shrink-0"
-                >
-                  {tokenStatus?.hasToken ? 'Substituir' : 'Salvar'}
-                </Button>
-              </div>
-              <p className="mt-1 text-slate-400">
-                O token é validado com a API do Meta e gravado criptografado no servidor — nunca aparece em logs nem é
-                devolvido ao navegador depois de salvo. Prefira o botão "Renovar" acima: ele gera um token de 60 dias
-                automaticamente.
-              </p>
-            </details>
-          </div>
-          </>
-          )}
-
-          {svc.google && (
-          <Field label="ID da conta Google Ads">
-            <Input
-              value={form.acessos.googleAdsAccountId ?? ''}
-              onChange={(e) => setAccess('googleAdsAccountId', maskGoogleAdsId(e.target.value))}
-              placeholder="Ex: 212-001-7011"
-            />
-            <p className="mt-1 text-xs text-slate-400">Encontre no canto superior direito do Google Ads</p>
-          </Field>
-          )}
+          <ConnectionsSummary client={client} meta={svc.meta} google={svc.google} />
         </div>
       </div>
 
-      <MetaTokenRenewModal
-        open={renewOpen}
-        onClose={() => setRenewOpen(false)}
-        clientId={client.id}
-        clientName={client.companyName}
-        onDone={refreshTokenStatus}
-      />
 
       {/* SEÇÃO 2 — PLANEJAMENTO META ADS */}
       {svc.meta && (
