@@ -15,8 +15,10 @@ export function setErrorReportUser(name: string | null) {
 }
 
 /** Ruídos que não são erro do nosso código. */
-function isNoise(message: string, stack: string): boolean {
+function isNoise(message: string, stack: string, name = ''): boolean {
   if (!message) return true
+  // Requisição cancelada (saiu da tela, conexão caiu, Firebase reconectando): não é erro.
+  if (name === 'AbortError' || /signal is aborted|operation was aborted|user aborted|aborted without reason|AbortError/i.test(message)) return true
   if (/ResizeObserver loop/i.test(message)) return true
   if (message === 'Script error.' || message === 'Script error') return true
   if (/chrome-extension:|moz-extension:|safari-extension:/i.test(stack)) return true
@@ -31,7 +33,7 @@ export function reportError(error: unknown, kind: 'tela' | 'erro' | 'promessa' =
     const err = error instanceof Error ? error : new Error(typeof error === 'string' ? error : JSON.stringify(error ?? 'erro'))
     const message = String(err.message || err.name || 'Erro sem mensagem')
     const stack = String(err.stack || '')
-    if (isNoise(message, stack)) return
+    if (isNoise(message, stack, String(err.name || ''))) return
     const key = `${message}|${window.location.pathname}`
     if (sent.has(key) || sentCount >= MAX_PER_PAGE_LOAD) return
     sent.add(key)

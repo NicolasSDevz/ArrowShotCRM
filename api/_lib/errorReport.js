@@ -50,6 +50,11 @@ export async function errorReportHandler(req, res) {
   body = body || {}
   const message = cut(body.message, 300).trim()
   if (!message) return res.status(400).json({ error: 'Sem mensagem' })
+  // Requisição cancelada no navegador (saiu da tela, conexão caiu): não é erro.
+  // Filtra aqui também porque abas abertas com a versão antiga ainda mandam.
+  if (/signal is aborted|operation was aborted|user aborted|AbortError/i.test(message)) {
+    return res.status(200).json({ ok: true, ignored: true })
+  }
 
   const path = cut(body.path, 200)
   const kind = cut(body.kind, 30) || 'erro'
