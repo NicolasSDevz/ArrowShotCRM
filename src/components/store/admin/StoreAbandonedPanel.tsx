@@ -6,6 +6,7 @@ import { EmptyState } from '../../ui/EmptyState'
 import { Badge } from '../../ui/Badge'
 import { storeAbandonedAction } from '../../../services/storeApi'
 import { formatCents, type StoreAbandoned } from '../../../types/store'
+import { WaChatButton, WaChatDrawer, type WaChatTarget } from '../../whatsapp/WaChatDrawer'
 
 /** Carrinho vira "abandonado" 15 min depois da última mexida sem pagar. */
 export const ABANDON_MS = 15 * 60_000
@@ -70,6 +71,7 @@ export function whatsappLink(a: StoreAbandoned) {
 export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAbandoned[]; compact?: boolean }) {
   const [filter, setFilter] = useState<Filter>('open')
   const [busy, setBusy] = useState<string | null>(null)
+  const [chat, setChat] = useState<WaChatTarget | null>(null)
 
   const groups = useMemo(() => {
     const now = Date.now()
@@ -107,7 +109,7 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
   const recoveredValue = groups.recovered.reduce((s, a) => s + a.amount, 0)
   const totalCarts = stuck.length + groups.recovered.length
   const emailsSent = carts.reduce((s, a) => s + (a.recoveryEmails?.filter((m) => m.ok !== false).length ?? 0), 0)
-  const byArcher = groups.recovered.filter((a) => a.recoveredVia === 'archer-email' || a.recoveredVia === 'archer-chat').length
+  const byArcher = groups.recovered.filter((a) => a.recoveredVia === 'archer-email' || a.recoveredVia === 'archer-chat' || a.recoveredVia === 'archer-whatsapp').length
 
   return (
     <div className="space-y-4">
@@ -158,7 +160,6 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
       ) : (
         <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
           {list.map((a) => {
-            const wa = whatsappLink(a)
             const mail = emailStatus(a)
             return (
               <li key={a.id} className={`grid grid-cols-1 items-center gap-x-4 gap-y-2 px-4 py-3 ${compact ? '' : 'md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_6.5rem_auto]'}`}>
@@ -177,6 +178,12 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
                     {a.recoveredAt && <Badge className="bg-emerald-50 text-emerald-700">Comprou</Badge>}
                     {a.recoveredVia === 'archer-email' && <Badge className="bg-violet-50 text-violet-700">Pelo e-mail do Archer</Badge>}
                     {a.recoveredVia === 'archer-chat' && <Badge className="bg-violet-50 text-violet-700">Conversou com o Archer</Badge>}
+                    {a.recoveredVia === 'archer-whatsapp' && <Badge className="bg-emerald-50 text-emerald-700">Pelo WhatsApp da IA</Badge>}
+                    {!a.recoveredAt && a.whatsSentAt && (
+                      <span className={`inline-flex items-center gap-1 text-xs ${a.whatsOk === false ? 'text-red-500' : 'text-emerald-500'}`} title={a.whatsError || undefined}>
+                        <MessageCircle size={12} aria-hidden="true" /> {a.whatsOk === false ? 'WhatsApp automático falhou' : 'WhatsApp automático enviado'}
+                      </span>
+                    )}
                     {!a.recoveredAt && a.orderStatus === 'pending' && <Badge className="bg-amber-50 text-amber-700">Gerou Pix e não pagou</Badge>}
                     {!a.recoveredAt && a.orderStatus === 'refused' && <Badge className="bg-red-50 text-red-700">Pagamento recusado</Badge>}
                     {a.contactedAt && !a.recoveredAt && <Badge className="bg-slate-100 text-slate-600">Chamado por {a.contactedBy}</Badge>}
@@ -194,18 +201,11 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
                 <div className="flex flex-wrap items-center justify-end gap-1.5">
                   {!a.recoveredAt && (
                     <>
-                      {wa && (
-                        <a
-                          href={wa}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={() => !a.contactedAt && run(a, 'contacted')}
-                          aria-label={`Chamar ${a.name || a.email} no WhatsApp`}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
-                        >
-                          <MessageCircle size={14} aria-hidden="true" /> WhatsApp
-                        </a>
-                      )}
+                      <WaChatButton
+                        phone={a.phone}
+                        name={a.name || a.email}
+                        onOpen={() => setChat({ phone: a.phone || '', name: a.name || a.email, context: `Carrinho de ${a.productName}, ${formatCents(a.amount)}` })}
+                      />
                       <button
                         type="button"
                         disabled={busy === a.id}
@@ -240,6 +240,7 @@ export function StoreAbandonedPanel({ carts, compact = false }: { carts: StoreAb
           })}
         </ul>
       )}
+      <WaChatDrawer target={chat} onClose={() => setChat(null)} />
     </div>
   )
 }

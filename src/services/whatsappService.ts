@@ -3,6 +3,7 @@ import { auth, db } from '../firebase/config'
 import {
   WA_DEFAULT_SETTINGS,
   type WaConversation,
+  type WaSdr,
   type WaMessage,
   type WaSettings,
   type WaStatus,
@@ -56,6 +57,7 @@ export function listenWaSettings(cb: (s: WaSettings) => void): Unsubscribe {
         ...d,
         followUp: { ...WA_DEFAULT_SETTINGS.followUp, ...(d.followUp || {}) },
         cart: { ...WA_DEFAULT_SETTINGS.cart, ...(d.cart || {}) },
+        sdr: { ...WA_DEFAULT_SETTINGS.sdr, ...(d.sdr || {}) },
       })
     },
     () => cb(WA_DEFAULT_SETTINGS)
@@ -84,3 +86,5 @@ export const updateWaConversation = (
 ) => api<{ ok: true }>('conversation', { method: 'POST', body: { waId, ...patch } })
 
 export const replyWithAi = (waId: string) => api<{ replied?: boolean; skipped?: string; handoff?: boolean }>('reply-ai', { method: 'POST', body: { waId } })
+
+export const analyzeWaConversation = (waId: string) => api<{ sdr: WaSdr }>('sdr-analyze', { method: 'POST', body: { waId } })

@@ -14,6 +14,7 @@
 //   POST send          { to, text } ou { to, template: { name, lang, params } }
 //   POST conversation  { waId, aiMode?, followUpStopped?, read?, leadId?, name? }
 //   POST reply-ai      { waId } faz a IA responder agora (botão "Responder com IA")
+//   POST sdr-analyze   { waId } refaz a análise do SDR (etapa, temperatura, perfil) sem mandar nada
 
 import { requireInternalUser, AuthError } from '../_lib/auth.js'
 import { rateLimit, publicOrigin } from '../_lib/store/core.js'
@@ -24,6 +25,7 @@ import {
   signatureOk,
   handleWebhook,
   maybeAutoReply,
+  analyzeConversation,
   runFollowUps,
   runCartRecovery,
   waStatus,
@@ -156,6 +158,11 @@ const ADMIN = {
     if (!isWaId(b.waId)) throw new WaError(400, 'Conversa inválida.')
     await updateConversation(b.waId, { aiMode: 'auto' })
     return maybeAutoReply(b.waId, publicOrigin(req), { waitMs: 0 })
+  },
+  'POST sdr-analyze': async (req) => {
+    const b = await readJson(req)
+    if (!isWaId(b.waId)) throw new WaError(400, 'Conversa inválida.')
+    return analyzeConversation(b.waId, publicOrigin(req))
   },
 }
 

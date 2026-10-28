@@ -2,6 +2,23 @@
 
 export type WaAiMode = 'auto' | 'off'
 
+/** Etapas do SDR (a IA que qualifica e agenda). Ver leadSystemPrompt em api/_lib/whatsapp.js. */
+export type WaSdrStage = 'abertura' | 'descoberta' | 'qualificacao' | 'agendamento' | 'agendado' | 'nutricao' | 'desqualificado'
+export type WaSdrTemperature = 'quente' | 'morno' | 'frio'
+export type WaSdrField = 'nome' | 'empresa' | 'cidade' | 'servico' | 'tamanho' | 'anuncia' | 'investimento' | 'objetivo' | 'decisor' | 'prazo'
+
+export interface WaSdr {
+  stage: WaSdrStage
+  temperature: WaSdrTemperature
+  /** 0 a 100: chance de virar cliente bom. */
+  score: number
+  profile: Partial<Record<WaSdrField, string>>
+  summary: string
+  nextStep: string
+  meeting: { agreed: boolean; when: string }
+  updatedAt: string
+}
+
 export interface WaConversation {
   id: string
   waId: string
@@ -26,6 +43,8 @@ export interface WaConversation {
   lastDirection: 'in' | 'out' | null
   /** Última mensagem do contato: abre a janela de 24h de texto livre. */
   lastInboundAt: string | null
+  /** Análise do SDR, atualizada a cada resposta da IA. */
+  sdr?: WaSdr | null
 }
 
 export interface WaMessage {
@@ -67,6 +86,18 @@ export interface WaSettings {
   autoCreateLead: boolean
   followUp: { enabled: boolean; businessHoursOnly: boolean; steps: WaFollowUpStep[] }
   cart: { enabled: boolean; afterMinutes: number; templateName: string; templateLang: string; params: WaCartParam[] }
+  sdr: WaSdrSettings
+}
+
+export interface WaSdrSettings {
+  /** Nome que a IA usa ao se apresentar (vazio = não se apresenta por nome). */
+  name: string
+  /** Com quem é a reunião. */
+  meetingWith: string
+  meetingLength: string
+  /** Link da agenda (Google Agenda, Calendly...). Vazio = a IA propõe horários. */
+  meetingLink: string
+  meetingHours: string
 }
 
 export const WA_DEFAULT_SETTINGS: WaSettings = {
@@ -83,6 +114,7 @@ export const WA_DEFAULT_SETTINGS: WaSettings = {
     ],
   },
   cart: { enabled: false, afterMinutes: 40, templateName: '', templateLang: 'pt_BR', params: ['nome', 'produto', 'link'] },
+  sdr: { name: '', meetingWith: 'Bruno', meetingLength: '30 minutos', meetingLink: '', meetingHours: 'segunda a sexta, das 9h às 18h' },
 }
 
 export const WA_CART_PARAM_LABEL: Record<WaCartParam, string> = {

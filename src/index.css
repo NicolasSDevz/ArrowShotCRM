@@ -763,3 +763,11 @@ body {
   .hero-art .hero-arrow, .hero-art .hero-trails, .hero-art .hero-ping { animation: none; }
   .hero-art .hero-ping { opacity: 0; }
 }
+
+/* Fundo das conversas do WhatsApp: pontinhos discretos, como o papel de parede do app. */
+.wa-wall {
+  background-color: var(--dk-page, #0d0d0e);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px), radial-gradient(rgba(76, 195, 138, 0.04) 1px, transparent 1px);
+  background-size: 22px 22px, 22px 22px;
+  background-position: 0 0, 11px 11px;
+}

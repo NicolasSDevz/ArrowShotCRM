@@ -10,6 +10,7 @@ import { EmptyState } from '../../ui/EmptyState'
 import { storeAccessLink, storeCancelOrder, storeDeleteOrder, storeConfirmOrder, storeEmitInvoice, storeReconcileOrders, storeRefundOrder, storeDenyRefund, storeSyncInvoices } from '../../../services/storeApi'
 import { askConfirm } from '../../../utils/confirmDialog'
 import { DateRangeFilter, inRange, resolveRange, type DateRangeValue } from './DateRangeFilter'
+import { WaChatButton, WaChatDrawer, type WaChatTarget } from '../../whatsapp/WaChatDrawer'
 import { formatCents, STORE_METHOD_LABEL, STORE_ORDER_STATUS_LABEL, type StoreOrder, type StoreOrderStatus, type StoreProduct } from '../../../types/store'
 
 const STATUS_CLS: Record<StoreOrderStatus, string> = {
@@ -292,6 +293,8 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
   const [period, setPeriod] = useState<DateRangeValue>({ preset: '30d', from: '', to: '' })
   const [view, setView] = useState<'orders' | 'products'>('orders')
   const [openId, setOpenId] = useState<string | null>(null)
+  const [chat, setChat] = useState<WaChatTarget | null>(null)
+  const chatFor = (o: StoreOrder) => setChat({ phone: o.buyer.phone || '', name: o.buyer.name, context: `${STORE_ORDER_STATUS_LABEL[o.status]}: ${o.productName}, ${formatCents(o.amount)}` })
   const { busy: refunding, confirmPayment, cancelOrder, refund, denyRefund, copyAccess, deleteOrder, canDelete } = useOrderActions()
   useReconcilePending(orders)
   const [emitting, setEmitting] = useState<string | null>(null)
@@ -456,6 +459,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                   </div>
                   <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                     <span className="mr-1 text-xs text-slate-400">{new Date(o.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    <WaChatButton phone={o.buyer.phone} name={o.buyer.name} onOpen={() => chatFor(o)} />
                     {needsPix && (
                       <Button size="sm" icon={<CheckCircle2 size={14} />} loading={refunding === o.id} onClick={() => confirmPayment(o)} aria-label={`Confirmar pagamento de ${o.buyer.name}, ${formatCents(o.amount)}`}>
                         Confirmar
@@ -479,7 +483,14 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                       <dt className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Comprador</dt>
                       <dd className="text-slate-700">{o.buyer.name}</dd>
                       <dd className="text-slate-500">{o.buyer.email}</dd>
-                      {o.buyer.phone && <dd className="text-slate-500">{o.buyer.phone}</dd>}
+                      {o.buyer.phone && (
+                        <dd className="flex items-center gap-2 text-slate-500">
+                          {o.buyer.phone}
+                          <button type="button" onClick={() => chatFor(o)} className="text-xs font-semibold text-emerald-500 hover:underline" aria-label={`Abrir o WhatsApp de ${o.buyer.name}`}>
+                            Abrir conversa
+                          </button>
+                        </dd>
+                      )}
                       {o.buyer.cpf && <dd className="text-slate-500">CPF {o.buyer.cpf}</dd>}
                       <dd className="text-xs text-slate-400">Pedido {o.id.replace('ord_', '')}</dd>
                     </dl>
@@ -556,6 +567,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
           })}
         </ul>
       )}
+      <WaChatDrawer target={chat} onClose={() => setChat(null)} />
     </div>
   )
 }

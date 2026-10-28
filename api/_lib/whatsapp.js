@@ -191,6 +191,14 @@ export const DEFAULT_SETTINGS = {
       { afterHours: 72, text: '', templateName: '', templateLang: 'pt_BR' },
     ],
   },
+  /** Jeito do SDR (a IA que qualifica e agenda). */
+  sdr: {
+    name: '',
+    meetingWith: 'Bruno',
+    meetingLength: '30 minutos',
+    meetingLink: '',
+    meetingHours: 'segunda a sexta, das 9h às 18h',
+  },
   cart: {
     enabled: false,
     afterMinutes: 40,
@@ -208,6 +216,7 @@ export async function getWaSettings() {
     ...d,
     followUp: { ...DEFAULT_SETTINGS.followUp, ...(d.followUp || {}) },
     cart: { ...DEFAULT_SETTINGS.cart, ...(d.cart || {}) },
+    sdr: { ...DEFAULT_SETTINGS.sdr, ...(d.sdr || {}) },
   }
 }
 
@@ -603,7 +612,7 @@ async function notifyTeam(conv, message, { bell = true } = {}) {
       }).catch(() => {})
     }
   }
-  await sendPushToUsers(ids, { title: `WhatsApp: ${who}`, body: message, url: `/whatsapp?c=${conv.waId}`, tag: `wa-${conv.waId}` }).catch(() => {})
+  await sendPushToUsers(ids, { title: `WhatsApp: ${who}`, body: message, url: `/leads?aba=conversas&c=${conv.waId}`, tag: `wa-${conv.waId}` }).catch(() => {})
 }
 
 /* ------------------------------- IA ------------------------------- */
@@ -616,24 +625,94 @@ function anthropic() {
 }
 
 const WA_STYLE = `Estilo de WhatsApp:
-- Português do Brasil, tom humano, simpático e direto, como uma pessoa da equipe digitando no celular.
-- Mensagens curtas: 1 a 3 frases. Uma pergunta por vez.
-- Sem markdown (sem títulos, listas longas ou tabelas). *Negrito* do WhatsApp só se ajudar muito. No máximo 1 emoji, e só se combinar.
-- Nunca diga que é uma IA, robô ou assistente virtual, a não ser que perguntem diretamente; aí seja honesto e diga que é o assistente da equipe e que uma pessoa pode assumir.
+- Português do Brasil, tom humano, simpático e direto, como uma pessoa da equipe digitando no celular. Trate por "você".
+- Mensagens curtas. Pode quebrar a resposta em até 3 balões (como gente faz no WhatsApp), cada um com 1 ou 2 frases. Uma pergunta por vez, sempre no último balão.
+- Sem markdown (sem títulos, listas longas ou tabelas). *Negrito* do WhatsApp só se ajudar muito. No máximo 1 emoji na conversa toda, e só se combinar.
+- Use o primeiro nome da pessoa de vez em quando, não em toda mensagem.
+- Nunca diga que é uma IA, robô ou assistente virtual, a não ser que perguntem diretamente; aí seja honesto, diga que é o assistente da equipe e que uma pessoa pode assumir.
 - Nunca invente preço, prazo, garantia, resultado ou condição que não esteja nas informações abaixo.
 - Áudios chegam transcritos como "[áudio] ...". Imagens e documentos você não vê: se for importante, peça para descrever em texto.`
 
 const HANDOFF_RULES = `Passe para um humano (handoff = true) quando:
 - a pessoa pedir para falar com alguém, com o Bruno ou com um atendente;
-- for reclamação, cobrança, cancelamento ou problema com serviço já contratado;
+- for reclamação, cobrança, cancelamento ou problema com serviço já contratado (cliente atual, não lead);
 - pedirem algo que você não sabe responder com as informações abaixo;
-- a pessoa estiver pronta para fechar ou quiser negociar valores.
-Ao passar, escreva uma resposta curta avisando que já vai chamar alguém da equipe.`
+- a pessoa quiser negociar valores ou fechar agora;
+- a reunião ficou combinada com dia e horário (a equipe confirma na agenda).
+Ao passar, escreva uma resposta curta avisando que já vai chamar alguém da equipe (ou que a equipe confirma o horário).`
 
-function leadSystemPrompt(baseVendasText, settings) {
-  return `Você atende o WhatsApp da Arrow Shot, agência de marketing digital (tráfego pago no Meta e no Google, social media e landing pages) especializada em empresas de limpeza e facilities no Brasil.
+const SDR_STAGES = ['abertura', 'descoberta', 'qualificacao', 'agendamento', 'agendado', 'nutricao', 'desqualificado']
+const SDR_FIELDS = ['nome', 'empresa', 'cidade', 'servico', 'tamanho', 'anuncia', 'investimento', 'objetivo', 'decisor', 'prazo']
 
-Seu objetivo: responder rápido, entender o negócio da pessoa (tipo de limpeza, cidade, se já anuncia, quanto quer investir) e levar para uma reunião com o Bruno (sócio). Qualifique com naturalidade, sem parecer formulário.
+function spNowText() {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: SP_TZ, weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date())
+}
+
+/** O que o SDR já sabe dessa conversa (pra não perguntar de novo). */
+function sdrStateBlock(sdr) {
+  if (!sdr) return 'Nada ainda. É o começo da conversa.'
+  const p = sdr.profile || {}
+  const known = SDR_FIELDS.filter((k) => p[k]).map((k) => `- ${k}: ${p[k]}`)
+  return [
+    `Etapa atual: ${sdr.stage || 'abertura'}`,
+    `Temperatura: ${sdr.temperature || '?'} (nota ${sdr.score ?? '?'})`,
+    known.length ? `Já sabemos:\n${known.join('\n')}` : 'Ainda não sabemos nada do negócio.',
+    sdr.nextStep ? `Próximo passo combinado: ${sdr.nextStep}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+const SDR_JSON = `Responda APENAS com JSON válido, neste formato:
+{
+  "messages": ["balão 1", "balão 2"],
+  "handoff": false,
+  "handoff_reason": "",
+  "stage": "abertura | descoberta | qualificacao | agendamento | agendado | nutricao | desqualificado",
+  "temperature": "quente | morno | frio",
+  "score": 0,
+  "profile": {"nome": "", "empresa": "", "cidade": "", "servico": "", "tamanho": "", "anuncia": "", "investimento": "", "objetivo": "", "decisor": "", "prazo": ""},
+  "summary": "1 ou 2 frases sobre quem é o lead e o que ele quer",
+  "next_step": "o que acontece agora (ex.: esperar ele mandar a cidade; reunião quinta 15h)",
+  "meeting": {"agreed": false, "when": ""}
+}
+- "messages": 1 a 3 balões curtos. Vazio só se não houver nada a dizer.
+- "profile": preencha só o que a pessoa disse (ou o que já sabíamos). Não invente. Deixe "" o que não sabe.
+- "score": 0 a 100 = chance de virar cliente bom (perfil + dor + verba + decisor + urgência).
+- "meeting.agreed": true só quando a pessoa topou um dia e horário (ou disse que já marcou pelo link). "when" = o dia e horário em texto.`
+
+function leadSystemPrompt(baseVendasText, settings, conv) {
+  const sdr = settings.sdr || {}
+  const who = sdr.name ? `Você se chama ${sdr.name} e é` : 'Você é'
+  const meetWith = sdr.meetingWith || 'Bruno'
+  const meeting = sdr.meetingLink
+    ? `Para agendar, mande o link da agenda: ${sdr.meetingLink} (a pessoa escolhe o horário). Se ela preferir, combine dia e horário por aqui mesmo.`
+    : `Não há link de agenda: ofereça 2 opções de horário concretas (dentro de ${sdr.meetingHours || 'horário comercial'}), a partir de amanhã, e deixe a pessoa escolher. Quando ela topar, marque meeting.agreed = true.`
+  return `${who} SDR (pré-vendas) da Arrow Shot no WhatsApp. A Arrow Shot é uma agência de marketing digital (tráfego pago no Meta e no Google, social media e landing pages) especializada em empresas de limpeza e facilities no Brasil.
+
+# Sua missão
+Transformar quem chama em uma reunião de diagnóstico (${sdr.meetingLength || '30 minutos'}, online) com o ${meetWith}, e só com quem tem perfil. Você não vende o serviço no WhatsApp: você desperta interesse, qualifica e agenda. Rápido, sem parecer formulário e sem empurrar.
+
+# Como você conduz (etapas)
+1. abertura: cumprimente, agradeça o contato e faça UMA pergunta aberta sobre o negócio da pessoa ("me conta um pouco da sua empresa: vocês fazem limpeza de quê?"). Se veio de anúncio ou formulário, use o que o CRM já sabe.
+2. descoberta: entenda a dor. Perguntas boas, uma por vez: que tipo de limpeza (residencial, pós-obra, empresarial, condomínio, estofados...), cidade/região que atende, como chegam os clientes hoje, se já anuncia (onde e se funcionou), quantos clientes novos quer por mês. Reaja ao que a pessoa conta (mostre que entendeu) antes da próxima pergunta.
+3. qualificacao: confirme o que falta do perfil, sem interrogatório: tamanho (equipe ou faturamento aproximado), verba para anúncios por mês (pergunte com faixa: "vocês pensam em investir mais perto de 1 mil, 3 mil ou acima de 5 mil por mês em anúncio?"), quem decide e para quando quer começar.
+4. agendamento: quando já tem dor + perfil razoável (não precisa de tudo), proponha a reunião mostrando o ganho para a pessoa ("na reunião o ${meetWith} olha a sua região e mostra quanto custa trazer cliente aí"). ${meeting}
+5. agendado: confirme dia e horário, diga que a equipe confirma e que ela recebe o lembrete. Não faça mais perguntas de qualificação.
+- nutricao: tem perfil mas não é o momento (sem verba agora, "só pesquisando", "depois do fim do ano"). Seja gentil, deixe a porta aberta, ofereça falar mais pra frente.
+- desqualificado: não é empresa de limpeza ou facilities, quer emprego, é fornecedor vendendo algo, ou não tem empresa. Agradeça com educação e encerre (sem reunião).
+
+# Regras de SDR
+- Pule etapas quando a pessoa já deu a informação. Nunca pergunte algo que já está em "O que já sabemos".
+- Se a pessoa chegar pedindo preço: diga que depende da região e do objetivo, dê faixa SÓ se estiver na Base de Vendas, e puxe para a reunião ("pra te passar um número certo, o ${meetWith} precisa ver sua região; posso marcar ${sdr.meetingLength || '30 minutos'}?").
+- Objeções comuns:
+  * "tá caro" / "não tenho verba": pergunte quanto vale um cliente novo para a empresa; lembre que a reunião é gratuita e sem compromisso.
+  * "já tenho agência" / "já faço sozinho": pergunte como está o resultado e quanto paga por cliente; ofereça um diagnóstico para comparar.
+  * "manda uma proposta por aqui": explique que a proposta é montada para a região dela e que na reunião o ${meetWith} mostra tudo; ofereça horário.
+  * "vou pensar": pergunte o que falta para decidir; se for momento, vá para nutricao.
+- Se a pessoa sumir e voltar, retome de onde parou, sem recomeçar.
+- Se for cliente atual da Arrow Shot (pelo CRM ou pelo que ela diz), não qualifique: entenda o pedido e passe para a equipe.
+- Agora é ${spNowText()} (horário de Brasília). Nunca proponha horário no passado nem em domingo.
 
 ${WA_STYLE}
 
@@ -641,13 +720,16 @@ ${HANDOFF_RULES}
 
 # Base de Vendas da Arrow Shot (use como fonte da verdade)
 ${baseVendasText}
-${settings.aiInstructions ? `\n# Instruções extras da equipe\n${String(settings.aiInstructions).slice(0, 4000)}` : ''}
+${settings.aiInstructions ? `\n# Instruções extras da equipe (têm prioridade)\n${String(settings.aiInstructions).slice(0, 4000)}` : ''}
 
-Responda APENAS com JSON: {"reply": "texto da mensagem", "handoff": false, "handoff_reason": ""}`
+# O que já sabemos desta conversa
+${sdrStateBlock(conv?.sdr)}
+
+${SDR_JSON}`
 }
 
 function cartSystemPrompt(product, cart, link) {
-  return `Você é o Archer e fala pelo WhatsApp com quem começou a comprar um produto da Loja e não terminou. Ajude a pessoa a tirar dúvidas e concluir a compra com segurança, sem pressão.
+  return `Você é o Archer e fala pelo WhatsApp com quem começou a comprar um produto da Loja e não terminou. Ajude a pessoa a tirar dúvidas e concluir a compra com segurança, sem pressão. Descubra o que travou (dúvida sobre o conteúdo, preço, forma de pagamento, confiança) e resolva isso.
 
 ${WA_STYLE}
 - Nunca ofereça desconto ou cupom que não esteja abaixo. Nunca peça dados de cartão, senha ou CPF pelo WhatsApp.
@@ -662,7 +744,7 @@ ${productBrief(product)}
 Nome: ${cart?.name || '(sem nome)'}
 Situação: ${cart ? situationOf(cart) : 'desconhecida'}
 
-Responda APENAS com JSON: {"reply": "texto da mensagem", "handoff": false, "handoff_reason": ""}`
+Responda APENAS com JSON: {"messages": ["balão 1"], "handoff": false, "handoff_reason": "", "stage": "agendamento", "temperature": "quente | morno | frio", "score": 0, "profile": {"nome": ""}, "summary": "o que travou a compra", "next_step": "", "meeting": {"agreed": false, "when": ""}}`
 }
 
 /** Histórico em turnos alternados user/assistant pra IA. */
@@ -680,14 +762,73 @@ function toTurns(msgs) {
   return turns
 }
 
+const clip = (v, n = 160) => String(v ?? '').trim().slice(0, n)
+
+/** Lê o JSON da IA. Aceita o formato antigo ({reply}) e o do SDR ({messages, ...}). */
 function parseAiJson(text) {
   try {
     const j = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
-    return { reply: String(j.reply || '').trim(), handoff: j.handoff === true, reason: String(j.handoff_reason || '').trim() }
+    let messages = Array.isArray(j.messages) ? j.messages : j.reply ? [j.reply] : []
+    messages = messages.map((m) => String(m || '').trim()).filter(Boolean).slice(0, 3)
+    let sdr = null
+    if (j.stage || j.profile || j.summary) {
+      const profile = {}
+      for (const k of SDR_FIELDS) if (j.profile?.[k]) profile[k] = clip(j.profile[k])
+      sdr = {
+        stage: SDR_STAGES.includes(j.stage) ? j.stage : null,
+        temperature: ['quente', 'morno', 'frio'].includes(j.temperature) ? j.temperature : null,
+        score: j.score != null && Number.isFinite(Number(j.score)) ? Math.max(0, Math.min(100, Math.round(Number(j.score)))) : null,
+        profile,
+        summary: clip(j.summary, 400),
+        nextStep: clip(j.next_step, 200),
+        meeting: { agreed: j.meeting?.agreed === true, when: clip(j.meeting?.when, 120) },
+      }
+    }
+    return { messages, reply: messages.join('\n\n'), handoff: j.handoff === true, reason: clip(j.handoff_reason, 200), sdr }
   } catch {
     const clean = String(text || '').trim()
-    return { reply: clean.startsWith('{') ? '' : clean, handoff: false, reason: '' }
+    const reply = clean.startsWith('{') ? '' : clean
+    return { messages: reply ? [reply] : [], reply, handoff: false, reason: '', sdr: null }
   }
+}
+
+/** Junta a análise nova com a que já tinha (campo vazio não apaga o que já sabíamos). */
+function mergeSdr(prev, next) {
+  if (!next) return null
+  const p = prev || {}
+  return {
+    stage: next.stage || p.stage || 'abertura',
+    temperature: next.temperature || p.temperature || 'morno',
+    score: next.score ?? p.score ?? 0,
+    profile: { ...(p.profile || {}), ...next.profile },
+    summary: next.summary || p.summary || '',
+    nextStep: next.nextStep || p.nextStep || '',
+    meeting: next.meeting?.agreed ? next.meeting : p.meeting || { agreed: false, when: '' },
+    updatedAt: nowIso(),
+  }
+}
+
+/** Grava a análise do SDR na conversa e completa o lead com o que a pessoa contou. */
+async function saveSdr(conv, analysis) {
+  const sdr = mergeSdr(conv.sdr, analysis)
+  if (!sdr) return null
+  await updateDoc(convPath(conv.waId), { sdr }).catch(() => {})
+  if (conv.leadId && conv.kind !== 'cart') {
+    const snap = await getDoc(`leads/${conv.leadId}`).catch(() => null)
+    if (snap?.exists) {
+      const lead = snap.data()
+      const patch = {
+        whatsSdr: { stage: sdr.stage, temperature: sdr.temperature, score: sdr.score, summary: sdr.summary, nextStep: sdr.nextStep, meeting: sdr.meeting, updatedAt: sdr.updatedAt },
+      }
+      const p = sdr.profile
+      if (p.empresa && !lead.companyName) patch.companyName = p.empresa
+      if (p.cidade && !lead.cityRegion) patch.cityRegion = p.cidade
+      if (p.nome && (!lead.contactName || digits(lead.contactName).length >= 8)) patch.contactName = p.nome
+      if (sdr.nextStep) patch.nextAction = sdr.nextStep
+      await updateDoc(`leads/${conv.leadId}`, patch).catch(() => {})
+    }
+  }
+  return sdr
 }
 
 /** Contexto (prompt + extra) da conversa: lead da agência ou carrinho da Loja. */
@@ -701,7 +842,7 @@ async function conversationPrompt(conv, settings, origin) {
     }
   }
   const base = formatBaseVendasForPrompt(await getBaseVendas())
-  let prompt = leadSystemPrompt(base, settings)
+  let prompt = leadSystemPrompt(base, settings, conv)
   if (conv.leadId) {
     const lead = await getDoc(`leads/${conv.leadId}`).catch(() => null)
     if (lead?.exists) prompt += `\n\n# O que o CRM sabe desse contato\n${leadContextBlock(lead.data())}`
@@ -709,13 +850,17 @@ async function conversationPrompt(conv, settings, origin) {
   return prompt
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+/** Pausa entre balões: parece alguém digitando (mais texto, mais tempo). */
+const typingMs = (text) => Math.min(2500, 700 + String(text).length * 18)
+
 /**
  * Responde com a IA se estiver ligada pra essa conversa. Espera uns segundos
  * antes: quem manda 3 mensagens seguidas recebe uma resposta só.
  */
 export async function maybeAutoReply(waId, origin, { waitMs = 6000 } = {}) {
   const settings = await getWaSettings()
-  if (settings.aiEnabled && waitMs) await new Promise((r) => setTimeout(r, waitMs))
+  if (settings.aiEnabled && waitMs) await sleep(waitMs)
 
   const snap = await getDoc(convPath(waId))
   if (!snap.exists) return { skipped: 'sem conversa' }
@@ -726,7 +871,7 @@ export async function maybeAutoReply(waId, origin, { waitMs = 6000 } = {}) {
   }
   if (conv.lastDirection !== 'in') return { skipped: 'já respondida' }
 
-  const recent = (await queryRecent(convPath(waId), 'messages', 'at', 24)).reverse()
+  const recent = (await queryRecent(convPath(waId), 'messages', 'at', 30)).reverse()
   const lastIn = [...recent].reverse().find((m) => m.direction === 'in')
   if (!lastIn) return { skipped: 'sem mensagem' }
   // Outra chamada do webhook mais nova cuida da resposta.
@@ -746,23 +891,71 @@ export async function maybeAutoReply(waId, origin, { waitMs = 6000 } = {}) {
   const system = await conversationPrompt(conv, settings, origin)
   const res = await ai.messages.create({
     model: MODEL,
-    max_tokens: 600,
+    max_tokens: 900,
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages: turns,
   })
   const raw = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('')
-  const { reply, handoff, reason } = parseAiJson(raw)
+  const { messages, handoff, reason, sdr: analysis } = parseAiJson(raw)
 
-  // Antes de mandar, confere se ninguém da equipe assumiu enquanto a IA pensava.
-  const now = await getDoc(convPath(waId))
-  if (now.exists && (now.data().aiMode === 'off' || now.data().lastDirection === 'out')) return { skipped: 'humano assumiu' }
-
-  if (reply) await sendMessage({ to: waId, text: reply, by: 'ai', byName: 'IA' })
-  if (handoff) {
-    await updateDoc(convPath(waId), { aiMode: 'off', handoffReason: reason || 'A IA pediu ajuda', handoffAt: nowIso() })
-    await notifyTeam(conv, `${conv.name || conv.phone} precisa de atendimento humano no WhatsApp. Motivo: ${reason || 'a IA pediu ajuda'}.`)
+  // Equipe assumiu, ou o contato mandou mensagem nova (aí a próxima chamada responde tudo junto).
+  const stillMine = async () => {
+    const now = await getDoc(convPath(waId))
+    if (!now.exists) return false
+    const d = now.data()
+    return d.aiMode !== 'off' && d.lastInboundAt === conv.lastInboundAt
   }
-  return { replied: Boolean(reply), handoff }
+  if (!(await stillMine())) return { skipped: 'humano assumiu' }
+
+  const byName = settings.sdr?.name ? `${settings.sdr.name} (IA)` : 'IA'
+  let sent = 0
+  for (let i = 0; i < messages.length; i++) {
+    if (i > 0) {
+      await sleep(typingMs(messages[i]))
+      if (!(await stillMine())) break
+    }
+    await sendMessage({ to: waId, text: messages[i], by: 'ai', byName })
+    sent++
+  }
+
+  const prev = conv.sdr || null
+  const sdr = await saveSdr(conv, analysis)
+  const who = conv.name || conv.phone
+  let handed = handoff
+  let why = reason
+  if (sdr?.meeting?.agreed && !prev?.meeting?.agreed) {
+    handed = true
+    why = why || `Reunião combinada: ${sdr.meeting.when || 'ver conversa'}. Confirmar na agenda.`
+  }
+  if (handed) {
+    await updateDoc(convPath(waId), { aiMode: 'off', handoffReason: why || 'A IA pediu ajuda', handoffAt: nowIso() })
+    await notifyTeam(conv, `${who} precisa de atendimento humano no WhatsApp. Motivo: ${why || 'a IA pediu ajuda'}.`)
+  } else if (sdr?.temperature === 'quente' && prev?.temperature !== 'quente') {
+    await notifyTeam(conv, `${who} está quente no WhatsApp, nota ${sdr.score}. ${sdr.summary}`)
+  }
+  return { replied: sent > 0, handoff: handed, stage: sdr?.stage || null }
+}
+
+/** Refaz a análise do SDR lendo a conversa inteira, sem mandar nada (botão "Atualizar análise"). */
+export async function analyzeConversation(waId, origin) {
+  const ai = anthropic()
+  if (!ai) throw new WaError(400, 'A chave da IA não está configurada.')
+  const snap = await getDoc(convPath(waId))
+  if (!snap.exists) throw new WaError(404, 'Conversa não encontrada.')
+  const conv = { waId, ...snap.data() }
+  if (!(await rateLimit('wa-ai-day', AI_DAILY_LIMIT, 24 * 3600_000))) throw new WaError(429, 'A IA chegou no limite do dia.')
+  const settings = await getWaSettings()
+  const recent = (await queryRecent(convPath(waId), 'messages', 'at', 60)).reverse()
+  const turns = toTurns(recent)
+  if (!turns.length) throw new WaError(400, 'A conversa ainda não tem mensagem do contato.')
+  if (turns[turns.length - 1].role === 'user') turns.push({ role: 'assistant', content: '(continua)' })
+  turns.push({ role: 'user', content: '[Instrução interna, não é o contato falando] Não escreva mensagem nenhuma agora. Só analise a conversa inteira e devolva o JSON com "messages": [] e o restante preenchido.' })
+  const system = await conversationPrompt({ ...conv, sdr: null }, settings, origin)
+  const res = await ai.messages.create({ model: MODEL, max_tokens: 700, system, messages: turns })
+  const { sdr: analysis } = parseAiJson(res.content.filter((b) => b.type === 'text').map((b) => b.text).join(''))
+  if (!analysis) throw new WaError(502, 'A IA não devolveu a análise. Tente de novo.')
+  // Análise do zero: o perfil novo substitui o antigo (só a reunião combinada fica).
+  return { sdr: await saveSdr({ ...conv, sdr: { meeting: conv.sdr?.meeting } }, analysis) }
 }
 
 /* ------------------------------ follow-up ------------------------------ */

@@ -6,7 +6,7 @@ const baseInput =
 
 const fixedHeightInput = `${baseInput} h-[38px]`
 
-export function Field({ label, children, required }: { label: string; children: ReactNode; required?: boolean }) {
+export function Field({ label, children, required, hint }: { label: string; children: ReactNode; required?: boolean; hint?: string }) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-slate-500">
@@ -14,6 +14,7 @@ export function Field({ label, children, required }: { label: string; children: 
         {required && <span className="text-red-400"> *</span>}
       </span>
       {children}
+      {hint && <span className="mt-1 block text-[11px] text-slate-400">{hint}</span>}
     </label>
   )
 }

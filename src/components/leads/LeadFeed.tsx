@@ -2,11 +2,13 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
-import { AlertTriangle, Bot, ClipboardList, History, Mail, MessageCircle, MoreHorizontal, NotebookPen, Phone, Video } from 'lucide-react'
+import { AlertTriangle, ClipboardList, History, Mail, MessageCircle, MoreHorizontal, NotebookPen, Phone, Video } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Select } from '../ui/Field'
 import { FormAnswersList } from './FormAnswerValue'
-import { AUTO, Composer, STATUS_LABEL, StatusTicks, Switch, TemplateComposer, authorLabel, dayLabel, hhmm } from '../whatsapp/WhatsappInbox'
+import { Composer, MessageBubble, Switch, TemplateComposer, authorLabel, dayLabel, hhmm } from '../whatsapp/WaParts'
+import { SdrChip } from '../whatsapp/SdrChip'
+import { SDR_STAGE } from '../whatsapp/waSdr'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { useActivities } from '../../hooks/useActivities'
@@ -16,7 +18,7 @@ import { addLeadContact } from '../../services/leadService'
 import { listenMessages, updateWaConversation } from '../../services/whatsappService'
 import { LEAD_CONTACT_OUTCOME_LABEL, LEAD_CONTACT_TYPE_LABEL, type Lead, type LeadContactEntry, type LeadContactOutcome, type LeadContactType } from '../../types'
 import type { Activity } from '../../types'
-import type { WaConversation, WaMessage } from '../../types/whatsapp'
+import type { WaMessage } from '../../types/whatsapp'
 
 /** Linha do tempo única do lead (estilo Kommo): mensagens do WhatsApp,
  *  contatos registrados, formulário respondido e mudanças no CRM, em ordem,
@@ -127,40 +129,6 @@ function NoteComposer({ lead }: { lead: Lead }) {
 }
 
 /* ------------------------------ itens ------------------------------ */
-
-function MessageBubble({ m, conv, sameAuthor }: { m: WaMessage; conv: WaConversation; sameAuthor: boolean }) {
-  const mine = m.direction === 'out'
-  const author = authorLabel(m, conv)
-  const auto = AUTO.has(m.by)
-  return (
-    <li className={`flex flex-col ${mine ? 'items-end' : 'items-start'} ${sameAuthor ? 'mt-1' : 'mt-3'}`}>
-      {!sameAuthor && (
-        <span className={`mb-1 flex items-center gap-1 px-1 text-[11px] font-medium ${auto ? 'text-violet-600' : 'text-slate-500'}`}>
-          {auto ? <Bot size={12} aria-hidden="true" /> : <MessageCircle size={11} className="text-emerald-500" aria-hidden="true" />}
-          {author}
-        </span>
-      )}
-      <div
-        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-          mine ? `rounded-br-md text-white ${m.status === 'failed' ? 'bg-red-600' : 'bg-brand-600'}` : 'rounded-bl-md border border-slate-200 bg-white text-slate-800'
-        }`}
-      >
-        <span className="sr-only">WhatsApp, {author}: </span>
-        <p className="whitespace-pre-wrap break-words">{m.text}</p>
-        <p className={`mt-0.5 flex items-center justify-end gap-1 text-[10.5px] ${mine ? 'text-white/70' : 'text-slate-400'}`}>
-          {hhmm(new Date(m.at))}
-          {mine && (
-            <>
-              <StatusTicks status={m.status} />
-              <span className="sr-only">, {STATUS_LABEL[m.status] || m.status}</span>
-            </>
-          )}
-        </p>
-      </div>
-      {m.status === 'failed' && m.error && <span className="mt-1 px-1 text-xs text-red-600">Não enviada: {m.error}</span>}
-    </li>
-  )
-}
 
 function NoteCard({ e }: { e: LeadContactEntry }) {
   const Icon = CONTACT_ICON[e.type] ?? MoreHorizontal
@@ -304,7 +272,7 @@ export function LeadFeed({ lead, active = true }: { lead: Lead; active?: boolean
   const hasPhone = Boolean(waPhoneKey(lead.whatsapp))
 
   return (
-    <section className="flex h-full min-h-0 flex-col bg-slate-50" aria-label={`Conversa e histórico de ${lead.contactName}`}>
+    <section className="flex h-full min-h-0 flex-col" aria-label={`Conversa e histórico de ${lead.contactName}`}>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-2.5">
         <div className="flex flex-wrap gap-1" role="group" aria-label="Mostrar na linha do tempo">
           {FILTERS.map((f) => (
@@ -329,6 +297,23 @@ export function LeadFeed({ lead, active = true }: { lead: Lead; active?: boolean
         )}
       </div>
 
+      {conv?.sdr && (
+        <div className="flex shrink-0 items-start gap-3 border-b border-slate-200 bg-white px-4 py-2.5" role="note" aria-label="Resumo do SDR do WhatsApp">
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+              SDR do WhatsApp <SdrChip sdr={conv.sdr} size="xs" />
+              <span className="font-normal text-slate-400">nota {conv.sdr.score} de 100</span>
+            </p>
+            {conv.sdr.summary && <p className="mt-1 text-sm leading-snug text-slate-700">{conv.sdr.summary}</p>}
+            {(conv.sdr.meeting?.agreed || conv.sdr.nextStep) && (
+              <p className="mt-0.5 text-xs" style={{ color: conv.sdr.meeting?.agreed ? SDR_STAGE.agendado.color : undefined }}>
+                {conv.sdr.meeting?.agreed ? `Reunião combinada${conv.sdr.meeting.when ? `: ${conv.sdr.meeting.when}` : ''}` : <span className="text-slate-500">Próximo passo: {conv.sdr.nextStep}</span>}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {conv?.aiMode === 'off' && conv.handoffReason && (
         <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800" role="status">
           <AlertTriangle size={15} className="shrink-0" aria-hidden="true" />
@@ -339,7 +324,7 @@ export function LeadFeed({ lead, active = true }: { lead: Lead; active?: boolean
         </div>
       )}
 
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div ref={listRef} className="wa-wall min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {visible.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-center">
             <MessageCircle size={26} className="text-slate-300" aria-hidden="true" />
@@ -365,7 +350,7 @@ export function LeadFeed({ lead, active = true }: { lead: Lead; active?: boolean
                       <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium capitalize text-slate-500 shadow-sm">{dayLabel(new Date(it.at).toISOString())}</span>
                     </li>
                   )}
-                  {it.kind === 'msg' && conv && <MessageBubble m={it.m} conv={conv} sameAuthor={sameAuthor} />}
+                  {it.kind === 'msg' && conv && <MessageBubble m={it.m} conv={conv} first={!sameAuthor} srPrefix="WhatsApp, " />}
                   {it.kind === 'note' && <NoteCard e={it.e} />}
                   {it.kind === 'event' && <EventLine a={it.a} />}
                   {it.kind === 'form' && <FormEvent lead={lead} />}

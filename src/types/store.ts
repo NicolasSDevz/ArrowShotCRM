@@ -419,7 +419,11 @@ export interface StoreAbandoned {
   /** A pessoa clicou em "não quero mais receber" no e-mail. */
   recoveryStopped?: boolean
   /** Comprou depois do e-mail do Archer ou de conversar com ele no checkout. */
-  recoveredVia?: 'archer-email' | 'archer-chat' | null
+  recoveredVia?: 'archer-email' | 'archer-chat' | 'archer-whatsapp' | null
+  /** WhatsApp automático do carrinho (mensagem de modelo). Ver runCartRecovery. */
+  whatsSentAt?: string | null
+  whatsOk?: boolean
+  whatsError?: string | null
 }
 
 export interface StoreMember {

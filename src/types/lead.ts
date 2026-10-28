@@ -2,6 +2,7 @@ import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
 import type { LeadFormAnswer } from './leadForm'
 import type { ChamadaTemperatura } from './chamada'
+import type { WaSdr } from './whatsapp'
 
 export type LeadStatus =
   | 'new'
@@ -192,6 +193,8 @@ export interface Lead extends BaseDoc {
    *  última chamada (Etapa 3) — separada do BANT (scorecard manual, com
    *  4 notas por letra): aqui é um veredito único (quente/morno/frio) com
    *  justificativa, direto da transcrição. Ver types/chamada.ts (ResumoChamada). */
+  /** Resumo do SDR do WhatsApp (a IA grava a cada resposta). Ver types/whatsapp.ts. */
+  whatsSdr?: Pick<WaSdr, 'stage' | 'temperature' | 'score' | 'summary' | 'nextStep' | 'meeting' | 'updatedAt'> | null
   temperaturaChamada?: {
     valor: ChamadaTemperatura
     justificativa: string

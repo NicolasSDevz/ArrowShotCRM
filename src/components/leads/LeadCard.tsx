@@ -1,6 +1,7 @@
 import { differenceInCalendarDays, differenceInHours, format } from 'date-fns'
 import { ClipboardList, MessageCircle } from 'lucide-react'
 import type { WaConversation } from '../../types/whatsapp'
+import { SdrChip } from '../whatsapp/SdrChip'
 import { ptBR } from 'date-fns/locale'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -149,6 +150,13 @@ export function LeadCard({
           </span>
           {wa.unread > 0 && <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">{wa.unread}</span>}
         </p>
+      )}
+
+      {(wa?.sdr || lead.whatsSdr) && (
+        <div className="flex flex-wrap items-center gap-1">
+          <SdrChip sdr={(wa?.sdr ?? lead.whatsSdr) as WaConversation['sdr']} size="xs" />
+          {(wa?.sdr ?? lead.whatsSdr)?.meeting?.agreed && <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-400">Reunião combinada</span>}
+        </div>
       )}
 
       <p className="text-[11px] text-slate-400">{daysInStageLabel(lead.stageChangedAt)}</p>

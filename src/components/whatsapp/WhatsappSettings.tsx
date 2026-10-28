@@ -336,12 +336,29 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
           <Card
             icon={<Bot size={19} />}
             tone="bg-violet-500/15 text-violet-400"
-            title="IA no atendimento"
-            description="Responde quem chama usando a Base de Vendas. Se a pessoa pede um humano, reclama ou quer fechar, a IA avisa a equipe e para de responder naquela conversa."
+            title="IA como SDR"
+            description="Atende quem chama como um pré-vendas: entende o negócio, qualifica (tipo de limpeza, cidade, verba, quem decide, prazo) e marca a reunião de diagnóstico. Usa a Base de Vendas. Se a pessoa pede um humano, reclama, quer negociar ou a reunião fica combinada, avisa a equipe e para de responder naquela conversa."
             badge={<Badge on={s.aiEnabled} />}
           >
             <Toggle checked={s.aiEnabled} onChange={(v) => edit((c) => ({ ...c, aiEnabled: v }))} label="IA responde as conversas" hint="Dá para desligar em cada conversa também." />
             <Toggle checked={s.autoCreateLead} onChange={(v) => edit((c) => ({ ...c, autoCreateLead: v }))} label="Criar lead quando um número novo chamar" hint="Entra em Novo Lead, com origem WhatsApp direto." />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Nome do SDR" hint="Como a IA se apresenta. Vazio = não diz nome.">
+                <Input value={s.sdr.name} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, name: e.target.value } }))} placeholder="Ex.: Ana" />
+              </Field>
+              <Field label="Reunião com">
+                <Input value={s.sdr.meetingWith} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingWith: e.target.value } }))} placeholder="Bruno" />
+              </Field>
+              <Field label="Duração da reunião">
+                <Input value={s.sdr.meetingLength} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingLength: e.target.value } }))} placeholder="30 minutos" />
+              </Field>
+              <Field label="Horários para propor">
+                <Input value={s.sdr.meetingHours} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingHours: e.target.value } }))} placeholder="segunda a sexta, das 9h às 18h" />
+              </Field>
+            </div>
+            <Field label="Link da agenda" hint="Google Agenda, Calendly... Vazio = a IA propõe 2 horários e avisa a equipe quando a pessoa topar.">
+              <Input value={s.sdr.meetingLink} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingLink: e.target.value.trim() } }))} placeholder="https://" inputMode="url" />
+            </Field>
             <Field label="Instruções extras para a IA">
               <Textarea rows={4} value={s.aiInstructions} onChange={(e) => edit((c) => ({ ...c, aiInstructions: e.target.value }))} placeholder="Ex.: sempre ofereça a reunião de diagnóstico gratuita; o Bruno atende das 9h às 18h; não fale de preço antes da reunião." />
             </Field>
