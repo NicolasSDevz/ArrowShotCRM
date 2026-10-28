@@ -156,7 +156,7 @@ export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'enti
   }
   // Avisos da Loja (venda, Pix, reembolso, erro no Meta) abrem direto na aba Vendas.
   if (n.type.startsWith('store_')) return '/loja?aba=vendas'
-  if (n.type === 'whatsapp_handoff') return n.entityId ? `/whatsapp?c=${n.entityId}` : '/whatsapp'
+  if (n.type === 'whatsapp_handoff') return n.entityId ? `/leads?aba=conversas&c=${n.entityId}` : '/leads?aba=conversas'
   if (!n.entityType) return null
   switch (n.entityType) {
     case 'client':

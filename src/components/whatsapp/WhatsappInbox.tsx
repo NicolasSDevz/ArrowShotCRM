@@ -493,7 +493,18 @@ function NewConversation({ templates, onDone }: { templates: WaTemplate[]; onDon
 
 /* ------------------------------ caixa de entrada ------------------------------ */
 
-export function WhatsappInbox({ templates, onCount, onOpenLead }: { templates: WaTemplate[]; onCount?: (n: number) => void; onOpenLead?: (leadId: string) => void }) {
+export function WhatsappInbox({
+  templates,
+  onCount,
+  onOpenLead,
+  heightClass = 'h-[calc(100dvh-230px)]',
+}: {
+  templates: WaTemplate[]
+  onCount?: (n: number) => void
+  onOpenLead?: (leadId: string) => void
+  /** Altura da caixa (cada coluna rola por dentro). */
+  heightClass?: string
+}) {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const { data: convData, loading: convLoading, error: convError } = useWaConversations()
@@ -577,7 +588,7 @@ export function WhatsappInbox({ templates, onCount, onOpenLead }: { templates: W
   }
 
   return (
-    <div className="flex h-[calc(100dvh-230px)] min-h-[480px] overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    <div className={`flex ${heightClass} min-h-[480px] overflow-hidden rounded-2xl border border-slate-200 bg-white`}>
       <aside className={`w-full shrink-0 flex-col border-r border-slate-200 md:flex md:w-[340px] ${showThread ? 'hidden' : 'flex'}`} aria-label="Lista de conversas">
         <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200 p-3">
           <div className="flex items-center justify-between gap-2 px-1">

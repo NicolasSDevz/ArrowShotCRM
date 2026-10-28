@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Link } from 'react-router-dom'
 import { Plus, Upload, Kanban, List, Settings2, Gauge, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ACTIVE_LEADS_DAYS, useAllLeads, useLeads } from '../hooks/useLeads'
@@ -22,8 +21,8 @@ import { LeadPipelineModal } from '../components/leads/LeadPipelineModal'
 import { LeadFormsPanel } from '../components/leads/LeadFormsPanel'
 import { QuestionnairePanel } from '../components/leads/QuestionnairePanel'
 import { LeadBantMetrics } from '../components/leads/LeadBantMetrics'
-import { WhatsappInbox } from '../components/whatsapp/WhatsappInbox'
-import { buildLeadConversationMap, useWaConversations, useWaTemplates } from '../hooks/useWaConversations'
+import { WhatsappHub } from '../components/whatsapp/WhatsappHub'
+import { buildLeadConversationMap, useWaConversations } from '../hooks/useWaConversations'
 import { Button } from '../components/ui/Button'
 import { PrivateMoney } from '../components/ui/PrivateData'
 import { Modal } from '../components/ui/Modal'
@@ -60,13 +59,15 @@ export function LeadsPage() {
       (params) => {
         if (t === 'pipeline') params.delete('aba')
         else params.set('aba', t)
-        if (t !== 'conversas') params.delete('c')
+        if (t !== 'conversas') {
+          params.delete('c')
+          params.delete('wa')
+        }
         return params
       },
       { replace: true }
     )
   const { data: waConvs } = useWaConversations()
-  const waTemplates = useWaTemplates()
   const waUnread = waConvs.filter((c) => c.unread > 0).length
   // Pipeline aberto agora (lembrado entre visitas). Se o salvo não existe mais, cai no padrão.
   const [pipelineChoice, setPipelineChoice] = useState<string>(() => {
@@ -237,7 +238,7 @@ export function LeadsPage() {
       </div>
 
       {/* Abas principais */}
-      <div role="tablist" aria-label="Seções de leads" className="flex w-full gap-1 rounded-xl bg-slate-100 p-1 sm:w-fit">
+      <div role="tablist" aria-label="Seções de leads" className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-fit">
         {([
           ['pipeline', 'Vendas', salesLeads.length],
           ['conversas', 'Conversas', waUnread],
@@ -270,16 +271,7 @@ export function LeadsPage() {
       </div>
 
       {mainTab === 'conversas' ? (
-        <div className="flex flex-col gap-2">
-          <WhatsappInbox templates={waTemplates} onOpenLead={setOpenLeadId} />
-          <p className="text-xs text-slate-400">
-            IA, follow-up, modelos e conexão do número ficam em{' '}
-            <Link to="/whatsapp?aba=config" className="font-semibold text-brand-600 hover:underline">
-              configurações do WhatsApp
-            </Link>
-            .
-          </p>
-        </div>
+        <WhatsappHub onOpenLead={setOpenLeadId} />
       ) : mainTab === 'forms' ? (
         <LeadFormsPanel pipelines={pipelines} />
       ) : mainTab === 'questionnaires' ? (

@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
 import { lazyPage } from './utils/lazyPage'
 import { Spinner } from './components/ui/FullPageSpinner'
 import { Toaster } from 'react-hot-toast'
@@ -41,7 +41,6 @@ const UniversityAdminPage = lazyPage(() => import('./pages/UniversityAdminPage')
 const OptimizationCalendarPage = lazyPage(() => import('./pages/OptimizationCalendarPage'), 'OptimizationCalendarPage')
 const CopilotoPage = lazyPage(() => import('./pages/CopilotoPage'), 'CopilotoPage')
 const BaseVendasPage = lazyPage(() => import('./pages/BaseVendasPage'), 'BaseVendasPage')
-const WhatsappPage = lazyPage(() => import('./pages/WhatsappPage'), 'WhatsappPage')
 const StorePage = lazyPage(() => import('./pages/store/StorePage'), 'StorePage')
 const StoreProductPage = lazyPage(() => import('./pages/store/StoreProductPage'), 'StoreProductPage')
 const StoreAppPage = lazyPage(() => import('./pages/store/StoreAppPage'), 'StoreAppPage')
@@ -80,6 +79,16 @@ function ScreenLoading() {
 }
 
 const CHECKOUT_HOST = typeof window !== 'undefined' && /^(pay|checkout|compra|loja)\./i.test(window.location.hostname)
+
+/** /whatsapp antigo → Leads > Conversas, mantendo a conversa (?c=) e a configuração. */
+function WhatsappRedirect() {
+  const [params] = useSearchParams()
+  const next = new URLSearchParams({ aba: 'conversas' })
+  const c = params.get('c')
+  if (c) next.set('c', c)
+  if (params.get('aba') === 'config') next.set('wa', 'config')
+  return <Navigate to={`/leads?${next.toString()}`} replace />
+}
 
 function App() {
   return (
@@ -135,7 +144,8 @@ function App() {
             <Route path="/calendario" element={<CalendarMeetingsPage initialTab="calendario" />} />
             <Route path="/reunioes" element={<CalendarMeetingsPage initialTab="reunioes" />} />
             <Route path="/leads" element={<LeadsPage />} />
-            <Route path="/whatsapp" element={<WhatsappPage />} />
+            {/* WhatsApp agora mora em Leads > Conversas (links antigos continuam funcionando). */}
+            <Route path="/whatsapp" element={<WhatsappRedirect />} />
               <Route path="/copiloto/:leadId" element={<ProtectedRoute allowedRoles={['admin', 'manager']}><CopilotoPage /></ProtectedRoute>} />
             <Route path="/metricas" element={<MetricsPage />} />
             <Route path="/relatorios" element={<ReportsPage />} />

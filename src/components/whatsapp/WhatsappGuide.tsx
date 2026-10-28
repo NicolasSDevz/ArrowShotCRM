@@ -19,8 +19,8 @@ export function buildChecklist(status: WaStatus | null, templates: WaTemplate[],
   const approved = templates.filter((t) => t.status === 'APPROVED').length
   const pending = templates.filter((t) => t.status === 'PENDING').length
   const toConfig = canConfigure ? (
-    <Link to="/whatsapp?aba=config" className="inline-flex items-center gap-1 font-semibold text-brand-500 hover:underline">
-      Abrir Configurações <ArrowRight size={13} aria-hidden="true" />
+    <Link to="/leads?aba=conversas&wa=config" className="inline-flex items-center gap-1 font-semibold text-brand-500 hover:underline">
+      Abrir Configurar <ArrowRight size={13} aria-hidden="true" />
     </Link>
   ) : null
   return [
