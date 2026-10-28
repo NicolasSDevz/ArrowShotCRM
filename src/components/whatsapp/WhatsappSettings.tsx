@@ -177,7 +177,7 @@ function ConnectionCard({ status, onSaved }: { status: WaStatus | null; onSaved:
                 <li>No Gerenciador de Negócios, em Usuários do sistema, crie um usuário administrador, dê acesso ao app e à conta do WhatsApp e gere um token sem validade com as permissões whatsapp_business_messaging e whatsapp_business_management.</li>
                 <li>No app, em Configurações, Básico, copie a Chave secreta do aplicativo.</li>
                 <li>Cole tudo aqui embaixo e clique em Conectar.</li>
-                <li>Em WhatsApp, Configuração, Webhook, cole a URL e o token de verificação mostrados no fim deste bloco, salve e assine o campo messages.</li>
+                <li>Em WhatsApp, Configuração, Webhook, cole a URL e o token de verificação mostrados no fim deste bloco, salve e assine os campos messages e smb_message_echoes (este último faz o que a equipe manda pelo celular aparecer no CRM).</li>
               </ol>
             </details>
             <div className="grid gap-3 md:grid-cols-2">
@@ -214,7 +214,7 @@ function ConnectionCard({ status, onSaved }: { status: WaStatus | null; onSaved:
           <li>No Gerenciador de Negócios, em Usuários do sistema, crie um usuário administrador, dê acesso ao app e à conta do WhatsApp e gere um token sem validade com as permissões whatsapp_business_messaging e whatsapp_business_management.</li>
           <li>No app, em Configurações, Básico, copie a Chave secreta do aplicativo.</li>
           <li>Cole tudo aqui embaixo e clique em Conectar.</li>
-          <li>Em WhatsApp, Configuração, Webhook, cole a URL e o token de verificação mostrados no fim deste bloco, salve e assine o campo messages.</li>
+          <li>Em WhatsApp, Configuração, Webhook, cole a URL e o token de verificação mostrados no fim deste bloco, salve e assine os campos messages e smb_message_echoes (este último faz o que a equipe manda pelo celular aparecer no CRM).</li>
         </ol>
       </details>
       <div className="grid gap-3 md:grid-cols-2">

@@ -528,7 +528,7 @@ export async function handleWebhook(payload) {
   const real = (payload?.entry || []).some((e) =>
     (e.changes || []).some((c) => {
       const v = c.value || {}
-      return v.metadata?.phone_number_id === cfg.phoneNumberId && ((v.messages || []).length || (v.statuses || []).length)
+      return v.metadata?.phone_number_id === cfg.phoneNumberId && ((v.messages || []).length || (v.statuses || []).length || (v.message_echoes || []).length)
     })
   )
   if (real) await updateDoc(SECRETS_DOC, { lastWebhookAt: nowIso() }).catch(() => {})
@@ -576,6 +576,31 @@ export async function handleWebhook(payload) {
         await updateDoc(convPath(waId), patch)
         await incrementField(convPath(waId), 'unread', 1).catch(() => {})
         touched.add(waId)
+      }
+
+      // Mensagens que a equipe mandou pelo app do WhatsApp no celular (mesmo número,
+      // modo coexistência; campo smb_message_echoes no webhook). Entram na conversa
+      // e tiram a IA e o follow-up dela: quem respondeu pelo celular assumiu.
+      for (const m of v.message_echoes || []) {
+        const waId = String(m.to || '').replace(/\D/g, '')
+        if (!waId || !m.id) continue
+        const at = new Date(Number(m.timestamp || 0) * 1000 || Date.now()).toISOString()
+        const text = inboundText(m)
+        const fresh = await createDocIfMissing(msgPath(waId, m.id), { direction: 'out', type: m.type, text, at, by: 'phone', byName: 'Celular da Arrow Shot', status: 'sent' })
+        if (!fresh) continue
+        // Conversa que a equipe começou pelo celular não vira lead novo.
+        await ensureConversation(waId, { linkLead: false })
+        await updateDoc(convPath(waId), {
+          lastMessageAt: at,
+          lastMessageText: text.slice(0, 160),
+          lastDirection: 'out',
+          aiMode: 'off',
+          handoffReason: 'A equipe respondeu pelo celular',
+          followUpStopped: true,
+          unread: 0,
+          updatedAt: nowIso(),
+        })
+        touched.delete(waId)
       }
     }
   }
