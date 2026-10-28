@@ -12,7 +12,7 @@ import { getDoc } from './firebaseAdmin.js'
 import { getBaseVendas, formatBaseVendasForPrompt } from './baseVendas.js'
 import { leadContextBlock } from './leadContext.js'
 
-const SONNET_MODEL = 'claude-sonnet-5'
+const SONNET_MODEL = 'claude-sonnet-5-5'
 const MAX_TOKENS = 1800
 
 const RESUMO_SYSTEM_PREFIX = `Você é o copiloto de vendas da Arrow Shot, agência de marketing exclusiva para empresas de limpeza. A chamada de vendas acabou de terminar — sua tarefa é resumi-la pro Bruno a partir da transcrição completa.

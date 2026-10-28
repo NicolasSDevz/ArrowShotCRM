@@ -16,7 +16,7 @@ import { getDoc } from './firebaseAdmin.js'
 import { getBaseVendas, formatBaseVendasForPrompt } from './baseVendas.js'
 import { leadContextBlock } from './leadContext.js'
 
-const HAIKU_MODEL = 'claude-haiku-4-5-20251001'
+const HAIKU_MODEL = 'claude-haiku-5-5'
 const MAX_TOKENS = 300
 
 const SUGESTAO_SYSTEM_PREFIX = `Você é o copiloto de vendas da Arrow Shot, agência de marketing exclusiva para empresas de limpeza. Ajude o Bruno a responder com segurança, em português do Brasil, tom consultivo e direto. Use vieses de forma ética (ancoragem, enquadramento, aversão à perda, prova social, autoridade, reciprocidade): só apresentar melhor o que é verdade. Nunca inventar números, cases, depoimentos, escassez falsa ou desconto falso. Nunca prometer resultado garantido. Use apenas informações da Base de Vendas abaixo; se a resposta não estiver lá, sugira que o Bruno confirme depois com o cliente.

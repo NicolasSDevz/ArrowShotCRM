@@ -5,7 +5,6 @@ import { checkCoupon, createOrder, sendCheckoutLead, type PublicCheckout } from 
 import { maskDocument, maskPhone } from '../../utils/masks'
 import { trackMetaPixel } from '../../utils/metaPixel'
 import { checkoutSeals, formatCents, sealCopy, type StoreSealKey } from '../../types/store'
-import { CheckoutArcher } from './CheckoutArcher'
 import { FUNNEL_STEP, useCheckoutFunnel } from './checkoutFunnel'
 
 const SEAL_ICONS: Record<StoreSealKey, LucideIcon> = {
@@ -54,8 +53,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
-  // Archer: cartão recusado abre o chat; quem conversou com ele fica marcado no pedido.
-  const [refusal, setRefusal] = useState<{ reason: string; at: number } | null>(null)
+  // O chat do Archer saiu do checkout (28/10): a recuperação agora é pelo WhatsApp.
   const archerUsed = useRef(false)
   const narrow = useIsNarrow()
   // Funil (Loja > Funil): até onde a pessoa chega antes de desistir.
@@ -161,7 +159,6 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     })
     if (result.status === 'refused') {
       setError(refusalMessage(result.statusDetail))
-      setRefusal({ reason: refusalMessage(result.statusDetail), at: Date.now() })
       throw new Error('recusado')
     }
     goToThanks(result.orderId, result.key)
@@ -624,21 +621,6 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
         </div>
       )}
 
-      {!preview && data.archer?.chat !== false && (
-        <CheckoutArcher
-          slug={data.slug}
-          productName={data.name}
-          color={btnColor}
-          onColor={btnText}
-          bottom={sticky ? 88 : 16}
-          firstName={name.trim().split(/\s+/)[0] || ''}
-          method={method}
-          total={total}
-          refusal={refusal}
-          pixHint={data.paymentMethods.pix ? `No Pix ${pixPct ? `sai com ${pixPct}% de desconto e ` : ''}aprova na hora.` : ''}
-          onUsed={() => (archerUsed.current = true)}
-        />
-      )}
     </div>
   )
 }

@@ -54,7 +54,7 @@ import { runCopilotoResumo } from '../_lib/copilotoResumo.js'
 import { transcribeWithGroq, GroqRateLimitError } from '../_lib/groqWhisper.js'
 import { temAcessoAoCopiloto } from '../_lib/copilotoAccess.js'
 
-const ANTHROPIC_MODEL = 'claude-sonnet-5'
+const ANTHROPIC_MODEL = 'claude-sonnet-5-5'
 const DAILY_MESSAGE_LIMIT = 50
 /** Rodadas de ferramenta por mensagem (cada rodada pode chamar várias em paralelo). */
 const MAX_TOOL_ROUNDS = 8
