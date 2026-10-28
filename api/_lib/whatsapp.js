@@ -475,7 +475,14 @@ export async function handleWebhook(payload) {
   const cfg = await getWaConfig()
   if (!cfg) return { ignored: 'sem credenciais' }
   const touched = new Set()
-  await updateDoc(SECRETS_DOC, { lastWebhookAt: nowIso() }).catch(() => {})
+  // Só conta como "recebendo" quando vem algo de verdade para o nosso número.
+  const real = (payload?.entry || []).some((e) =>
+    (e.changes || []).some((c) => {
+      const v = c.value || {}
+      return v.metadata?.phone_number_id === cfg.phoneNumberId && ((v.messages || []).length || (v.statuses || []).length)
+    })
+  )
+  if (real) await updateDoc(SECRETS_DOC, { lastWebhookAt: nowIso() }).catch(() => {})
 
   for (const entry of payload?.entry || []) {
     for (const change of entry.changes || []) {
