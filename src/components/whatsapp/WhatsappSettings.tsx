@@ -11,7 +11,7 @@ import { WA_CART_PARAM_LABEL, type WaCartParam, type WaFollowUpStep, type WaSett
 
 function Badge({ on, onText = 'Ligado', offText = 'Desligado' }: { on: boolean; onText?: string; offText?: string }) {
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${on ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-100 text-slate-500'}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-slate-400'}`} aria-hidden="true" />
       {on ? onText : offText}
     </span>
@@ -101,6 +101,8 @@ function TemplateSelect({ templates, name, lang, onChange, label }: { templates:
 
 /* ------------------------------ conexão ------------------------------ */
 
+const QUALITY: Record<string, string> = { GREEN: 'Alta', YELLOW: 'Média', RED: 'Baixa', UNKNOWN: 'Sem nota ainda' }
+
 function ConnectionCard({ status, onSaved }: { status: WaStatus | null; onSaved: () => void }) {
   const [form, setForm] = useState({ token: '', appSecret: '', phoneNumberId: '', wabaId: '' })
   const [saving, setSaving] = useState(false)
@@ -127,7 +129,7 @@ function ConnectionCard({ status, onSaved }: { status: WaStatus | null; onSaved:
   return (
     <Card
       icon={<Link2 size={19} />}
-      tone="bg-emerald-50 text-emerald-600"
+      tone="bg-emerald-500/15 text-emerald-400"
       title="Conexão com o Meta"
       description={
         connected
@@ -136,6 +138,71 @@ function ConnectionCard({ status, onSaved }: { status: WaStatus | null; onSaved:
       }
       badge={<Badge on={connected} onText="Conectado" offText="Não conectado" />}
     >
+      {connected && (
+        <dl className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 p-3">
+            <dt className="text-xs text-slate-500">Número</dt>
+            <dd className="mt-0.5 text-sm font-semibold text-slate-800">{status?.displayPhone || '—'}</dd>
+          </div>
+          <div className="rounded-xl border border-slate-200 p-3">
+            <dt className="text-xs text-slate-500">Qualidade no Meta</dt>
+            <dd className="mt-0.5 text-sm font-semibold text-slate-800">{QUALITY[status?.qualityRating || ''] || 'Sem nota ainda'}</dd>
+          </div>
+          <div className="rounded-xl border border-slate-200 p-3">
+            <dt className="text-xs text-slate-500">Recebendo mensagens</dt>
+            <dd className={`mt-0.5 text-sm font-semibold ${status?.lastWebhookAt ? 'text-emerald-400' : 'text-amber-400'}`}>{status?.lastWebhookAt ? 'Sim' : 'Ainda não testado'}</dd>
+          </div>
+        </dl>
+      )}
+      {connected && !status?.lastWebhookAt && (
+        <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-300" role="status">
+          Mande um "oi" de outro celular para {status?.displayPhone}. Se a conversa não aparecer em Conversas em 1 minuto, confira o passo 6 do guia (webhook) com a URL e o token abaixo.
+        </p>
+      )}
+      {connected ? (
+        <details className="group rounded-xl border border-slate-200">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-slate-700">
+            Trocar token ou IDs da conexão
+            <ChevronDown size={16} className="text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
+          </summary>
+          <div className="flex flex-col gap-4 px-4 pb-4">
+      <details className="group rounded-xl border border-slate-200 bg-slate-50">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-slate-700">
+                Como conseguir esses dados
+                <ChevronDown size={16} className="text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
+              </summary>
+              <ol className="list-decimal space-y-1.5 px-4 pb-4 pl-9 text-sm leading-relaxed text-slate-600">
+                <li>Em developers.facebook.com, crie um app do tipo Empresa e adicione o produto WhatsApp.</li>
+                <li>Em WhatsApp, Configuração da API, adicione o número da Arrow Shot e copie o ID do número de telefone e o ID da conta do WhatsApp Business.</li>
+                <li>No Gerenciador de Negócios, em Usuários do sistema, crie um usuário administrador, dê acesso ao app e à conta do WhatsApp e gere um token sem validade com as permissões whatsapp_business_messaging e whatsapp_business_management.</li>
+                <li>No app, em Configurações, Básico, copie a Chave secreta do aplicativo.</li>
+                <li>Cole tudo aqui embaixo e clique em Conectar.</li>
+                <li>Em WhatsApp, Configuração, Webhook, cole a URL e o token de verificação mostrados no fim deste bloco, salve e assine o campo messages.</li>
+              </ol>
+            </details>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label={connected ? 'Token (vazio mantém o atual)' : 'Token do usuário do sistema'} required={!connected}>
+                <Input type="password" autoComplete="off" value={form.token} onChange={(e) => setForm({ ...form, token: e.target.value })} />
+              </Field>
+              <Field label={status?.hasAppSecret ? 'Chave secreta do app (vazio mantém a atual)' : 'Chave secreta do app'}>
+                <Input type="password" autoComplete="off" value={form.appSecret} onChange={(e) => setForm({ ...form, appSecret: e.target.value })} />
+              </Field>
+              <Field label="ID do número de telefone" required>
+                <Input inputMode="numeric" value={form.phoneNumberId} onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })} />
+              </Field>
+              <Field label="ID da conta do WhatsApp Business (WABA)" required>
+                <Input inputMode="numeric" value={form.wabaId} onChange={(e) => setForm({ ...form, wabaId: e.target.value })} />
+              </Field>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={save} loading={saving}>
+                {connected ? 'Salvar e testar' : 'Conectar'}
+              </Button>
+            </div>
+          </div>
+        </details>
+      ) : (
+        <>
       <details className="group rounded-xl border border-slate-200 bg-slate-50">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-slate-700">
           Como conseguir esses dados
@@ -169,8 +236,11 @@ function ConnectionCard({ status, onSaved }: { status: WaStatus | null; onSaved:
           {connected ? 'Salvar e testar' : 'Conectar'}
         </Button>
       </div>
+        </>
+      )}
       {status && (
         <div className="grid gap-3 rounded-xl border border-dashed border-slate-200 p-4 md:grid-cols-2">
+          <p className="text-xs text-slate-500 md:col-span-2">Dados do webhook, para colar no app do Meta (WhatsApp, Configuração).</p>
           <CopyLine label="URL do webhook" value={status.webhookUrl} />
           <CopyLine label="Token de verificação" value={status.verifyToken} />
         </div>
@@ -265,7 +335,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
         <>
           <Card
             icon={<Bot size={19} />}
-            tone="bg-violet-50 text-violet-600"
+            tone="bg-violet-500/15 text-violet-400"
             title="IA no atendimento"
             description="Responde quem chama usando a Base de Vendas. Se a pessoa pede um humano, reclama ou quer fechar, a IA avisa a equipe e para de responder naquela conversa."
             badge={<Badge on={s.aiEnabled} />}
@@ -279,7 +349,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
 
           <Card
             icon={<Timer size={19} />}
-            tone="bg-blue-50 text-blue-600"
+            tone="bg-sky-500/15 text-sky-400"
             title="Follow-up automático"
             description="Quando o contato para de responder, cada passo sai depois do tempo marcado, contado da última mensagem nossa. Para sozinho se ele responder, se o lead for para Fechado ou Perdido, ou se a equipe assumir."
             badge={<Badge on={s.followUp.enabled} />}
@@ -314,7 +384,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
 
           <Card
             icon={<ShoppingCart size={19} />}
-            tone="bg-amber-50 text-amber-600"
+            tone="bg-amber-500/15 text-amber-400"
             title="Carrinho abandonado da Loja"
             description="Quem põe o telefone no checkout e não paga recebe uma mensagem de modelo. Se responder, a IA atende com as informações do produto. Os e-mails de recuperação continuam saindo."
             badge={<Badge on={s.cart.enabled && Boolean(s.cart.templateName)} offText={s.cart.enabled ? 'Falta o modelo' : 'Desligado'} />}

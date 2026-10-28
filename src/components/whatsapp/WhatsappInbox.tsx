@@ -81,7 +81,7 @@ function Switch({ checked, onChange, label, busy }: { checked: boolean; onChange
 function EmptyPane({ title, text }: { title: string; text: string }) {
   return (
     <div className="m-auto flex max-w-xs flex-col items-center gap-3 p-6 text-center">
-      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600" aria-hidden="true">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400" aria-hidden="true">
         <MessageCircle size={26} />
       </span>
       <p className="text-sm font-semibold text-slate-700">{title}</p>
@@ -462,7 +462,7 @@ function NewConversation({ templates, onDone }: { templates: WaTemplate[]; onDon
 
 /* ------------------------------ caixa de entrada ------------------------------ */
 
-export function WhatsappInbox({ templates }: { templates: WaTemplate[] }) {
+export function WhatsappInbox({ templates, onCount }: { templates: WaTemplate[]; onCount?: (n: number) => void }) {
   const [params, setParams] = useSearchParams()
   const [rows, setRows] = useState<WaConversation[] | null>(null)
   const [search, setSearch] = useState('')
@@ -492,9 +492,37 @@ export function WhatsappInbox({ templates }: { templates: WaTemplate[] }) {
     })
   }, [rows, search, filter])
 
+  useEffect(() => {
+    if (rows) onCount?.(rows.length)
+  }, [rows, onCount])
+
+  const counts = useMemo(() => {
+    const r = rows || []
+    return {
+      all: r.length,
+      unread: r.filter((c) => c.unread > 0).length,
+      ai: r.filter((c) => c.aiMode !== 'off').length,
+      human: r.filter((c) => c.aiMode === 'off').length,
+      cart: r.filter((c) => c.kind === 'cart').length,
+    } as Record<Filter, number>
+  }, [rows])
+
   const current = (rows || []).find((c) => c.waId === selected) || null
   const unreadTotal = (rows || []).filter((c) => c.unread > 0).length
   const showThread = Boolean(current) || creating
+
+  // Nenhuma conversa ainda: só uma faixa com o botão de começar (o guia fica em cima).
+  if (rows && rows.length === 0 && !creating) {
+    return (
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-4">
+        <MessageCircle size={18} className="shrink-0 text-slate-400" aria-hidden="true" />
+        <p className="min-w-0 flex-1 text-sm text-slate-500">Nenhuma conversa ainda. Quer chamar alguém primeiro? Precisa de um modelo aprovado.</p>
+        <Button size="sm" variant="secondary" icon={<Plus size={14} aria-hidden="true" />} onClick={() => setCreating(true)}>
+          Nova conversa
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-[calc(100dvh-230px)] min-h-[480px] overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -532,11 +560,12 @@ export function WhatsappInbox({ templates }: { templates: WaTemplate[] }) {
                 key={f.id}
                 type="button"
                 aria-pressed={filter === f.id}
-                aria-label={f.long}
+                aria-label={`${f.long}: ${counts[f.id]}`}
                 onClick={() => setFilter(f.id)}
                 className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${filter === f.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
               >
                 {f.label}
+                {f.id !== 'all' && counts[f.id] > 0 && <span className="ml-1 opacity-70">{counts[f.id]}</span>}
               </button>
             ))}
           </div>
