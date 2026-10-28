@@ -1,5 +1,6 @@
 import { differenceInCalendarDays, differenceInHours, format } from 'date-fns'
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, MessageCircle } from 'lucide-react'
+import type { WaConversation } from '../../types/whatsapp'
 import { ptBR } from 'date-fns/locale'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -30,6 +31,7 @@ export function LeadCard({
   fields = [],
   formTag,
   existingClientName,
+  wa,
 }: {
   lead: Lead
   assignee?: AppUser
@@ -39,6 +41,8 @@ export function LeadCard({
   formTag?: LeadFormTag
   /** Cliente já cadastrado com o mesmo contato (lead ainda não vinculado). */
   existingClientName?: string
+  /** Conversa do WhatsApp desse lead (mostra a última mensagem e as não lidas). */
+  wa?: WaConversation
 }) {
   // "Novo" nas primeiras 24h depois de chegar pelo formulário.
   const isFresh = !!formTag && !!lead.createdAt && differenceInHours(new Date(), lead.createdAt.toDate()) < 24
@@ -130,6 +134,20 @@ export function LeadCard({
       {lead.nextActionDate && (
         <p className="text-xs text-slate-500">
           Próxima ação: {format(lead.nextActionDate.toDate(), 'dd/MM/yyyy', { locale: ptBR })}
+        </p>
+      )}
+
+      {wa && wa.lastMessageText && (
+        <p
+          className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs ${wa.unread > 0 ? 'bg-emerald-500/15 text-slate-700' : 'bg-slate-50 text-slate-500'}`}
+          aria-label={`WhatsApp: ${wa.unread > 0 ? `${wa.unread} mensagem${wa.unread === 1 ? '' : 's'} não lida${wa.unread === 1 ? '' : 's'}. ` : ''}Última ${wa.lastDirection === 'in' ? 'do lead' : 'nossa'}: ${wa.lastMessageText}`}
+        >
+          <MessageCircle size={12} className="shrink-0 text-emerald-500" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">
+            {wa.lastDirection === 'out' ? 'Você: ' : ''}
+            {isPrivacyMode ? '••••••' : wa.lastMessageText}
+          </span>
+          {wa.unread > 0 && <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">{wa.unread}</span>}
         </p>
       )}
 

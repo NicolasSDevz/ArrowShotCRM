@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Plus, Upload, Kanban, List, Settings2, Gauge, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ACTIVE_LEADS_DAYS, useAllLeads, useLeads } from '../hooks/useLeads'
@@ -21,6 +22,8 @@ import { LeadPipelineModal } from '../components/leads/LeadPipelineModal'
 import { LeadFormsPanel } from '../components/leads/LeadFormsPanel'
 import { QuestionnairePanel } from '../components/leads/QuestionnairePanel'
 import { LeadBantMetrics } from '../components/leads/LeadBantMetrics'
+import { WhatsappInbox } from '../components/whatsapp/WhatsappInbox'
+import { buildLeadConversationMap, useWaConversations, useWaTemplates } from '../hooks/useWaConversations'
 import { Button } from '../components/ui/Button'
 import { PrivateMoney } from '../components/ui/PrivateData'
 import { Modal } from '../components/ui/Modal'
@@ -47,7 +50,24 @@ export function LeadsPage() {
   const [initialChamadaId, setInitialChamadaId] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const [view, setView] = usePersistedViewMode<'kanban' | 'list'>('leadsView', 'kanban')
-  const [mainTab, setMainTab] = useState<'pipeline' | 'questionnaires' | 'forms'>('pipeline')
+  // Aba principal fica na URL (?aba=conversas) pra dar pra linkar direto na conversa.
+  const TAB_IDS = ['pipeline', 'conversas', 'questionnaires', 'forms'] as const
+  type MainTab = (typeof TAB_IDS)[number]
+  const abaParam = searchParams.get('aba')
+  const mainTab: MainTab = (TAB_IDS as readonly string[]).includes(abaParam ?? '') ? (abaParam as MainTab) : 'pipeline'
+  const setMainTab = (t: MainTab) =>
+    setSearchParams(
+      (params) => {
+        if (t === 'pipeline') params.delete('aba')
+        else params.set('aba', t)
+        if (t !== 'conversas') params.delete('c')
+        return params
+      },
+      { replace: true }
+    )
+  const { data: waConvs } = useWaConversations()
+  const waTemplates = useWaTemplates()
+  const waUnread = waConvs.filter((c) => c.unread > 0).length
   // Pipeline aberto agora (lembrado entre visitas). Se o salvo não existe mais, cai no padrão.
   const [pipelineChoice, setPipelineChoice] = useState<string>(() => {
     try {
@@ -84,6 +104,7 @@ export function LeadsPage() {
   const formTags: Record<string, LeadFormTag> = Object.fromEntries(leadForms.map((f) => [f.id, { name: f.name, color: leadFormColor(f) }]))
   const formTagOf = (l: Lead) => (l.sourceFormId ? formTags[l.sourceFormId] : undefined)
   const existingClientOf = (l: Lead) => (l.convertedClientId ? undefined : findClientMatch(l, clients)?.client.companyName)
+  const convByLead = buildLeadConversationMap(leads, waConvs)
   const openLead = leads.find((l) => l.id === openLeadId) ?? allLeads.find((l) => l.id === openLeadId) ?? null
 
   // Deep link do toast do Copiloto ("Transcrição salva no lead" ao encerrar
@@ -219,6 +240,7 @@ export function LeadsPage() {
       <div role="tablist" aria-label="Seções de leads" className="flex w-full gap-1 rounded-xl bg-slate-100 p-1 sm:w-fit">
         {([
           ['pipeline', 'Vendas', salesLeads.length],
+          ['conversas', 'Conversas', waUnread],
           ['questionnaires', 'Questionários', newQuestionnaires],
           ['forms', 'Formulários', leadForms.length],
         ] as const).map(([t, label, count]) => (
@@ -236,9 +258,9 @@ export function LeadsPage() {
             {count > 0 && (
               <span
                 className={`rounded-full px-1.5 text-[11px] font-bold ${
-                  t === 'questionnaires' ? 'bg-brand-600 text-white' : mainTab === t ? 'bg-brand-50 text-brand-700' : 'bg-slate-200 text-slate-500'
+                  t === 'questionnaires' ? 'bg-brand-600 text-white' : t === 'conversas' ? 'bg-emerald-500 text-white' : mainTab === t ? 'bg-brand-50 text-brand-700' : 'bg-slate-200 text-slate-500'
                 }`}
-                aria-label={t === 'questionnaires' ? `${count} resposta${count === 1 ? '' : 's'} nova${count === 1 ? '' : 's'}` : `${count}`}
+                aria-label={t === 'questionnaires' ? `${count} resposta${count === 1 ? '' : 's'} nova${count === 1 ? '' : 's'}` : t === 'conversas' ? `${count} conversa${count === 1 ? '' : 's'} não lida${count === 1 ? '' : 's'}` : `${count}`}
               >
                 {count}
               </span>
@@ -247,7 +269,18 @@ export function LeadsPage() {
         ))}
       </div>
 
-      {mainTab === 'forms' ? (
+      {mainTab === 'conversas' ? (
+        <div className="flex flex-col gap-2">
+          <WhatsappInbox templates={waTemplates} onOpenLead={setOpenLeadId} />
+          <p className="text-xs text-slate-400">
+            IA, follow-up, modelos e conexão do número ficam em{' '}
+            <Link to="/whatsapp?aba=config" className="font-semibold text-brand-600 hover:underline">
+              configurações do WhatsApp
+            </Link>
+            .
+          </p>
+        </div>
+      ) : mainTab === 'forms' ? (
         <LeadFormsPanel pipelines={pipelines} />
       ) : mainTab === 'questionnaires' ? (
         <QuestionnairePanel leads={leads} forms={leadForms} pipelines={pipelines} onOpenLead={setOpenLeadId} />
@@ -397,7 +430,7 @@ export function LeadsPage() {
                 items={pipelineLeads}
                 getStatus={(l) => stageOfLead(activePipeline, l.status).id}
                 renderCard={(l) => (
-                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} formTag={formTagOf(l)} existingClientName={existingClientOf(l)} />
+                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} formTag={formTagOf(l)} existingClientName={existingClientOf(l)} wa={convByLead.get(l.id)} />
                 )}
                 onMove={handleMove}
                 pageSize={30}

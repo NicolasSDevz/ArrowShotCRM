@@ -12,12 +12,15 @@ export function Drawer({
   title,
   children,
   width = 'w-full max-w-xl',
+  bodyClassName = 'flex-1 overflow-y-auto',
 }: {
   open: boolean
   onClose: () => void
   title: ReactNode
   children: ReactNode
   width?: string
+  /** Troca a rolagem do corpo (ex.: painel em colunas que rolam por dentro). */
+  bodyClassName?: string
 }) {
   const titleId = useId()
   const { panelRef, onKeyDown } = useDialogA11y(open, onClose)
@@ -47,7 +50,7 @@ export function Drawer({
             <X size={18} aria-hidden="true" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className={bodyClassName}>{children}</div>
       </div>
     </div>
   )

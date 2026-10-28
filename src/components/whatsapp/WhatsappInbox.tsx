@@ -1,12 +1,16 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { AlertTriangle, ArrowLeft, Bot, Check, CheckCheck, Clock, MessageCircle, Plus, Search, Send, ShoppingCart, Sparkles, UserRound, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Bot, Check, CheckCheck, ChevronRight, Clock, MessageCircle, Plus, Search, Send, ShoppingCart, Sparkles, UserRound, X } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Field, Input, Select } from '../ui/Field'
-import { listenConversations, listenMessages, replyWithAi, sendWaTemplate, sendWaText, updateWaConversation } from '../../services/whatsappService'
+import { listenMessages, replyWithAi, sendWaTemplate, sendWaText, updateWaConversation } from '../../services/whatsappService'
 import { waInWindow, type WaConversation, type WaMessage, type WaTemplate } from '../../types/whatsapp'
+import { useLeads } from '../../hooks/useLeads'
+import { useLeadPipelines } from '../../hooks/useLeadPipelines'
+import { findConversationLead, useWaConversations } from '../../hooks/useWaConversations'
+import { isQuestionnaireLead, locateLead, type Lead } from '../../types'
 
 type Filter = 'all' | 'unread' | 'ai' | 'human' | 'cart'
 
@@ -18,7 +22,7 @@ const FILTERS: { id: Filter; label: string; long: string }[] = [
   { id: 'cart', label: 'Carrinho', long: 'Carrinho abandonado' },
 ]
 
-const STATUS_LABEL: Record<string, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   received: 'recebida',
   sent: 'enviada',
   delivered: 'entregue',
@@ -26,9 +30,9 @@ const STATUS_LABEL: Record<string, string> = {
   failed: 'não enviada',
 }
 
-const AUTO = new Set(['ai', 'followup', 'cart'])
+export const AUTO = new Set(['ai', 'followup', 'cart'])
 
-const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+export const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
 function listTime(iso: string) {
   if (!iso) return ''
@@ -39,7 +43,7 @@ function listTime(iso: string) {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
-function dayLabel(iso: string) {
+export function dayLabel(iso: string) {
   const d = new Date(iso)
   const now = new Date()
   if (d.toDateString() === now.toDateString()) return 'Hoje'
@@ -47,7 +51,7 @@ function dayLabel(iso: string) {
   return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
 }
 
-function authorLabel(m: WaMessage, conv: WaConversation) {
+export function authorLabel(m: WaMessage, conv: WaConversation) {
   if (m.direction === 'in') return conv.name || 'Contato'
   if (m.by === 'ai') return 'IA'
   if (m.by === 'followup') return m.byName || 'Follow-up automático'
@@ -60,7 +64,7 @@ const displayName = (c: WaConversation) => c.name || c.phone
 /* ------------------------------ peças ------------------------------ */
 
 /** Chave liga/desliga acessível (role="switch"). */
-function Switch({ checked, onChange, label, busy }: { checked: boolean; onChange: () => void; label: string; busy?: boolean }) {
+export function Switch({ checked, onChange, label, busy }: { checked: boolean; onChange: () => void; label: string; busy?: boolean }) {
   return (
     <button
       type="button"
@@ -92,7 +96,7 @@ function EmptyPane({ title, text }: { title: string; text: string }) {
 
 /* ------------------------------ modelo ------------------------------ */
 
-function TemplateComposer({ to, name, templates, onSent }: { to: string; name?: string; templates: WaTemplate[]; onSent: (waId: string) => void }) {
+export function TemplateComposer({ to, name, templates, onSent }: { to: string; name?: string; templates: WaTemplate[]; onSent: (waId: string) => void }) {
   const approved = templates.filter((t) => t.status === 'APPROVED')
   const [tplKey, setTplKey] = useState('')
   const [params, setParams] = useState<string[]>([])
@@ -165,7 +169,7 @@ function TemplateComposer({ to, name, templates, onSent }: { to: string; name?: 
 
 /* ------------------------------ caixa de texto ------------------------------ */
 
-function Composer({ conv, templates }: { conv: WaConversation; templates: WaTemplate[] }) {
+export function Composer({ conv, templates }: { conv: WaConversation; templates: WaTemplate[] }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
@@ -277,14 +281,16 @@ function Composer({ conv, templates }: { conv: WaConversation; templates: WaTemp
 
 /* ------------------------------ conversa ------------------------------ */
 
-function StatusTicks({ status }: { status: string }) {
+export function StatusTicks({ status }: { status: string }) {
   if (status === 'read') return <CheckCheck size={14} className="text-sky-300" aria-hidden="true" />
   if (status === 'delivered') return <CheckCheck size={14} aria-hidden="true" />
   if (status === 'failed') return <AlertTriangle size={13} className="text-red-200" aria-hidden="true" />
   return <Check size={14} aria-hidden="true" />
 }
 
-function Thread({ conv, templates, onBack }: { conv: WaConversation; templates: WaTemplate[]; onBack: () => void }) {
+function Thread({ conv, templates, onBack, lead, onOpenLead }: { conv: WaConversation; templates: WaTemplate[]; onBack: () => void; lead: Lead | null; onOpenLead: (id: string) => void }) {
+  const { pipelines } = useLeadPipelines()
+  const where = lead ? locateLead(pipelines, lead) : null
   const [messages, setMessages] = useState<WaMessage[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [announce, setAnnounce] = useState('')
@@ -344,13 +350,36 @@ function Thread({ conv, templates, onBack }: { conv: WaConversation; templates: 
         <div className="flex flex-wrap items-center gap-2">
           <Switch checked={aiOn} busy={busy === 'ai'} label="IA" onChange={() => run('ai', () => updateWaConversation(conv.waId, { aiMode: aiOn ? 'off' : 'auto' }), aiOn ? 'IA desligada nesta conversa' : 'IA ligada nesta conversa')} />
           <Switch checked={followOn} busy={busy === 'fu'} label="Follow-up" onChange={() => run('fu', () => updateWaConversation(conv.waId, { followUpStopped: followOn }), followOn ? 'Follow-up parado' : 'Follow-up ligado')} />
-          {conv.leadId && (
-            <Link to="/leads" className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Ver este contato nos Leads" title="Ver nos Leads">
-              <UserRound size={15} aria-hidden="true" />
-            </Link>
-          )}
         </div>
       </header>
+
+      {/* Ficha do lead ligada à conversa (estilo Kommo): etapa e atalho pra abrir. */}
+      {lead && where ? (
+        <button
+          type="button"
+          onClick={() => onOpenLead(lead.id)}
+          className="flex w-full items-center gap-2 border-b border-slate-200 bg-white px-4 py-2 text-left text-sm hover:bg-slate-50"
+          aria-label={`Abrir a ficha do lead ${lead.contactName}${lead.companyName ? `, ${lead.companyName}` : ''}. ${isQuestionnaireLead(lead) ? 'Na aba Questionários' : `Pipeline ${where.pipeline.name}, etapa ${where.stage.label}`}`}
+        >
+          <UserRound size={15} className="shrink-0 text-slate-400" aria-hidden="true" />
+          <span className="min-w-0 truncate font-medium text-slate-700">
+            {lead.contactName}
+            {lead.companyName ? <span className="font-normal text-slate-400">, {lead.companyName}</span> : null}
+          </span>
+          {isQuestionnaireLead(lead) ? (
+            <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Questionário</span>
+          ) : (
+            <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: `${where.stage.color}26`, color: where.stage.color }}>
+              {where.pipeline.name}: {where.stage.label}
+            </span>
+          )}
+          <span className="ml-auto flex shrink-0 items-center gap-0.5 text-xs font-semibold text-brand-600">
+            Abrir ficha <ChevronRight size={14} aria-hidden="true" />
+          </span>
+        </button>
+      ) : (
+        <p className="border-b border-slate-200 bg-white px-4 py-2 text-xs text-slate-400">Esse número ainda não está ligado a nenhum lead do CRM.</p>
+      )}
 
       {conv.aiMode === 'off' && conv.handoffReason && (
         <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800" role="status">
@@ -462,15 +491,23 @@ function NewConversation({ templates, onDone }: { templates: WaTemplate[]; onDon
 
 /* ------------------------------ caixa de entrada ------------------------------ */
 
-export function WhatsappInbox({ templates, onCount }: { templates: WaTemplate[]; onCount?: (n: number) => void }) {
+export function WhatsappInbox({ templates, onCount, onOpenLead }: { templates: WaTemplate[]; onCount?: (n: number) => void; onOpenLead?: (leadId: string) => void }) {
   const [params, setParams] = useSearchParams()
-  const [rows, setRows] = useState<WaConversation[] | null>(null)
+  const navigate = useNavigate()
+  const { data: convData, loading: convLoading, error: convError } = useWaConversations()
+  const rows: WaConversation[] | null = convLoading ? null : convData
+  const { data: leads } = useLeads()
+  const { pipelines } = useLeadPipelines()
+  const openLead = onOpenLead ?? ((id: string) => navigate(`/leads?lead=${id}`))
+  const leadOf = (c: WaConversation) => findConversationLead(c, leads)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [creating, setCreating] = useState(false)
   const selected = params.get('c')
 
-  useEffect(() => listenConversations(setRows, () => toast.error('Não consegui carregar as conversas.')), [])
+  useEffect(() => {
+    if (convError) toast.error('Não consegui carregar as conversas.')
+  }, [convError])
 
   const select = (waId: string | null) => {
     const next = new URLSearchParams(params)
@@ -580,6 +617,8 @@ export function WhatsappInbox({ templates, onCount }: { templates: WaTemplate[];
               const active = c.waId === selected
               const status = c.aiMode === 'off' ? 'com a equipe' : 'IA atendendo'
               const unread = c.unread > 0
+              const lead = leadOf(c)
+              const where = lead && !isQuestionnaireLead(lead) ? locateLead(pipelines, lead) : null
               return (
                 <li key={c.waId}>
                   <button
@@ -589,7 +628,7 @@ export function WhatsappInbox({ templates, onCount }: { templates: WaTemplate[];
                       select(c.waId)
                     }}
                     aria-current={active ? 'true' : undefined}
-                    aria-label={`${displayName(c)}. ${unread ? `${c.unread} não lidas. ` : ''}${status}${c.kind === 'cart' ? ', carrinho abandonado' : ''}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
+                    aria-label={`${displayName(c)}. ${where ? `Lead na etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}${c.kind === 'cart' ? ', carrinho abandonado' : ''}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
                     className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition ${active ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
                   >
                     <Avatar name={displayName(c)} size="lg" />
@@ -612,6 +651,11 @@ export function WhatsappInbox({ templates, onCount }: { templates: WaTemplate[];
                         </span>
                         {unread && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">{c.unread}</span>}
                       </span>
+                      {where && (
+                        <span className="mt-1 inline-flex max-w-full items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold" style={{ backgroundColor: `${where.stage.color}26`, color: where.stage.color }}>
+                          {where.stage.label}
+                        </span>
+                      )}
                     </span>
                   </button>
                 </li>
@@ -630,7 +674,7 @@ export function WhatsappInbox({ templates, onCount }: { templates: WaTemplate[];
             }}
           />
         ) : current ? (
-          <Thread key={current.waId} conv={current} templates={templates} onBack={() => select(null)} />
+          <Thread key={current.waId} conv={current} templates={templates} onBack={() => select(null)} lead={leadOf(current)} onOpenLead={openLead} />
         ) : (
           <div className="flex flex-1 bg-slate-50">
             <EmptyPane title="Nenhuma conversa aberta" text="Escolha uma conversa na lista ou comece uma nova. A IA continua respondendo enquanto isso." />
