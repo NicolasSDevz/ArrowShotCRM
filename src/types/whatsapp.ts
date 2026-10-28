@@ -8,6 +8,8 @@ export interface WaConversation {
   phone: string
   name: string
   leadId: string | null
+  /** 'existing' = o número já estava no CRM quando chamou; 'created' = virou lead novo. */
+  leadMatch?: 'existing' | 'created' | null
   /** 'lead' = contato da agência; 'cart' = carrinho abandonado da Loja. */
   kind: 'lead' | 'cart'
   cartId?: string

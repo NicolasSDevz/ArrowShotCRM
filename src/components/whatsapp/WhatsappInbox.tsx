@@ -12,11 +12,13 @@ import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { findConversationLead, useWaConversations } from '../../hooks/useWaConversations'
 import { isQuestionnaireLead, locateLead, type Lead } from '../../types'
 
-type Filter = 'all' | 'unread' | 'ai' | 'human' | 'cart'
+type Filter = 'all' | 'unread' | 'new' | 'crm' | 'ai' | 'human' | 'cart'
 
 const FILTERS: { id: Filter; label: string; long: string }[] = [
   { id: 'all', label: 'Todas', long: 'Todas as conversas' },
   { id: 'unread', label: 'Não lidas', long: 'Só não lidas' },
+  { id: 'new', label: 'Leads novos', long: 'Leads novos, que chegaram pelo WhatsApp' },
+  { id: 'crm', label: 'Já no CRM', long: 'Quem já estava no CRM e voltou a chamar' },
   { id: 'ai', label: 'IA', long: 'IA atendendo' },
   { id: 'human', label: 'Equipe', long: 'Com a equipe' },
   { id: 'cart', label: 'Carrinho', long: 'Carrinho abandonado' },
@@ -500,6 +502,15 @@ export function WhatsappInbox({ templates, onCount, onOpenLead }: { templates: W
   const { pipelines } = useLeadPipelines()
   const openLead = onOpenLead ?? ((id: string) => navigate(`/leads?lead=${id}`))
   const leadOf = (c: WaConversation) => findConversationLead(c, leads)
+  /** 'crm' = o número já estava no CRM quando chamou; 'new' = virou lead agora. */
+  const originOf = (c: WaConversation): 'crm' | 'new' | null => {
+    if (c.leadMatch === 'existing') return 'crm'
+    if (c.leadMatch === 'created') return 'new'
+    if (c.kind !== 'lead') return null
+    const l = leadOf(c)
+    if (!l) return null
+    return l.createdBy === 'whatsapp' ? 'new' : 'crm'
+  }
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [creating, setCreating] = useState(false)
@@ -521,13 +532,15 @@ export function WhatsappInbox({ templates, onCount, onOpenLead }: { templates: W
     const qDigits = q.replace(/\D/g, '')
     return (rows || []).filter((c) => {
       if (filter === 'unread' && !(c.unread > 0)) return false
+      if (filter === 'new' && originOf(c) !== 'new') return false
+      if (filter === 'crm' && originOf(c) !== 'crm') return false
       if (filter === 'ai' && c.aiMode === 'off') return false
       if (filter === 'human' && c.aiMode !== 'off') return false
       if (filter === 'cart' && c.kind !== 'cart') return false
       if (!q) return true
       return (c.name || '').toLowerCase().includes(q) || (qDigits.length >= 3 && c.waId.includes(qDigits)) || (c.lastMessageText || '').toLowerCase().includes(q)
     })
-  }, [rows, search, filter])
+  }, [rows, search, filter, leads]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (rows) onCount?.(rows.length)
@@ -538,11 +551,13 @@ export function WhatsappInbox({ templates, onCount, onOpenLead }: { templates: W
     return {
       all: r.length,
       unread: r.filter((c) => c.unread > 0).length,
+      new: r.filter((c) => originOf(c) === 'new').length,
+      crm: r.filter((c) => originOf(c) === 'crm').length,
       ai: r.filter((c) => c.aiMode !== 'off').length,
       human: r.filter((c) => c.aiMode === 'off').length,
       cart: r.filter((c) => c.kind === 'cart').length,
     } as Record<Filter, number>
-  }, [rows])
+  }, [rows, leads]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const current = (rows || []).find((c) => c.waId === selected) || null
   const unreadTotal = (rows || []).filter((c) => c.unread > 0).length
@@ -619,6 +634,7 @@ export function WhatsappInbox({ templates, onCount, onOpenLead }: { templates: W
               const unread = c.unread > 0
               const lead = leadOf(c)
               const where = lead && !isQuestionnaireLead(lead) ? locateLead(pipelines, lead) : null
+              const origin = originOf(c)
               return (
                 <li key={c.waId}>
                   <button
@@ -628,7 +644,7 @@ export function WhatsappInbox({ templates, onCount, onOpenLead }: { templates: W
                       select(c.waId)
                     }}
                     aria-current={active ? 'true' : undefined}
-                    aria-label={`${displayName(c)}. ${where ? `Lead na etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}${c.kind === 'cart' ? ', carrinho abandonado' : ''}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
+                    aria-label={`${displayName(c)}. ${origin === 'crm' ? 'Já estava no CRM. ' : origin === 'new' ? 'Lead novo. ' : ''}${where ? `Etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}${c.kind === 'cart' ? ', carrinho abandonado' : ''}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
                     className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition ${active ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
                   >
                     <Avatar name={displayName(c)} size="lg" />
@@ -651,9 +667,15 @@ export function WhatsappInbox({ templates, onCount, onOpenLead }: { templates: W
                         </span>
                         {unread && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">{c.unread}</span>}
                       </span>
-                      {where && (
-                        <span className="mt-1 inline-flex max-w-full items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold" style={{ backgroundColor: `${where.stage.color}26`, color: where.stage.color }}>
-                          {where.stage.label}
+                      {(origin || where) && (
+                        <span className="mt-1 flex flex-wrap items-center gap-1">
+                          {origin === 'crm' && <span className="rounded-md bg-sky-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-sky-500">Já no CRM</span>}
+                          {origin === 'new' && <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-500">Lead novo</span>}
+                          {where && (
+                            <span className="max-w-full truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold" style={{ backgroundColor: `${where.stage.color}26`, color: where.stage.color }}>
+                              {where.stage.label}
+                            </span>
+                          )}
                         </span>
                       )}
                     </span>

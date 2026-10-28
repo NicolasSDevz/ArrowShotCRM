@@ -1,6 +1,7 @@
 import { orderBy, where, Timestamp, type FirestoreError } from 'firebase/firestore'
 import type { AppUser, Client, Lead, LeadContactEntry, LeadInput, LeadStatus, ResolvedPipeline } from '../types'
 import { contactKeys } from '../utils/leadDuplicates'
+import { waPhoneKey } from '../utils/phoneKey'
 import { LEAD_STATUS_LABEL, LEAD_LOST_REASON_LABEL, LEAD_FORM_STAGE_LABEL, isQuestionnaireLead, type LeadFormStage } from '../types/lead'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
@@ -18,7 +19,8 @@ export async function createLead(
   userName: string,
   opts?: { skipAdminNotify?: boolean }
 ) {
-  const id = await base.create({ ...data, stageChangedAt: Timestamp.now() }, userId)
+  // phoneKey: o WhatsApp acha o lead por ele quando a pessoa chama (ver api/_lib/whatsapp.js).
+  const id = await base.create({ ...data, phoneKey: waPhoneKey(data.whatsapp), stageChangedAt: Timestamp.now() }, userId)
   await logActivity({
     entityType: 'lead',
     entityId: id,
@@ -126,7 +128,7 @@ export async function importLeads(
 }
 
 export async function updateLead(id: string, data: Partial<LeadInput>, userId: string, userName: string) {
-  await base.update(id, data, userId)
+  await base.update(id, data.whatsapp !== undefined ? { ...data, phoneKey: waPhoneKey(data.whatsapp) } : data, userId)
   await logActivity({
     entityType: 'lead',
     entityId: id,

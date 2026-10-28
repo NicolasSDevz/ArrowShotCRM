@@ -275,10 +275,40 @@ export function inWindow(conv, now = Date.now()) {
 }
 
 /** Lead do CRM com esse número (compara sem o 9 e sem DDI). */
+const PHONE_INDEX = 'waSettings/phoneIndex'
+const msOf = (v) => (v ? new Date(v).getTime() || 0 : 0)
+/** Mais de um lead com o mesmo número: fica com o mexido por último. */
+const newest = (rows) => rows.sort((a, b) => msOf(b.updatedAt) - msOf(a.updatedAt))[0] || null
+
+/** Lead que já está no CRM com esse número (com ou sem o 9).
+ *  Rápido: cada lead guarda `phoneKey` (DDD + últimos 8 dígitos) e a busca
+ *  vai direto nele, sem ler a lista inteira. Leads gravados sem a chave
+ *  (formulário público, leads antigos) ganham a chave aqui: a primeira vez
+ *  varre tudo; depois só os criados desde a última varredura. */
 async function findLeadByPhone(waId) {
   const key = phoneKey(waId)
-  const leads = await listDocs('leads')
-  return leads.find((l) => l.whatsapp && phoneKey(l.whatsapp) === key) || null
+  if (!key || key.length < 10) return null
+  const hits = await queryDocs('leads', [['phoneKey', key]])
+  if (hits.length) return newest(hits)
+
+  const idx = await getDoc(PHONE_INDEX).catch(() => null)
+  const since = idx?.exists ? idx.data().scannedAt : null
+  const startedAt = new Date()
+  const rows = since ? await queryDocs('leads', [['createdAt', new Date(msOf(since) - 10 * 60_000), '>=']]) : await listDocs('leads')
+  const matches = []
+  const fixes = []
+  for (const l of rows) {
+    if (!l.whatsapp) continue
+    const k = phoneKey(l.whatsapp)
+    if (!k) continue
+    if (l.phoneKey !== k) fixes.push([l.id, k])
+    if (k === key) matches.push(l)
+  }
+  for (let i = 0; i < fixes.length; i += 25) {
+    await Promise.allSettled(fixes.slice(i, i + 25).map(([id, k]) => updateDoc(`leads/${id}`, { phoneKey: k })))
+  }
+  await setDoc(PHONE_INDEX, { scannedAt: startedAt.toISOString(), lastFixed: fixes.length, full: !since }).catch(() => {})
+  return newest(matches)
 }
 
 /** Cria o lead de quem chamou pela primeira vez (coluna Novo Lead). */
@@ -289,6 +319,7 @@ async function createLeadFromWhatsapp(waId, name) {
     contactName: name || prettyPhone(waId),
     companyName: '',
     whatsapp: prettyPhone(waId),
+    phoneKey: phoneKey(waId),
     services: {},
     source: 'whatsapp',
     status: 'new',
@@ -311,16 +342,24 @@ async function ensureConversation(waId, { name = '', kind = 'lead', extra = {}, 
   if (snap.exists) return { id: waId, ...snap.data() }
   let leadId = null
   let leadName = ''
+  // 'existing' = o número já estava no CRM (não cria outro); 'created' = lead novo.
+  let leadMatch = null
   if (linkLead && kind === 'lead') {
-    const lead = await findLeadByPhone(waId).catch(() => null)
+    const lead = await findLeadByPhone(waId).catch((e) => {
+      console.warn('[whatsapp] busca do lead pelo telefone falhou:', e.message)
+      return undefined
+    })
     if (lead) {
       leadId = lead.id
       leadName = lead.contactName || ''
-    } else if ((await getWaSettings()).autoCreateLead) {
+      leadMatch = 'existing'
+    } else if (lead === null && (await getWaSettings()).autoCreateLead) {
+      // Só cria se a busca respondeu "não tem". Se a busca falhou, não arrisca duplicar.
       leadId = await createLeadFromWhatsapp(waId, name).catch((e) => {
         console.warn('[whatsapp] não criou o lead:', e.message)
         return null
       })
+      if (leadId) leadMatch = 'created'
     }
   }
   const conv = {
@@ -328,6 +367,7 @@ async function ensureConversation(waId, { name = '', kind = 'lead', extra = {}, 
     phone: prettyPhone(waId),
     name: name || leadName || '',
     leadId,
+    leadMatch,
     kind,
     aiMode: 'auto',
     followUpStep: 0,

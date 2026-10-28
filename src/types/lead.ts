@@ -132,6 +132,9 @@ export interface Lead extends BaseDoc {
   contactName: string
   companyName?: string
   whatsapp: string
+  /** DDD + últimos 8 dígitos do WhatsApp (ver utils/phoneKey.ts). Gravado
+   *  junto com o número; o servidor usa pra achar o lead quando ele chama. */
+  phoneKey?: string | null
   email?: string
   cityRegion?: string
   services: LeadServiceInterest
