@@ -430,7 +430,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
             )}
           </Card>
 
-          <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg">
+          <div className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 ${dirty ? 'sticky bottom-4 z-10 border-amber-500/40 bg-white shadow-lg' : 'border-slate-200 bg-white'}`}>
             <span className={`flex items-center gap-2 text-sm ${dirty ? 'text-amber-600' : 'text-slate-500'}`} role="status">
               <span className={`h-2 w-2 rounded-full ${dirty ? 'bg-amber-500' : 'bg-emerald-500'}`} aria-hidden="true" />
               {dirty ? 'Alterações não salvas' : 'Tudo salvo'}
