@@ -33,8 +33,7 @@ const FILTERS: { id: WaFilter; label: string; long: string; main?: boolean }[] =
 ]
 
 /** Contato falou por último e a IA não está atendendo: alguém da equipe precisa responder. */
-const needsApproval = (c: WaConversation) => c.approval?.status === 'pending' && c.aiMode !== 'off'
-const isWaiting = (c: WaConversation) => needsApproval(c) || (c.aiMode === 'off' && c.lastDirection === 'in' && !/^\[(reagiu|reação)/.test(c.lastMessageText || ''))
+const isWaiting = (c: WaConversation) => c.aiMode === 'off' && c.lastDirection === 'in' && !/^\[(reagiu|reação)/.test(c.lastMessageText || '')
 
 /* ------------------------------ nova conversa ------------------------------ */
 
@@ -272,7 +271,7 @@ export function WhatsappInbox({
                       select(c.waId)
                     }}
                     aria-current={active ? 'true' : undefined}
-                    aria-label={`${displayName(c)}${company ? `, ${company}` : ''}. ${needsApproval(c) ? 'Contato novo esperando aprovação. ' : isWaiting(c) ? 'Esperando resposta do Bruno. ' : ''}${c.sdr ? `${c.sdr.temperature}, ${c.sdr.stage}. ` : ''}${origin === 'crm' ? 'Já estava no CRM. ' : origin === 'new' ? 'Lead novo. ' : ''}${where ? `Etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
+                    aria-label={`${displayName(c)}${company ? `, ${company}` : ''}. ${isWaiting(c) ? 'Esperando resposta do Bruno. ' : ''}${c.sdr ? `${c.sdr.temperature}, ${c.sdr.stage}. ` : ''}${origin === 'crm' ? 'Já estava no CRM. ' : origin === 'new' ? 'Lead novo. ' : ''}${where ? `Etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
                     className={`relative flex w-full items-start gap-3 rounded-xl px-2.5 py-2.5 text-left transition ${active ? 'bg-emerald-500/10' : 'hover:bg-slate-50'}`}
                   >
                     {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-emerald-500" aria-hidden="true" />}
@@ -302,9 +301,7 @@ export function WhatsappInbox({
                       </span>
                       {(isWaiting(c) || hasMeeting(c) || isHot(c)) && (
                         <span className="mt-1 flex">
-                          {needsApproval(c) ? (
-                            <span className="rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-500">Aprovar: IA atende?</span>
-                          ) : isWaiting(c) ? (
+                          {isWaiting(c) ? (
                             <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-500">Esperando o Bruno</span>
                           ) : hasMeeting(c) ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-400">

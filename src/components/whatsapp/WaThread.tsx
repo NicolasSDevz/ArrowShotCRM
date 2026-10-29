@@ -5,7 +5,7 @@ import { Avatar } from '../ui/Avatar'
 import { Composer, DayDivider, MessageBubble, Switch, authorLabel, displayName } from './WaParts'
 import { SDR_FIELDS, SDR_FIELD_LABEL, SDR_FLOW, SDR_STAGE, SDR_TEMP } from './waSdr'
 import { SdrChip } from './SdrChip'
-import { analyzeWaConversation, approveWaConversation, listenMessages, updateWaConversation } from '../../services/whatsappService'
+import { analyzeWaConversation, listenMessages, updateWaConversation } from '../../services/whatsappService'
 import type { WaConversation, WaMessage, WaTemplate } from '../../types/whatsapp'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { isQuestionnaireLead, locateLead, type Lead } from '../../types'
@@ -312,32 +312,6 @@ export function WaThread({
           <p className="shrink-0 border-b border-slate-200 bg-white px-4 py-2 text-xs text-slate-400">Esse número ainda não está ligado a nenhum lead do CRM.</p>
         )}
 
-        {conv.approval?.status === 'pending' && conv.aiMode !== 'off' && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-slate-700" role="status">
-            <AlertTriangle size={15} className="shrink-0 text-amber-500" aria-hidden="true" />
-            <span className="min-w-0 flex-1">
-              <strong className="font-semibold">Contato novo.</strong> É lead? A IA pode atender?
-            </span>
-            <span className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                disabled={busy === 'ap'}
-                onClick={() => run('ap', () => approveWaConversation(conv.waId, true), 'A IA vai atender este contato')}
-                className="h-8 rounded-lg bg-emerald-500 px-3 text-xs font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-60"
-              >
-                Sim, IA atende
-              </button>
-              <button
-                type="button"
-                disabled={busy === 'ap'}
-                onClick={() => run('ap', () => approveWaConversation(conv.waId, false), 'Você atende este contato. A IA não vai responder.')}
-                className="h-8 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
-              >
-                Não, eu atendo
-              </button>
-            </span>
-          </div>
-        )}
         {conv.aiMode === 'off' && conv.handoffReason && (
           <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-slate-700" role="status">
             <AlertTriangle size={15} className="shrink-0 text-amber-500" aria-hidden="true" />

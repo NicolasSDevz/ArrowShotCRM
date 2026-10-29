@@ -349,30 +349,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
               <Toggle checked={s.aiEnabled} onChange={(v) => edit((c) => ({ ...c, aiEnabled: v }))} label="IA responde as conversas" hint="Dá pra desligar em cada conversa também." />
   
               <Group title="Quem a IA atende">
-                <Toggle
-                  checked={s.approval.enabled}
-                  onChange={(v) => edit((c) => ({ ...c, approval: { ...c.approval, enabled: v } }))}
-                  label="Perguntar antes de atender contato novo"
-                  hint="Chega um aviso no celular e no sino: Sim (IA atende) ou Não (você atende)."
-                />
-                {s.approval.enabled && (
-                  <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                    <span>Sem resposta em</span>
-                    <select
-                      value={s.approval.waitMinutes}
-                      onChange={(e) => edit((c) => ({ ...c, approval: { ...c.approval, waitMinutes: Number(e.target.value) } }))}
-                      className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-800"
-                    >
-                      {[5, 10, 15, 30, 60].map((m) => (
-                        <option key={m} value={m}>
-                          {m} minutos
-                        </option>
-                      ))}
-                      <option value={0}>nunca (espera o Bruno)</option>
-                    </select>
-                    <span>{s.approval.waitMinutes ? 'a IA atende sozinha.' : ''}</span>
-                  </label>
-                )}
+                <p className="text-sm text-slate-500">Número novo: na primeira resposta a IA pergunta se a pessoa já é cliente ou já falou com o Bruno. Se for, passa pro Bruno.</p>
                 <Toggle checked={s.skipKnownContacts !== false} onChange={(v) => edit((c) => ({ ...c, skipKnownContacts: v }))} label="Não atender quem já é cliente ou já fala com a equipe" hint="Cliente, ex-cliente ou lead antigo/em andamento: a IA fica quieta e avisa vocês." />
               </Group>
   

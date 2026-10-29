@@ -184,9 +184,6 @@ export const DEFAULT_SETTINGS = {
   autoCreateLead: true,
   /** Cliente ou lead que a equipe já atende: a IA não responde, só avisa a equipe. */
   skipKnownContacts: true,
-  /** Contato novo: pergunta pra equipe se a IA atende (Sim/Não) antes de responder.
-   *  waitMinutes = sem resposta nesse tempo, a IA atende (0 = espera a equipe sempre). */
-  approval: { enabled: true, waitMinutes: 10 },
   followUp: {
     enabled: true,
     businessHoursOnly: true,
@@ -237,7 +234,6 @@ export async function getWaSettings() {
     cart: { ...DEFAULT_SETTINGS.cart, ...(d.cart || {}) },
     sdr: { ...DEFAULT_SETTINGS.sdr, ...(d.sdr || {}) },
     reminder: { ...DEFAULT_SETTINGS.reminder, ...(d.reminder || {}) },
-    approval: { ...DEFAULT_SETTINGS.approval, ...(d.approval || {}) },
   }
 }
 
@@ -750,47 +746,6 @@ async function notifyTeam(conv, message, { bell = true, type = 'whatsapp_handoff
   await sendPushToUsers(ids, { title: `WhatsApp: ${who}`, body: message, url: `/leads?aba=conversas&c=${conv.waId}`, tag: `wa-${conv.waId}`, actions }).catch(() => {})
 }
 
-/* ------------------------- aprovação de contato novo ------------------------- */
-
-/** Pergunta pra equipe se a IA atende esse contato novo (celular com botões + sino do CRM). */
-async function askApproval(conv, lastIn) {
-  const token = randomBytes(16).toString('hex')
-  const approval = { status: 'pending', askedAt: nowIso(), token }
-  // Grava só se ainda não perguntou (dois webhooks juntos não mandam dois avisos).
-  if (!(await createDocIfMissing(`waLocks/approval_${conv.waId}`, { at: nowIso() }))) return
-  await updateDoc(convPath(conv.waId), { approval })
-  const said = clip(lastIn?.text || conv.lastMessageText || '', 120)
-  const base = `/api/whatsapp/approve?c=${conv.waId}&t=${token}`
-  await notifyTeam(conv, `Contato novo no WhatsApp${said ? `: "${said}"` : ''}. É lead? A IA pode atender?`, {
-    type: 'whatsapp_approval',
-    actions: [
-      { action: 'yes', title: 'Sim, IA atende', url: `${base}&v=sim` },
-      { action: 'no', title: 'Não, eu atendo', url: `${base}&v=nao` },
-    ],
-  })
-}
-
-/**
- * Decisão da equipe sobre o contato novo. yes = a IA atende agora; no = equipe atende.
- * `token` vem do botão da notificação do celular (sem login); pelo CRM vem `by` (uid).
- */
-export async function decideApproval(waId, yes, { token, by = null, byName = '' } = {}) {
-  const snap = await getDoc(convPath(waId))
-  if (!snap.exists) throw new WaError(404, 'Conversa não encontrada.')
-  const conv = { waId, ...snap.data() }
-  const ap = conv.approval || {}
-  if (token !== undefined && (!ap.token || token !== ap.token)) throw new WaError(403, 'Link inválido ou vencido.')
-  const decided = { ...ap, status: yes ? 'approved' : 'rejected', decidedAt: nowIso(), decidedBy: by, decidedByName: byName }
-  delete decided.token
-  if (yes) {
-    await updateDoc(convPath(waId), { approval: decided, aiMode: 'auto', handoffReason: null })
-  } else {
-    await updateDoc(convPath(waId), { approval: decided, aiMode: 'off', handoffReason: `${byName || 'A equipe'} vai atender (não liberou a IA)`, handoffAt: nowIso() })
-  }
-  await deleteDoc(`waLocks/approval_${waId}`).catch(() => {})
-  return { conv, yes, alreadyDecided: ap.status && ap.status !== 'pending' }
-}
-
 /* ------------------------------- IA ------------------------------- */
 
 let anthropicClient = null
@@ -818,6 +773,20 @@ const HANDOFF_RULES = `Passe para um humano (handoff = true) quando:
 - você tiver qualquer dúvida sobre o que responder ou como seguir (não chute: passe).
 Reunião NÃO é motivo para passar: você mesmo propõe e fecha o dia e o horário (pelo link da agenda ou com 2 opções concretas) e continua atendendo depois.
 Ao passar, escreva uma resposta curta avisando que já vai chamar alguém da equipe.`
+
+/** Primeira resposta pra um número que o CRM não conhece: pergunta se já é cliente antes de vender. */
+const FIRST_TOUCH = `# Primeira resposta desta conversa (importante)
+Você ainda não falou com esta pessoa e o CRM não sabe quem ela é. Este número é o mesmo que o BRUNO usa no celular, então pode ser cliente ou alguém que já conversou com ele.
+- Se a mensagem dela já deixa claro que é um contato novo (veio do anúncio, "vi o anúncio", "quero saber mais", "quero orçamento", "quanto custa", texto pronto de anúncio): NÃO pergunte se é cliente. Siga a abertura normal.
+- Em qualquer outro caso (um "oi", "boa tarde", um nome, algo vago, ou que pareça continuação): cumprimente, se apresente em 1 frase e pergunte de forma leve: "Você já é cliente da Arrow Shot ou já conversou com o Bruno antes?". Não faça outra pergunta junto e não fale do serviço ainda. Use stage "abertura".
+- Se pela mensagem já der pra ver que é cliente ou conversa antiga, siga a regra "Conversa antiga" (handoff).`
+
+/** Logo depois de perguntar: a resposta decide se segue como SDR ou passa pro Bruno. */
+const CLIENT_ANSWER = `# A pergunta "já é cliente?" foi feita
+Na última mensagem você perguntou se a pessoa já é cliente ou já conversou com o Bruno. Leia a resposta:
+- SIM (já é cliente, já falou com o Bruno, já tem reunião, já contratou, "sou eu de novo"): responda 1 balão curto ("Perfeito! Já chamo o Bruno pra falar com você.") e passe para a equipe: handoff = true, handoff_reason = "Disse que já é cliente ou já falou com o Bruno".
+- NÃO (ou contou do negócio, ou perguntou do serviço): siga como SDR normal, a partir da abertura/descoberta, sem repetir a apresentação.
+- Resposta vaga: trate como NÃO e siga, com gentileza.`
 
 const SDR_STAGES = ['abertura', 'descoberta', 'qualificacao', 'agendamento', 'agendado', 'nutricao', 'desqualificado']
 const SDR_FIELDS = ['nome', 'empresa', 'cidade', 'servico', 'tamanho', 'anuncia', 'investimento', 'objetivo', 'decisor', 'prazo']
@@ -1152,19 +1121,6 @@ export async function maybeAutoReply(waId, origin, { waitMs } = {}) {
     }
   }
 
-  // Contato novo: a equipe aprova antes (Sim = IA atende, Não = equipe atende).
-  if (settings.approval?.enabled && conv.kind === 'lead' && !conv.knownContactOverride && !recent.some((m) => m.by === 'ai')) {
-    const ap = conv.approval
-    if (!ap) {
-      await askApproval(conv, lastIn)
-      return { skipped: 'esperando aprovação' }
-    }
-    if (ap.status === 'pending') {
-      const wait = Number(settings.approval.waitMinutes) || 0
-      if (!wait || Date.now() - new Date(ap.askedAt).getTime() < wait * 60_000) return { skipped: 'esperando aprovação' }
-      await updateDoc(convPath(waId), { approval: { ...ap, status: 'timeout', decidedAt: nowIso() } }).catch(() => {})
-    }
-  }
   // Outra chamada do webhook mais nova cuida da resposta.
   if (new Date(conv.lastInboundAt).getTime() > new Date(lastIn.at).getTime() + 1000) return { skipped: 'mais nova a caminho' }
   // Trava: uma resposta por mensagem recebida, mesmo com dois webhooks juntos.
@@ -1218,8 +1174,7 @@ export async function runPendingReplies(origin, { max = 4, budgetMs = 60_000 } =
     .filter((c) => c.aiMode !== 'off' && c.lastInboundAt)
     .filter((c) => {
       const age = started - new Date(c.lastInboundAt).getTime()
-      // Contato novo esperando aprovação: a janela cobre o tempo de espera configurado.
-      return age > minAge && age < Math.max(60, (Number(settings.approval?.waitMinutes) || 0) + 20) * 60_000
+      return age > minAge && age < 60 * 60_000
     })
     .filter((c) => !NOISE_TEXT.test(String(c.lastMessageText || '')))
     .filter((c) => !(c.aiFail?.inboundAt === c.lastInboundAt && Number(c.aiFail.count) >= AI_MAX_FAILS))
@@ -1255,7 +1210,14 @@ async function autoReplyLocked(waId, origin, settings, conv, recent) {
 
   const turns = toTurns(recent)
   if (!turns.length) return { skipped: 'sem turnos' }
-  const system = await conversationPrompt(conv, settings, origin)
+  let system = await conversationPrompt(conv, settings, origin)
+  // Número que o CRM não conhecia: antes de vender, pergunta se já é cliente.
+  if (conv.kind === 'lead' && conv.leadMatch !== 'existing') {
+    const ours = recent.filter((m) => m.direction === 'out')
+    const lastOurs = ours[ours.length - 1]
+    if (!ours.length) system += `\n\n${FIRST_TOUCH}`
+    else if (lastOurs?.by === 'ai' && ours.filter((m) => m.by === 'ai').length <= 3 && /j[áa] (é|e) client|j[áa] conversou com o|j[áa] falou com o/i.test(lastOurs.text || '')) system += `\n\n${CLIENT_ANSWER}`
+  }
   // Até 2 tentativas: resposta quebrada ou erro passageiro da API não deixa o contato sem resposta.
   let parsed = null
   for (let attempt = 1; attempt <= 2; attempt++) {
