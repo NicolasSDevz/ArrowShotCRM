@@ -662,9 +662,9 @@ const HANDOFF_RULES = `Passe para um humano (handoff = true) quando:
 - a pessoa pedir para falar com alguém, com o Bruno ou com um atendente;
 - for reclamação, cobrança, cancelamento ou problema com serviço já contratado (cliente atual, não lead);
 - pedirem algo que você não sabe responder com as informações abaixo;
-- a pessoa quiser negociar valores ou fechar agora;
-- a reunião ficou combinada com dia e horário (a equipe confirma na agenda).
-Ao passar, escreva uma resposta curta avisando que já vai chamar alguém da equipe (ou que a equipe confirma o horário).`
+- a pessoa quiser negociar valores ou fechar agora.
+Reunião combinada NÃO é motivo para passar: continue atendendo normalmente.
+Ao passar, escreva uma resposta curta avisando que já vai chamar alguém da equipe.`
 
 const SDR_STAGES = ['abertura', 'descoberta', 'qualificacao', 'agendamento', 'agendado', 'nutricao', 'desqualificado']
 const SDR_FIELDS = ['nome', 'empresa', 'cidade', 'servico', 'tamanho', 'anuncia', 'investimento', 'objetivo', 'decisor', 'prazo']
@@ -713,7 +713,10 @@ function leadSystemPrompt(baseVendasText, settings, conv) {
   const meeting = sdr.meetingLink
     ? `Para agendar, mande o link da agenda: ${sdr.meetingLink} (a pessoa escolhe o horário). Se ela preferir, combine dia e horário por aqui mesmo.`
     : `Não há link de agenda: ofereça 2 opções de horário concretas (dentro de ${sdr.meetingHours || 'horário comercial'}), a partir de amanhã, e deixe a pessoa escolher. Quando ela topar, marque meeting.agreed = true.`
-  return `${who} SDR (pré-vendas) da Arrow Shot no WhatsApp. A Arrow Shot é uma agência de marketing digital (tráfego pago no Meta e no Google, social media e landing pages) especializada em empresas de limpeza e facilities no Brasil.
+  const today = new Intl.DateTimeFormat('pt-BR', { timeZone: SP_TZ, weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date())
+  return `Agora é ${today} (horário de Brasília). Use isso para propor e confirmar dias e horários.
+
+${who} SDR (pré-vendas) da Arrow Shot no WhatsApp. A Arrow Shot é uma agência de marketing digital (tráfego pago no Meta e no Google, social media e landing pages) especializada em empresas de limpeza e facilities no Brasil.
 
 # Sua missão
 Transformar quem chama em uma reunião de diagnóstico (${sdr.meetingLength || '30 minutos'}, online) com o ${meetWith}, e só com quem tem perfil. Você não vende o serviço no WhatsApp: você desperta interesse, qualifica e agenda. Rápido, sem parecer formulário e sem empurrar.
@@ -723,7 +726,7 @@ Transformar quem chama em uma reunião de diagnóstico (${sdr.meetingLength || '
 2. descoberta: entenda a dor. Perguntas boas, uma por vez: que tipo de limpeza (residencial, pós-obra, empresarial, condomínio, estofados...), cidade/região que atende, como chegam os clientes hoje, se já anuncia (onde e se funcionou), quantos clientes novos quer por mês. Reaja ao que a pessoa conta (mostre que entendeu) antes da próxima pergunta.
 3. qualificacao: confirme o que falta do perfil, sem interrogatório: tamanho (equipe ou faturamento aproximado), verba para anúncios por mês (pergunte com faixa: "vocês pensam em investir mais perto de 1 mil, 3 mil ou acima de 5 mil por mês em anúncio?"), quem decide e para quando quer começar.
 4. agendamento: quando já tem dor + perfil razoável (não precisa de tudo), proponha a reunião mostrando o ganho para a pessoa ("na reunião o ${meetWith} olha a sua região e mostra quanto custa trazer cliente aí"). ${meeting}
-5. agendado: confirme dia e horário, diga que a equipe confirma e que ela recebe o lembrete. Não faça mais perguntas de qualificação.
+5. agendado: confirme dia e horário e diga que ela recebe o lembrete. Depois disso continue atendendo: tire dúvidas sobre a reunião e sobre a Arrow Shot, remarque se ela pedir. Não faça mais perguntas de qualificação.
 - nutricao: tem perfil mas não é o momento (sem verba agora, "só pesquisando", "depois do fim do ano"). Seja gentil, deixe a porta aberta, ofereça falar mais pra frente.
 - desqualificado: não é empresa de limpeza ou facilities, quer emprego, é fornecedor vendendo algo, ou não tem empresa. Agradeça com educação e encerre (sem reunião).
 
@@ -970,15 +973,15 @@ async function autoReplyLocked(waId, origin, settings, conv, recent) {
   const prev = conv.sdr || null
   const sdr = await saveSdr(conv, analysis)
   const who = conv.name || conv.phone
-  let handed = handoff
-  let why = reason
-  if (sdr?.meeting?.agreed && !prev?.meeting?.agreed) {
-    handed = true
-    why = why || `Reunião combinada: ${sdr.meeting.when || 'ver conversa'}. Confirmar na agenda.`
-  }
+  const handed = handoff
+  const why = reason
+  // Reunião combinada: a IA continua na conversa, só avisa a equipe.
+  const newMeeting = sdr?.meeting?.agreed && !prev?.meeting?.agreed
   if (handed) {
     await updateDoc(convPath(waId), { aiMode: 'off', handoffReason: why || 'A IA pediu ajuda', handoffAt: nowIso() })
     await notifyTeam(conv, `${who} precisa de atendimento humano no WhatsApp. Motivo: ${why || 'a IA pediu ajuda'}.`)
+  } else if (newMeeting) {
+    await notifyTeam(conv, `${who} marcou reunião pelo WhatsApp: ${sdr.meeting.when || 'ver conversa'}. Confirmar na agenda.`)
   } else if (sdr?.temperature === 'quente' && prev?.temperature !== 'quente') {
     await notifyTeam(conv, `${who} está quente no WhatsApp, nota ${sdr.score}. ${sdr.summary}`)
   }
