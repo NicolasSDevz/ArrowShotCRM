@@ -29,6 +29,7 @@ import {
   analyzeConversation,
   runFollowUps,
   runMeetingReminders,
+  runPendingReplies,
   runCartRecovery,
   waStatus,
   saveWaCredentials,
@@ -125,12 +126,13 @@ async function webhookReceive(req, res) {
 async function sweep(req, res) {
   if (!(await rateLimit('wa-sweep', 1, 4 * 60_000))) return res.status(200).json({ skipped: true })
   const origin = publicOrigin(req)
-  const [followUps, carts, reminders] = await Promise.all([
+  const [followUps, carts, reminders, pending] = await Promise.all([
     runFollowUps(origin).catch((e) => ({ error: e.message })),
     runCartRecovery(origin).catch((e) => ({ error: e.message })),
     runMeetingReminders().catch((e) => ({ error: e.message })),
+    runPendingReplies(origin).catch((e) => ({ error: e.message })),
   ])
-  return res.status(200).json({ followUps, carts, reminders })
+  return res.status(200).json({ followUps, carts, reminders, pending })
 }
 
 /* ------------------------------ equipe ------------------------------ */

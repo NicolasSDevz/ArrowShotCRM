@@ -719,6 +719,49 @@ const SDR_JSON = `Responda APENAS com JSON válido, neste formato:
 - "score": 0 a 100 = chance de virar cliente bom (perfil + dor + verba + decisor + urgência).
 - "meeting.agreed": true só quando a pessoa topou um dia e horário (ou disse que já marcou pelo link). "when" = o dia e horário em texto. "at" = data e hora exatas no formato AAAA-MM-DDTHH:MM (horário de Brasília), só quando dia E hora estão definidos; senão "". Se remarcar, atualize "at".`
 
+/** Mesmo formato do SDR_JSON, cobrado pela API: a IA não consegue devolver nada fora dele. */
+const SDR_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['messages', 'handoff', 'handoff_reason', 'stage', 'temperature', 'score', 'profile', 'summary', 'next_step', 'meeting'],
+  properties: {
+    messages: { type: 'array', items: { type: 'string' } },
+    handoff: { type: 'boolean' },
+    handoff_reason: { type: 'string' },
+    stage: { type: 'string', enum: SDR_STAGES },
+    temperature: { type: 'string', enum: ['quente', 'morno', 'frio'] },
+    score: { type: 'integer' },
+    profile: {
+      type: 'object',
+      additionalProperties: false,
+      required: SDR_FIELDS,
+      properties: Object.fromEntries(SDR_FIELDS.map((k) => [k, { type: 'string' }])),
+    },
+    summary: { type: 'string' },
+    next_step: { type: 'string' },
+    meeting: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['agreed', 'when', 'at'],
+      properties: { agreed: { type: 'boolean' }, when: { type: 'string' }, at: { type: 'string' } },
+    },
+  },
+}
+
+/** Chama a IA com a resposta travada no formato do SDR. Se a API recusar o formato, chama sem ele. */
+async function askAiJson(params) {
+  const ai = anthropic()
+  try {
+    return await ai.messages.create({ ...params, output_config: { format: { type: 'json_schema', schema: SDR_SCHEMA } } })
+  } catch (e) {
+    if (!(e instanceof Anthropic.BadRequestError)) throw e
+    console.warn('[whatsapp] formato travado recusado pela API, seguindo sem ele:', e.message)
+    return ai.messages.create(params)
+  }
+}
+
+const textOf = (res) => res.content.filter((b) => b.type === 'text').map((b) => b.text).join('')
+
 function leadSystemPrompt(baseVendasText, settings, conv) {
   const sdr = settings.sdr || {}
   const who = sdr.name ? `Você se chama ${sdr.name} e é` : 'Você é'
@@ -809,8 +852,10 @@ const clip = (v, n = 160) => String(v ?? '').trim().slice(0, n)
 function parseAiJson(text) {
   try {
     const j = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
-    let messages = Array.isArray(j.messages) ? j.messages : j.reply ? [j.reply] : []
-    messages = messages.map((m) => String(m || '').trim()).filter((m) => m && !/^[{[<]|"messages"\s*:/.test(m)).slice(0, 3)
+    const asked = Array.isArray(j.messages) ? j.messages : j.reply ? [j.reply] : []
+    const messages = asked.map((m) => String(m || '').trim()).filter((m) => m && !/^[{[<]|"messages"\s*:/.test(m)).slice(0, 3)
+    // A IA escreveu balões, mas todos eram código: resposta quebrada, não silêncio de propósito.
+    const broken = asked.some((m) => String(m || '').trim()) && !messages.length
     let sdr = null
     if (j.stage || j.profile || j.summary) {
       const profile = {}
@@ -825,7 +870,7 @@ function parseAiJson(text) {
         meeting: { agreed: j.meeting?.agreed === true, when: clip(j.meeting?.when, 120), at: validMeetingAt(j.meeting?.at) },
       }
     }
-    return { messages, reply: messages.join('\n\n'), handoff: j.handoff === true, reason: clip(j.handoff_reason, 200), sdr }
+    return { messages, reply: messages.join('\n\n'), handoff: j.handoff === true, reason: clip(j.handoff_reason, 200), sdr, broken }
   } catch {
     const raw = String(text || '')
     console.warn('[whatsapp] resposta da IA fora do formato:', raw.slice(0, 300))
@@ -836,7 +881,7 @@ function parseAiJson(text) {
         const messages = JSON.parse(m[1]).map((x) => String(x || '').trim()).filter(Boolean).slice(0, 3)
         const handoff = /"handoff"\s*:\s*true/.test(raw)
         const reason = clip((raw.match(/"handoff_reason"\s*:\s*"([^"]*)"/) || [])[1] || '', 200)
-        return { messages, reply: messages.join('\n\n'), handoff, reason, sdr: null }
+        return { messages, reply: messages.join('\n\n'), handoff, reason, sdr: null, broken: !messages.length && !handoff }
       } catch {
         /* segue */
       }
@@ -844,7 +889,8 @@ function parseAiJson(text) {
     // Texto puro vira balão; qualquer coisa com cara de código nunca vai pro cliente.
     const clean = raw.replace(/<[^>]*>/g, '').trim()
     const reply = /[{}<>]|"messages"/.test(clean) ? '' : clean
-    return { messages: reply ? [reply] : [], reply, handoff: false, reason: '', sdr: null }
+    // Nada aproveitável (ex.: "<invoke ...>" repetido): conta como resposta quebrada.
+    return { messages: reply ? [reply] : [], reply, handoff: false, reason: '', sdr: null, broken: !reply }
   }
 }
 
@@ -946,14 +992,65 @@ export async function maybeAutoReply(waId, origin, { waitMs } = {}) {
   if (!(await takeLock(lockPath))) return { skipped: 'em andamento' }
   try {
     const out = await autoReplyLocked(waId, origin, settings, conv, recent)
-    // Só fica travada se a IA mandou algo; senão a próxima tentativa pode responder.
-    if (out.replied) await updateDoc(lockPath, { done: true }).catch(() => {})
+    // Fica travada se a IA respondeu ou escolheu ficar quieta; senão a próxima tentativa
+    // (a varredura de 5 min) pode responder.
+    if (out.replied || out.quiet) await updateDoc(lockPath, { done: true }).catch(() => {})
     else await deleteDoc(lockPath).catch(() => {})
+    if (out.failed) await registerAiFailure(conv, out.failed)
     return out
   } catch (e) {
     await deleteDoc(lockPath).catch(() => {})
+    await registerAiFailure(conv, errorText(e))
     throw e
   }
+}
+
+const AI_MAX_FAILS = 3
+/** Conta as falhas da IA na mesma mensagem do contato; na 2ª avisa a equipe. */
+async function registerAiFailure(conv, reason) {
+  const same = conv.aiFail?.inboundAt === conv.lastInboundAt
+  const count = (same ? Number(conv.aiFail.count) || 0 : 0) + 1
+  await updateDoc(convPath(conv.waId), { aiFail: { inboundAt: conv.lastInboundAt || '', count, reason: clip(reason, 200), at: nowIso() } }).catch(() => {})
+  console.warn(`[whatsapp] IA não respondeu ${conv.waId} (falha ${count}): ${reason}`)
+  if (count === 2) {
+    await notifyTeam(conv, `${conv.name || conv.phone} está esperando resposta no WhatsApp. A IA não conseguiu responder (${clip(reason, 120)}). Responda pelo CRM.`)
+  }
+}
+
+function errorText(err) {
+  const apiMsg = err?.error?.error?.message || err?.error?.message
+  const st = err?.status ? ` (${err.status})` : ''
+  return String(apiMsg || err?.message || 'erro desconhecido').slice(0, 200) + st
+}
+
+/**
+ * Rede de segurança da varredura: contato que falou por último há mais de 2 min (e menos de 1 h),
+ * com a IA ligada e sem resposta, recebe a resposta agora. Desiste depois de 3 falhas
+ * na mesma mensagem (a equipe já foi avisada na 2ª).
+ */
+export async function runPendingReplies(origin, { max = 4, budgetMs = 60_000 } = {}) {
+  const settings = await getWaSettings()
+  if (!settings.aiEnabled || !anthropic()) return { skipped: 'IA desligada' }
+  const started = Date.now()
+  const minAge = Math.max(2 * 60_000, ((Number(settings.aiDelaySeconds) || 25) + 60) * 1000)
+  const convs = await queryDocs('waConversations', [['lastDirection', 'in']])
+  const due = convs
+    .filter((c) => c.aiMode !== 'off' && c.lastInboundAt)
+    .filter((c) => {
+      const age = started - new Date(c.lastInboundAt).getTime()
+      return age > minAge && age < 60 * 60_000
+    })
+    .filter((c) => !/^\[reagiu/.test(String(c.lastMessageText || '')))
+    .filter((c) => !(c.aiFail?.inboundAt === c.lastInboundAt && Number(c.aiFail.count) >= AI_MAX_FAILS))
+    .sort((a, b) => String(a.lastInboundAt).localeCompare(String(b.lastInboundAt)))
+  const results = []
+  for (const c of due.slice(0, max)) {
+    if (Date.now() - started > budgetMs) break
+    const waId = c.waId || c.id
+    const out = await maybeAutoReply(waId, origin, { waitMs: 0 }).catch((e) => ({ error: e.message }))
+    results.push({ waId, ...out })
+  }
+  return { pending: due.length, results }
 }
 
 const LOCK_STALE_MS = 2 * 60_000
@@ -978,14 +1075,26 @@ async function autoReplyLocked(waId, origin, settings, conv, recent) {
   const turns = toTurns(recent)
   if (!turns.length) return { skipped: 'sem turnos' }
   const system = await conversationPrompt(conv, settings, origin)
-  const res = await ai.messages.create({
-    model: MODEL,
-    max_tokens: 2500,
-    system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-    messages: turns,
-  })
-  const raw = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('')
-  const { messages, handoff, reason, sdr: analysis } = parseAiJson(raw)
+  // Até 2 tentativas: resposta quebrada ou erro passageiro da API não deixa o contato sem resposta.
+  let parsed = null
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await askAiJson({
+        model: MODEL,
+        max_tokens: 2500,
+        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+        messages: turns,
+      })
+      parsed = parseAiJson(textOf(res))
+      if (!parsed.broken) break
+      console.warn(`[whatsapp] resposta da IA quebrada (tentativa ${attempt}, ${res.stop_reason})`)
+    } catch (e) {
+      if (attempt === 2) throw e
+      console.warn('[whatsapp] IA falhou, tentando de novo:', e.message)
+    }
+  }
+  if (!parsed || parsed.broken) return { failed: 'a resposta da IA veio quebrada duas vezes' }
+  const { messages, handoff, reason, sdr: analysis } = parsed
 
   // Equipe assumiu, ou o contato mandou mensagem nova (aí a próxima chamada responde tudo junto).
   const stillMine = async () => {
@@ -1022,7 +1131,8 @@ async function autoReplyLocked(waId, origin, settings, conv, recent) {
   } else if (sdr?.temperature === 'quente' && prev?.temperature !== 'quente') {
     await notifyTeam(conv, `${who} está quente no WhatsApp, nota ${sdr.score}. ${sdr.summary}`)
   }
-  return { replied: sent > 0, handoff: handed, stage: sdr?.stage || null }
+  // Sem balões de propósito (ex.: o contato só disse "ok"): a IA decidiu ficar quieta.
+  return { replied: sent > 0, quiet: !messages.length, handoff: handed, stage: sdr?.stage || null }
 }
 
 /** Refaz a análise do SDR lendo a conversa inteira, sem mandar nada (botão "Atualizar análise"). */
@@ -1040,7 +1150,7 @@ export async function analyzeConversation(waId, origin) {
   if (turns[turns.length - 1].role === 'user') turns.push({ role: 'assistant', content: '(continua)' })
   turns.push({ role: 'user', content: '[Instrução interna, não é o contato falando] Não escreva mensagem nenhuma agora. Só analise a conversa inteira e devolva o JSON com "messages": [] e o restante preenchido.' })
   const system = await conversationPrompt({ ...conv, sdr: null }, settings, origin)
-  const res = await ai.messages.create({ model: MODEL, max_tokens: 2000, system, messages: turns })
+  const res = await askAiJson({ model: MODEL, max_tokens: 2000, system, messages: turns })
   const { sdr: analysis } = parseAiJson(res.content.filter((b) => b.type === 'text').map((b) => b.text).join(''))
   if (!analysis) throw new WaError(502, 'A IA não devolveu a análise. Tente de novo.')
   // Análise do zero: o perfil novo substitui o antigo (só a reunião combinada fica).
@@ -1068,7 +1178,7 @@ async function aiFollowUpText(conv, stepIndex, total, settings, origin) {
     content: `[Instrução interna, não é o contato falando] O contato parou de responder. Escreva o follow-up ${stepIndex + 1} de ${total}: curto, retomando o ponto onde a conversa parou, com uma pergunta simples. ${stepIndex + 1 === total ? 'É o último: deixe a porta aberta, sem insistir.' : ''} Sem cobrar resposta e sem urgência falsa.`,
   })
   const system = await conversationPrompt(conv, settings, origin)
-  const res = await ai.messages.create({ model: MODEL, max_tokens: 1500, system, messages: turns })
+  const res = await askAiJson({ model: MODEL, max_tokens: 1500, system, messages: turns })
   return parseAiJson(res.content.filter((b) => b.type === 'text').map((b) => b.text).join('')).reply
 }
 
