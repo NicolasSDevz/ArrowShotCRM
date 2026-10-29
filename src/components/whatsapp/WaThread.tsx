@@ -358,7 +358,7 @@ export function WaThread({
           {messages.length === 0 ? (
             <p className="py-10 text-center text-sm text-slate-400">Ainda não há mensagens nesta conversa.</p>
           ) : (
-            <ol className="mx-auto flex max-w-3xl flex-col pb-2" aria-label="Mensagens">
+            <ol className="mx-auto flex max-w-5xl flex-col pb-2" aria-label="Mensagens">
               {messages.map((m, i) => {
                 const prev = messages[i - 1]
                 const newDay = !prev || new Date(prev.at).toDateString() !== new Date(m.at).toDateString()

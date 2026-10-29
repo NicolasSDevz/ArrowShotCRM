@@ -23,9 +23,9 @@ const FILTERS: { id: WaFilter; label: string; long: string; main?: boolean }[] =
   { id: 'all', label: 'Todas', long: 'Todas as conversas', main: true },
   { id: 'unread', label: 'Não lidas', long: 'Só não lidas', main: true },
   { id: 'waiting', label: 'Esperando o Bruno', long: 'Contato esperando resposta do Bruno', main: true },
-  { id: 'meeting', label: 'Reunião', long: 'Reunião combinada pelo SDR', main: true },
+  { id: 'ai', label: 'IA atendendo', long: 'IA atendendo', main: true },
   { id: 'hot', label: 'Quentes', long: 'Leads quentes, segundo o SDR' },
-  { id: 'ai', label: 'IA atendendo', long: 'IA atendendo' },
+  { id: 'meeting', label: 'Reunião', long: 'Reunião combinada pelo SDR' },
   { id: 'human', label: 'Com a equipe', long: 'Com a equipe' },
   { id: 'new', label: 'Leads novos', long: 'Leads novos, que chegaram pelo WhatsApp' },
   { id: 'crm', label: 'Já no CRM', long: 'Quem já estava no CRM e voltou a chamar' },
@@ -75,12 +75,15 @@ export function WhatsappInbox({
   onCount,
   onOpenLead,
   heightClass = 'h-[calc(100dvh-230px)]',
+  tools,
 }: {
   templates: WaTemplate[]
   onCount?: (n: number) => void
   onOpenLead?: (leadId: string) => void
   /** Altura da caixa (cada coluna rola por dentro). */
   heightClass?: string
+  /** Botões extras ao lado de Nova (ajuda, configurar). */
+  tools?: React.ReactNode
 }) {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
@@ -180,7 +183,7 @@ export function WhatsappInbox({
 
   return (
     <div className={`flex ${heightClass} min-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
-      <aside className={`w-full shrink-0 flex-col border-r border-slate-200 md:flex md:w-[360px] ${showThread ? 'hidden' : 'flex'}`} aria-label="Lista de conversas">
+      <aside className={`w-full shrink-0 flex-col border-r border-slate-200 md:flex md:w-[300px] xl:w-[340px] ${showThread ? 'hidden' : 'flex'}`} aria-label="Lista de conversas">
         <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200 p-3">
           <div className="flex items-center gap-2">
             <label className="relative block flex-1">
@@ -206,6 +209,7 @@ export function WhatsappInbox({
             >
               <Plus size={15} aria-hidden="true" /> Nova
             </button>
+            {tools}
           </div>
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar conversas">
             {FILTERS.filter((f) => f.main || moreOpen || f.id === filter).map((f) => {

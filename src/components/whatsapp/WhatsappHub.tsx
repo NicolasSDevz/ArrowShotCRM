@@ -67,8 +67,24 @@ export function WhatsappHub({ onOpenLead }: { onOpenLead: (leadId: string) => vo
 
   const chip = 'inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50'
 
+  const tools = (
+    <>
+      <button type="button" onClick={() => setPanel('guia')} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700" aria-label={`Como funciona${missing > 0 ? `, falta ${missing} passo${missing === 1 ? '' : 's'}` : ''}`} title="Como funciona">
+        <HelpCircle size={16} aria-hidden="true" />
+        {missing > 0 && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-500" aria-hidden="true" />}
+      </button>
+      {canConfigure && (
+        <button type="button" onClick={() => setPanel('config')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700" aria-label="Configurar WhatsApp" title="Configurar">
+          <Settings size={16} aria-hidden="true" />
+        </button>
+      )}
+    </>
+  )
+
   return (
     <div className="flex flex-col gap-3">
+      {/* Faixa de status só quando falta algo (não conectado). Com tudo certo, a conversa ganha a tela. */}
+      {status && !connected && (
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
         <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500" aria-hidden="true">
           <MessageCircle size={16} />
@@ -100,11 +116,12 @@ export function WhatsappHub({ onOpenLead }: { onOpenLead: (leadId: string) => vo
           )}
         </div>
       </div>
+      )}
 
       {/* Sem conversa nenhuma, o guia é o que tem pra ver: fica aberto na tela. */}
       {empty && <WhatsappGuide status={status} templates={templates} settings={settings} canConfigure={canConfigure} hasConversations={false} />}
 
-      <WhatsappInbox templates={templates} onOpenLead={onOpenLead} heightClass="h-[calc(100dvh-230px)] md:h-[calc(100dvh-250px)] lg:h-[calc(100dvh-200px)]" />
+      <WhatsappInbox templates={templates} onOpenLead={onOpenLead} tools={tools} heightClass="h-[calc(100dvh-180px)] md:h-[calc(100dvh-190px)] lg:h-[calc(100dvh-150px)]" />
 
       <Drawer open={guideOpen} onClose={() => setPanel(null)} title="Como o WhatsApp funciona" width="w-full max-w-3xl">
         <div className="p-4 sm:p-5">
