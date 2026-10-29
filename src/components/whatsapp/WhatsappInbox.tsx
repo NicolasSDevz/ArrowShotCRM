@@ -111,7 +111,7 @@ export function WhatsappInbox({
       const el = boxRef.current
       if (!el) return
       const top = el.getBoundingClientRect().top
-      setBoxH(Math.max(420, Math.round(window.innerHeight - top - 16)))
+      setBoxH(Math.max(420, Math.round(window.innerHeight - top - 10)))
     }
     fit()
     window.addEventListener('resize', fit)

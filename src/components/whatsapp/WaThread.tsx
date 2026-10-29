@@ -193,6 +193,7 @@ export function WaThread({
   const { pipelines } = useLeadPipelines()
   const where = lead ? locateLead(pipelines, lead) : null
   const [messages, setMessages] = useState<WaMessage[]>([])
+  const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [announce, setAnnounce] = useState('')
   const [panel, setPanel] = useState(false)
@@ -201,7 +202,8 @@ export function WaThread({
 
   useEffect(() => {
     lastCount.current = 0
-    return listenMessages(conv.waId, setMessages, () => toast.error('Não consegui carregar as mensagens.'))
+    setLoaded(false)
+    return listenMessages(conv.waId, (rows) => (setMessages(rows), setLoaded(true)), () => toast.error('Não consegui carregar as mensagens.'))
   }, [conv.waId])
 
   // Mensagem nova: anuncia no leitor de tela e rola até o fim.
@@ -319,7 +321,7 @@ export function WaThread({
 
         <div ref={listRef} className="wa-wall min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-6">
           {messages.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-400">Ainda não há mensagens nesta conversa.</p>
+            <p className="py-10 text-center text-sm text-slate-400">{loaded ? 'Ainda não há mensagens nesta conversa.' : 'Carregando mensagens…'}</p>
           ) : (
             <ol className="mx-auto flex max-w-5xl flex-col pb-2" aria-label="Mensagens">
               {messages.map((m, i) => {

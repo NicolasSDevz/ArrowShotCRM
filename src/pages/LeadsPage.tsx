@@ -214,11 +214,11 @@ export function LeadsPage() {
     'h-9 rounded-lg border border-slate-200 bg-white pl-2.5 pr-7 text-sm font-medium text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-brand-600 focus:ring-2 focus:ring-brand-100'
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={`flex flex-col ${mainTab === 'conversas' ? 'gap-3' : 'gap-4'}`}>
       {/* Cabeçalho: título à esquerda, ações principais à direita */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         {/* No celular o nome da tela já está no topo: aqui fica só para o leitor de tela. */}
-        <div className="sr-only min-w-0 md:not-sr-only">
+        <div className={`min-w-0 ${mainTab === 'conversas' ? 'sr-only' : 'sr-only md:not-sr-only'}`}>
           <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">Leads</h1>
           {mainTab !== 'conversas' && <p className="text-sm text-slate-500">Vendas, respostas dos questionários e formulários de captura</p>}
         </div>
