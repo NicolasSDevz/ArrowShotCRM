@@ -14,7 +14,7 @@
 
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
-import { getDoc, setDoc, updateDoc, listDocs, queryDocs, queryRecent, createDocIfMissing, incrementField } from './firebaseAdmin.js'
+import { getDoc, setDoc, updateDoc, deleteDoc, listDocs, queryDocs, queryRecent, createDocIfMissing, incrementField } from './firebaseAdmin.js'
 import { encryptToken, decryptToken } from './tokenCrypto.js'
 import { sendPushToUsers } from './webPush.js'
 import { getBaseVendas, formatBaseVendasForPrompt } from './baseVendas.js'
@@ -902,8 +902,32 @@ export async function maybeAutoReply(waId, origin, { waitMs = 6000 } = {}) {
   // Outra chamada do webhook mais nova cuida da resposta.
   if (new Date(conv.lastInboundAt).getTime() > new Date(lastIn.at).getTime() + 1000) return { skipped: 'mais nova a caminho' }
   // Trava: uma resposta por mensagem recebida, mesmo com dois webhooks juntos.
-  if (!(await createDocIfMissing(`waLocks/${waId}_${lastIn.id.slice(-40).replace(/[^\w-]/g, '')}`, { at: nowIso() }))) return { skipped: 'em andamento' }
+  const lockPath = `waLocks/${waId}_${lastIn.id.slice(-40).replace(/[^\w-]/g, '')}`
+  if (!(await takeLock(lockPath))) return { skipped: 'em andamento' }
+  try {
+    const out = await autoReplyLocked(waId, origin, settings, conv, recent)
+    // Só fica travada se a IA mandou algo; senão a próxima tentativa pode responder.
+    if (out.replied) await updateDoc(lockPath, { done: true }).catch(() => {})
+    else await deleteDoc(lockPath).catch(() => {})
+    return out
+  } catch (e) {
+    await deleteDoc(lockPath).catch(() => {})
+    throw e
+  }
+}
 
+const LOCK_STALE_MS = 2 * 60_000
+/** Pega a trava. Trava antiga sem resposta (a tentativa caiu no meio) é reaproveitada. */
+async function takeLock(path) {
+  if (await createDocIfMissing(path, { at: nowIso() })) return true
+  const cur = await getDoc(path).catch(() => null)
+  const d = cur?.exists ? cur.data() : null
+  if (d && (d.done || Date.now() - new Date(d.at).getTime() < LOCK_STALE_MS)) return false
+  await setDoc(path, { at: nowIso() })
+  return true
+}
+
+async function autoReplyLocked(waId, origin, settings, conv, recent) {
   const ai = anthropic()
   if (!ai) return { skipped: 'sem chave da IA' }
   if (!(await rateLimit('wa-ai-day', AI_DAILY_LIMIT, 24 * 3600_000))) {
