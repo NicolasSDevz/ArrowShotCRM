@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { AlertTriangle, ArrowLeft, ArrowRight, CalendarCheck, ChevronRight, RefreshCw, ScanSearch, ShoppingCart, UserRound, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, CalendarCheck, ChevronRight, RefreshCw, ScanSearch, X } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
 import { Composer, DayDivider, MessageBubble, Switch, authorLabel, displayName } from './WaParts'
 import { SDR_FIELDS, SDR_FIELD_LABEL, SDR_FLOW, SDR_STAGE, SDR_TEMP } from './waSdr'
@@ -256,10 +256,34 @@ export function WaThread({
             <h2 className="flex items-center gap-2 truncate text-[15px] font-semibold text-slate-800">
               <span className="truncate">{displayName(conv)}</span>
             </h2>
-            <p className="truncate text-xs text-slate-500">
-              {sub}
-              <span className="sr-only">. {aiOn ? 'IA atendendo' : 'Com a equipe'}</span>
-            </p>
+            {lead && where && onOpenLead ? (
+              <button
+                type="button"
+                onClick={() => onOpenLead(lead.id)}
+                className="flex max-w-full items-center gap-1.5 truncate text-left text-xs text-slate-500 transition hover:text-slate-700"
+                aria-label={`${conv.phone}. Abrir a ficha do lead ${lead.contactName}${lead.companyName ? `, ${lead.companyName}` : ''}. ${isQuestionnaireLead(lead) ? 'Na aba Questionários' : `Etapa ${where.stage.label}`}. ${aiOn ? 'IA atendendo' : 'Com a equipe'}`}
+              >
+                <span className="truncate">
+                  {conv.phone}
+                  {lead.companyName ? ` · ${lead.companyName}` : ''}
+                </span>
+                <span
+                  className="shrink-0 rounded-full px-1.5 py-px text-[10.5px] font-semibold"
+                  style={isQuestionnaireLead(lead) ? undefined : { backgroundColor: `${where.stage.color}26`, color: where.stage.color }}
+                >
+                  {isQuestionnaireLead(lead) ? 'Questionário' : where.stage.label}
+                </span>
+                <span className="flex shrink-0 items-center font-semibold text-brand-600">
+                  Ficha <ChevronRight size={13} aria-hidden="true" />
+                </span>
+              </button>
+            ) : (
+              <p className="truncate text-xs text-slate-500">
+                {sub}
+                {conv.kind === 'lead' && !lead && <span className="text-slate-400"> · sem lead no CRM</span>}
+                <span className="sr-only">. {aiOn ? 'IA atendendo' : 'Com a equipe'}</span>
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Switch checked={aiOn} busy={busy === 'ai'} label="IA" onChange={() => run('ai', () => updateWaConversation(conv.waId, { aiMode: aiOn ? 'off' : 'auto' }), aiOn ? 'IA desligada nesta conversa' : 'IA ligada nesta conversa')} />
@@ -277,42 +301,7 @@ export function WaThread({
           </div>
         </header>
 
-        {/* Ficha do lead ligada à conversa (estilo Kommo): etapa e atalho pra abrir. */}
-        {lead && where ? (
-          <button
-            type="button"
-            onClick={() => onOpenLead?.(lead.id)}
-            disabled={!onOpenLead}
-            className="flex w-full shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 py-2 text-left text-sm transition hover:bg-slate-50 disabled:cursor-default"
-            aria-label={`Abrir a ficha do lead ${lead.contactName}${lead.companyName ? `, ${lead.companyName}` : ''}. ${isQuestionnaireLead(lead) ? 'Na aba Questionários' : `Pipeline ${where.pipeline.name}, etapa ${where.stage.label}`}`}
-          >
-            <UserRound size={15} className="shrink-0 text-slate-400" aria-hidden="true" />
-            <span className="min-w-0 truncate font-medium text-slate-700">
-              {lead.contactName}
-              {lead.companyName ? <span className="font-normal text-slate-400">, {lead.companyName}</span> : null}
-            </span>
-            {isQuestionnaireLead(lead) ? (
-              <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Questionário</span>
-            ) : (
-              <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: `${where.stage.color}26`, color: where.stage.color }}>
-                {where.pipeline.name}: {where.stage.label}
-              </span>
-            )}
-            {onOpenLead && (
-              <span className="ml-auto flex shrink-0 items-center gap-0.5 text-xs font-semibold text-brand-600">
-                Abrir ficha <ChevronRight size={14} aria-hidden="true" />
-              </span>
-            )}
-          </button>
-        ) : conv.kind === 'cart' ? (
-          <p className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 py-2 text-xs text-slate-400">
-            <ShoppingCart size={13} className="text-amber-500" aria-hidden="true" /> Conversa da Loja: a IA ajuda a terminar a compra{conv.productName ? ` de ${conv.productName}` : ''}.
-          </p>
-        ) : (
-          <p className="shrink-0 border-b border-slate-200 bg-white px-4 py-2 text-xs text-slate-400">Esse número ainda não está ligado a nenhum lead do CRM.</p>
-        )}
-
-        {conv.aiMode === 'off' && conv.handoffReason && (
+        {conv.aiMode === 'off' && conv.handoffReason && !/celular/i.test(conv.handoffReason) && (
           <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-slate-700" role="status">
             <AlertTriangle size={15} className="shrink-0 text-amber-500" aria-hidden="true" />
             <span className="flex-1">A IA passou para a equipe: {conv.handoffReason}</span>
