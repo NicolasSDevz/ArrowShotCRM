@@ -781,6 +781,12 @@ Você ainda não falou com esta pessoa e o CRM não sabe quem ela é. Este núme
 - Em qualquer outro caso (um "oi", "boa tarde", um nome, algo vago, ou que pareça continuação): cumprimente, se apresente em 1 frase e pergunte de forma leve: "Você já é cliente da Arrow Shot ou já conversou com o Bruno antes?". Não faça outra pergunta junto e não fale do serviço ainda. Use stage "abertura".
 - Se pela mensagem já der pra ver que é cliente ou conversa antiga, siga a regra "Conversa antiga" (handoff).`
 
+/** Textos prontos dos nossos links: quem chega com eles é lead novo (não pergunta se é cliente). */
+const NEW_LEAD_TEXTS = [
+  { re: /quero fazer o diagn[óo]stico da empresa/i, from: 'a landing page (botão "Quero fazer o diagnóstico da empresa")' },
+  { re: /quero agendar meu bate.?papo com (o )?consultor/i, from: 'o link do Beacons na bio (botão "Quero agendar meu bate-papo com consultor")' },
+]
+
 /** Logo depois de perguntar: a resposta decide se segue como SDR ou passa pro Bruno. */
 const CLIENT_ANSWER = `# A pergunta "já é cliente?" foi feita
 Na última mensagem você perguntou se a pessoa já é cliente ou já conversou com o Bruno. Leia a resposta:
@@ -1215,7 +1221,11 @@ async function autoReplyLocked(waId, origin, settings, conv, recent) {
   if (conv.kind === 'lead' && conv.leadMatch !== 'existing') {
     const ours = recent.filter((m) => m.direction === 'out')
     const lastOurs = ours[ours.length - 1]
-    if (!ours.length) system += `\n\n${FIRST_TOUCH}`
+    const firstIn = recent.find((m) => m.direction === 'in' && !NOISE_TYPES.has(m.type))
+    const fromLink = NEW_LEAD_TEXTS.find((t) => t.re.test(firstIn?.text || ''))
+    if (fromLink) {
+      if (!ours.length) system += `\n\n# Origem do contato\nEsta pessoa chegou por ${fromLink.from}. É lead novo: NÃO pergunte se já é cliente. Siga a abertura normal do SDR, mostrando que entendeu o que ela pediu (o diagnóstico ou o bate-papo com o Bruno).`
+    } else if (!ours.length) system += `\n\n${FIRST_TOUCH}`
     else if (lastOurs?.by === 'ai' && ours.filter((m) => m.by === 'ai').length <= 3 && /j[áa] (é|e) client|j[áa] conversou com o|j[áa] falou com o/i.test(lastOurs.text || '')) system += `\n\n${CLIENT_ANSWER}`
   }
   // Até 2 tentativas: resposta quebrada ou erro passageiro da API não deixa o contato sem resposta.
