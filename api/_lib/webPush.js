@@ -55,10 +55,11 @@ export async function removePushSubscription(endpoint) {
 
 /** Manda o aviso para todos os aparelhos dessas pessoas. Aparelho que não existe
  *  mais (notificações desligadas, app apagado) é removido. Nunca lança erro. */
-export async function sendPushToUsers(userIds, { title, body, url = '/', tag }) {
+export async function sendPushToUsers(userIds, { title, body, url = '/', tag, actions }) {
   if (!pushConfigured() || !userIds?.length) return { sent: 0 }
   ensureVapid()
-  const payload = JSON.stringify({ title, body, url, tag })
+  // actions = botões na notificação [{ action, title, url }] (Android e computador; o iPhone ignora).
+  const payload = JSON.stringify({ title, body, url, tag, ...(actions?.length ? { actions } : {}) })
   let sent = 0
   await Promise.all(
     [...new Set(userIds)].map(async (userId) => {

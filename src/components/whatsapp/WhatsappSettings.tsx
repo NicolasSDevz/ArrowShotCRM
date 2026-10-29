@@ -21,7 +21,7 @@ function Badge({ on, onText = 'Ligado', offText = 'Desligado' }: { on: boolean; 
 function Card({ icon, tone, title, description, badge, children }: { icon: ReactNode; tone: string; title: string; description?: string; badge?: ReactNode; children: ReactNode }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white" aria-label={title}>
-      <div className="flex items-start gap-3 border-b border-slate-100 p-5">
+      <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
         <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`} aria-hidden="true">
           {icon}
         </span>
@@ -126,6 +126,44 @@ function ConnectionCard({ status, onSaved }: { status: WaStatus | null; onSaved:
     }
   }
 
+  const credentialsForm = (
+        <>
+      <details className="group rounded-xl border border-slate-200 bg-slate-50">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-slate-700">
+          Como conseguir esses dados
+          <ChevronDown size={16} className="text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <ol className="list-decimal space-y-1.5 px-4 pb-4 pl-9 text-sm leading-relaxed text-slate-600">
+          <li>Em developers.facebook.com, crie um app do tipo Empresa e adicione o produto WhatsApp.</li>
+          <li>Em WhatsApp, Configuração da API, adicione o número da Arrow Shot e copie o ID do número de telefone e o ID da conta do WhatsApp Business.</li>
+          <li>No Gerenciador de Negócios, em Usuários do sistema, crie um usuário administrador, dê acesso ao app e à conta do WhatsApp e gere um token sem validade com as permissões whatsapp_business_messaging e whatsapp_business_management.</li>
+          <li>No app, em Configurações, Básico, copie a Chave secreta do aplicativo.</li>
+          <li>Cole tudo aqui embaixo e clique em Conectar.</li>
+          <li>Em WhatsApp, Configuração, Webhook, cole a URL e o token de verificação mostrados embaixo, salve e assine os campos messages e smb_message_echoes (este último faz o que a equipe manda pelo celular aparecer no CRM).</li>
+        </ol>
+      </details>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label={connected ? 'Token (vazio mantém o atual)' : 'Token do usuário do sistema'} required={!connected}>
+          <Input type="password" autoComplete="new-password" value={form.token} onChange={(e) => setForm({ ...form, token: e.target.value })} />
+        </Field>
+        <Field label={status?.hasAppSecret ? 'Chave secreta do app (vazio mantém a atual)' : 'Chave secreta do app'}>
+          <Input type="password" autoComplete="new-password" value={form.appSecret} onChange={(e) => setForm({ ...form, appSecret: e.target.value })} />
+        </Field>
+        <Field label="ID do número de telefone" required>
+          <Input inputMode="numeric" value={form.phoneNumberId} onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })} />
+        </Field>
+        <Field label="ID da conta do WhatsApp Business (WABA)" required>
+          <Input inputMode="numeric" value={form.wabaId} onChange={(e) => setForm({ ...form, wabaId: e.target.value })} />
+        </Field>
+      </div>
+      <div className="flex justify-end">
+        <Button onClick={save} loading={saving}>
+          {connected ? 'Salvar e testar' : 'Conectar'}
+        </Button>
+      </div>
+        </>
+  )
+
   return (
     <Card
       icon={<Link2 size={19} />}
@@ -165,78 +203,10 @@ function ConnectionCard({ status, onSaved }: { status: WaStatus | null; onSaved:
             Trocar token ou IDs da conexão
             <ChevronDown size={16} className="text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
           </summary>
-          <div className="flex flex-col gap-4 px-4 pb-4">
-      <details className="group rounded-xl border border-slate-200 bg-slate-50">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-slate-700">
-                Como conseguir esses dados
-                <ChevronDown size={16} className="text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
-              </summary>
-              <ol className="list-decimal space-y-1.5 px-4 pb-4 pl-9 text-sm leading-relaxed text-slate-600">
-                <li>Em developers.facebook.com, crie um app do tipo Empresa e adicione o produto WhatsApp.</li>
-                <li>Em WhatsApp, Configuração da API, adicione o número da Arrow Shot e copie o ID do número de telefone e o ID da conta do WhatsApp Business.</li>
-                <li>No Gerenciador de Negócios, em Usuários do sistema, crie um usuário administrador, dê acesso ao app e à conta do WhatsApp e gere um token sem validade com as permissões whatsapp_business_messaging e whatsapp_business_management.</li>
-                <li>No app, em Configurações, Básico, copie a Chave secreta do aplicativo.</li>
-                <li>Cole tudo aqui embaixo e clique em Conectar.</li>
-                <li>Em WhatsApp, Configuração, Webhook, cole a URL e o token de verificação mostrados no fim deste bloco, salve e assine os campos messages e smb_message_echoes (este último faz o que a equipe manda pelo celular aparecer no CRM).</li>
-              </ol>
-            </details>
-            <div className="grid gap-3 md:grid-cols-2">
-              <Field label={connected ? 'Token (vazio mantém o atual)' : 'Token do usuário do sistema'} required={!connected}>
-                <Input type="password" autoComplete="off" value={form.token} onChange={(e) => setForm({ ...form, token: e.target.value })} />
-              </Field>
-              <Field label={status?.hasAppSecret ? 'Chave secreta do app (vazio mantém a atual)' : 'Chave secreta do app'}>
-                <Input type="password" autoComplete="off" value={form.appSecret} onChange={(e) => setForm({ ...form, appSecret: e.target.value })} />
-              </Field>
-              <Field label="ID do número de telefone" required>
-                <Input inputMode="numeric" value={form.phoneNumberId} onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })} />
-              </Field>
-              <Field label="ID da conta do WhatsApp Business (WABA)" required>
-                <Input inputMode="numeric" value={form.wabaId} onChange={(e) => setForm({ ...form, wabaId: e.target.value })} />
-              </Field>
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={save} loading={saving}>
-                {connected ? 'Salvar e testar' : 'Conectar'}
-              </Button>
-            </div>
-          </div>
+          <div className="flex flex-col gap-4 px-4 pb-4">{credentialsForm}</div>
         </details>
       ) : (
-        <>
-      <details className="group rounded-xl border border-slate-200 bg-slate-50">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-slate-700">
-          Como conseguir esses dados
-          <ChevronDown size={16} className="text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
-        </summary>
-        <ol className="list-decimal space-y-1.5 px-4 pb-4 pl-9 text-sm leading-relaxed text-slate-600">
-          <li>Em developers.facebook.com, crie um app do tipo Empresa e adicione o produto WhatsApp.</li>
-          <li>Em WhatsApp, Configuração da API, adicione o número da Arrow Shot e copie o ID do número de telefone e o ID da conta do WhatsApp Business.</li>
-          <li>No Gerenciador de Negócios, em Usuários do sistema, crie um usuário administrador, dê acesso ao app e à conta do WhatsApp e gere um token sem validade com as permissões whatsapp_business_messaging e whatsapp_business_management.</li>
-          <li>No app, em Configurações, Básico, copie a Chave secreta do aplicativo.</li>
-          <li>Cole tudo aqui embaixo e clique em Conectar.</li>
-          <li>Em WhatsApp, Configuração, Webhook, cole a URL e o token de verificação mostrados no fim deste bloco, salve e assine os campos messages e smb_message_echoes (este último faz o que a equipe manda pelo celular aparecer no CRM).</li>
-        </ol>
-      </details>
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label={connected ? 'Token (vazio mantém o atual)' : 'Token do usuário do sistema'} required={!connected}>
-          <Input type="password" autoComplete="off" value={form.token} onChange={(e) => setForm({ ...form, token: e.target.value })} />
-        </Field>
-        <Field label={status?.hasAppSecret ? 'Chave secreta do app (vazio mantém a atual)' : 'Chave secreta do app'}>
-          <Input type="password" autoComplete="off" value={form.appSecret} onChange={(e) => setForm({ ...form, appSecret: e.target.value })} />
-        </Field>
-        <Field label="ID do número de telefone" required>
-          <Input inputMode="numeric" value={form.phoneNumberId} onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })} />
-        </Field>
-        <Field label="ID da conta do WhatsApp Business (WABA)" required>
-          <Input inputMode="numeric" value={form.wabaId} onChange={(e) => setForm({ ...form, wabaId: e.target.value })} />
-        </Field>
-      </div>
-      <div className="flex justify-end">
-        <Button onClick={save} loading={saving}>
-          {connected ? 'Salvar e testar' : 'Conectar'}
-        </Button>
-      </div>
-        </>
+        credentialsForm
       )}
       {status && (
         <div className="grid gap-3 rounded-xl border border-dashed border-slate-200 p-4 md:grid-cols-2">
@@ -279,10 +249,10 @@ function StepRow({ step, i, templates, onChange, onRemove }: { step: WaFollowUpS
           </button>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Texto (dentro de 24h)">
-            <Textarea rows={2} value={step.text} placeholder="Vazio: a IA escreve. Use {nome} para o primeiro nome." onChange={(e) => onChange({ ...step, text: e.target.value })} />
+          <Field label="Mensagem até 24h" hint="Vazio = a IA escreve.">
+            <Textarea rows={2} value={step.text} placeholder="Ou escreva. {nome} = primeiro nome." onChange={(e) => onChange({ ...step, text: e.target.value })} />
           </Field>
-          <TemplateSelect label="Modelo (depois de 24h)" templates={templates} name={step.templateName} lang={step.templateLang} onChange={(n, l) => onChange({ ...step, templateName: n, templateLang: l })} />
+          <TemplateSelect label="Modelo depois de 24h" templates={templates} name={step.templateName} lang={step.templateLang} onChange={(n, l) => onChange({ ...step, templateName: n, templateLang: l })} />
         </div>
       </div>
     </li>
@@ -290,6 +260,18 @@ function StepRow({ step, i, templates, onChange, onRemove }: { step: WaFollowUpS
 }
 
 /* ------------------------------ configurações ------------------------------ */
+
+type SettingsTab = 'ia' | 'followup' | 'lembrete' | 'carrinho' | 'conexao'
+
+/** Grupo de campos dentro de uma aba, com título pequeno. */
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <fieldset className="flex flex-col gap-4 rounded-xl border border-slate-200 p-4">
+      <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</legend>
+      {children}
+    </fieldset>
+  )
+}
 
 export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTemplates }: { status: WaStatus | null; templates: WaTemplate[]; onReloadStatus: () => void; onReloadTemplates: () => void }) {
   const { profile } = useAuth()
@@ -325,183 +307,258 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
     }
   }
 
+  const [tab, setTab] = useState<SettingsTab>('ia')
+
   const cartTpl = s ? templates.find((t) => t.name === s.cart.templateName && t.language === s.cart.templateLang) : undefined
 
+  const TABS: { id: SettingsTab; label: string; on: boolean | null }[] = [
+    { id: 'ia', label: 'IA', on: s ? s.aiEnabled : null },
+    { id: 'followup', label: 'Follow-up', on: s ? s.followUp.enabled : null },
+    { id: 'lembrete', label: 'Lembrete', on: s ? s.reminder.enabled : null },
+    { id: 'carrinho', label: 'Carrinho', on: s ? s.cart.enabled : null },
+    { id: 'conexao', label: 'Conexão', on: Boolean(status?.connected) },
+  ]
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 pb-10">
-      <ConnectionCard status={status} onSaved={() => (onReloadStatus(), onReloadTemplates())} />
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <div role="tablist" aria-label="Partes das configurações" className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none]">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={`inline-flex h-8 flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition ${tab === t.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            {t.on !== null && <span className={`h-1.5 w-1.5 rounded-full ${t.on ? 'bg-emerald-500' : 'bg-slate-400'}`} aria-hidden="true" />}
+            {t.label}
+            {t.on !== null && <span className="sr-only">{t.on ? ', ligado' : ', desligado'}</span>}
+          </button>
+        ))}
+      </div>
 
-      {s && (
+      {tab === 'conexao' && <ConnectionCard status={status} onSaved={() => (onReloadStatus(), onReloadTemplates())} />}
+      {tab !== 'conexao' && !s && <p className="py-8 text-center text-sm text-slate-400">Carregando…</p>}
+
+      {s && tab !== 'conexao' && (
         <>
-          <Card
-            icon={<Bot size={19} />}
-            tone="bg-violet-500/15 text-violet-400"
-            title="IA como SDR"
-            description="Atende quem chama como um pré-vendas: entende o negócio, qualifica (tipo de limpeza, cidade, verba, quem decide, prazo) e marca a reunião de diagnóstico. Usa a Base de Vendas. Quando a reunião fica combinada, avisa a equipe e continua atendendo. Se a pessoa pede um humano, reclama ou quer negociar, avisa a equipe e para de responder naquela conversa."
-            badge={<Badge on={s.aiEnabled} />}
-          >
-            <Toggle checked={s.aiEnabled} onChange={(v) => edit((c) => ({ ...c, aiEnabled: v }))} label="IA responde as conversas" hint="Dá para desligar em cada conversa também." />
-            <Toggle checked={s.autoCreateLead} onChange={(v) => edit((c) => ({ ...c, autoCreateLead: v }))} label="Criar lead quando um número novo chamar" hint="Entra em Novo Lead, com origem WhatsApp direto." />
-            <Toggle checked={s.skipKnownContacts !== false} onChange={(v) => edit((c) => ({ ...c, skipKnownContacts: v }))} label="IA não atende quem já é cliente ou já está com a equipe" hint="Cliente, ex-cliente ou lead que já saiu de Novo Lead (ou tem contato registrado): a IA fica quieta e avisa vocês." />
-            <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-              <span>A IA espera</span>
-              <input
-                type="number"
-                min={5}
-                max={90}
-                value={s.aiDelaySeconds}
-                onChange={(e) => edit((c) => ({ ...c, aiDelaySeconds: Number(e.target.value) || 25 }))}
-                className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
-              />
-              <span>segundos depois da última mensagem do contato antes de responder</span>
-              <span className="block w-full text-[11px] text-slate-400">Se ele mandar outra nesse tempo, a contagem recomeça e a IA responde tudo junto. Entre 5 e 90.</span>
-            </label>
-            <Toggle checked={s.notifyEveryMessage} onChange={(v) => edit((c) => ({ ...c, notifyEveryMessage: v }))} label="Avisar no celular a cada mensagem nova" hint="Só nas conversas sem IA. Desligado: o celular só avisa o importante (pediu humano, reunião marcada, lead quente, lembrete que falhou)." />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Nome do SDR" hint="Como a IA se apresenta. Vazio = não diz nome.">
-                <Input value={s.sdr.name} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, name: e.target.value } }))} placeholder="Ex.: Ana" />
-              </Field>
-              <Field label="Reunião com">
-                <Input value={s.sdr.meetingWith} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingWith: e.target.value } }))} placeholder="Bruno" />
-              </Field>
-              <Field label="Duração da reunião">
-                <Input value={s.sdr.meetingLength} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingLength: e.target.value } }))} placeholder="30 minutos" />
-              </Field>
-              <Field label="Horários para propor">
-                <Input value={s.sdr.meetingHours} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingHours: e.target.value } }))} placeholder="segunda a sexta, das 9h às 18h" />
-              </Field>
-            </div>
-            <Field label="Link da agenda" hint="Google Agenda, Calendly... Vazio = a IA propõe 2 horários e avisa a equipe quando a pessoa topar.">
-              <Input value={s.sdr.meetingLink} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingLink: e.target.value.trim() } }))} placeholder="https://" inputMode="url" />
-            </Field>
-            <Field label="Instruções extras para a IA">
-              <Textarea rows={4} value={s.aiInstructions} onChange={(e) => edit((c) => ({ ...c, aiInstructions: e.target.value }))} placeholder="Ex.: sempre ofereça a reunião de diagnóstico gratuita; o Bruno atende das 9h às 18h; não fale de preço antes da reunião." />
-            </Field>
-          </Card>
-
-          <Card
-            icon={<BellRing size={19} />}
-            tone="bg-emerald-500/15 text-emerald-400"
-            title="Lembrete da reunião"
-            description="Quando a IA marca a reunião com dia e hora, o contato recebe uma mensagem pouco antes. A conferência roda a cada 10 minutos mais ou menos, então o lembrete pode sair alguns minutos antes ou depois do tempo marcado."
-            badge={<Badge on={s.reminder.enabled} />}
-          >
-            <Toggle checked={s.reminder.enabled} onChange={(v) => edit((c) => ({ ...c, reminder: { ...c.reminder, enabled: v } }))} label="Mandar lembrete antes da reunião" />
-            <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-              <span>Mandar</span>
-              <input
-                type="number"
-                min={10}
-                max={1440}
-                value={s.reminder.minutesBefore}
-                onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, minutesBefore: Number(e.target.value) || 30 } }))}
-                className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
-              />
-              <span>minutos antes da reunião</span>
-            </label>
-            <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Texto (dentro de 24h)" hint="Use {nome}, {quando} (ex.: hoje às 9h), {hora} e {com}.">
-                <Textarea
-                  rows={3}
-                  value={s.reminder.text}
-                  placeholder="Oi {nome}, passando pra lembrar da nossa reunião {quando} com o {com}. Até já!"
-                  onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, text: e.target.value } }))}
+          {tab === 'ia' && (
+            <>
+            <Card icon={<Bot size={19} />} tone="bg-violet-500/15 text-violet-400" title="IA de atendimento (SDR)" description="Responde quem chama, entende o negócio e marca a reunião. Passa pra equipe quando pedem uma pessoa, reclamam ou querem negociar." badge={<Badge on={s.aiEnabled} />}>
+              <Toggle checked={s.aiEnabled} onChange={(v) => edit((c) => ({ ...c, aiEnabled: v }))} label="IA responde as conversas" hint="Dá pra desligar em cada conversa também." />
+  
+              <Group title="Quem a IA atende">
+                <Toggle
+                  checked={s.approval.enabled}
+                  onChange={(v) => edit((c) => ({ ...c, approval: { ...c.approval, enabled: v } }))}
+                  label="Perguntar antes de atender contato novo"
+                  hint="Chega um aviso no celular e no sino: Sim (IA atende) ou Não (você atende)."
                 />
-              </Field>
-              <TemplateSelect
-                label="Modelo (depois de 24h): {{1}} = nome, {{2}} = quando"
-                templates={templates}
-                name={s.reminder.templateName}
-                lang={s.reminder.templateLang}
-                onChange={(n, l) => edit((c) => ({ ...c, reminder: { ...c.reminder, templateName: n, templateLang: l } }))}
-              />
-            </div>
-          </Card>
-
-          <Card
-            icon={<Timer size={19} />}
-            tone="bg-sky-500/15 text-sky-400"
-            title="Follow-up automático"
-            description="Quando o contato para de responder, cada passo sai depois do tempo marcado, contado da última mensagem nossa. Para sozinho se ele responder, se o lead for para Fechado ou Perdido, ou se a equipe assumir."
-            badge={<Badge on={s.followUp.enabled} />}
-          >
-            <Toggle checked={s.followUp.enabled} onChange={(v) => edit((c) => ({ ...c, followUp: { ...c.followUp, enabled: v } }))} label="Follow-up ligado" />
-            <Toggle checked={s.followUp.businessHoursOnly} onChange={(v) => edit((c) => ({ ...c, followUp: { ...c.followUp, businessHoursOnly: v } }))} label="Só em horário comercial" hint="Segunda a sábado, das 8h às 20h." />
-            <ol className="mt-1 flex flex-col" aria-label="Passos do follow-up">
-              {s.followUp.steps.map((step, i) => (
-                <StepRow
-                  key={i}
-                  step={step}
-                  i={i}
-                  templates={templates}
-                  onChange={(next) => editStep(i, next)}
-                  onRemove={() => edit((c) => ({ ...c, followUp: { ...c.followUp, steps: c.followUp.steps.filter((_, j) => j !== i) } }))}
-                />
-              ))}
-            </ol>
-            {s.followUp.steps.length < 5 && (
-              <div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<Plus size={14} aria-hidden="true" />}
-                  onClick={() => edit((c) => ({ ...c, followUp: { ...c.followUp, steps: [...c.followUp.steps, { afterHours: 48, text: '', templateName: '', templateLang: 'pt_BR' }] } }))}
-                >
-                  Adicionar passo
-                </Button>
-              </div>
-            )}
-          </Card>
-
-          <Card
-            icon={<ShoppingCart size={19} />}
-            tone="bg-amber-500/15 text-amber-400"
-            title="Carrinho abandonado da Loja"
-            description="Quem põe o telefone no checkout e não paga recebe uma mensagem de modelo. Se responder, a IA atende com as informações do produto. Os e-mails de recuperação continuam saindo."
-            badge={<Badge on={s.cart.enabled && Boolean(s.cart.templateName)} offText={s.cart.enabled ? 'Falta o modelo' : 'Desligado'} />}
-          >
-            <Toggle checked={s.cart.enabled} onChange={(v) => edit((c) => ({ ...c, cart: { ...c.cart, enabled: v } }))} label="Mandar WhatsApp para carrinho abandonado" hint="Só nos produtos que pedem telefone no checkout. Produtos privados ficam de fora." />
-            <div className="grid gap-3 md:grid-cols-[180px_1fr]">
-              <Field label="Minutos parado antes de mandar">
-                <Input type="number" min={15} max={1440} value={s.cart.afterMinutes} onChange={(e) => edit((c) => ({ ...c, cart: { ...c.cart, afterMinutes: Number(e.target.value) || 40 } }))} />
-              </Field>
-              <TemplateSelect label="Modelo" templates={templates} name={s.cart.templateName} lang={s.cart.templateLang} onChange={(n, l) => edit((c) => ({ ...c, cart: { ...c.cart, templateName: n, templateLang: l } }))} />
-            </div>
-            {cartTpl && cartTpl.vars > 0 && (
-              <fieldset className="grid gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-2">
-                <legend className="px-1 text-sm font-medium text-slate-700">O que vai em cada variável</legend>
-                <div className="flex flex-col gap-2">
-                  {Array.from({ length: cartTpl.vars }, (_, i) => (
-                    <Field key={i} label={`Variável ${i + 1}`}>
-                      <Select
-                        value={s.cart.params[i] || ''}
-                        onChange={(e) =>
-                          edit((c) => {
-                            const params = [...c.cart.params]
-                            params[i] = e.target.value as WaCartParam
-                            return { ...c, cart: { ...c.cart, params: params.slice(0, cartTpl.vars) } }
-                          })
-                        }
-                      >
-                        <option value="">Escolha</option>
-                        {(Object.keys(WA_CART_PARAM_LABEL) as WaCartParam[]).map((k) => (
-                          <option key={k} value={k}>
-                            {WA_CART_PARAM_LABEL[k]}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                  ))}
+                {s.approval.enabled && (
+                  <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                    <span>Sem resposta em</span>
+                    <select
+                      value={s.approval.waitMinutes}
+                      onChange={(e) => edit((c) => ({ ...c, approval: { ...c.approval, waitMinutes: Number(e.target.value) } }))}
+                      className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-800"
+                    >
+                      {[5, 10, 15, 30, 60].map((m) => (
+                        <option key={m} value={m}>
+                          {m} minutos
+                        </option>
+                      ))}
+                      <option value={0}>nunca (espera vocês)</option>
+                    </select>
+                    <span>{s.approval.waitMinutes ? 'a IA atende sozinha.' : ''}</span>
+                  </label>
+                )}
+                <Toggle checked={s.skipKnownContacts !== false} onChange={(v) => edit((c) => ({ ...c, skipKnownContacts: v }))} label="Não atender quem já é cliente ou já fala com a equipe" hint="Cliente, ex-cliente ou lead antigo/em andamento: a IA fica quieta e avisa vocês." />
+              </Group>
+  
+              <Group title="Reunião">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Nome da IA" hint="Como ela se apresenta. Vazio = sem nome.">
+                    <Input value={s.sdr.name} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, name: e.target.value } }))} placeholder="Ex.: Jonas" />
+                  </Field>
+                  <Field label="Reunião com">
+                    <Input value={s.sdr.meetingWith} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingWith: e.target.value } }))} placeholder="Bruno" />
+                  </Field>
+                  <Field label="Duração">
+                    <Input value={s.sdr.meetingLength} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingLength: e.target.value } }))} placeholder="30 minutos" />
+                  </Field>
+                  <Field label="Horários para propor">
+                    <Input value={s.sdr.meetingHours} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingHours: e.target.value } }))} placeholder="segunda a sexta, das 9h às 18h" />
+                  </Field>
                 </div>
+                <Field label="Link da agenda" hint="Vazio = a IA propõe 2 horários.">
+                  <Input value={s.sdr.meetingLink} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, meetingLink: e.target.value.trim() } }))} placeholder="https://" inputMode="url" />
+                </Field>
+              </Group>
+  
+              <Field label="Instruções extras para a IA" hint="Têm prioridade sobre o resto.">
+                <Textarea rows={4} value={s.aiInstructions} onChange={(e) => edit((c) => ({ ...c, aiInstructions: e.target.value }))} placeholder="Ex.: não fale de preço antes da reunião." />
+              </Field>
+  
+              <details className="group rounded-xl border border-slate-200">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-slate-700">
+                  Avançado
+                  <ChevronDown size={16} className="text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
+                </summary>
+                <div className="flex flex-col gap-4 px-4 pb-4">
+                  <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                    <span>Esperar</span>
+                    <input
+                      type="number"
+                      min={5}
+                      max={90}
+                      value={s.aiDelaySeconds}
+                      onChange={(e) => edit((c) => ({ ...c, aiDelaySeconds: Number(e.target.value) || 25 }))}
+                      className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+                    />
+                    <span>segundos antes de responder</span>
+                    <span className="block w-full text-[11px] text-slate-400">Se o contato mandar outra mensagem nesse tempo, a IA responde tudo junto.</span>
+                  </label>
+                  <Toggle checked={s.autoCreateLead} onChange={(v) => edit((c) => ({ ...c, autoCreateLead: v }))} label="Criar lead quando um número novo chamar" hint="Entra em Novo Lead." />
+                  <Toggle checked={s.notifyEveryMessage} onChange={(v) => edit((c) => ({ ...c, notifyEveryMessage: v }))} label="Avisar no celular a cada mensagem" hint="Só nas conversas sem IA. Desligado: só avisa o importante." />
+                </div>
+              </details>
+            </Card>
+            </>
+          )}
+          {tab === 'followup' && (
+            <>
+            <Card
+              icon={<Timer size={19} />}
+              tone="bg-sky-500/15 text-sky-400"
+              title="Follow-up automático"
+              description="Para quem parou de responder. Para sozinho se a pessoa responder, marcar reunião ou se a equipe assumir."
+              badge={<Badge on={s.followUp.enabled} />}
+            >
+              <Toggle checked={s.followUp.enabled} onChange={(v) => edit((c) => ({ ...c, followUp: { ...c.followUp, enabled: v } }))} label="Follow-up ligado" />
+              <Toggle checked={s.followUp.businessHoursOnly} onChange={(v) => edit((c) => ({ ...c, followUp: { ...c.followUp, businessHoursOnly: v } }))} label="Só em horário comercial" hint="Segunda a sábado, das 8h às 20h." />
+              <ol className="mt-1 flex flex-col" aria-label="Passos do follow-up">
+                {s.followUp.steps.map((step, i) => (
+                  <StepRow
+                    key={i}
+                    step={step}
+                    i={i}
+                    templates={templates}
+                    onChange={(next) => editStep(i, next)}
+                    onRemove={() => edit((c) => ({ ...c, followUp: { ...c.followUp, steps: c.followUp.steps.filter((_, j) => j !== i) } }))}
+                  />
+                ))}
+              </ol>
+              {s.followUp.steps.length < 5 && (
                 <div>
-                  <span className="mb-1 block text-xs font-medium text-slate-500">Texto do modelo</span>
-                  <p className="whitespace-pre-wrap rounded-2xl rounded-br-md bg-brand-600 px-3 py-2 text-sm text-white">{cartTpl.body}</p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Plus size={14} aria-hidden="true" />}
+                    onClick={() => edit((c) => ({ ...c, followUp: { ...c.followUp, steps: [...c.followUp.steps, { afterHours: 48, text: '', templateName: '', templateLang: 'pt_BR' }] } }))}
+                  >
+                    Adicionar passo
+                  </Button>
                 </div>
-              </fieldset>
-            )}
-          </Card>
+              )}
+            </Card>
+            </>
+          )}
+          {tab === 'lembrete' && (
+            <>
+            <Card
+              icon={<BellRing size={19} />}
+              tone="bg-emerald-500/15 text-emerald-400"
+              title="Lembrete da reunião"
+              description="Quando a IA marca dia e hora, o contato recebe uma mensagem pouco antes (pode variar uns 5 minutos)."
+              badge={<Badge on={s.reminder.enabled} />}
+            >
+              <Toggle checked={s.reminder.enabled} onChange={(v) => edit((c) => ({ ...c, reminder: { ...c.reminder, enabled: v } }))} label="Mandar lembrete antes da reunião" />
+              <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <span>Mandar</span>
+                <input
+                  type="number"
+                  min={10}
+                  max={1440}
+                  value={s.reminder.minutesBefore}
+                  onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, minutesBefore: Number(e.target.value) || 30 } }))}
+                  className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+                />
+                <span>minutos antes da reunião</span>
+              </label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Texto (dentro de 24h)" hint="Use {nome}, {quando} (ex.: hoje às 9h), {hora} e {com}.">
+                  <Textarea
+                    rows={3}
+                    value={s.reminder.text}
+                    placeholder="Oi {nome}, passando pra lembrar da nossa reunião {quando} com o {com}. Até já!"
+                    onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, text: e.target.value } }))}
+                  />
+                </Field>
+                <TemplateSelect
+                  label="Modelo (depois de 24h): {{1}} = nome, {{2}} = quando"
+                  templates={templates}
+                  name={s.reminder.templateName}
+                  lang={s.reminder.templateLang}
+                  onChange={(n, l) => edit((c) => ({ ...c, reminder: { ...c.reminder, templateName: n, templateLang: l } }))}
+                />
+              </div>
+            </Card>
+            </>
+          )}
+          {tab === 'carrinho' && (
+            <>
+            <Card
+              icon={<ShoppingCart size={19} />}
+              tone="bg-amber-500/15 text-amber-400"
+              title="Carrinho abandonado da Loja"
+              description="Quem põe o telefone no checkout e não paga recebe um modelo. Se responder, a IA atende sobre o produto."
+              badge={<Badge on={s.cart.enabled && Boolean(s.cart.templateName)} offText={s.cart.enabled ? 'Falta o modelo' : 'Desligado'} />}
+            >
+              <Toggle checked={s.cart.enabled} onChange={(v) => edit((c) => ({ ...c, cart: { ...c.cart, enabled: v } }))} label="Mandar WhatsApp para carrinho abandonado" hint="Só nos produtos que pedem telefone no checkout. Produtos privados ficam de fora." />
+              <div className="grid gap-3 md:grid-cols-[180px_1fr]">
+                <Field label="Minutos parado antes de mandar">
+                  <Input type="number" min={15} max={1440} value={s.cart.afterMinutes} onChange={(e) => edit((c) => ({ ...c, cart: { ...c.cart, afterMinutes: Number(e.target.value) || 40 } }))} />
+                </Field>
+                <TemplateSelect label="Modelo" templates={templates} name={s.cart.templateName} lang={s.cart.templateLang} onChange={(n, l) => edit((c) => ({ ...c, cart: { ...c.cart, templateName: n, templateLang: l } }))} />
+              </div>
+              {cartTpl && cartTpl.vars > 0 && (
+                <fieldset className="grid gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-2">
+                  <legend className="px-1 text-sm font-medium text-slate-700">O que vai em cada variável</legend>
+                  <div className="flex flex-col gap-2">
+                    {Array.from({ length: cartTpl.vars }, (_, i) => (
+                      <Field key={i} label={`Variável ${i + 1}`}>
+                        <Select
+                          value={s.cart.params[i] || ''}
+                          onChange={(e) =>
+                            edit((c) => {
+                              const params = [...c.cart.params]
+                              params[i] = e.target.value as WaCartParam
+                              return { ...c, cart: { ...c.cart, params: params.slice(0, cartTpl.vars) } }
+                            })
+                          }
+                        >
+                          <option value="">Escolha</option>
+                          {(Object.keys(WA_CART_PARAM_LABEL) as WaCartParam[]).map((k) => (
+                            <option key={k} value={k}>
+                              {WA_CART_PARAM_LABEL[k]}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    ))}
+                  </div>
+                  <div>
+                    <span className="mb-1 block text-xs font-medium text-slate-500">Texto do modelo</span>
+                    <p className="whitespace-pre-wrap rounded-2xl rounded-br-md bg-brand-600 px-3 py-2 text-sm text-white">{cartTpl.body}</p>
+                  </div>
+                </fieldset>
+              )}
+            </Card>
+            </>
+          )}
 
-          <div className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 ${dirty ? 'sticky bottom-4 z-10 border-amber-500/40 bg-white shadow-lg' : 'border-slate-200 bg-white'}`}>
+          <div className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 sticky bottom-3 z-10 ${dirty ? 'border-amber-500/40 bg-white shadow-lg' : 'border-slate-200 bg-white'}`}>
             <span className={`flex items-center gap-2 text-sm ${dirty ? 'text-amber-600' : 'text-slate-500'}`} role="status">
               <span className={`h-2 w-2 rounded-full ${dirty ? 'bg-amber-500' : 'bg-emerald-500'}`} aria-hidden="true" />
               {dirty ? 'Alterações não salvas' : 'Tudo salvo'}

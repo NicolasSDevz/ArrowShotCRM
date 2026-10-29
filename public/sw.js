@@ -17,7 +17,9 @@ self.addEventListener('push', (event) => {
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       tag: data.tag,
-      data: { url: data.url || '/' },
+      requireInteraction: Boolean(data.actions),
+      actions: (data.actions || []).slice(0, 2).map((a) => ({ action: a.action, title: a.title })),
+      data: { url: data.url || '/', actions: data.actions || [] },
     })
   )
 })
@@ -25,6 +27,25 @@ self.addEventListener('push', (event) => {
 // Toque na notificação: abre (ou traz pra frente) o CRM na tela do aviso.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+  // Botão da notificação (ex.: "Sim, IA atende"): chama o link na hora, sem abrir o app.
+  const btn = (event.notification.data?.actions || []).find((a) => a.action === event.action)
+  if (btn?.url) {
+    event.waitUntil(
+      fetch(btn.url, { headers: { Accept: 'application/json' } })
+        .then((r) => r.json().catch(() => ({})).then((j) => ({ ok: r.ok, j })))
+        .then(({ ok, j }) =>
+          self.registration.showNotification(ok ? 'Feito' : 'Não deu certo', {
+            body: ok ? j.message || 'Pronto.' : j.error || 'Abra a conversa no CRM.',
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: event.notification.tag,
+            data: { url: event.notification.data?.url || '/' },
+          })
+        )
+        .catch(() => self.clients.openWindow(new URL(event.notification.data?.url || '/', self.location.origin).href))
+    )
+    return
+  }
   const url = new URL(event.notification.data?.url || '/', self.location.origin).href
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {

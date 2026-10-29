@@ -38,6 +38,7 @@ import {
   sendMessage,
   updateConversation,
   markReadOnWhatsapp,
+  decideApproval,
 } from '../_lib/whatsapp.js'
 
 // O webhook precisa do corpo cru pra conferir a assinatura do Meta.
@@ -136,6 +137,21 @@ async function sweep(req, res) {
   return res.status(200).json({ followUps, carts, reminders, pending })
 }
 
+/** Botão "Sim/Não" da notificação do celular (sem login: vale o token da conversa). */
+async function approveFromPush(req, res) {
+  const waId = String(req.query.c || '')
+  const yes = String(req.query.v || '') === 'sim'
+  if (!isWaId(waId)) throw new WaError(400, 'Conversa inválida.')
+  const out = await decideApproval(waId, yes, { token: String(req.query.t || ''), byName: 'Equipe (pelo celular)' })
+  if (yes) waitUntil(maybeAutoReply(waId, publicOrigin(req), { waitMs: 0 }).catch((e) => console.warn('[whatsapp] IA falhou:', e.message)))
+  const who = out.conv.name || out.conv.phone || waId
+  const msg = yes ? `Pronto: a IA vai atender ${who}.` : `Pronto: a IA não vai responder ${who}. Atenda pelo CRM ou pelo celular.`
+  res.setHeader('Cache-Control', 'no-store')
+  if (String(req.headers.accept || '').includes('application/json')) return res.status(200).json({ ok: true, message: msg })
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  return res.status(200).send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WhatsApp</title><body style="font-family:system-ui;background:#111;color:#eee;display:grid;place-items:center;min-height:90vh;text-align:center;padding:16px"><div><p style="font-size:18px">${msg.replace(/[<>&]/g, '')}</p><p><a style="color:#4cc38a" href="/leads?aba=conversas&c=${waId}">Abrir a conversa</a></p></div>`)
+}
+
 /* ------------------------------ equipe ------------------------------ */
 
 const ADMIN = {
@@ -167,6 +183,13 @@ const ADMIN = {
     await updateConversation(b.waId, { aiMode: 'auto' })
     return maybeAutoReply(b.waId, publicOrigin(req), { waitMs: 0 })
   },
+  'POST approve': async (req, user) => {
+    const b = await readJson(req)
+    if (!isWaId(b.waId)) throw new WaError(400, 'Conversa inválida.')
+    const out = await decideApproval(b.waId, b.yes === true, { by: user.uid || user.id || null, byName: user.name || user.displayName || '' })
+    if (b.yes === true) waitUntil(maybeAutoReply(b.waId, publicOrigin(req), { waitMs: 0 }).catch((e) => console.warn('[whatsapp] IA falhou:', e.message)))
+    return { ok: true, yes: out.yes }
+  },
   'POST sdr-analyze': async (req) => {
     const b = await readJson(req)
     if (!isWaId(b.waId)) throw new WaError(400, 'Conversa inválida.')
@@ -188,6 +211,7 @@ export default async function handler(req, res) {
     if (route === 'GET webhook') return await webhookVerify(req, res)
     if (route === 'POST webhook') return await webhookReceive(req, res)
     if (route === 'GET sweep') return await sweep(req, res)
+    if (route === 'GET approve') return await approveFromPush(req, res)
     if (ADMIN[route]) {
       const user = await requireInternalUser(req)
       res.setHeader('Cache-Control', 'no-store')

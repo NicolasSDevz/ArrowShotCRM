@@ -59,6 +59,7 @@ export function listenWaSettings(cb: (s: WaSettings) => void): Unsubscribe {
         cart: { ...WA_DEFAULT_SETTINGS.cart, ...(d.cart || {}) },
         sdr: { ...WA_DEFAULT_SETTINGS.sdr, ...(d.sdr || {}) },
         reminder: { ...WA_DEFAULT_SETTINGS.reminder, ...(d.reminder || {}) },
+        approval: { ...WA_DEFAULT_SETTINGS.approval, ...(d.approval || {}) },
       })
     },
     () => cb(WA_DEFAULT_SETTINGS)
@@ -87,5 +88,8 @@ export const updateWaConversation = (
 ) => api<{ ok: true }>('conversation', { method: 'POST', body: { waId, ...patch } })
 
 export const replyWithAi = (waId: string) => api<{ replied?: boolean; skipped?: string; handoff?: boolean }>('reply-ai', { method: 'POST', body: { waId } })
+
+/** Contato novo: Sim = a IA atende agora; Não = a equipe atende. */
+export const approveWaConversation = (waId: string, yes: boolean) => api<{ ok: boolean }>('approve', { method: 'POST', body: { waId, yes } })
 
 export const analyzeWaConversation = (waId: string) => api<{ sdr: WaSdr }>('sdr-analyze', { method: 'POST', body: { waId } })

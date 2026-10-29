@@ -37,6 +37,8 @@ export interface WaConversation {
   handoffReason?: string | null
   /** Motivo de a IA não ter respondido: já é cliente ou já está com a equipe. */
   knownContact?: string | null
+  /** Contato novo esperando a equipe dizer se a IA atende. */
+  approval?: { status: 'pending' | 'approved' | 'rejected' | 'timeout'; askedAt: string; decidedAt?: string; decidedByName?: string } | null
   followUpStep: number
   followUpStopped: boolean
   followUpError?: string
@@ -92,6 +94,8 @@ export interface WaSettings {
   autoCreateLead: boolean
   /** Cliente ou lead que a equipe já atende: a IA não responde e avisa a equipe. */
   skipKnownContacts?: boolean
+  /** Contato novo: pergunta pra equipe se a IA atende. waitMinutes sem resposta = IA atende (0 = espera sempre). */
+  approval: { enabled: boolean; waitMinutes: number }
   /** Segundos que a IA espera depois da última mensagem do contato. */
   aiDelaySeconds: number
   /** Aviso no celular a cada mensagem nova em conversa sem IA. */
@@ -129,6 +133,7 @@ export const WA_DEFAULT_SETTINGS: WaSettings = {
   aiInstructions: '',
   autoCreateLead: true,
   skipKnownContacts: true,
+  approval: { enabled: true, waitMinutes: 10 },
   aiDelaySeconds: 25,
   notifyEveryMessage: false,
   followUp: {

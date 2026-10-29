@@ -33,7 +33,8 @@ const FILTERS: { id: WaFilter; label: string; long: string; main?: boolean }[] =
 ]
 
 /** Contato falou por último e a IA não está atendendo: alguém da equipe precisa responder. */
-const isWaiting = (c: WaConversation) => c.aiMode === 'off' && c.lastDirection === 'in' && !/^\[(reagiu|reação)/.test(c.lastMessageText || '')
+const needsApproval = (c: WaConversation) => c.approval?.status === 'pending' && c.aiMode !== 'off'
+const isWaiting = (c: WaConversation) => needsApproval(c) || (c.aiMode === 'off' && c.lastDirection === 'in' && !/^\[(reagiu|reação)/.test(c.lastMessageText || ''))
 
 /* ------------------------------ nova conversa ------------------------------ */
 
@@ -99,6 +100,7 @@ export function WhatsappInbox({
     return l.createdBy === 'whatsapp' ? 'new' : 'crm'
   }
   const [search, setSearch] = useState('')
+  const [moreOpen, setMoreOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const selected = params.get('c')
   // Filtro na URL (?f=hot): os números do topo de Conversas também filtram.
@@ -185,6 +187,9 @@ export function WhatsappInbox({
               <span className="sr-only">Buscar conversa por nome, número, empresa, cidade ou mensagem</span>
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <input
+                type="search"
+                name="wa-busca-conversa"
+                autoComplete="off"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar nome, número, empresa…"
@@ -202,41 +207,32 @@ export function WhatsappInbox({
               <Plus size={15} aria-hidden="true" /> Nova
             </button>
           </div>
-          <div className="flex items-center gap-1.5" role="group" aria-label="Filtrar conversas">
-            <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
-              {FILTERS.filter((f) => f.main).map((f) => {
-                const on = filter === f.id
-                const n = counts[f.id]
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    aria-pressed={on}
-                    aria-label={`${f.long}: ${n}`}
-                    onClick={() => setFilter(f.id)}
-                    className={`inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-semibold transition ${on ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                  >
-                    {f.label}
-                    {f.id !== 'all' && n > 0 && <span className={on ? 'text-white/80' : f.id === 'waiting' ? 'text-amber-500' : 'text-slate-400'}>{n}</span>}
-                  </button>
-                )
-              })}
-            </div>
-            <label className="shrink-0">
-              <span className="sr-only">Mais filtros</span>
-              <select
-                value={FILTERS.find((f) => f.id === filter)?.main ? '' : filter}
-                onChange={(e) => setFilter((e.target.value || 'all') as WaFilter)}
-                className={`h-7 rounded-full border-0 pl-3 pr-7 text-xs font-semibold outline-none ${FILTERS.find((f) => f.id === filter)?.main ? 'bg-slate-100 text-slate-600' : 'bg-emerald-500 text-white'}`}
-              >
-                <option value="">Mais</option>
-                {FILTERS.filter((f) => !f.main).map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.label} ({counts[f.id]})
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar conversas">
+            {FILTERS.filter((f) => f.main || moreOpen || f.id === filter).map((f) => {
+              const on = filter === f.id
+              const n = counts[f.id]
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  aria-pressed={on}
+                  aria-label={`${f.long}: ${n}`}
+                  onClick={() => setFilter(on && f.id !== 'all' ? 'all' : f.id)}
+                  className={`inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition ${on ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  {f.label}
+                  {f.id !== 'all' && n > 0 && <span className={on ? 'text-white/80' : f.id === 'waiting' ? 'text-amber-500' : 'text-slate-400'}>{n}</span>}
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((v) => !v)}
+              className="inline-flex h-7 items-center rounded-full px-2.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            >
+              {moreOpen ? 'Menos filtros' : 'Mais filtros'}
+            </button>
           </div>
         </div>
         {rows === null ? (
@@ -272,7 +268,7 @@ export function WhatsappInbox({
                       select(c.waId)
                     }}
                     aria-current={active ? 'true' : undefined}
-                    aria-label={`${displayName(c)}${company ? `, ${company}` : ''}. ${isWaiting(c) ? 'Esperando resposta da equipe. ' : ''}${c.sdr ? `${c.sdr.temperature}, ${c.sdr.stage}. ` : ''}${origin === 'crm' ? 'Já estava no CRM. ' : origin === 'new' ? 'Lead novo. ' : ''}${where ? `Etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
+                    aria-label={`${displayName(c)}${company ? `, ${company}` : ''}. ${needsApproval(c) ? 'Contato novo esperando aprovação. ' : isWaiting(c) ? 'Esperando resposta da equipe. ' : ''}${c.sdr ? `${c.sdr.temperature}, ${c.sdr.stage}. ` : ''}${origin === 'crm' ? 'Já estava no CRM. ' : origin === 'new' ? 'Lead novo. ' : ''}${where ? `Etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
                     className={`relative flex w-full items-start gap-3 rounded-xl px-2.5 py-2.5 text-left transition ${active ? 'bg-emerald-500/10' : 'hover:bg-slate-50'}`}
                   >
                     {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-emerald-500" aria-hidden="true" />}
@@ -302,7 +298,9 @@ export function WhatsappInbox({
                       </span>
                       {(isWaiting(c) || hasMeeting(c) || isHot(c)) && (
                         <span className="mt-1 flex">
-                          {isWaiting(c) ? (
+                          {needsApproval(c) ? (
+                            <span className="rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-500">Aprovar: IA atende?</span>
+                          ) : isWaiting(c) ? (
                             <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-500">Esperando vocês</span>
                           ) : hasMeeting(c) ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-400">

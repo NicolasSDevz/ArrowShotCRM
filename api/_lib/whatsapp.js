@@ -184,6 +184,9 @@ export const DEFAULT_SETTINGS = {
   autoCreateLead: true,
   /** Cliente ou lead que a equipe já atende: a IA não responde, só avisa a equipe. */
   skipKnownContacts: true,
+  /** Contato novo: pergunta pra equipe se a IA atende (Sim/Não) antes de responder.
+   *  waitMinutes = sem resposta nesse tempo, a IA atende (0 = espera a equipe sempre). */
+  approval: { enabled: true, waitMinutes: 10 },
   followUp: {
     enabled: true,
     businessHoursOnly: true,
@@ -232,6 +235,7 @@ export async function getWaSettings() {
     cart: { ...DEFAULT_SETTINGS.cart, ...(d.cart || {}) },
     sdr: { ...DEFAULT_SETTINGS.sdr, ...(d.sdr || {}) },
     reminder: { ...DEFAULT_SETTINGS.reminder, ...(d.reminder || {}) },
+    approval: { ...DEFAULT_SETTINGS.approval, ...(d.approval || {}) },
   }
 }
 
@@ -725,14 +729,14 @@ async function staffIds(conv) {
 }
 
 /** Aviso no sino + no celular. Texto com o nome primeiro e sem emoji (leitor de tela). */
-async function notifyTeam(conv, message, { bell = true } = {}) {
+async function notifyTeam(conv, message, { bell = true, type = 'whatsapp_handoff', actions } = {}) {
   const ids = await staffIds(conv)
   const who = conv.name || conv.phone || prettyPhone(conv.waId)
   if (bell) {
     for (const userId of ids) {
       await setDoc(`notifications/wa_${conv.waId}_${Date.now()}_${userId.slice(0, 6)}`, {
         userId,
-        type: 'whatsapp_handoff',
+        type,
         message,
         actorName: 'WhatsApp',
         entityId: conv.waId,
@@ -741,7 +745,48 @@ async function notifyTeam(conv, message, { bell = true } = {}) {
       }).catch(() => {})
     }
   }
-  await sendPushToUsers(ids, { title: `WhatsApp: ${who}`, body: message, url: `/leads?aba=conversas&c=${conv.waId}`, tag: `wa-${conv.waId}` }).catch(() => {})
+  await sendPushToUsers(ids, { title: `WhatsApp: ${who}`, body: message, url: `/leads?aba=conversas&c=${conv.waId}`, tag: `wa-${conv.waId}`, actions }).catch(() => {})
+}
+
+/* ------------------------- aprovação de contato novo ------------------------- */
+
+/** Pergunta pra equipe se a IA atende esse contato novo (celular com botões + sino do CRM). */
+async function askApproval(conv, lastIn) {
+  const token = randomBytes(16).toString('hex')
+  const approval = { status: 'pending', askedAt: nowIso(), token }
+  // Grava só se ainda não perguntou (dois webhooks juntos não mandam dois avisos).
+  if (!(await createDocIfMissing(`waLocks/approval_${conv.waId}`, { at: nowIso() }))) return
+  await updateDoc(convPath(conv.waId), { approval })
+  const said = clip(lastIn?.text || conv.lastMessageText || '', 120)
+  const base = `/api/whatsapp/approve?c=${conv.waId}&t=${token}`
+  await notifyTeam(conv, `Contato novo no WhatsApp${said ? `: "${said}"` : ''}. É lead? A IA pode atender?`, {
+    type: 'whatsapp_approval',
+    actions: [
+      { action: 'yes', title: 'Sim, IA atende', url: `${base}&v=sim` },
+      { action: 'no', title: 'Não, eu atendo', url: `${base}&v=nao` },
+    ],
+  })
+}
+
+/**
+ * Decisão da equipe sobre o contato novo. yes = a IA atende agora; no = equipe atende.
+ * `token` vem do botão da notificação do celular (sem login); pelo CRM vem `by` (uid).
+ */
+export async function decideApproval(waId, yes, { token, by = null, byName = '' } = {}) {
+  const snap = await getDoc(convPath(waId))
+  if (!snap.exists) throw new WaError(404, 'Conversa não encontrada.')
+  const conv = { waId, ...snap.data() }
+  const ap = conv.approval || {}
+  if (token !== undefined && (!ap.token || token !== ap.token)) throw new WaError(403, 'Link inválido ou vencido.')
+  const decided = { ...ap, status: yes ? 'approved' : 'rejected', decidedAt: nowIso(), decidedBy: by, decidedByName: byName }
+  delete decided.token
+  if (yes) {
+    await updateDoc(convPath(waId), { approval: decided, aiMode: 'auto', handoffReason: null })
+  } else {
+    await updateDoc(convPath(waId), { approval: decided, aiMode: 'off', handoffReason: `${byName || 'A equipe'} vai atender (não liberou a IA)`, handoffAt: nowIso() })
+  }
+  await deleteDoc(`waLocks/approval_${waId}`).catch(() => {})
+  return { conv, yes, alreadyDecided: ap.status && ap.status !== 'pending' }
 }
 
 /* ------------------------------- IA ------------------------------- */
@@ -1092,6 +1137,20 @@ export async function maybeAutoReply(waId, origin, { waitMs } = {}) {
       return { skipped: 'contato da equipe', relation: rel }
     }
   }
+
+  // Contato novo: a equipe aprova antes (Sim = IA atende, Não = equipe atende).
+  if (settings.approval?.enabled && conv.kind === 'lead' && !conv.knownContactOverride && !recent.some((m) => m.by === 'ai')) {
+    const ap = conv.approval
+    if (!ap) {
+      await askApproval(conv, lastIn)
+      return { skipped: 'esperando aprovação' }
+    }
+    if (ap.status === 'pending') {
+      const wait = Number(settings.approval.waitMinutes) || 0
+      if (!wait || Date.now() - new Date(ap.askedAt).getTime() < wait * 60_000) return { skipped: 'esperando aprovação' }
+      await updateDoc(convPath(waId), { approval: { ...ap, status: 'timeout', decidedAt: nowIso() } }).catch(() => {})
+    }
+  }
   // Outra chamada do webhook mais nova cuida da resposta.
   if (new Date(conv.lastInboundAt).getTime() > new Date(lastIn.at).getTime() + 1000) return { skipped: 'mais nova a caminho' }
   // Trava: uma resposta por mensagem recebida, mesmo com dois webhooks juntos.
@@ -1145,7 +1204,8 @@ export async function runPendingReplies(origin, { max = 4, budgetMs = 60_000 } =
     .filter((c) => c.aiMode !== 'off' && c.lastInboundAt)
     .filter((c) => {
       const age = started - new Date(c.lastInboundAt).getTime()
-      return age > minAge && age < 60 * 60_000
+      // Contato novo esperando aprovação: a janela cobre o tempo de espera configurado.
+      return age > minAge && age < Math.max(60, (Number(settings.approval?.waitMinutes) || 0) + 20) * 60_000
     })
     .filter((c) => !NOISE_TEXT.test(String(c.lastMessageText || '')))
     .filter((c) => !(c.aiFail?.inboundAt === c.lastInboundAt && Number(c.aiFail.count) >= AI_MAX_FAILS))

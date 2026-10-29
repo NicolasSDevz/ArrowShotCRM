@@ -46,6 +46,7 @@ export type NotificationType =
   | 'consulting_pending' // Consultoria do mês ainda não feita com algum cliente ativo
   | 'system_error' // Uma tela do CRM/checkout quebrou (api/_lib/errorReport.js)
   | 'whatsapp_handoff' // WhatsApp: a IA passou a conversa para a equipe (entityId = número)
+  | 'whatsapp_approval' // WhatsApp: contato novo, a equipe diz se a IA atende (entityId = número)
 
 export interface AppNotification {
   id: string
@@ -103,6 +104,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   consulting_pending: 'Consultoria pendente',
   system_error: 'Erro numa tela',
   whatsapp_handoff: 'WhatsApp precisa de atendimento',
+  whatsapp_approval: 'WhatsApp: contato novo para aprovar',
 }
 
 /** Avisos de rotina que deixaram de ser enviados (21/10/2026): o sino ficava
