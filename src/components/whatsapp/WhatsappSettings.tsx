@@ -368,7 +368,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
                           {m} minutos
                         </option>
                       ))}
-                      <option value={0}>nunca (espera vocês)</option>
+                      <option value={0}>nunca (espera o Bruno)</option>
                     </select>
                     <span>{s.approval.waitMinutes ? 'a IA atende sozinha.' : ''}</span>
                   </label>
