@@ -936,6 +936,7 @@ Transformar quem chama em uma reunião de diagnóstico (${sdr.meetingLength || '
   * "manda uma proposta por aqui": explique que a proposta é montada para a região dela e que na reunião o ${meetWith} mostra tudo; ofereça horário.
   * "vou pensar": pergunte o que falta para decidir; se for momento, vá para nutricao.
 - Se a pessoa sumir e voltar, retome de onde parou, sem recomeçar.
+- Mensagens no histórico que começam com "[Fulano escreveu:]" foram escritas por uma pessoa da equipe (ex.: o ${meetWith}), não por você. Respeite tudo o que ela disse ou combinou (preço, horário, condição, próximos passos): não contradiga, não repita a apresentação nem refaça perguntas que ela já fez. Se a equipe já está negociando ou tratando de algo que você não sabe, passe para a equipe (handoff = true). Nunca escreva esse marcador nas suas mensagens.
 - Se for cliente atual da Arrow Shot (pelo CRM ou pelo que ela diz), não qualifique: entenda o pedido e passe para a equipe.
 - Conversa antiga: este WhatsApp é o mesmo número que o ${meetWith} e a equipe usam no celular há muito tempo, e as conversas de antes você NÃO vê. Se a pessoa falar como quem já conhece a equipe, é cliente ou conversa em andamento, não lead novo. Sinais: cita o ${meetWith} ou outra pessoa da equipe pelo nome; fala de reunião, proposta, contrato, pagamento, boleto, nota, acesso, campanha ou serviço; avisa que não vai conseguir participar, que vai atrasar ou que "logo te dá atenção"; pede desculpa; responde algo que ninguém perguntou; manda algo que só faz sentido como continuação. Nesses casos: NÃO se apresente como SDR, NÃO pergunte da empresa, NÃO ofereça nada nem tente marcar reunião. Responda 1 balão curto e natural (ex.: "Tranquilo, sem pressa! Já aviso o ${meetWith} aqui.") e passe para a equipe (handoff = true, motivo "parece conversa antiga com a equipe"). Na dúvida entre lead novo e conversa antiga, trate como conversa antiga.
 - Agora é ${spNowText()} (horário de Brasília). Nunca proponha horário no passado nem em domingo.
@@ -974,11 +975,22 @@ Responda APENAS com JSON: {"messages": ["balão 1"], "handoff": false, "handoff_
 }
 
 /** Histórico em turnos alternados user/assistant pra IA. */
+const AUTO_SENDERS = new Set(['ai', 'followup', 'reminder', 'cart'])
+
+/** Quem da equipe escreveu (mensagem que não saiu da IA nem de automação). */
+function staffAuthor(m) {
+  if (m.direction !== 'out' || AUTO_SENDERS.has(m.by)) return ''
+  if (m.by === 'phone') return 'Bruno, pelo celular'
+  return m.byName ? `${m.byName}, da equipe` : 'equipe'
+}
+
 function toTurns(msgs) {
   const turns = []
   for (const m of msgs) {
     const role = m.direction === 'in' ? 'user' : 'assistant'
-    const content = String(m.text || '').trim()
+    const who = staffAuthor(m)
+    // Mensagem de pessoa da equipe vai marcada: a IA sabe que não foi ela e respeita o combinado.
+    const content = (who ? `[${who} escreveu:] ` : '') + String(m.text || '').trim()
     if (!content) continue
     const last = turns[turns.length - 1]
     if (last && last.role === role) last.content += `\n${content}`
@@ -995,7 +1007,7 @@ function parseAiJson(text) {
   try {
     const j = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
     const asked = Array.isArray(j.messages) ? j.messages : j.reply ? [j.reply] : []
-    const messages = asked.map((m) => String(m || '').trim()).filter((m) => m && !/^[{[<]|"messages"\s*:/.test(m)).slice(0, 3)
+    const messages = asked.map((m) => String(m || '').trim().replace(/^\[[^\]]{0,60}escreveu:\]\s*/, '')).filter((m) => m && !/^[{[<]|"messages"\s*:/.test(m)).slice(0, 3)
     // A IA escreveu balões, mas todos eram código: resposta quebrada, não silêncio de propósito.
     const broken = asked.some((m) => String(m || '').trim()) && !messages.length
     let sdr = null
