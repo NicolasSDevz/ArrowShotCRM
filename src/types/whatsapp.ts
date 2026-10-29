@@ -100,7 +100,7 @@ export interface WaSettings {
   aiDelaySeconds: number
   /** Aviso no celular a cada mensagem nova em conversa sem IA. */
   notifyEveryMessage: boolean
-  followUp: { enabled: boolean; businessHoursOnly: boolean; steps: WaFollowUpStep[] }
+  followUp: { enabled: boolean; businessHoursOnly: boolean; freeOnly?: boolean; steps: WaFollowUpStep[] }
   cart: { enabled: boolean; afterMinutes: number; templateName: string; templateLang: string; params: WaCartParam[] }
   sdr: WaSdrSettings
   reminder: WaReminderSettings
@@ -139,10 +139,11 @@ export const WA_DEFAULT_SETTINGS: WaSettings = {
   followUp: {
     enabled: true,
     businessHoursOnly: true,
+    freeOnly: true,
     steps: [
-      { afterHours: 4, text: '', templateName: '', templateLang: 'pt_BR' },
-      { afterHours: 24, text: '', templateName: '', templateLang: 'pt_BR' },
-      { afterHours: 72, text: '', templateName: '', templateLang: 'pt_BR' },
+      { afterHours: 3, text: '', templateName: '', templateLang: 'pt_BR' },
+      { afterHours: 6, text: '', templateName: '', templateLang: 'pt_BR' },
+      { afterHours: 12, text: '', templateName: '', templateLang: 'pt_BR' },
     ],
   },
   cart: { enabled: false, afterMinutes: 40, templateName: '', templateLang: 'pt_BR', params: ['nome', 'produto', 'link'] },

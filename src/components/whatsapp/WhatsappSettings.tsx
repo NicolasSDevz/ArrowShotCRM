@@ -221,7 +221,7 @@ function ConnectionCard({ status, onSaved }: { status: WaStatus | null; onSaved:
 
 /* ------------------------------ follow-up ------------------------------ */
 
-function StepRow({ step, i, templates, onChange, onRemove }: { step: WaFollowUpStep; i: number; templates: WaTemplate[]; onChange: (s: WaFollowUpStep) => void; onRemove: () => void }) {
+function StepRow({ step, i, templates, freeOnly, onChange, onRemove }: { step: WaFollowUpStep; i: number; templates: WaTemplate[]; freeOnly: boolean; onChange: (s: WaFollowUpStep) => void; onRemove: () => void }) {
   return (
     <li className="group relative flex gap-3 pb-5 last:pb-0">
       <span className="absolute left-[13px] top-8 bottom-0 w-px bg-slate-200 group-last:hidden" aria-hidden="true" />
@@ -237,22 +237,22 @@ function StepRow({ step, i, templates, onChange, onRemove }: { step: WaFollowUpS
             <input
               type="number"
               min={1}
-              max={720}
+              max={freeOnly ? 23 : 720}
               value={step.afterHours}
               onChange={(e) => onChange({ ...step, afterHours: Number(e.target.value) || 1 })}
               className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
             />
           </label>
-          <span>horas sem resposta</span>
+          <span>{i === 0 ? 'horas sem resposta' : 'horas depois do anterior'}</span>
           <button type="button" className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500" aria-label={`Remover passo ${i + 1}`} onClick={onRemove}>
             <Trash2 size={15} aria-hidden="true" />
           </button>
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Mensagem até 24h" hint="Vazio = a IA escreve.">
+        <div className={`grid gap-3 ${freeOnly ? '' : 'md:grid-cols-2'}`}>
+          <Field label="Mensagem" hint="Vazio = a IA escreve, retomando a conversa.">
             <Textarea rows={2} value={step.text} placeholder="Ou escreva. {nome} = primeiro nome." onChange={(e) => onChange({ ...step, text: e.target.value })} />
           </Field>
-          <TemplateSelect label="Modelo depois de 24h" templates={templates} name={step.templateName} lang={step.templateLang} onChange={(n, l) => onChange({ ...step, templateName: n, templateLang: l })} />
+          {!freeOnly && <TemplateSelect label="Modelo depois de 24h" templates={templates} name={step.templateName} lang={step.templateLang} onChange={(n, l) => onChange({ ...step, templateName: n, templateLang: l })} />}
         </div>
       </div>
     </li>
@@ -432,10 +432,16 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
               icon={<Timer size={19} />}
               tone="bg-sky-500/15 text-sky-400"
               title="Follow-up automático"
-              description="Para quem parou de responder. Para sozinho se a pessoa responder, marcar reunião ou se a equipe assumir."
+              description="Para quem parou de responder. Para sozinho se a pessoa responder, marcar reunião, a equipe assumir ou fechar 24h sem resposta."
               badge={<Badge on={s.followUp.enabled} />}
             >
               <Toggle checked={s.followUp.enabled} onChange={(v) => edit((c) => ({ ...c, followUp: { ...c.followUp, enabled: v } }))} label="Follow-up ligado" />
+              <Toggle
+                checked={s.followUp.freeOnly !== false}
+                onChange={(v) => edit((c) => ({ ...c, followUp: { ...c.followUp, freeOnly: v } }))}
+                label="Só dentro das 24h (sem custo)"
+                hint="Só manda texto até 24h depois da última mensagem do contato. Depois disso o WhatsApp cobra por mensagem de modelo, então o follow-up para."
+              />
               <Toggle checked={s.followUp.businessHoursOnly} onChange={(v) => edit((c) => ({ ...c, followUp: { ...c.followUp, businessHoursOnly: v } }))} label="Só em horário comercial" hint="Segunda a sábado, das 8h às 20h." />
               <ol className="mt-1 flex flex-col" aria-label="Passos do follow-up">
                 {s.followUp.steps.map((step, i) => (
@@ -444,18 +450,29 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
                     step={step}
                     i={i}
                     templates={templates}
+                    freeOnly={s.followUp.freeOnly !== false}
                     onChange={(next) => editStep(i, next)}
                     onRemove={() => edit((c) => ({ ...c, followUp: { ...c.followUp, steps: c.followUp.steps.filter((_, j) => j !== i) } }))}
                   />
                 ))}
               </ol>
+              {s.followUp.freeOnly !== false && (() => {
+                const total = s.followUp.steps.reduce((a, x) => a + (Number(x.afterHours) || 0), 0)
+                return total >= 23 ? (
+                  <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-500" role="status">
+                    Os passos somam {total}h. O que passar de 23h não sai: se a janela for fechar antes, o próximo passo é mandado antes de fechar.
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400">Os passos somam {total}h, dentro da janela grátis. Se a janela for fechar antes de um passo, ele sai antes de fechar.</p>
+                )
+              })()}
               {s.followUp.steps.length < 5 && (
                 <div>
                   <Button
                     variant="secondary"
                     size="sm"
                     icon={<Plus size={14} aria-hidden="true" />}
-                    onClick={() => edit((c) => ({ ...c, followUp: { ...c.followUp, steps: [...c.followUp.steps, { afterHours: 48, text: '', templateName: '', templateLang: 'pt_BR' }] } }))}
+                    onClick={() => edit((c) => ({ ...c, followUp: { ...c.followUp, steps: [...c.followUp.steps, { afterHours: c.followUp.freeOnly !== false ? 4 : 48, text: '', templateName: '', templateLang: 'pt_BR' }] } }))}
                   >
                     Adicionar passo
                   </Button>

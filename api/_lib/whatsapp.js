@@ -190,10 +190,12 @@ export const DEFAULT_SETTINGS = {
   followUp: {
     enabled: true,
     businessHoursOnly: true,
+    /** Só manda dentro das 24h da última mensagem do contato (texto grátis, nunca modelo pago). */
+    freeOnly: true,
     steps: [
-      { afterHours: 4, text: '', templateName: '', templateLang: 'pt_BR' },
-      { afterHours: 24, text: '', templateName: '', templateLang: 'pt_BR' },
-      { afterHours: 72, text: '', templateName: '', templateLang: 'pt_BR' },
+      { afterHours: 3, text: '', templateName: '', templateLang: 'pt_BR' },
+      { afterHours: 6, text: '', templateName: '', templateLang: 'pt_BR' },
+      { afterHours: 12, text: '', templateName: '', templateLang: 'pt_BR' },
     ],
   },
   /** Jeito do SDR (a IA que qualifica e agenda). */
@@ -1331,6 +1333,12 @@ export async function analyzeConversation(waId, origin) {
 function spHour(date = new Date()) {
   return Number(new Intl.DateTimeFormat('en-US', { timeZone: SP_TZ, hour: 'numeric', hour12: false }).format(date)) % 24
 }
+/** Dentro do horário do follow-up (seg a sáb, 8h às 20h, horário de Brasília)? */
+function isBusinessTime(ms) {
+  const d = new Date(ms)
+  const h = spHour(d)
+  return h >= 8 && h < 20 && spWeekday(d) !== 'Sun'
+}
 function spWeekday(date = new Date()) {
   return new Intl.DateTimeFormat('en-US', { timeZone: SP_TZ, weekday: 'short' }).format(date)
 }
@@ -1364,6 +1372,7 @@ export async function runFollowUps(origin, { max = 12 } = {}) {
   }
   // Bola com o contato: nós falamos por último, ou ele só reagiu (👍) / disse "ok"
   // e a IA ficou quieta de propósito.
+  const freeOnly = f.freeOnly !== false
   const waiting = (c) => (c.aiQuietFor && c.aiQuietFor === c.lastInboundAt) || NOISE_TEXT.test(String(c.lastMessageText || ''))
   const convs = [...(await queryDocs('waConversations', [['lastDirection', 'out']])), ...(await queryDocs('waConversations', [['lastDirection', 'in']])).filter(waiting)]
   let sent = 0
@@ -1377,8 +1386,22 @@ export async function runFollowUps(origin, { max = 12 } = {}) {
     const step = Number(conv.followUpStep || 0)
     const cfg = f.steps[step]
     if (!cfg) continue
-    const since = Date.now() - new Date(conv.lastMessageAt).getTime()
-    if (since < Number(cfg.afterHours || 24) * 3600_000) continue
+    const now = Date.now()
+    const since = now - new Date(conv.lastMessageAt).getTime()
+    let ready = since >= Number(cfg.afterHours || 24) * 3600_000
+    if (freeOnly) {
+      // Só texto grátis, dentro das 24h da última mensagem do contato.
+      const windowEnd = conv.lastInboundAt ? new Date(conv.lastInboundAt).getTime() + WINDOW_MS - WINDOW_SAFETY_MS : 0
+      const left = windowEnd - now
+      if (left <= 0) continue
+      // Janela fechando antes do próximo passo: manda agora (é a última chance grátis).
+      // Com horário comercial, a última chance é a última hora útil antes de fechar.
+      if (!ready && since >= 60 * 60_000) {
+        const closesOffHours = f.businessHoursOnly && !isBusinessTime(windowEnd - 60 * 60_000)
+        if (left < 75 * 60_000 || (closesOffHours && spHour() >= 19 && left < 14 * 3600_000)) ready = true
+      }
+    }
+    if (!ready) continue
 
     if (conv.leadId) {
       const lead = await getDoc(`leads/${conv.leadId}`).catch(() => null)
@@ -1401,7 +1424,7 @@ export async function runFollowUps(origin, { max = 12 } = {}) {
           continue
         }
       }
-      if (cfg.templateName) {
+      if (cfg.templateName && !freeOnly) {
         await sendMessage({ to: conv.waId, template: { name: cfg.templateName, lang: cfg.templateLang || 'pt_BR', params: name ? [name] : [] }, by: 'followup', byName: `Follow-up ${step + 1}` })
         sent++
       }
