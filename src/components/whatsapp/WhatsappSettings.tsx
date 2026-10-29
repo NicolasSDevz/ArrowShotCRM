@@ -342,6 +342,20 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
           >
             <Toggle checked={s.aiEnabled} onChange={(v) => edit((c) => ({ ...c, aiEnabled: v }))} label="IA responde as conversas" hint="Dá para desligar em cada conversa também." />
             <Toggle checked={s.autoCreateLead} onChange={(v) => edit((c) => ({ ...c, autoCreateLead: v }))} label="Criar lead quando um número novo chamar" hint="Entra em Novo Lead, com origem WhatsApp direto." />
+            <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+              <span>A IA espera</span>
+              <input
+                type="number"
+                min={5}
+                max={90}
+                value={s.aiDelaySeconds}
+                onChange={(e) => edit((c) => ({ ...c, aiDelaySeconds: Number(e.target.value) || 25 }))}
+                className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+              />
+              <span>segundos depois da última mensagem do contato antes de responder</span>
+              <span className="block w-full text-[11px] text-slate-400">Se ele mandar outra nesse tempo, a contagem recomeça e a IA responde tudo junto. Entre 5 e 90.</span>
+            </label>
+            <Toggle checked={s.notifyEveryMessage} onChange={(v) => edit((c) => ({ ...c, notifyEveryMessage: v }))} label="Avisar no celular a cada mensagem nova" hint="Só nas conversas sem IA. Desligado: o celular só avisa o importante (pediu humano, reunião marcada, lead quente, lembrete que falhou)." />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Nome do SDR" hint="Como a IA se apresenta. Vazio = não diz nome.">
                 <Input value={s.sdr.name} onChange={(e) => edit((c) => ({ ...c, sdr: { ...c.sdr, name: e.target.value } }))} placeholder="Ex.: Ana" />

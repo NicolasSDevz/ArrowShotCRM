@@ -88,6 +88,10 @@ export interface WaSettings {
   aiEnabled: boolean
   aiInstructions: string
   autoCreateLead: boolean
+  /** Segundos que a IA espera depois da última mensagem do contato. */
+  aiDelaySeconds: number
+  /** Aviso no celular a cada mensagem nova em conversa sem IA. */
+  notifyEveryMessage: boolean
   followUp: { enabled: boolean; businessHoursOnly: boolean; steps: WaFollowUpStep[] }
   cart: { enabled: boolean; afterMinutes: number; templateName: string; templateLang: string; params: WaCartParam[] }
   sdr: WaSdrSettings
@@ -120,6 +124,8 @@ export const WA_DEFAULT_SETTINGS: WaSettings = {
   aiEnabled: true,
   aiInstructions: '',
   autoCreateLead: true,
+  aiDelaySeconds: 25,
+  notifyEveryMessage: false,
   followUp: {
     enabled: true,
     businessHoursOnly: true,

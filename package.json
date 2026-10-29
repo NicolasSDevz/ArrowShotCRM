@@ -16,6 +16,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@ricky0123/vad-web": "^0.0.31",
+    "@vercel/functions": "^1.5.2",
     "canvas-confetti": "^1.9.4",
     "date-fns": "^4.4.0",
     "firebase": "^12.18.0",

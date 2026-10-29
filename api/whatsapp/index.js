@@ -16,6 +16,7 @@
 //   POST reply-ai      { waId } faz a IA responder agora (botão "Responder com IA")
 //   POST sdr-analyze   { waId } refaz a análise do SDR (etapa, temperatura, perfil) sem mandar nada
 
+import { waitUntil } from '@vercel/functions'
 import { requireInternalUser, AuthError } from '../_lib/auth.js'
 import { rateLimit, publicOrigin } from '../_lib/store/core.js'
 import {
@@ -114,8 +115,10 @@ async function webhookReceive(req, res) {
   const { touched = [] } = await handleWebhook(payload)
   // A IA responde aqui mesmo (o Meta espera até ~20s e reenvia se não tiver 200;
   // as travas por id de mensagem evitam resposta dupla).
+  // Responde 200 na hora (o Meta não reenvia) e a IA segue em segundo plano,
+  // esperando o contato terminar de digitar antes de responder.
   const origin = publicOrigin(req)
-  await Promise.all(touched.map((waId) => maybeAutoReply(waId, origin).catch((e) => console.warn('[whatsapp] IA falhou:', e.message))))
+  waitUntil(Promise.all(touched.map((waId) => maybeAutoReply(waId, origin).catch((e) => console.warn('[whatsapp] IA falhou:', e.message)))))
   return res.status(200).json({ ok: true })
 }
 

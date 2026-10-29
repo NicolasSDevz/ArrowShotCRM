@@ -199,6 +199,10 @@ export const DEFAULT_SETTINGS = {
     meetingLink: '',
     meetingHours: 'segunda a sexta, das 9h às 18h',
   },
+  /** Segundos que a IA espera depois da última mensagem do contato (ele pode estar digitando mais). */
+  aiDelaySeconds: 25,
+  /** Aviso no celular a cada mensagem nova em conversa sem IA (barulhento: desligado). */
+  notifyEveryMessage: false,
   /** Lembrete automático pro contato antes da reunião marcada. */
   reminder: {
     enabled: true,
@@ -912,21 +916,22 @@ async function conversationPrompt(conv, settings, origin) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 /** Pausa entre balões: parece alguém digitando (mais texto, mais tempo). */
-const typingMs = (text) => Math.min(2500, 700 + String(text).length * 18)
+const typingMs = (text) => Math.min(5000, 1500 + String(text).length * 35)
 
 /**
  * Responde com a IA se estiver ligada pra essa conversa. Espera uns segundos
  * antes: quem manda 3 mensagens seguidas recebe uma resposta só.
  */
-export async function maybeAutoReply(waId, origin, { waitMs = 6000 } = {}) {
+export async function maybeAutoReply(waId, origin, { waitMs } = {}) {
   const settings = await getWaSettings()
-  if (settings.aiEnabled && waitMs) await sleep(waitMs)
+  const wait = waitMs ?? Math.min(90, Math.max(5, Number(settings.aiDelaySeconds) || 25)) * 1000
+  if (settings.aiEnabled && wait) await sleep(wait)
 
   const snap = await getDoc(convPath(waId))
   if (!snap.exists) return { skipped: 'sem conversa' }
   const conv = { waId, ...snap.data() }
   if (!settings.aiEnabled || conv.aiMode === 'off') {
-    await notifyTeam(conv, `${conv.name || conv.phone} mandou: ${conv.lastMessageText || 'mensagem nova'}`, { bell: false })
+    if (settings.notifyEveryMessage) await notifyTeam(conv, `${conv.name || conv.phone} mandou: ${conv.lastMessageText || 'mensagem nova'}`, { bell: false })
     return { skipped: 'humano atendendo' }
   }
   if (conv.lastDirection !== 'in') return { skipped: 'já respondida' }
