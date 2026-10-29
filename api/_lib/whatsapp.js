@@ -676,7 +676,8 @@ const HANDOFF_RULES = `Passe para um humano (handoff = true) quando:
 - for reclamação, cobrança, cancelamento ou problema com serviço já contratado (cliente atual, não lead);
 - pedirem algo que você não sabe responder com as informações abaixo;
 - a pessoa quiser negociar valores ou fechar agora;
-- você tiver qualquer dúvida sobre o que responder ou como seguir (não chute: passe);Reunião NÃO é motivo para passar: você mesmo propõe e fecha o dia e o horário (pelo link da agenda ou com 2 opções concretas) e continua atendendo depois.
+- você tiver qualquer dúvida sobre o que responder ou como seguir (não chute: passe).
+Reunião NÃO é motivo para passar: você mesmo propõe e fecha o dia e o horário (pelo link da agenda ou com 2 opções concretas) e continua atendendo depois.
 Ao passar, escreva uma resposta curta avisando que já vai chamar alguém da equipe.`
 
 const SDR_STAGES = ['abertura', 'descoberta', 'qualificacao', 'agendamento', 'agendado', 'nutricao', 'desqualificado']
