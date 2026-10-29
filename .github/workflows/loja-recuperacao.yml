@@ -1,12 +1,14 @@
 # Carrinhos abandonados da Loja: dispara os e-mails de recuperação do Archer
 # e os avisos no celular sem depender de alguém abrir o CRM. Também roda os
 # follow-ups do WhatsApp e o WhatsApp do carrinho abandonado (api/whatsapp). O plano Hobby
-# da Vercel só deixa cron 1x por dia, por isso fica aqui.
+# da Vercel só deixa cron 1x por dia.
+#
+# Desde 29/10/2026 quem chama essas duas URLs é o cron-job.org (WhatsApp a cada 5 min,
+# Loja a cada 10 min): o agendamento do GitHub atrasava horas. Aqui ficou só o botão
+# de rodar à mão (Actions > Run workflow), como reserva.
 name: Loja - recuperação de carrinhos
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 jobs:
