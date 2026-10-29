@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Bot, CalendarCheck, Flame, HelpCircle, MessageCircle, Settings, UserRound } from 'lucide-react'
+import { HelpCircle, MessageCircle, Settings } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
 import { WhatsappInbox } from './WhatsappInbox'
 import { WhatsappSettings } from './WhatsappSettings'
 import { WhatsappGuide, buildChecklist } from './WhatsappGuide'
-import { hasMeeting, isHot } from './waSdr'
 import { useAuth } from '../../context/AuthContext'
 import { useWaConversations } from '../../hooks/useWaConversations'
 import { getWaStatus, listWaTemplates, listenWaSettings } from '../../services/whatsappService'
@@ -61,33 +60,18 @@ export function WhatsappHub({ onOpenLead }: { onOpenLead: (leadId: string) => vo
   const statusText = !status
     ? 'Verificando a conexão…'
     : connected
-      ? `${status.verifiedName ? `${status.verifiedName}, ` : ''}${status.displayPhone}. ${aiOn ? `SDR com IA ligado${settings?.sdr?.name ? `, como ${settings.sdr.name}` : ''}.` : 'IA desligada.'}`
+      ? `${status.displayPhone} conectado. ${aiOn ? `IA atendendo${settings?.sdr?.name ? ` como ${settings.sdr.name}` : ''}.` : 'IA desligada.'}`
       : canConfigure
         ? 'Número não conectado. Abra Configurar para conectar.'
         : 'Número não conectado. Um admin ou gerente precisa conectar.'
-
-  const stats = [
-    { f: 'unread', label: 'Não lidas', n: convs.filter((c) => c.unread > 0).length, icon: MessageCircle, color: '#4cc38a' },
-    { f: 'human', label: 'Com a equipe', n: convs.filter((c) => c.aiMode === 'off').length, icon: UserRound, color: '#f5b544' },
-    { f: 'hot', label: 'Quentes', n: convs.filter(isHot).length, icon: Flame, color: '#fb7185' },
-    { f: 'meeting', label: 'Reuniões', n: convs.filter(hasMeeting).length, icon: CalendarCheck, color: '#4cc38a' },
-    { f: 'ai', label: 'IA atendendo', n: convs.filter((c) => c.aiMode !== 'off').length, icon: Bot, color: '#a78bfa' },
-  ] as const
-  const activeFilter = params.get('f')
-  const toggleFilter = (f: string) => {
-    const next = new URLSearchParams(params)
-    if (activeFilter === f) next.delete('f')
-    else next.set('f', f)
-    setParams(next, { replace: true })
-  }
 
   const chip = 'inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50'
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-500" aria-hidden="true">
-          <MessageCircle size={20} />
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+        <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500" aria-hidden="true">
+          <MessageCircle size={16} />
           <span className={`absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white ${connected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
         </span>
         <div className="min-w-0 flex-1" role="status">
@@ -117,36 +101,10 @@ export function WhatsappHub({ onOpenLead }: { onOpenLead: (leadId: string) => vo
         </div>
       </div>
 
-      {!empty && !loading && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" role="group" aria-label="Resumo das conversas. Clique para filtrar">
-          {stats.map((s) => {
-            const on = activeFilter === s.f
-            const Icon = s.icon
-            return (
-              <button
-                key={s.f}
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggleFilter(s.f)}
-                className={`group flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition ${on ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: `${s.color}1f`, color: s.color }} aria-hidden="true">
-                  <Icon size={17} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-xl font-bold leading-none tabular-nums text-slate-800">{s.n}</span>
-                  <span className="mt-1 block truncate text-xs font-medium text-slate-500">{s.label}</span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-
       {/* Sem conversa nenhuma, o guia é o que tem pra ver: fica aberto na tela. */}
       {empty && <WhatsappGuide status={status} templates={templates} settings={settings} canConfigure={canConfigure} hasConversations={false} />}
 
-      <WhatsappInbox templates={templates} onOpenLead={onOpenLead} heightClass="h-[calc(100dvh-280px)] md:h-[calc(100dvh-330px)] lg:h-[calc(100dvh-270px)]" />
+      <WhatsappInbox templates={templates} onOpenLead={onOpenLead} heightClass="h-[calc(100dvh-230px)] md:h-[calc(100dvh-250px)] lg:h-[calc(100dvh-200px)]" />
 
       <Drawer open={guideOpen} onClose={() => setPanel(null)} title="Como o WhatsApp funciona" width="w-full max-w-3xl">
         <div className="p-4 sm:p-5">

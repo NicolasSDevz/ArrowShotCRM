@@ -342,6 +342,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
           >
             <Toggle checked={s.aiEnabled} onChange={(v) => edit((c) => ({ ...c, aiEnabled: v }))} label="IA responde as conversas" hint="Dá para desligar em cada conversa também." />
             <Toggle checked={s.autoCreateLead} onChange={(v) => edit((c) => ({ ...c, autoCreateLead: v }))} label="Criar lead quando um número novo chamar" hint="Entra em Novo Lead, com origem WhatsApp direto." />
+            <Toggle checked={s.skipKnownContacts !== false} onChange={(v) => edit((c) => ({ ...c, skipKnownContacts: v }))} label="IA não atende quem já é cliente ou já está com a equipe" hint="Cliente, ex-cliente ou lead que já saiu de Novo Lead (ou tem contato registrado): a IA fica quieta e avisa vocês." />
             <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
               <span>A IA espera</span>
               <input

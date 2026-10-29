@@ -6,7 +6,7 @@ import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Field, Input } from '../ui/Field'
 import { EmptyPane, TemplateComposer, displayName, listTime } from './WaParts'
-import { SdrChip, WaThread } from './WaThread'
+import { WaThread } from './WaThread'
 import { hasMeeting, isHot } from './waSdr'
 import type { WaConversation, WaTemplate } from '../../types/whatsapp'
 import { useLeads } from '../../hooks/useLeads'
@@ -17,19 +17,23 @@ import { isQuestionnaireLead, locateLead } from '../../types'
 // Peças antigas importadas daqui por outras telas.
 export { AUTO, Composer, STATUS_LABEL, StatusTicks, Switch, TemplateComposer, authorLabel, dayLabel, hhmm } from './WaParts'
 
-export type WaFilter = 'all' | 'unread' | 'hot' | 'meeting' | 'new' | 'crm' | 'ai' | 'human' | 'cart'
+export type WaFilter = 'all' | 'unread' | 'waiting' | 'hot' | 'meeting' | 'new' | 'crm' | 'ai' | 'human' | 'cart'
 
-const FILTERS: { id: WaFilter; label: string; long: string }[] = [
-  { id: 'all', label: 'Todas', long: 'Todas as conversas' },
-  { id: 'unread', label: 'Não lidas', long: 'Só não lidas' },
+const FILTERS: { id: WaFilter; label: string; long: string; main?: boolean }[] = [
+  { id: 'all', label: 'Todas', long: 'Todas as conversas', main: true },
+  { id: 'unread', label: 'Não lidas', long: 'Só não lidas', main: true },
+  { id: 'waiting', label: 'Esperando vocês', long: 'Contato esperando resposta da equipe', main: true },
+  { id: 'meeting', label: 'Reunião', long: 'Reunião combinada pelo SDR', main: true },
   { id: 'hot', label: 'Quentes', long: 'Leads quentes, segundo o SDR' },
-  { id: 'meeting', label: 'Reunião', long: 'Reunião combinada pelo SDR' },
+  { id: 'ai', label: 'IA atendendo', long: 'IA atendendo' },
+  { id: 'human', label: 'Com a equipe', long: 'Com a equipe' },
   { id: 'new', label: 'Leads novos', long: 'Leads novos, que chegaram pelo WhatsApp' },
   { id: 'crm', label: 'Já no CRM', long: 'Quem já estava no CRM e voltou a chamar' },
-  { id: 'ai', label: 'IA', long: 'IA atendendo' },
-  { id: 'human', label: 'Equipe', long: 'Com a equipe' },
   { id: 'cart', label: 'Carrinho', long: 'Carrinho abandonado' },
 ]
+
+/** Contato falou por último e a IA não está atendendo: alguém da equipe precisa responder. */
+const isWaiting = (c: WaConversation) => c.aiMode === 'off' && c.lastDirection === 'in' && !/^\[(reagiu|reação)/.test(c.lastMessageText || '')
 
 /* ------------------------------ nova conversa ------------------------------ */
 
@@ -119,6 +123,7 @@ export function WhatsappInbox({
 
   const matches = (c: WaConversation, f: WaFilter) => {
     if (f === 'unread') return c.unread > 0
+    if (f === 'waiting') return isWaiting(c)
     if (f === 'hot') return isHot(c)
     if (f === 'meeting') return hasMeeting(c)
     if (f === 'new') return originOf(c) === 'new'
@@ -197,25 +202,41 @@ export function WhatsappInbox({
               <Plus size={15} aria-hidden="true" /> Nova
             </button>
           </div>
-          <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none]" role="group" aria-label="Filtrar conversas">
-            {FILTERS.map((f) => {
-              const on = filter === f.id
-              const n = counts[f.id]
-              if (f.id !== 'all' && f.id !== filter && n === 0) return null
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  aria-pressed={on}
-                  aria-label={`${f.long}: ${n}`}
-                  onClick={() => setFilter(f.id)}
-                  className={`inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-semibold transition ${on ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                >
-                  {f.label}
-                  {f.id !== 'all' && n > 0 && <span className={on ? 'text-white/80' : 'text-slate-400'}>{n}</span>}
-                </button>
-              )
-            })}
+          <div className="flex items-center gap-1.5" role="group" aria-label="Filtrar conversas">
+            <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
+              {FILTERS.filter((f) => f.main).map((f) => {
+                const on = filter === f.id
+                const n = counts[f.id]
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    aria-pressed={on}
+                    aria-label={`${f.long}: ${n}`}
+                    onClick={() => setFilter(f.id)}
+                    className={`inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-semibold transition ${on ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  >
+                    {f.label}
+                    {f.id !== 'all' && n > 0 && <span className={on ? 'text-white/80' : f.id === 'waiting' ? 'text-amber-500' : 'text-slate-400'}>{n}</span>}
+                  </button>
+                )
+              })}
+            </div>
+            <label className="shrink-0">
+              <span className="sr-only">Mais filtros</span>
+              <select
+                value={FILTERS.find((f) => f.id === filter)?.main ? '' : filter}
+                onChange={(e) => setFilter((e.target.value || 'all') as WaFilter)}
+                className={`h-7 rounded-full border-0 pl-3 pr-7 text-xs font-semibold outline-none ${FILTERS.find((f) => f.id === filter)?.main ? 'bg-slate-100 text-slate-600' : 'bg-emerald-500 text-white'}`}
+              >
+                <option value="">Mais</option>
+                {FILTERS.filter((f) => !f.main).map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label} ({counts[f.id]})
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
         {rows === null ? (
@@ -251,7 +272,7 @@ export function WhatsappInbox({
                       select(c.waId)
                     }}
                     aria-current={active ? 'true' : undefined}
-                    aria-label={`${displayName(c)}${company ? `, ${company}` : ''}. ${c.sdr ? `${c.sdr.temperature}, ${c.sdr.stage}. ` : ''}${origin === 'crm' ? 'Já estava no CRM. ' : origin === 'new' ? 'Lead novo. ' : ''}${where ? `Etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
+                    aria-label={`${displayName(c)}${company ? `, ${company}` : ''}. ${isWaiting(c) ? 'Esperando resposta da equipe. ' : ''}${c.sdr ? `${c.sdr.temperature}, ${c.sdr.stage}. ` : ''}${origin === 'crm' ? 'Já estava no CRM. ' : origin === 'new' ? 'Lead novo. ' : ''}${where ? `Etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
                     className={`relative flex w-full items-start gap-3 rounded-xl px-2.5 py-2.5 text-left transition ${active ? 'bg-emerald-500/10' : 'hover:bg-slate-50'}`}
                   >
                     {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-emerald-500" aria-hidden="true" />}
@@ -279,20 +300,16 @@ export function WhatsappInbox({
                         </span>
                         {unread && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">{c.unread}</span>}
                       </span>
-                      {(c.sdr || origin || where) && (
-                        <span className="mt-1.5 flex flex-wrap items-center gap-1">
-                          {c.sdr && <SdrChip sdr={c.sdr} size="xs" />}
-                          {hasMeeting(c) && (
+                      {(isWaiting(c) || hasMeeting(c) || isHot(c)) && (
+                        <span className="mt-1 flex">
+                          {isWaiting(c) ? (
+                            <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-500">Esperando vocês</span>
+                          ) : hasMeeting(c) ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-400">
                               <CalendarCheck size={10} aria-hidden="true" /> Reunião
                             </span>
-                          )}
-                          {origin === 'new' && <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-400">Lead novo</span>}
-                          {origin === 'crm' && <span className="rounded-md bg-sky-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-sky-400">Já no CRM</span>}
-                          {where && (
-                            <span className="max-w-[9rem] truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold" style={{ backgroundColor: `${where.stage.color}26`, color: where.stage.color }}>
-                              {where.stage.label}
-                            </span>
+                          ) : (
+                            <span className="rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-rose-400">Quente</span>
                           )}
                         </span>
                       )}

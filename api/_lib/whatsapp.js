@@ -182,6 +182,8 @@ export const DEFAULT_SETTINGS = {
   aiEnabled: true,
   aiInstructions: '',
   autoCreateLead: true,
+  /** Cliente ou lead que a equipe já atende: a IA não responde, só avisa a equipe. */
+  skipKnownContacts: true,
   followUp: {
     enabled: true,
     businessHoursOnly: true,
@@ -331,6 +333,82 @@ async function findLeadByPhone(waId) {
   }
   await setDoc(PHONE_INDEX, { scannedAt: startedAt.toISOString(), lastFixed: fixes.length, full: !since }).catch(() => {})
   return newest(matches)
+}
+
+const STATUS_LABEL = {
+  new: 'Novo Lead',
+  contacted: 'Contato Feito',
+  meeting_scheduled: 'Reunião Agendada',
+  proposal_sent: 'Proposta Enviada',
+  negotiation: 'Negociação',
+  closed: 'Fechado (virou cliente)',
+  lost: 'Perdido',
+}
+
+/** Nome da etapa do lead e se ela já é "a equipe está cuidando" (passou da primeira etapa). */
+async function leadStage(lead) {
+  const st = lead?.status
+  if (!st) return { label: '', moved: false }
+  if (STATUS_LABEL[st]) return { label: STATUS_LABEL[st], moved: st !== 'new' && st !== 'lost' }
+  // Etapa de pipeline criado pelo time (id aleatório).
+  const pipes = await listDocs('leadPipelines').catch(() => [])
+  for (const p of pipes) {
+    const i = (p.stages || []).findIndex((s) => s.id === st)
+    if (i >= 0) {
+      const s = p.stages[i]
+      return { label: `${p.name || 'Pipeline'}: ${s.label}`, moved: i > 0 && s.kind !== 'lost' }
+    }
+  }
+  return { label: '', moved: true }
+}
+
+const fmtDate = (v) => {
+  const ms = v?._seconds ? v._seconds * 1000 : v?.seconds ? v.seconds * 1000 : msOf(v)
+  return ms ? new Intl.DateTimeFormat('pt-BR', { timeZone: SP_TZ, day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(ms)) : ''
+}
+
+/** Cliente da Arrow Shot (coleção clients) com esse número. */
+async function findClientByPhone(waId) {
+  const key = phoneKey(waId)
+  if (!key || key.length < 10) return null
+  const rows = await listDocs('clients').catch(() => [])
+  return rows.find((c) => c.whatsapp && phoneKey(c.whatsapp) === key) || null
+}
+
+/**
+ * O contato já tem história com a equipe? Devolve o motivo em texto ('' = não).
+ * Cliente (ativo ou antigo), lead que a equipe já mexeu no funil ou com contato registrado.
+ */
+async function teamRelation(conv) {
+  if (conv.kind !== 'lead') return ''
+  const client = await findClientByPhone(conv.waId)
+  if (client) return client.status === 'churned' ? `ex-cliente da Arrow Shot (${client.companyName || 'sem nome'})` : `cliente da Arrow Shot (${client.companyName || 'sem nome'})`
+  if (!conv.leadId) return ''
+  const snap = await getDoc(`leads/${conv.leadId}`).catch(() => null)
+  if (!snap?.exists) return ''
+  const lead = snap.data()
+  if (lead.convertedClientId) return 'lead que já virou cliente'
+  const stage = await leadStage(lead)
+  if (stage.moved) return `lead que a equipe já está atendendo (etapa ${stage.label})`
+  if ((lead.contactHistory || []).length) return 'lead com contato da equipe registrado no CRM'
+  // Lead que já estava no CRM há dias: a equipe chama todo lead pelo celular, então
+  // quase sempre já houve conversa que a IA não vê.
+  const created = lead.createdAt?._seconds ? lead.createdAt._seconds * 1000 : msOf(lead.createdAt)
+  if (lead.createdBy !== 'whatsapp' && created && Date.now() - created > 3 * 86400_000) return `lead antigo do CRM (desde ${fmtDate(lead.createdAt)}), a equipe provavelmente já falou com ele`
+  return ''
+}
+
+/** O que o CRM sabe do lead, com etapa e histórico, pro prompt da IA. */
+async function crmContextBlock(lead) {
+  const lines = [leadContextBlock(lead)]
+  const stage = await leadStage(lead)
+  if (stage.label) lines.push(`Etapa no funil: ${stage.label}`)
+  const since = fmtDate(lead.createdAt)
+  if (since) lines.push(`No CRM desde: ${since}${lead.source ? ` (origem: ${lead.source})` : ''}`)
+  if (lead.nextAction) lines.push(`Próxima ação anotada: ${lead.nextAction}`)
+  const hist = (lead.contactHistory || []).slice(-4)
+  if (hist.length) lines.push(`Contatos que a equipe registrou:\n${hist.map((h) => `- ${fmtDate(h.date) || '?'}: ${clip(h.summary, 200)}`).join('\n')}`)
+  return lines.join('\n')
 }
 
 /** Cria o lead de quem chamou pela primeira vez (coluna Novo Lead). */
@@ -486,6 +564,11 @@ export function signatureOk(raw, header, appSecret) {
   return a.length === b.length && timingSafeEqual(a, b)
 }
 
+/** Tipos que não são resposta do contato (não reabrem a conversa nem param o follow-up). */
+const NOISE_TYPES = new Set(['reaction', 'revoke', 'edit', 'unsupported', 'system', 'ephemeral'])
+/** Mesmo teste pelo texto gravado (conversas antigas). */
+const NOISE_TEXT = /^\[(reagiu|reação|revoke|edit|unsupported|system|ephemeral)/
+
 function inboundText(m) {
   switch (m.type) {
     case 'text':
@@ -575,6 +658,14 @@ export async function handleWebhook(payload) {
         // Trava contra o Meta mandar o mesmo webhook de novo.
         const fresh = await createDocIfMissing(msgPath(waId, m.id), { direction: 'in', type: m.type, text, at, by: 'contact', status: 'received' })
         if (!fresh) continue
+
+        // Reação (👍), mensagem apagada/editada ou tipo que não lemos: fica na conversa,
+        // mas não conta como resposta. Senão o follow-up acha que o contato respondeu
+        // e nunca sai (caso do 👍 no fim da conversa).
+        if (NOISE_TYPES.has(m.type)) {
+          const known = await getDoc(convPath(waId)).catch(() => ({ exists: false }))
+          if (known.exists) continue
+        }
 
         const conv = await ensureConversation(waId, { name: names[waId] || '' })
         const patch = {
@@ -674,6 +765,7 @@ const WA_STYLE = `Estilo de WhatsApp:
 const HANDOFF_RULES = `Passe para um humano (handoff = true) quando:
 - a pessoa pedir para falar com alguém, com o Bruno ou com um atendente;
 - for reclamação, cobrança, cancelamento ou problema com serviço já contratado (cliente atual, não lead);
+- a pessoa parecer cliente ou alguém que já conversou com a equipe antes (veja "Conversa antiga");
 - pedirem algo que você não sabe responder com as informações abaixo;
 - a pessoa quiser negociar valores ou fechar agora;
 - você tiver qualquer dúvida sobre o que responder ou como seguir (não chute: passe).
@@ -798,6 +890,7 @@ Transformar quem chama em uma reunião de diagnóstico (${sdr.meetingLength || '
   * "vou pensar": pergunte o que falta para decidir; se for momento, vá para nutricao.
 - Se a pessoa sumir e voltar, retome de onde parou, sem recomeçar.
 - Se for cliente atual da Arrow Shot (pelo CRM ou pelo que ela diz), não qualifique: entenda o pedido e passe para a equipe.
+- Conversa antiga: este WhatsApp é o mesmo número que o ${meetWith} e a equipe usam no celular há muito tempo, e as conversas de antes você NÃO vê. Se a pessoa falar como quem já conhece a equipe, é cliente ou conversa em andamento, não lead novo. Sinais: cita o ${meetWith} ou outra pessoa da equipe pelo nome; fala de reunião, proposta, contrato, pagamento, boleto, nota, acesso, campanha ou serviço; avisa que não vai conseguir participar, que vai atrasar ou que "logo te dá atenção"; pede desculpa; responde algo que ninguém perguntou; manda algo que só faz sentido como continuação. Nesses casos: NÃO se apresente como SDR, NÃO pergunte da empresa, NÃO ofereça nada nem tente marcar reunião. Responda 1 balão curto e natural (ex.: "Tranquilo, sem pressa! Já aviso o ${meetWith} aqui.") e passe para a equipe (handoff = true, motivo "parece conversa antiga com a equipe"). Na dúvida entre lead novo e conversa antiga, trate como conversa antiga.
 - Agora é ${spNowText()} (horário de Brasília). Nunca proponha horário no passado nem em domingo.
 
 ${WA_STYLE}
@@ -957,8 +1050,9 @@ async function conversationPrompt(conv, settings, origin) {
   let prompt = leadSystemPrompt(base, settings, conv)
   if (conv.leadId) {
     const lead = await getDoc(`leads/${conv.leadId}`).catch(() => null)
-    if (lead?.exists) prompt += `\n\n# O que o CRM sabe desse contato\n${leadContextBlock(lead.data())}`
+    if (lead?.exists) prompt += `\n\n# O que o CRM sabe desse contato\n${await crmContextBlock(lead.data())}`
   }
+  if (conv.leadMatch === 'created') prompt += `\n\n# Atenção\nEste número não estava no CRM, mas pode ter conversado com a equipe pelo celular antes (essas conversas antigas você não vê). Veja a regra "Conversa antiga".`
   return prompt
 }
 
@@ -985,8 +1079,19 @@ export async function maybeAutoReply(waId, origin, { waitMs } = {}) {
   if (conv.lastDirection !== 'in') return { skipped: 'já respondida' }
 
   const recent = (await queryRecent(convPath(waId), 'messages', 'at', 30)).reverse()
-  const lastIn = [...recent].reverse().find((m) => m.direction === 'in')
+  const lastIn = [...recent].reverse().find((m) => m.direction === 'in' && !NOISE_TYPES.has(m.type))
   if (!lastIn) return { skipped: 'sem mensagem' }
+
+  // Quem já é cliente ou já está com a equipe não recebe o SDR: a IA não responde
+  // e avisa a equipe. Só vale antes da IA falar nessa conversa.
+  if (settings.skipKnownContacts !== false && conv.kind === 'lead' && !conv.knownContactOverride && !recent.some((m) => m.by === 'ai')) {
+    const rel = await teamRelation(conv).catch(() => '')
+    if (rel) {
+      await updateDoc(convPath(waId), { aiMode: 'off', handoffReason: `A IA não respondeu: é ${rel}`, handoffAt: nowIso(), knownContact: rel })
+      await notifyTeam(conv, `${conv.name || conv.phone} mandou mensagem no WhatsApp. É ${rel}, então a IA não respondeu. Responda você.`)
+      return { skipped: 'contato da equipe', relation: rel }
+    }
+  }
   // Outra chamada do webhook mais nova cuida da resposta.
   if (new Date(conv.lastInboundAt).getTime() > new Date(lastIn.at).getTime() + 1000) return { skipped: 'mais nova a caminho' }
   // Trava: uma resposta por mensagem recebida, mesmo com dois webhooks juntos.
@@ -1042,7 +1147,7 @@ export async function runPendingReplies(origin, { max = 4, budgetMs = 60_000 } =
       const age = started - new Date(c.lastInboundAt).getTime()
       return age > minAge && age < 60 * 60_000
     })
-    .filter((c) => !/^\[reagiu/.test(String(c.lastMessageText || '')))
+    .filter((c) => !NOISE_TEXT.test(String(c.lastMessageText || '')))
     .filter((c) => !(c.aiFail?.inboundAt === c.lastInboundAt && Number(c.aiFail.count) >= AI_MAX_FAILS))
     .sort((a, b) => String(a.lastInboundAt).localeCompare(String(b.lastInboundAt)))
   const results = []
@@ -1134,6 +1239,8 @@ async function autoReplyLocked(waId, origin, settings, conv, recent) {
     await notifyTeam(conv, `${who} está quente no WhatsApp, nota ${sdr.score}. ${sdr.summary}`)
   }
   // Sem balões de propósito (ex.: o contato só disse "ok"): a IA decidiu ficar quieta.
+  // Marca pra o follow-up saber que a bola está com o contato.
+  if (!messages.length && !handed) await updateDoc(convPath(waId), { aiQuietFor: conv.lastInboundAt || '' }).catch(() => {})
   return { replied: sent > 0, quiet: !messages.length, handoff: handed, stage: sdr?.stage || null }
 }
 
@@ -1173,8 +1280,10 @@ async function aiFollowUpText(conv, stepIndex, total, settings, origin) {
   const ai = anthropic()
   if (!ai) return ''
   const recent = (await queryRecent(convPath(conv.waId), 'messages', 'at', 16)).reverse()
-  const turns = toTurns(recent)
+  const turns = toTurns(recent.filter((m) => !NOISE_TYPES.has(m.type)))
   if (!turns.length) return ''
+  // A última fala foi do contato (ex.: "blz") e a IA ficou quieta: fecha o turno antes da instrução.
+  if (turns[turns.length - 1].role === 'user') turns.push({ role: 'assistant', content: '(sem resposta)' })
   turns.push({
     role: 'user',
     content: `[Instrução interna, não é o contato falando] O contato parou de responder. Escreva o follow-up ${stepIndex + 1} de ${total}: curto, retomando o ponto onde a conversa parou, com uma pergunta simples. ${stepIndex + 1 === total ? 'É o último: deixe a porta aberta, sem insistir.' : ''} Sem cobrar resposta e sem urgência falsa.`,
@@ -1193,11 +1302,18 @@ export async function runFollowUps(origin, { max = 12 } = {}) {
     const h = spHour()
     if (h < 8 || h >= 20 || spWeekday() === 'Sun') return { skipped: 'fora do horário' }
   }
-  const convs = await queryDocs('waConversations', [['lastDirection', 'out']])
+  // Bola com o contato: nós falamos por último, ou ele só reagiu (👍) / disse "ok"
+  // e a IA ficou quieta de propósito.
+  const waiting = (c) => (c.aiQuietFor && c.aiQuietFor === c.lastInboundAt) || NOISE_TEXT.test(String(c.lastMessageText || ''))
+  const convs = [...(await queryDocs('waConversations', [['lastDirection', 'out']])), ...(await queryDocs('waConversations', [['lastDirection', 'in']])).filter(waiting)]
   let sent = 0
   for (const conv of convs) {
     if (sent >= max) break
     if (conv.kind === 'cart' || conv.followUpStopped || conv.aiMode === 'off') continue
+    // Reunião marcada (e ainda não passou) ou sem perfil: não fica cutucando.
+    const m = conv.sdr?.meeting
+    if (m?.agreed && (!m.at || meetingTime(m.at) > Date.now() - 2 * 3600_000)) continue
+    if (conv.sdr?.stage === 'desqualificado') continue
     const step = Number(conv.followUpStep || 0)
     const cfg = f.steps[step]
     if (!cfg) continue
@@ -1361,7 +1477,8 @@ export async function updateConversation(waId, input) {
   const patch = {}
   if (input.aiMode === 'auto' || input.aiMode === 'off') {
     patch.aiMode = input.aiMode
-    if (input.aiMode === 'auto') patch.handoffReason = null
+    // Equipe devolveu pra IA: vale mesmo se for cliente/lead já atendido.
+    if (input.aiMode === 'auto') Object.assign(patch, { handoffReason: null, knownContactOverride: true })
   }
   if (typeof input.followUpStopped === 'boolean') patch.followUpStopped = input.followUpStopped
   if (input.read === true) patch.unread = 0

@@ -138,25 +138,26 @@ export function SdrPanel({ conv, onClose }: { conv: WaConversation; onClose?: ()
               </p>
             )}
 
-            {/* Perfil descoberto */}
+            {/* Perfil: só o que já foi descoberto; o resto vira uma linha. */}
             <div>
-              <p className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                <span>O que já sabemos</span>
-                <span className="normal-case tracking-normal">
-                  {known} de {SDR_FIELDS.length}
-                </span>
-              </p>
-              <dl className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
-                {SDR_FIELDS.map((k) => {
-                  const v = sdr.profile?.[k]
-                  return (
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">O que já sabemos</p>
+              {known > 0 ? (
+                <dl className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+                  {SDR_FIELDS.filter((k) => sdr.profile?.[k]).map((k) => (
                     <div key={k} className="flex gap-3 px-3 py-2 text-sm">
-                      <dt className="w-28 shrink-0 text-xs font-medium text-slate-400">{SDR_FIELD_LABEL[k]}</dt>
-                      <dd className={`min-w-0 flex-1 break-words ${v ? 'text-slate-700' : 'text-slate-400 italic'}`}>{v || 'ainda não sabemos'}</dd>
+                      <dt className="w-24 shrink-0 text-xs font-medium text-slate-400">{SDR_FIELD_LABEL[k]}</dt>
+                      <dd className="min-w-0 flex-1 break-words text-slate-700">{sdr.profile?.[k]}</dd>
                     </div>
-                  )
-                })}
-              </dl>
+                  ))}
+                </dl>
+              ) : (
+                <p className="text-sm text-slate-400">Nada ainda.</p>
+              )}
+              {known < SDR_FIELDS.length && (
+                <p className="mt-2 text-xs text-slate-400">
+                  Falta: {SDR_FIELDS.filter((k) => !sdr.profile?.[k]).map((k) => SDR_FIELD_LABEL[k].toLowerCase()).join(', ')}.
+                </p>
+              )}
             </div>
 
             <p className="text-[11px] text-slate-400">Atualizado {new Date(sdr.updatedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</p>
@@ -194,7 +195,7 @@ export function WaThread({
   const [messages, setMessages] = useState<WaMessage[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [announce, setAnnounce] = useState('')
-  const [panel, setPanel] = useState(() => dockedPanel && typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches)
+  const [panel, setPanel] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const lastCount = useRef(0)
 
@@ -254,7 +255,6 @@ export function WaThread({
           <div className="min-w-0 flex-1">
             <h2 className="flex items-center gap-2 truncate text-[15px] font-semibold text-slate-800">
               <span className="truncate">{displayName(conv)}</span>
-              <SdrChip sdr={conv.sdr} size="xs" />
             </h2>
             <p className="truncate text-xs text-slate-500">
               {sub}
