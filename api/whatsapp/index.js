@@ -166,6 +166,13 @@ const ADMIN = {
   },
 }
 
+/** Motivo do erro em texto curto (erro da IA/Anthropic ou outro). */
+function errorText(err) {
+  const apiMsg = err?.error?.error?.message || err?.error?.message
+  const st = err?.status ? ` (${err.status})` : ''
+  return String(apiMsg || err?.message || 'desconhecido').slice(0, 300) + st
+}
+
 export default async function handler(req, res) {
   const acao = String(req.query.acao || '')
   const route = `${req.method} ${acao}`
@@ -184,6 +191,9 @@ export default async function handler(req, res) {
     if (status === 500) console.error(`[whatsapp] ${route} falhou:`, err)
     // Webhook sempre devolve 200 em erro interno: senão o Meta reenvia em loop.
     if (route === 'POST webhook') return res.status(200).json({ ok: false })
-    return res.status(status).json({ error: status === 500 ? 'Erro interno. Tente de novo em instantes.' : err.message })
+    // Telas internas (só equipe logada) mostram o motivo real pra dar pra corrigir.
+    const internal = Boolean(ADMIN[route])
+    const msg = status === 500 ? (internal ? `Erro interno: ${errorText(err)}` : 'Erro interno. Tente de novo em instantes.') : err.message
+    return res.status(status).json({ error: msg })
   }
 }
