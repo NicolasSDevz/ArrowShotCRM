@@ -83,7 +83,7 @@ export function EmptyPane({ title, text }: { title: string; text: string }) {
 
 export function DayDivider({ iso }: { iso: string }) {
   return (
-    <li className="sticky top-1 z-[1] my-3 flex justify-center" aria-hidden="true">
+    <li className="my-3 flex justify-center" aria-hidden="true">
       <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-semibold capitalize text-slate-500 shadow-sm backdrop-blur">{dayLabel(iso)}</span>
     </li>
   )
@@ -265,7 +265,7 @@ export function Composer({ conv, templates }: { conv: WaConversation; templates:
 
   if (!open) {
     return (
-      <div className="flex flex-col gap-3 border-t border-slate-200 bg-white p-4">
+      <div className="wa-composer flex flex-col gap-3 border-t border-slate-200 bg-white p-4">
         <p className="flex items-start gap-2 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-slate-600">
           <Clock size={16} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
           {conv.lastInboundAt
@@ -277,7 +277,7 @@ export function Composer({ conv, templates }: { conv: WaConversation; templates:
     )
   }
   return (
-    <div className="border-t border-slate-200 bg-white px-3 pb-2 pt-3">
+    <div className="wa-composer border-t border-slate-200 bg-white px-3 pb-2 pt-3">
       <div className="flex items-end gap-2">
         <div className="flex min-w-0 flex-1 items-end rounded-2xl border border-slate-200 bg-slate-50 pl-3.5 pr-1.5 transition focus-within:border-emerald-500/60 focus-within:ring-2 focus-within:ring-emerald-500/15">
           <label className="flex-1">

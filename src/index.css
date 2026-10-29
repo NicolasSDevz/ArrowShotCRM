@@ -771,3 +771,8 @@ body {
   background-size: 22px 22px, 22px 22px;
   background-position: 0 0, 11px 11px;
 }
+
+/* Conversas do WhatsApp: a caixa de escrever deixa espaço pro botão flutuante do Archer. */
+.wa-hub .wa-composer {
+  padding-right: 4.75rem;
+}

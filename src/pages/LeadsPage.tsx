@@ -220,7 +220,7 @@ export function LeadsPage() {
         {/* No celular o nome da tela já está no topo: aqui fica só para o leitor de tela. */}
         <div className="sr-only min-w-0 md:not-sr-only">
           <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">Leads</h1>
-          <p className="text-sm text-slate-500">Vendas, respostas dos questionários e formulários de captura</p>
+          {mainTab !== 'conversas' && <p className="text-sm text-slate-500">Vendas, respostas dos questionários e formulários de captura</p>}
         </div>
         {mainTab === 'pipeline' && (
           <div className="grid w-full grid-cols-[auto_auto_1fr] items-center gap-2 md:flex md:w-auto">

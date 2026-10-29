@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Bot, CalendarCheck, MessageCircle, Plus, Search, ShoppingCart, UserRound, X } from 'lucide-react'
@@ -22,8 +22,8 @@ export type WaFilter = 'all' | 'unread' | 'waiting' | 'hot' | 'meeting' | 'new' 
 const FILTERS: { id: WaFilter; label: string; long: string; main?: boolean }[] = [
   { id: 'all', label: 'Todas', long: 'Todas as conversas', main: true },
   { id: 'unread', label: 'Não lidas', long: 'Só não lidas', main: true },
-  { id: 'waiting', label: 'Esperando o Bruno', long: 'Contato esperando resposta do Bruno', main: true },
-  { id: 'ai', label: 'IA atendendo', long: 'IA atendendo', main: true },
+  { id: 'waiting', label: 'Bruno', long: 'Esperando resposta do Bruno', main: true },
+  { id: 'ai', label: 'IA', long: 'IA atendendo', main: true },
   { id: 'hot', label: 'Quentes', long: 'Leads quentes, segundo o SDR' },
   { id: 'meeting', label: 'Reunião', long: 'Reunião combinada pelo SDR' },
   { id: 'human', label: 'Com a equipe', long: 'Com a equipe' },
@@ -103,6 +103,20 @@ export function WhatsappInbox({
   }
   const [search, setSearch] = useState('')
   const [moreOpen, setMoreOpen] = useState(false)
+  // Altura medida: do topo da caixa até o fim da janela (a página não rola, a conversa cabe inteira).
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [boxH, setBoxH] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const fit = () => {
+      const el = boxRef.current
+      if (!el) return
+      const top = el.getBoundingClientRect().top
+      setBoxH(Math.max(420, Math.round(window.innerHeight - top - 16)))
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  })
   const [creating, setCreating] = useState(false)
   const selected = params.get('c')
   // Filtro na URL (?f=hot): os números do topo de Conversas também filtram.
@@ -181,8 +195,8 @@ export function WhatsappInbox({
   }
 
   return (
-    <div className={`flex ${heightClass} min-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
-      <aside className={`w-full shrink-0 flex-col border-r border-slate-200 md:flex md:w-[300px] xl:w-[340px] ${showThread ? 'hidden' : 'flex'}`} aria-label="Lista de conversas">
+    <div ref={boxRef} style={boxH ? { height: boxH } : undefined} className={`wa-hub flex ${boxH ? '' : heightClass} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
+      <aside className={`w-full shrink-0 flex-col border-r border-slate-200 md:flex md:w-[320px] xl:w-[360px] ${showThread ? 'hidden' : 'flex'}`} aria-label="Lista de conversas">
         <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200 p-3">
           <div className="flex items-center gap-2">
             <label className="relative block flex-1">
@@ -194,7 +208,7 @@ export function WhatsappInbox({
                 autoComplete="off"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar nome, número, empresa…"
+                placeholder="Buscar conversa"
                 className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15"
               />
             </label>
@@ -204,9 +218,11 @@ export function WhatsappInbox({
                 select(null)
                 setCreating(true)
               }}
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-emerald-500 px-3 text-sm font-semibold text-white transition hover:bg-emerald-600"
+              title="Nova conversa"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white transition hover:bg-emerald-600"
             >
-              <Plus size={15} aria-hidden="true" /> Nova
+              <Plus size={18} aria-hidden="true" />
+              <span className="sr-only">Nova conversa</span>
             </button>
             {tools}
           </div>
@@ -220,6 +236,7 @@ export function WhatsappInbox({
                   type="button"
                   aria-pressed={on}
                   aria-label={`${f.long}: ${n}`}
+                  title={f.long}
                   onClick={() => setFilter(on && f.id !== 'all' ? 'all' : f.id)}
                   className={`inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition ${on ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                 >
@@ -234,7 +251,8 @@ export function WhatsappInbox({
               onClick={() => setMoreOpen((v) => !v)}
               className="inline-flex h-7 items-center rounded-full px-2.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
             >
-              {moreOpen ? 'Menos filtros' : 'Mais filtros'}
+              {moreOpen ? 'Menos' : 'Mais'}
+              <span className="sr-only"> filtros</span>
             </button>
           </div>
         </div>
