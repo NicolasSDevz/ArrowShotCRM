@@ -113,6 +113,10 @@ export function SdrPanel({ conv, onClose }: { conv: WaConversation; onClose?: ()
                 <span>
                   <strong className="font-semibold">Reunião combinada</strong>
                   {sdr.meeting.when ? `: ${sdr.meeting.when}` : ''}. Confirme na agenda.
+                  {sdr.meeting.at && conv.meetingReminderFor === sdr.meeting.at && !conv.meetingReminderError && <span className="block text-xs text-emerald-500">Lembrete enviado.</span>}
+                  {sdr.meeting.at && conv.meetingReminderFor !== sdr.meeting.at && <span className="block text-xs text-slate-500">O lembrete sai sozinho antes da reunião.</span>}
+                  {!sdr.meeting.at && <span className="block text-xs text-slate-500">Sem horário exato: não vai ter lembrete automático.</span>}
+                  {conv.meetingReminderError && <span className="block text-xs text-amber-500">Lembrete não enviado: {conv.meetingReminderError}</span>}
                 </span>
               </p>
             )}

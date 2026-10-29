@@ -16,7 +16,7 @@ export const STATUS_LABEL: Record<string, string> = {
   failed: 'não enviada',
 }
 
-export const AUTO = new Set(['ai', 'followup', 'cart'])
+export const AUTO = new Set(['ai', 'followup', 'cart', 'reminder'])
 
 export const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
@@ -41,6 +41,7 @@ export function authorLabel(m: WaMessage, conv: Pick<WaConversation, 'name'>) {
   if (m.direction === 'in') return conv.name || 'Contato'
   if (m.by === 'ai') return m.byName || 'IA'
   if (m.by === 'followup') return m.byName || 'Follow-up automático'
+  if (m.by === 'reminder') return m.byName || 'Lembrete da reunião'
   if (m.by === 'cart') return 'Carrinho abandonado'
   return m.byName || 'Equipe'
 }

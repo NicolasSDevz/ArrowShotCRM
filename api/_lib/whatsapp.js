@@ -199,6 +199,14 @@ export const DEFAULT_SETTINGS = {
     meetingLink: '',
     meetingHours: 'segunda a sexta, das 9h às 18h',
   },
+  /** Lembrete automático pro contato antes da reunião marcada. */
+  reminder: {
+    enabled: true,
+    minutesBefore: 30,
+    text: '',
+    templateName: '',
+    templateLang: 'pt_BR',
+  },
   cart: {
     enabled: false,
     afterMinutes: 40,
@@ -217,6 +225,7 @@ export async function getWaSettings() {
     followUp: { ...DEFAULT_SETTINGS.followUp, ...(d.followUp || {}) },
     cart: { ...DEFAULT_SETTINGS.cart, ...(d.cart || {}) },
     sdr: { ...DEFAULT_SETTINGS.sdr, ...(d.sdr || {}) },
+    reminder: { ...DEFAULT_SETTINGS.reminder, ...(d.reminder || {}) },
   }
 }
 
@@ -699,12 +708,12 @@ const SDR_JSON = `Responda APENAS com JSON válido, neste formato:
   "profile": {"nome": "", "empresa": "", "cidade": "", "servico": "", "tamanho": "", "anuncia": "", "investimento": "", "objetivo": "", "decisor": "", "prazo": ""},
   "summary": "1 ou 2 frases sobre quem é o lead e o que ele quer",
   "next_step": "o que acontece agora (ex.: esperar ele mandar a cidade; reunião quinta 15h)",
-  "meeting": {"agreed": false, "when": ""}
+  "meeting": {"agreed": false, "when": "", "at": ""}
 }
 - "messages": 1 a 3 balões curtos. Vazio só se não houver nada a dizer.
 - "profile": preencha só o que a pessoa disse (ou o que já sabíamos). Não invente. Deixe "" o que não sabe.
 - "score": 0 a 100 = chance de virar cliente bom (perfil + dor + verba + decisor + urgência).
-- "meeting.agreed": true só quando a pessoa topou um dia e horário (ou disse que já marcou pelo link). "when" = o dia e horário em texto.`
+- "meeting.agreed": true só quando a pessoa topou um dia e horário (ou disse que já marcou pelo link). "when" = o dia e horário em texto. "at" = data e hora exatas no formato AAAA-MM-DDTHH:MM (horário de Brasília), só quando dia E hora estão definidos; senão "". Se remarcar, atualize "at".`
 
 function leadSystemPrompt(baseVendasText, settings, conv) {
   const sdr = settings.sdr || {}
@@ -772,7 +781,7 @@ ${productBrief(product)}
 Nome: ${cart?.name || '(sem nome)'}
 Situação: ${cart ? situationOf(cart) : 'desconhecida'}
 
-Responda APENAS com JSON: {"messages": ["balão 1"], "handoff": false, "handoff_reason": "", "stage": "agendamento", "temperature": "quente | morno | frio", "score": 0, "profile": {"nome": ""}, "summary": "o que travou a compra", "next_step": "", "meeting": {"agreed": false, "when": ""}}`
+Responda APENAS com JSON: {"messages": ["balão 1"], "handoff": false, "handoff_reason": "", "stage": "agendamento", "temperature": "quente | morno | frio", "score": 0, "profile": {"nome": ""}, "summary": "o que travou a compra", "next_step": "", "meeting": {"agreed": false, "when": "", "at": ""}}`
 }
 
 /** Histórico em turnos alternados user/assistant pra IA. */
@@ -809,7 +818,7 @@ function parseAiJson(text) {
         profile,
         summary: clip(j.summary, 400),
         nextStep: clip(j.next_step, 200),
-        meeting: { agreed: j.meeting?.agreed === true, when: clip(j.meeting?.when, 120) },
+        meeting: { agreed: j.meeting?.agreed === true, when: clip(j.meeting?.when, 120), at: validMeetingAt(j.meeting?.at) },
       }
     }
     return { messages, reply: messages.join('\n\n'), handoff: j.handoff === true, reason: clip(j.handoff_reason, 200), sdr }
@@ -835,6 +844,14 @@ function parseAiJson(text) {
   }
 }
 
+/** "2026-10-30T09:00" válido ou "". */
+function validMeetingAt(v) {
+  const s = String(v || '').trim().slice(0, 16)
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) && !Number.isNaN(meetingTime(s)) ? s : ''
+}
+/** Horário de Brasília (sem horário de verão) em milissegundos. */
+const meetingTime = (at) => new Date(`${at}:00-03:00`).getTime()
+
 /** Junta a análise nova com a que já tinha (campo vazio não apaga o que já sabíamos). */
 function mergeSdr(prev, next) {
   if (!next) return null
@@ -846,7 +863,7 @@ function mergeSdr(prev, next) {
     profile: { ...(p.profile || {}), ...next.profile },
     summary: next.summary || p.summary || '',
     nextStep: next.nextStep || p.nextStep || '',
-    meeting: next.meeting?.agreed ? next.meeting : p.meeting || { agreed: false, when: '' },
+    meeting: next.meeting?.agreed ? { ...next.meeting, at: next.meeting.at || p.meeting?.at || '' } : p.meeting || { agreed: false, when: '', at: '' },
     updatedAt: nowIso(),
   }
 }
@@ -1098,6 +1115,65 @@ export async function runFollowUps(origin, { max = 12 } = {}) {
     } catch (e) {
       console.warn(`[whatsapp] follow-up ${conv.waId}:`, e.message)
       await updateDoc(convPath(conv.waId), { followUpError: e.message.slice(0, 200) }).catch(() => {})
+    }
+  }
+  return { sent }
+}
+
+/* --------------------------- lembrete da reunião --------------------------- */
+
+/** "hoje às 9h", "amanhã às 14h30" ou "dia 30/10 às 9h". */
+function meetingWhenText(at, now = Date.now()) {
+  const day = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: SP_TZ }).format(new Date(ms))
+  const [hh, mm] = at.slice(11, 16).split(':')
+  const hora = `${Number(hh)}h${mm === '00' ? '' : mm}`
+  const d = at.slice(0, 10)
+  if (d === day(now)) return { quando: `hoje às ${hora}`, hora }
+  if (d === day(now + 86400_000)) return { quando: `amanhã às ${hora}`, hora }
+  return { quando: `dia ${d.slice(8, 10)}/${d.slice(5, 7)} às ${hora}`, hora }
+}
+
+/** Manda o lembrete X minutos antes da reunião marcada pela IA (roda na varredura). */
+export async function runMeetingReminders() {
+  const settings = await getWaSettings()
+  const r = settings.reminder
+  if (!r.enabled) return { skipped: 'desligado' }
+  const before = Math.max(5, Number(r.minutesBefore) || 30) * 60_000
+  const now = Date.now()
+  const convs = await queryDocs('waConversations', [['sdr.meeting.agreed', true]])
+  let sent = 0
+  for (const conv of convs) {
+    const at = conv.sdr?.meeting?.at
+    if (!at || conv.kind === 'cart' || conv.meetingReminderFor === at) continue
+    const left = meetingTime(at) - now
+    // Dentro da janela do lembrete e a reunião ainda não passou (a varredura pode atrasar uns minutos).
+    if (left > before || left < -5 * 60_000) continue
+
+    // Trava antes de mandar: duas varreduras juntas não mandam duas vezes.
+    await updateDoc(convPath(conv.waId), { meetingReminderFor: at, meetingReminderError: null })
+    const name = firstName(conv.name)
+    const { quando, hora } = meetingWhenText(at, now)
+    const com = settings.sdr?.meetingWith || 'Bruno'
+    const text = (r.text || 'Oi {nome}, passando pra lembrar da nossa reunião {quando} com o {com}. Até já!')
+      .replaceAll('{nome}', name || '')
+      .replaceAll('{quando}', quando)
+      .replaceAll('{hora}', hora)
+      .replaceAll('{com}', com)
+      .replace(/^Oi ,/, 'Oi,')
+      .trim()
+    try {
+      if (inWindow(conv)) {
+        await sendMessage({ to: conv.waId, text, by: 'reminder', byName: 'Lembrete da reunião' })
+      } else if (r.templateName) {
+        await sendMessage({ to: conv.waId, template: { name: r.templateName, lang: r.templateLang || 'pt_BR', params: [name || 'tudo bem', quando] }, by: 'reminder', byName: 'Lembrete da reunião' })
+      } else {
+        throw new Error('Passou de 24h desde a última mensagem do contato e não há modelo de lembrete escolhido.')
+      }
+      sent++
+    } catch (e) {
+      console.warn(`[whatsapp] lembrete ${conv.waId}:`, e.message)
+      await updateDoc(convPath(conv.waId), { meetingReminderError: e.message.slice(0, 200) }).catch(() => {})
+      await notifyTeam(conv, `${conv.name || conv.phone}: o lembrete da reunião ${quando} não foi enviado. ${e.message}`).catch(() => {})
     }
   }
   return { sent }

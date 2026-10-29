@@ -15,7 +15,8 @@ export interface WaSdr {
   profile: Partial<Record<WaSdrField, string>>
   summary: string
   nextStep: string
-  meeting: { agreed: boolean; when: string }
+  /** at = "AAAA-MM-DDTHH:MM" no horário de Brasília (vazio se não tem hora exata). */
+  meeting: { agreed: boolean; when: string; at?: string }
   updatedAt: string
 }
 
@@ -37,6 +38,9 @@ export interface WaConversation {
   followUpStep: number
   followUpStopped: boolean
   followUpError?: string
+  /** Reunião (sdr.meeting.at) que já recebeu lembrete. */
+  meetingReminderFor?: string | null
+  meetingReminderError?: string | null
   unread: number
   lastMessageAt: string
   lastMessageText: string
@@ -87,6 +91,18 @@ export interface WaSettings {
   followUp: { enabled: boolean; businessHoursOnly: boolean; steps: WaFollowUpStep[] }
   cart: { enabled: boolean; afterMinutes: number; templateName: string; templateLang: string; params: WaCartParam[] }
   sdr: WaSdrSettings
+  reminder: WaReminderSettings
+}
+
+/** Lembrete pro contato antes da reunião marcada pela IA. */
+export interface WaReminderSettings {
+  enabled: boolean
+  minutesBefore: number
+  /** Vazio = texto padrão. Variáveis: {nome}, {quando}, {hora}, {com}. */
+  text: string
+  /** Modelo usado quando passou de 24h da última mensagem do contato ({{1}} = nome, {{2}} = quando). */
+  templateName: string
+  templateLang: string
 }
 
 export interface WaSdrSettings {
@@ -115,6 +131,7 @@ export const WA_DEFAULT_SETTINGS: WaSettings = {
   },
   cart: { enabled: false, afterMinutes: 40, templateName: '', templateLang: 'pt_BR', params: ['nome', 'produto', 'link'] },
   sdr: { name: '', meetingWith: 'Bruno', meetingLength: '30 minutos', meetingLink: '', meetingHours: 'segunda a sexta, das 9h às 18h' },
+  reminder: { enabled: true, minutesBefore: 30, text: '', templateName: '', templateLang: 'pt_BR' },
 }
 
 export const WA_CART_PARAM_LABEL: Record<WaCartParam, string> = {

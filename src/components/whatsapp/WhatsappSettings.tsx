@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import toast from 'react-hot-toast'
-import { Bot, ChevronDown, Copy, Link2, Plus, RefreshCw, ShoppingCart, Timer, Trash2 } from 'lucide-react'
+import { BellRing, Bot, ChevronDown, Copy, Link2, Plus, RefreshCw, ShoppingCart, Timer, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
@@ -337,7 +337,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
             icon={<Bot size={19} />}
             tone="bg-violet-500/15 text-violet-400"
             title="IA como SDR"
-            description="Atende quem chama como um pré-vendas: entende o negócio, qualifica (tipo de limpeza, cidade, verba, quem decide, prazo) e marca a reunião de diagnóstico. Usa a Base de Vendas. Se a pessoa pede um humano, reclama, quer negociar ou a reunião fica combinada, avisa a equipe e para de responder naquela conversa."
+            description="Atende quem chama como um pré-vendas: entende o negócio, qualifica (tipo de limpeza, cidade, verba, quem decide, prazo) e marca a reunião de diagnóstico. Usa a Base de Vendas. Quando a reunião fica combinada, avisa a equipe e continua atendendo. Se a pessoa pede um humano, reclama ou quer negociar, avisa a equipe e para de responder naquela conversa."
             badge={<Badge on={s.aiEnabled} />}
           >
             <Toggle checked={s.aiEnabled} onChange={(v) => edit((c) => ({ ...c, aiEnabled: v }))} label="IA responde as conversas" hint="Dá para desligar em cada conversa também." />
@@ -362,6 +362,45 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
             <Field label="Instruções extras para a IA">
               <Textarea rows={4} value={s.aiInstructions} onChange={(e) => edit((c) => ({ ...c, aiInstructions: e.target.value }))} placeholder="Ex.: sempre ofereça a reunião de diagnóstico gratuita; o Bruno atende das 9h às 18h; não fale de preço antes da reunião." />
             </Field>
+          </Card>
+
+          <Card
+            icon={<BellRing size={19} />}
+            tone="bg-emerald-500/15 text-emerald-400"
+            title="Lembrete da reunião"
+            description="Quando a IA marca a reunião com dia e hora, o contato recebe uma mensagem pouco antes. A conferência roda a cada 10 minutos mais ou menos, então o lembrete pode sair alguns minutos antes ou depois do tempo marcado."
+            badge={<Badge on={s.reminder.enabled} />}
+          >
+            <Toggle checked={s.reminder.enabled} onChange={(v) => edit((c) => ({ ...c, reminder: { ...c.reminder, enabled: v } }))} label="Mandar lembrete antes da reunião" />
+            <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+              <span>Mandar</span>
+              <input
+                type="number"
+                min={10}
+                max={1440}
+                value={s.reminder.minutesBefore}
+                onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, minutesBefore: Number(e.target.value) || 30 } }))}
+                className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+              />
+              <span>minutos antes da reunião</span>
+            </label>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Texto (dentro de 24h)" hint="Use {nome}, {quando} (ex.: hoje às 9h), {hora} e {com}.">
+                <Textarea
+                  rows={3}
+                  value={s.reminder.text}
+                  placeholder="Oi {nome}, passando pra lembrar da nossa reunião {quando} com o {com}. Até já!"
+                  onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, text: e.target.value } }))}
+                />
+              </Field>
+              <TemplateSelect
+                label="Modelo (depois de 24h): {{1}} = nome, {{2}} = quando"
+                templates={templates}
+                name={s.reminder.templateName}
+                lang={s.reminder.templateLang}
+                onChange={(n, l) => edit((c) => ({ ...c, reminder: { ...c.reminder, templateName: n, templateLang: l } }))}
+              />
+            </div>
           </Card>
 
           <Card

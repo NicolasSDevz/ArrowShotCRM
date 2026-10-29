@@ -58,6 +58,7 @@ export function listenWaSettings(cb: (s: WaSettings) => void): Unsubscribe {
         followUp: { ...WA_DEFAULT_SETTINGS.followUp, ...(d.followUp || {}) },
         cart: { ...WA_DEFAULT_SETTINGS.cart, ...(d.cart || {}) },
         sdr: { ...WA_DEFAULT_SETTINGS.sdr, ...(d.sdr || {}) },
+        reminder: { ...WA_DEFAULT_SETTINGS.reminder, ...(d.reminder || {}) },
       })
     },
     () => cb(WA_DEFAULT_SETTINGS)
