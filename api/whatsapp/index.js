@@ -16,6 +16,7 @@
 //   POST reply-ai      { waId } faz a IA responder agora (botão "Responder com IA")
 //   POST sdr-analyze   { waId } refaz a análise do SDR (etapa, temperatura, perfil) sem mandar nada
 
+import '../_lib/quietDeprecation.js'
 import { waitUntil } from '@vercel/functions'
 import { requireInternalUser, AuthError } from '../_lib/auth.js'
 import { rateLimit, publicOrigin } from '../_lib/store/core.js'

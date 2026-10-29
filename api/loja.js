@@ -56,6 +56,7 @@
 // Focus NFe (gatilho configurado no painel deles):
 //   POST invoice-webhook { ref }
 
+import './_lib/quietDeprecation.js'
 import { requireInternalUser, AuthError } from './_lib/auth.js'
 import { getDoc, setDoc, updateDoc, deleteDoc, queryDocs, listDocs, incrementField, createCustomToken, verifyIdTokenWithClaims } from './_lib/firebaseAdmin.js'
 import {

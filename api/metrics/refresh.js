@@ -3,6 +3,7 @@
 // Força o recálculo do snapshot de métricas do dia. Exige um usuário interno
 // logado (Authorization: Bearer <Firebase ID token>) — ver api/_lib/auth.js.
 
+import '../_lib/quietDeprecation.js'
 import { withInternalAuth } from '../_lib/auth.js'
 import { computeAndStoreMetrics } from '../_lib/metricsStore.js'
 

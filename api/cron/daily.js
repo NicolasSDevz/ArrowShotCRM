@@ -15,6 +15,7 @@
 // `Authorization: Bearer <CRON_SECRET>` (header que o Vercel Cron manda).
 // Ver vercel.json → crons.
 
+import '../_lib/quietDeprecation.js'
 import { randomUUID } from 'node:crypto'
 import { getDoc, setDoc, queryDocs, listDocs, updateDoc } from '../_lib/firebaseAdmin.js'
 import { listAllTokenStatuses, markExpiryNotified } from '../_lib/metaTokenStore.js'

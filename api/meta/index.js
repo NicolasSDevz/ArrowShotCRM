@@ -15,6 +15,7 @@
 //                     + ?scope=credentials → acessos (login/senha)
 //                     + ?scope=exchange   → troca token curto por longo
 
+import '../_lib/quietDeprecation.js'
 import { withInternalAuth, withMetaReadAuth } from '../_lib/auth.js'
 import { respondMetaGraphRequest, fetchAccountInsights, fetchAccountInfo, normalizeAccountId, isAccountRestricted } from '../_lib/metaGraph.js'
 import { listDocs, getDoc, setDoc } from '../_lib/firebaseAdmin.js'

@@ -16,6 +16,7 @@
 //   pra não sumir se a pessoa der F5 enquanto o Archer pensa.
 // GET  /api/ai/chat -> { quota: { used, limit } }  (quantas mensagens o usuário já usou hoje)
 
+import '../_lib/quietDeprecation.js'
 import Anthropic from '@anthropic-ai/sdk'
 import { withInternalAuth } from '../_lib/auth.js'
 import { getDoc, setDoc, updateDoc } from '../_lib/firebaseAdmin.js'

@@ -17,6 +17,7 @@
 //               uma palavra-chave específica), que o agregado por campanha
 //               não permite.
 
+import '../_lib/quietDeprecation.js'
 import {
   DATE_RE,
   VALID_LEVELS,
