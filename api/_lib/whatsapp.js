@@ -663,7 +663,7 @@ const HANDOFF_RULES = `Passe para um humano (handoff = true) quando:
 - for reclamação, cobrança, cancelamento ou problema com serviço já contratado (cliente atual, não lead);
 - pedirem algo que você não sabe responder com as informações abaixo;
 - a pessoa quiser negociar valores ou fechar agora.
-Reunião combinada NÃO é motivo para passar: continue atendendo normalmente.
+Reunião NÃO é motivo para passar: você mesmo propõe e fecha o dia e o horário (pelo link da agenda ou com 2 opções concretas) e continua atendendo depois.
 Ao passar, escreva uma resposta curta avisando que já vai chamar alguém da equipe.`
 
 const SDR_STAGES = ['abertura', 'descoberta', 'qualificacao', 'agendamento', 'agendado', 'nutricao', 'desqualificado']
@@ -725,7 +725,7 @@ Transformar quem chama em uma reunião de diagnóstico (${sdr.meetingLength || '
 1. abertura: cumprimente, agradeça o contato e faça UMA pergunta aberta sobre o negócio da pessoa ("me conta um pouco da sua empresa: vocês fazem limpeza de quê?"). Se veio de anúncio ou formulário, use o que o CRM já sabe.
 2. descoberta: entenda a dor. Perguntas boas, uma por vez: que tipo de limpeza (residencial, pós-obra, empresarial, condomínio, estofados...), cidade/região que atende, como chegam os clientes hoje, se já anuncia (onde e se funcionou), quantos clientes novos quer por mês. Reaja ao que a pessoa conta (mostre que entendeu) antes da próxima pergunta.
 3. qualificacao: confirme o que falta do perfil, sem interrogatório: tamanho (equipe ou faturamento aproximado), verba para anúncios por mês (pergunte com faixa: "vocês pensam em investir mais perto de 1 mil, 3 mil ou acima de 5 mil por mês em anúncio?"), quem decide e para quando quer começar.
-4. agendamento: quando já tem dor + perfil razoável (não precisa de tudo), proponha a reunião mostrando o ganho para a pessoa ("na reunião o ${meetWith} olha a sua região e mostra quanto custa trazer cliente aí"). ${meeting}
+4. agendamento: você fecha o horário, nunca diga que "a equipe vai te chamar com o horário". Se a pessoa disser só o período ("amanhã de manhã"), ofereça 2 horários concretos dentro dele. Quando já tem dor + perfil razoável (não precisa de tudo), proponha a reunião mostrando o ganho para a pessoa ("na reunião o ${meetWith} olha a sua região e mostra quanto custa trazer cliente aí"). ${meeting}
 5. agendado: confirme dia e horário e diga que ela recebe o lembrete. Depois disso continue atendendo: tire dúvidas sobre a reunião e sobre a Arrow Shot, remarque se ela pedir. Não faça mais perguntas de qualificação.
 - nutricao: tem perfil mas não é o momento (sem verba agora, "só pesquisando", "depois do fim do ano"). Seja gentil, deixe a porta aberta, ofereça falar mais pra frente.
 - desqualificado: não é empresa de limpeza ou facilities, quer emprego, é fornecedor vendendo algo, ou não tem empresa. Agradeça com educação e encerre (sem reunião).
@@ -797,7 +797,7 @@ function parseAiJson(text) {
   try {
     const j = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
     let messages = Array.isArray(j.messages) ? j.messages : j.reply ? [j.reply] : []
-    messages = messages.map((m) => String(m || '').trim()).filter(Boolean).slice(0, 3)
+    messages = messages.map((m) => String(m || '').trim()).filter((m) => m && !/^[{[<]|"messages"\s*:/.test(m)).slice(0, 3)
     let sdr = null
     if (j.stage || j.profile || j.summary) {
       const profile = {}
@@ -814,8 +814,23 @@ function parseAiJson(text) {
     }
     return { messages, reply: messages.join('\n\n'), handoff: j.handoff === true, reason: clip(j.handoff_reason, 200), sdr }
   } catch {
-    const clean = String(text || '').trim()
-    const reply = clean.startsWith('{') ? '' : clean
+    const raw = String(text || '')
+    console.warn('[whatsapp] resposta da IA fora do formato:', raw.slice(0, 300))
+    // JSON cortado ou com lixo antes: salva só os balões, se der pra ler.
+    const m = raw.match(/"messages"\s*:\s*(\[[\s\S]*?\])/)
+    if (m) {
+      try {
+        const messages = JSON.parse(m[1]).map((x) => String(x || '').trim()).filter(Boolean).slice(0, 3)
+        const handoff = /"handoff"\s*:\s*true/.test(raw)
+        const reason = clip((raw.match(/"handoff_reason"\s*:\s*"([^"]*)"/) || [])[1] || '', 200)
+        return { messages, reply: messages.join('\n\n'), handoff, reason, sdr: null }
+      } catch {
+        /* segue */
+      }
+    }
+    // Texto puro vira balão; qualquer coisa com cara de código nunca vai pro cliente.
+    const clean = raw.replace(/<[^>]*>/g, '').trim()
+    const reply = /[{}<>]|"messages"/.test(clean) ? '' : clean
     return { messages: reply ? [reply] : [], reply, handoff: false, reason: '', sdr: null }
   }
 }
@@ -943,7 +958,7 @@ async function autoReplyLocked(waId, origin, settings, conv, recent) {
   const system = await conversationPrompt(conv, settings, origin)
   const res = await ai.messages.create({
     model: MODEL,
-    max_tokens: 900,
+    max_tokens: 2500,
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages: turns,
   })
@@ -1003,7 +1018,7 @@ export async function analyzeConversation(waId, origin) {
   if (turns[turns.length - 1].role === 'user') turns.push({ role: 'assistant', content: '(continua)' })
   turns.push({ role: 'user', content: '[Instrução interna, não é o contato falando] Não escreva mensagem nenhuma agora. Só analise a conversa inteira e devolva o JSON com "messages": [] e o restante preenchido.' })
   const system = await conversationPrompt({ ...conv, sdr: null }, settings, origin)
-  const res = await ai.messages.create({ model: MODEL, max_tokens: 700, system, messages: turns })
+  const res = await ai.messages.create({ model: MODEL, max_tokens: 2000, system, messages: turns })
   const { sdr: analysis } = parseAiJson(res.content.filter((b) => b.type === 'text').map((b) => b.text).join(''))
   if (!analysis) throw new WaError(502, 'A IA não devolveu a análise. Tente de novo.')
   // Análise do zero: o perfil novo substitui o antigo (só a reunião combinada fica).
@@ -1031,7 +1046,7 @@ async function aiFollowUpText(conv, stepIndex, total, settings, origin) {
     content: `[Instrução interna, não é o contato falando] O contato parou de responder. Escreva o follow-up ${stepIndex + 1} de ${total}: curto, retomando o ponto onde a conversa parou, com uma pergunta simples. ${stepIndex + 1 === total ? 'É o último: deixe a porta aberta, sem insistir.' : ''} Sem cobrar resposta e sem urgência falsa.`,
   })
   const system = await conversationPrompt(conv, settings, origin)
-  const res = await ai.messages.create({ model: MODEL, max_tokens: 400, system, messages: turns })
+  const res = await ai.messages.create({ model: MODEL, max_tokens: 1500, system, messages: turns })
   return parseAiJson(res.content.filter((b) => b.type === 'text').map((b) => b.text).join('')).reply
 }
 
