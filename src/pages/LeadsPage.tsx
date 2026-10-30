@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Upload, Kanban, List, Settings2, Gauge, Search } from 'lucide-react'
+import { Plus, Upload, Kanban, List, Settings2, Gauge, Search, Megaphone } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ACTIVE_LEADS_DAYS, useAllLeads, useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
@@ -22,7 +22,8 @@ import { LeadFormsPanel } from '../components/leads/LeadFormsPanel'
 import { QuestionnairePanel } from '../components/leads/QuestionnairePanel'
 import { LeadBantMetrics } from '../components/leads/LeadBantMetrics'
 import { WhatsappHub } from '../components/whatsapp/WhatsappHub'
-import { buildLeadConversationMap, useWaConversations } from '../hooks/useWaConversations'
+import { buildLeadConversationMap, useWaConversations, useWaTemplates } from '../hooks/useWaConversations'
+import { BroadcastModal } from '../components/whatsapp/WaBroadcast'
 import { Button } from '../components/ui/Button'
 import { PrivateMoney } from '../components/ui/PrivateData'
 import { Modal } from '../components/ui/Modal'
@@ -96,6 +97,7 @@ export function LeadsPage() {
   const [busy, setBusy] = useState(false)
   // Filtro por faixa do BANT ('' = todos, 'none' = ainda não avaliados).
   const [bantOpen, setBantOpen] = useState(false)
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [tempFilter, setTempFilter] = useState<LeadTemperature | 'none' | ''>('')
   // Filtro por segmento ('' = todos, 'none' = sem segmento definido).
@@ -309,6 +311,15 @@ export function LeadsPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => setBroadcastOpen(true)}
+                  title="Mandar uma mensagem de WhatsApp para várias pessoas deste funil"
+                  aria-label="Disparar WhatsApp para leads deste funil"
+                  className="flex h-9 items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20"
+                >
+                  <Megaphone size={15} aria-hidden="true" /> <span className="hidden md:inline">Disparar WhatsApp</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setPipelineModal('edit')}
                   title="Configurar este pipeline (etapas e campos)"
                   aria-label="Editar etapas e campos deste pipeline"
@@ -435,6 +446,7 @@ export function LeadsPage() {
         </>
       )}
 
+      {broadcastOpen && <LeadsBroadcast pipelineId={activePipeline.id} onClose={() => setBroadcastOpen(false)} />}
       <LeadBantMetrics open={bantOpen} onClose={() => setBantOpen(false)} leads={allPipelineLeads} pipeline={activePipeline} clients={clients} />
       <LeadFormModal open={creating} onClose={() => setCreating(false)} pipeline={activePipeline} />
       <ImportLeadsModal open={importing} onClose={() => setImporting(false)} pipeline={activePipeline} />
@@ -501,4 +513,10 @@ export function LeadsPage() {
       />
     </div>
   )
+}
+
+/** Modelos só carregam quando abre o disparo. */
+function LeadsBroadcast({ pipelineId, onClose }: { pipelineId: string; onClose: () => void }) {
+  const templates = useWaTemplates()
+  return <BroadcastModal open onClose={onClose} templates={templates} initialPipelineId={pipelineId} />
 }

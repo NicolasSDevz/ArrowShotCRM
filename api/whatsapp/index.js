@@ -15,6 +15,8 @@
 //   POST conversation  { waId, aiMode?, followUpStopped?, read?, leadId?, name? }
 //   POST reply-ai      { waId } faz a IA responder agora (botão "Responder com IA")
 //   POST sdr-analyze   { waId } refaz a análise do SDR (etapa, temperatura, perfil) sem mandar nada
+//   POST broadcast     { name, template: { name, lang }, headerMedia?, aiMode, recipients: [{ to, name, leadId, params, headerText?, buttonParams? }] }
+//   POST broadcast-cancel { id }
 
 import '../_lib/quietDeprecation.js'
 import { waitUntil } from '@vercel/functions'
@@ -38,6 +40,10 @@ import {
   sendMessage,
   updateConversation,
   markReadOnWhatsapp,
+  createBroadcast,
+  runBroadcast,
+  runBroadcasts,
+  cancelBroadcast,
 } from '../_lib/whatsapp.js'
 
 // O webhook precisa do corpo cru pra conferir a assinatura do Meta.
@@ -127,13 +133,14 @@ async function webhookReceive(req, res) {
 async function sweep(req, res) {
   if (!(await rateLimit('wa-sweep', 1, 4 * 60_000))) return res.status(200).json({ skipped: true })
   const origin = publicOrigin(req)
-  const [followUps, carts, reminders, pending] = await Promise.all([
+  const [followUps, carts, reminders, pending, broadcasts] = await Promise.all([
     runFollowUps(origin).catch((e) => ({ error: e.message })),
     runCartRecovery(origin).catch((e) => ({ error: e.message })),
     runMeetingReminders().catch((e) => ({ error: e.message })),
     runPendingReplies(origin).catch((e) => ({ error: e.message })),
+    runBroadcasts().catch((e) => ({ error: e.message })),
   ])
-  return res.status(200).json({ followUps, carts, reminders, pending })
+  return res.status(200).json({ followUps, carts, reminders, pending, broadcasts })
 }
 
 /* ------------------------------ equipe ------------------------------ */
@@ -148,7 +155,17 @@ const ADMIN = {
   'POST send': async (req, user) => {
     const b = await readJson(req)
     if (!b.to) throw new WaError(400, 'Informe o número.')
-    const template = b.template?.name ? { name: String(b.template.name), lang: String(b.template.lang || 'pt_BR'), params: Array.isArray(b.template.params) ? b.template.params : [] } : null
+    const t = b.template
+    const template = t?.name
+      ? {
+          name: String(t.name),
+          lang: String(t.lang || 'pt_BR'),
+          params: Array.isArray(t.params) ? t.params : [],
+          headerText: t.headerText ? String(t.headerText).slice(0, 60) : '',
+          headerMedia: t.headerMedia ? String(t.headerMedia).slice(0, 1000) : '',
+          buttonParams: t.buttonParams && typeof t.buttonParams === 'object' ? t.buttonParams : {},
+        }
+      : null
     const out = await sendMessage({ to: b.to, text: template ? null : b.text, template, by: user.uid, byName: user.name, convExtra: b.name ? { name: String(b.name).slice(0, 80) } : {} })
     // Quem respondeu pelo CRM assume a conversa: a IA não responde por cima.
     if (b.takeOver !== false) await updateConversation(out.waId, { aiMode: 'off', read: true }).catch(() => {})
@@ -166,6 +183,17 @@ const ADMIN = {
     if (!isWaId(b.waId)) throw new WaError(400, 'Conversa inválida.')
     await updateConversation(b.waId, { aiMode: 'auto' })
     return maybeAutoReply(b.waId, publicOrigin(req), { waitMs: 0 })
+  },
+  'POST broadcast': async (req, user) => {
+    const out = await createBroadcast(await readJson(req), user)
+    // Começa a mandar já; o que não couber no tempo o sweep continua (5 em 5 min).
+    waitUntil(runBroadcast(out.id, { budgetMs: 90_000 }).catch((e) => console.warn('[whatsapp] disparo falhou:', e.message)))
+    return out
+  },
+  'POST broadcast-cancel': async (req) => {
+    const b = await readJson(req)
+    if (!/^bc_[a-z0-9]+$/.test(String(b.id || ''))) throw new WaError(400, 'Disparo inválido.')
+    return cancelBroadcast(b.id)
   },
   'POST sdr-analyze': async (req) => {
     const b = await readJson(req)

@@ -769,6 +769,11 @@ service cloud.firestore {
     match /waLocks/{key} {
       allow read, write: if false;
     }
+    // Disparos em massa: o servidor grava, a equipe acompanha o andamento.
+    match /waBroadcasts/{id} {
+      allow read: if isInternal();
+      allow write: if false;
+    }
 
     // ---------- future modules ----------
     // When googleAdsCampaigns, metaAdsCampaigns, leads, reports, finance, etc.

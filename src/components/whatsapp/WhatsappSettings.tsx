@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import toast from 'react-hot-toast'
-import { BellRing, Bot, ChevronDown, Copy, Link2, Plus, RefreshCw, ShoppingCart, Timer, Trash2 } from 'lucide-react'
+import { BellRing, Bot, ChevronDown, Copy, Link2, Maximize2, Plus, RefreshCw, ShoppingCart, Timer, Trash2 } from 'lucide-react'
+import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
 import { listenWaSettings, saveWaCredentials, saveWaSettings } from '../../services/whatsappService'
+import { TemplatePickerField } from './WaTemplatePicker'
 import { WA_CART_PARAM_LABEL, type WaCartParam, type WaFollowUpStep, type WaSettings, type WaStatus, type WaTemplate } from '../../types/whatsapp'
 
 /* ------------------------------ peças ------------------------------ */
@@ -75,28 +77,68 @@ function CopyLine({ label, value }: { label: string; value: string }) {
   )
 }
 
-function TemplateSelect({ templates, name, lang, onChange, label }: { templates: WaTemplate[]; name: string; lang: string; onChange: (name: string, lang: string) => void; label: string }) {
-  const approved = templates.filter((t) => t.status === 'APPROVED')
-  const value = name ? `${name}|${lang || 'pt_BR'}` : ''
+/** Instruções da IA: caixa grande que cresce com o texto + botão de tela cheia pra ler e editar com calma. */
+function InstructionsBox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [full, setFull] = useState(false)
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(Math.max(el.scrollHeight + 2, 260), 640)}px`
+  }, [value, full])
+  const words = value.trim() ? value.trim().split(/\s+/).length : 0
+  const box = 'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] leading-7 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-brand-600 focus:ring-2 focus:ring-brand-100'
   return (
-    <Field label={label}>
-      <Select
+    <div>
+      <div className="mb-1.5 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <span className="block text-sm font-semibold text-slate-700" id="ai-instr-label">
+            Instruções extras para a IA
+          </span>
+          <span className="block text-xs text-slate-400">Têm prioridade sobre o resto. Use uma regra por linha.</span>
+        </div>
+        <Button variant="secondary" size="sm" icon={<Maximize2 size={14} aria-hidden="true" />} onClick={() => setFull(true)}>
+          Tela cheia
+        </Button>
+      </div>
+      <textarea
+        ref={ref}
+        aria-labelledby="ai-instr-label"
         value={value}
-        onChange={(e) => {
-          const [n, l] = e.target.value.split('|')
-          onChange(n || '', l || 'pt_BR')
-        }}
-      >
-        <option value="">Nenhum</option>
-        {name && !approved.some((t) => `${t.name}|${t.language}` === value) && <option value={value}>{name} (não aprovado ou não encontrado)</option>}
-        {approved.map((t) => (
-          <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
-            {t.name} ({t.language}, {t.vars} variáveis)
-          </option>
-        ))}
-      </Select>
-    </Field>
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={'Ex.:\n- Não fale de preço antes da reunião.\n- Se perguntarem de site, diga que o foco é anúncio.'}
+        className={`${box} resize-y overflow-y-auto`}
+        spellCheck
+      />
+      <p className="mt-1 text-right text-[11px] text-slate-400" aria-live="polite">
+        {words} palavra{words === 1 ? '' : 's'} · {value.length} caracteres
+      </p>
+      <Modal open={full} onClose={() => setFull(false)} title="Instruções extras para a IA" width="max-w-5xl">
+        <div className="flex flex-col gap-3">
+          <textarea
+            aria-label="Instruções extras para a IA"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            autoFocus
+            className={`${box} h-[62vh] resize-none text-[16px] leading-8 sm:px-6 sm:py-5`}
+            spellCheck
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-slate-400">
+              {words} palavras · as mudanças valem depois de clicar em "Salvar configurações".
+            </span>
+            <Button onClick={() => setFull(false)}>Pronto</Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
   )
+}
+
+function TemplateSelect({ templates, name, lang, onChange, label }: { templates: WaTemplate[]; name: string; lang: string; onChange: (name: string, lang: string) => void; label: string }) {
+  const value = name ? `${name}|${lang || 'pt_BR'}` : ''
+  return <TemplatePickerField label={label} templates={templates} value={value} allowNone noneLabel="Tirar" onChange={(t) => onChange(t?.name || '', t?.language || 'pt_BR')} />
 }
 
 /* ------------------------------ conexão ------------------------------ */
@@ -373,9 +415,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
                 </Field>
               </Group>
   
-              <Field label="Instruções extras para a IA" hint="Têm prioridade sobre o resto.">
-                <Textarea rows={4} value={s.aiInstructions} onChange={(e) => edit((c) => ({ ...c, aiInstructions: e.target.value }))} placeholder="Ex.: não fale de preço antes da reunião." />
-              </Field>
+              <InstructionsBox value={s.aiInstructions} onChange={(v) => edit((c) => ({ ...c, aiInstructions: v }))} />
   
               <details className="group rounded-xl border border-slate-200">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-slate-700">

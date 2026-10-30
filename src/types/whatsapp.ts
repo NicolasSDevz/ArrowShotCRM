@@ -71,8 +71,50 @@ export interface WaTemplate {
   language: string
   status: string
   category: string
+  /** NAMED = variáveis com nome ({{nome}}); POSITIONAL = {{1}}, {{2}}. */
+  paramFormat?: 'NAMED' | 'POSITIONAL'
   body: string
   vars: number
+  /** Nomes das variáveis do corpo na ordem ("1", "2" ou "nome"). */
+  varNames?: string[]
+  /** Topo do modelo: texto (com até 1 variável) ou imagem/vídeo/documento. */
+  header?: { format: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION'; text: string; vars: number; varName: string; example: string } | null
+  footer?: string
+  buttons?: { type: string; text: string; url: string; phone: string; urlVar: boolean }[]
+}
+
+/** Partes extras que alguns modelos pedem além das variáveis do corpo. */
+export interface WaTemplateExtras {
+  headerText?: string
+  headerMedia?: string
+  buttonParams?: Record<string, string>
+}
+
+export interface WaBroadcastRecipient {
+  to: string
+  name: string
+  leadId: string
+  params: string[]
+  status: 'pending' | 'sent' | 'failed'
+  error: string
+  waId?: string
+}
+
+export interface WaBroadcast {
+  id: string
+  name: string
+  template: { name: string; lang: string; category: string }
+  aiMode: WaAiMode
+  status: 'sending' | 'done' | 'canceled'
+  total: number
+  sent: number
+  failed: number
+  next: number
+  recipients: WaBroadcastRecipient[]
+  createdAt: string
+  finishedAt?: string
+  createdBy: string
+  createdByName: string
 }
 
 export interface WaFollowUpStep {

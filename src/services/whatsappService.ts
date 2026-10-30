@@ -8,6 +8,8 @@ import {
   type WaSettings,
   type WaStatus,
   type WaTemplate,
+  type WaTemplateExtras,
+  type WaBroadcast,
 } from '../types/whatsapp'
 
 /** Cliente de /api/whatsapp (ver api/whatsapp/index.js) + leituras em tempo real. */
@@ -78,7 +80,7 @@ export const listWaTemplates = (fresh = false) => api<{ templates: WaTemplate[] 
 
 export const sendWaText = (to: string, text: string) => api<{ id: string; waId: string }>('send', { method: 'POST', body: { to, text } })
 
-export const sendWaTemplate = (to: string, template: { name: string; lang: string; params: string[] }, name?: string) =>
+export const sendWaTemplate = (to: string, template: { name: string; lang: string; params: string[] } & WaTemplateExtras, name?: string) =>
   api<{ id: string; waId: string }>('send', { method: 'POST', body: { to, template, name } })
 
 export const updateWaConversation = (
@@ -89,3 +91,23 @@ export const updateWaConversation = (
 export const replyWithAi = (waId: string) => api<{ replied?: boolean; skipped?: string; handoff?: boolean }>('reply-ai', { method: 'POST', body: { waId } })
 
 export const analyzeWaConversation = (waId: string) => api<{ sdr: WaSdr }>('sdr-analyze', { method: 'POST', body: { waId } })
+
+export function listenBroadcasts(cb: (rows: WaBroadcast[]) => void, onError?: (e: Error) => void): Unsubscribe {
+  const q = query(collection(db, 'waBroadcasts'), orderBy('createdAt', 'desc'), limit(20))
+  return onSnapshot(
+    q,
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<WaBroadcast, 'id'>) }))),
+    (e) => onError?.(e)
+  )
+}
+
+export interface BroadcastInput {
+  name: string
+  template: { name: string; lang: string }
+  headerMedia?: string
+  aiMode: 'auto' | 'off'
+  recipients: { to: string; name: string; leadId?: string; params: string[]; headerText?: string; buttonParams?: Record<string, string> }[]
+}
+
+export const createBroadcast = (body: BroadcastInput) => api<{ id: string; total: number }>('broadcast', { method: 'POST', body })
+export const cancelBroadcast = (id: string) => api<{ ok: boolean }>('broadcast-cancel', { method: 'POST', body: { id } })

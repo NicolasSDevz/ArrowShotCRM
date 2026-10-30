@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { HelpCircle, MessageCircle, Settings } from 'lucide-react'
+import { HelpCircle, Megaphone, MessageCircle, Settings } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
 import { WhatsappInbox } from './WhatsappInbox'
 import { WhatsappSettings } from './WhatsappSettings'
 import { WhatsappGuide, buildChecklist } from './WhatsappGuide'
+import { BroadcastModal } from './WaBroadcast'
 import { useAuth } from '../../context/AuthContext'
 import { useWaConversations } from '../../hooks/useWaConversations'
 import { getWaStatus, listWaTemplates, listenWaSettings } from '../../services/whatsappService'
@@ -44,7 +45,7 @@ export function WhatsappHub({ onOpenLead }: { onOpenLead: (leadId: string) => vo
   }, [empty, loading, status, loadStatus])
 
   const panel = params.get('wa')
-  const setPanel = (v: 'guia' | 'config' | null) => {
+  const setPanel = (v: 'guia' | 'config' | 'disparo' | null) => {
     const next = new URLSearchParams(params)
     if (v) next.set('wa', v)
     else next.delete('wa')
@@ -52,6 +53,7 @@ export function WhatsappHub({ onOpenLead }: { onOpenLead: (leadId: string) => vo
   }
   const configOpen = panel === 'config' && canConfigure
   const guideOpen = panel === 'guia'
+  const broadcastOpen = panel === 'disparo'
 
   const missing = buildChecklist(status, templates, settings, canConfigure).filter((i) => !i.done && !i.optional).length
   const connected = Boolean(status?.connected)
@@ -69,6 +71,10 @@ export function WhatsappHub({ onOpenLead }: { onOpenLead: (leadId: string) => vo
 
   const tools = (
     <>
+      <button type="button" onClick={() => setPanel('disparo')} className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-400 transition hover:bg-emerald-500/20" aria-label="Disparo em massa" title="Disparo em massa">
+        <Megaphone size={16} aria-hidden="true" />
+        <span className="hidden xl:inline">Disparo</span>
+      </button>
       <button type="button" onClick={() => setPanel('guia')} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700" aria-label={`Como funciona${missing > 0 ? `, falta ${missing} passo${missing === 1 ? '' : 's'}` : ''}`} title="Como funciona">
         <HelpCircle size={16} aria-hidden="true" />
         {missing > 0 && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-500" aria-hidden="true" />}
@@ -123,6 +129,7 @@ export function WhatsappHub({ onOpenLead }: { onOpenLead: (leadId: string) => vo
 
       <WhatsappInbox templates={templates} onOpenLead={onOpenLead} tools={tools} heightClass="h-[calc(100dvh-180px)] md:h-[calc(100dvh-190px)] lg:h-[calc(100dvh-150px)]" />
 
+      {broadcastOpen && <BroadcastModal open onClose={() => setPanel(null)} templates={templates} />}
       <Drawer open={guideOpen} onClose={() => setPanel(null)} title="Como o WhatsApp funciona" width="w-full max-w-3xl">
         <div className="p-4 sm:p-5">
           <WhatsappGuide status={status} templates={templates} settings={settings} canConfigure={canConfigure} hasConversations={!empty} />

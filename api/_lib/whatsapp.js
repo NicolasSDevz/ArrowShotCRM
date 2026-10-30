@@ -271,23 +271,99 @@ function explainGraphError(e) {
 
 let tplCache = null // { value, exp }
 
-/** Modelos aprovados no WABA (cache de 10 min). */
+/** Nomes das variáveis na ordem em que aparecem ({{1}}, {{2}} ou {{nome}}), sem repetir. */
+function varNamesOf(text) {
+  const out = []
+  for (const m of String(text || '').matchAll(/\{\{\s*([\w]+)\s*\}\}/g)) if (!out.includes(m[1])) out.push(m[1])
+  return out
+}
+
+/** Modelos do WABA (cache de 10 min), com cabeçalho, rodapé e botões pra prévia e envio. */
 export async function listTemplates({ fresh = false } = {}) {
   if (!fresh && tplCache && tplCache.exp > Date.now()) return tplCache.value
   const cfg = await getWaConfig()
   if (!cfg?.wabaId) return []
-  const data = await graph(cfg, `${cfg.wabaId}/message_templates?fields=name,language,status,category,components&limit=200`)
-  const value = (data.data || []).map((t) => {
-    const body = (t.components || []).find((c) => c.type === 'BODY')?.text || ''
-    const vars = (body.match(/\{\{\s*\d+\s*\}\}/g) || []).length
-    return { name: t.name, language: t.language, status: t.status, category: t.category, body, vars }
+  const rows = []
+  let path = `${cfg.wabaId}/message_templates?fields=name,language,status,category,components,parameter_format&limit=200`
+  for (let page = 0; path && page < 5; page++) {
+    const data = await graph(cfg, path)
+    rows.push(...(data.data || []))
+    const next = data.paging?.next
+    path = next ? next.replace(/^https:\/\/graph\.facebook\.com\/v[\d.]+\//, '') : ''
+  }
+  const value = rows.map((t) => {
+    const comps = t.components || []
+    const body = comps.find((c) => c.type === 'BODY')?.text || ''
+    const h = comps.find((c) => c.type === 'HEADER')
+    const footer = comps.find((c) => c.type === 'FOOTER')?.text || ''
+    const btns = comps.find((c) => c.type === 'BUTTONS')?.buttons || []
+    const varNames = varNamesOf(body)
+    return {
+      name: t.name,
+      language: t.language,
+      status: t.status,
+      category: t.category,
+      paramFormat: t.parameter_format === 'NAMED' ? 'NAMED' : 'POSITIONAL',
+      body,
+      vars: varNames.length,
+      varNames,
+      header: h
+        ? {
+            format: h.format || 'TEXT',
+            text: h.text || '',
+            vars: varNamesOf(h.text).length,
+            varName: varNamesOf(h.text)[0] || '',
+            example: h.example?.header_handle?.[0] || h.example?.header_url?.[0] || '',
+          }
+        : null,
+      footer,
+      buttons: btns.map((b) => ({ type: b.type, text: b.text || '', url: b.url || '', phone: b.phone_number || '', urlVar: /\{\{\s*\w+\s*\}\}/.test(b.url || '') })),
+    }
   })
   tplCache = { value, exp: Date.now() + 10 * 60_000 }
   return value
 }
 
-function renderTemplate(body, params) {
-  return String(body || '').replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => params[Number(n) - 1] ?? '')
+function renderTemplate(body, params, names) {
+  return String(body || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_, n) => {
+    const i = /^\d+$/.test(n) ? Number(n) - 1 : (names || []).indexOf(n)
+    return params[i] ?? ''
+  })
+}
+
+/**
+ * Corpo do envio de um modelo. template = { name, lang, params, headerText?, headerMedia?, buttonParams? }
+ * tpl = o modelo da lista (pode faltar: aí manda só o corpo).
+ */
+function templatePayload(template, tpl) {
+  const named = tpl?.paramFormat === 'NAMED'
+  const params = (template.params || []).map((p) => String(p ?? '').slice(0, 900))
+  const components = []
+  const h = tpl?.header
+  if (h && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(h.format)) {
+    const link = String(template.headerMedia || h.example || '').trim()
+    if (!link) throw new WaError(400, `O modelo ${tpl.name} tem ${h.format === 'IMAGE' ? 'imagem' : h.format === 'VIDEO' ? 'vídeo' : 'documento'} no topo: informe o link.`)
+    const kind = h.format.toLowerCase()
+    components.push({ type: 'header', parameters: [{ type: kind, [kind]: { link } }] })
+  } else if (h && h.format === 'TEXT' && h.vars) {
+    const text = String(template.headerText || '').trim() || '-'
+    components.push({ type: 'header', parameters: [{ type: 'text', text, ...(named ? { parameter_name: h.varName } : {}) }] })
+  }
+  if (params.length) {
+    components.push({ type: 'body', parameters: params.map((t, i) => ({ type: 'text', text: t.trim() || '-', ...(named ? { parameter_name: tpl.varNames[i] } : {}) })) })
+  }
+  ;(tpl?.buttons || []).forEach((b, i) => {
+    if (b.type !== 'URL' || !b.urlVar) return
+    const text = String(template.buttonParams?.[i] ?? template.buttonParams?.[String(i)] ?? '').trim()
+    if (!text) throw new WaError(400, `O botão "${b.text}" do modelo precisa do final do link.`)
+    components.push({ type: 'button', sub_type: 'url', index: String(i), parameters: [{ type: 'text', text }] })
+  })
+  const shown = tpl
+    ? [h?.format === 'TEXT' ? renderTemplate(h.text, [template.headerText || '']) : '', renderTemplate(tpl.body, params, tpl.varNames), tpl.footer]
+        .filter((x) => String(x || '').trim())
+        .join('\n\n')
+    : `[Modelo ${template.name}] ${params.join(' | ')}`
+  return { components, shown }
 }
 
 /* ------------------------------ conversas ------------------------------ */
@@ -509,19 +585,17 @@ export async function sendMessage({ to, text, template, by, byName = '', convExt
   let body
   let shown
   if (template) {
-    const params = (template.params || []).map((p) => String(p ?? '').slice(0, 900))
+    const lang = template.lang || 'pt_BR'
+    const all = await listTemplates().catch(() => [])
+    const tpl = all.find((t) => t.name === template.name && t.language === lang) || all.find((t) => t.name === template.name)
+    const built = templatePayload(template, tpl)
     body = {
       messaging_product: 'whatsapp',
       to: target,
       type: 'template',
-      template: {
-        name: template.name,
-        language: { code: template.lang || 'pt_BR' },
-        ...(params.length ? { components: [{ type: 'body', parameters: params.map((t) => ({ type: 'text', text: t || '-' })) }] } : {}),
-      },
+      template: { name: template.name, language: { code: lang }, ...(built.components.length ? { components: built.components } : {}) },
     }
-    const tpl = (await listTemplates().catch(() => [])).find((t) => t.name === template.name)
-    shown = tpl ? renderTemplate(tpl.body, params) : `[Modelo ${template.name}] ${params.join(' | ')}`
+    shown = built.shown
   } else {
     const clean = String(text || '').trim().slice(0, 4000)
     if (!clean) throw new WaError(400, 'Mensagem vazia.')
@@ -548,7 +622,7 @@ export async function sendMessage({ to, text, template, by, byName = '', convExt
   })
   const patch = { lastMessageAt: at, lastMessageText: shown.slice(0, 160), lastDirection: 'out', updatedAt: at }
   // Quem respondeu pelo CRM zera o "não lidas".
-  if (by !== 'ai' && by !== 'followup' && by !== 'cart') patch.unread = 0
+  if (by !== 'ai' && by !== 'followup' && by !== 'cart' && by !== 'broadcast') patch.unread = 0
   await updateDoc(convPath(waId), patch)
   return { id, waId, text: shown }
 }
@@ -956,6 +1030,7 @@ const AUTO_SENDERS = new Set(['ai', 'followup', 'reminder', 'cart'])
 function staffAuthor(m) {
   if (m.direction !== 'out' || AUTO_SENDERS.has(m.by)) return ''
   if (m.by === 'phone') return 'Bruno, pelo celular'
+  if (m.by === 'broadcast') return 'Disparo em massa da equipe (mensagem de modelo)'
   return m.byName ? `${m.byName}, da equipe` : 'equipe'
 }
 
@@ -1217,6 +1292,10 @@ async function autoReplyLocked(waId, origin, settings, conv, recent) {
   const turns = toTurns(recent)
   if (!turns.length) return { skipped: 'sem turnos' }
   let system = await conversationPrompt(conv, settings, origin)
+  // Respondeu a um disparo em massa: a IA precisa saber o que foi mandado
+  // (o histórico dela começa na 1ª fala do contato e cortaria essa mensagem).
+  const lastBc = [...recent].reverse().find((m) => m.direction === 'out' && m.by === 'broadcast')
+  if (lastBc) system += `\n\n# Disparo da equipe\nA equipe mandou esta mensagem para a pessoa (disparo em massa, ${fmtDate(lastBc.at) || 'recente'}):\n"""${clip(lastBc.text, 1200)}"""\nEla respondeu a isso. Continue a conversa a partir do que a mensagem dizia, sem repetir a mensagem e sem perguntar se já é cliente.`
   // Número que o CRM não conhecia: antes de vender, pergunta se já é cliente.
   if (conv.kind === 'lead' && conv.leadMatch !== 'existing') {
     const ours = recent.filter((m) => m.direction === 'out')
@@ -1566,4 +1645,145 @@ export async function markReadOnWhatsapp(waId) {
   const lastIn = recent.find((m) => m.direction === 'in' && m.id.startsWith('wamid'))
   if (!lastIn) return
   await graph(cfg, `${cfg.phoneNumberId}/messages`, { method: 'POST', body: { messaging_product: 'whatsapp', status: 'read', message_id: lastIn.id } }).catch(() => {})
+}
+
+/* ------------------------- disparo em massa ------------------------- */
+// waBroadcasts/{id}: um modelo pra uma lista de pessoas (leads do funil ou números
+// colados). A tela manda as variáveis já preenchidas por pessoa. O envio sai em
+// lotes: começa na hora (waitUntil) e o sweep continua se não deu tempo.
+
+const BROADCAST_MAX = 1000
+const bcPath = (id) => `waBroadcasts/${id}`
+
+export async function createBroadcast(input, user) {
+  const name = String(input.name || '').trim().slice(0, 80) || 'Disparo'
+  const lang = String(input.template?.lang || 'pt_BR')
+  const tplName = String(input.template?.name || '')
+  const tpl = (await listTemplates()).find((t) => t.name === tplName && t.language === lang)
+  if (!tpl) throw new WaError(400, 'Modelo não encontrado. Clique em "Atualizar modelos" e tente de novo.')
+  if (tpl.status !== 'APPROVED') throw new WaError(400, 'Esse modelo ainda não está aprovado no Meta.')
+  const seen = new Set()
+  const recipients = []
+  for (const r of Array.isArray(input.recipients) ? input.recipients : []) {
+    const to = toE164Digits(r?.to)
+    if (to.length < 12 || to.length > 15) continue
+    const key = phoneKey(to)
+    if (seen.has(key)) continue
+    seen.add(key)
+    const params = (Array.isArray(r.params) ? r.params : []).slice(0, 20).map((p) => String(p ?? '').slice(0, 900))
+    if (params.length !== tpl.vars || params.some((p) => !p.trim())) throw new WaError(400, `Falta preencher variável para ${r.name || to}.`)
+    recipients.push({
+      to,
+      name: String(r.name || '').slice(0, 80),
+      leadId: typeof r.leadId === 'string' ? r.leadId.slice(0, 80) : '',
+      params,
+      headerText: String(r.headerText || '').slice(0, 60),
+      buttonParams: r.buttonParams && typeof r.buttonParams === 'object' ? Object.fromEntries(Object.entries(r.buttonParams).slice(0, 3).map(([k, v]) => [k, String(v ?? '').slice(0, 200)])) : {},
+      status: 'pending',
+      error: '',
+    })
+  }
+  if (!recipients.length) throw new WaError(400, 'Nenhum número válido na lista.')
+  if (recipients.length > BROADCAST_MAX) throw new WaError(400, `Máximo de ${BROADCAST_MAX} pessoas por disparo.`)
+  // Confere o modelo com a 1ª pessoa antes de gravar (link do topo, botão...).
+  templatePayload({ name: tplName, lang, params: recipients[0].params, headerText: recipients[0].headerText, headerMedia: input.headerMedia, buttonParams: recipients[0].buttonParams }, tpl)
+
+  const id = `bc_${Date.now().toString(36)}${randomBytes(3).toString('hex')}`
+  const at = nowIso()
+  await setDoc(bcPath(id), {
+    name,
+    template: { name: tplName, lang, category: tpl.category || '' },
+    headerMedia: String(input.headerMedia || '').trim().slice(0, 1000),
+    aiMode: input.aiMode === 'off' ? 'off' : 'auto',
+    status: 'sending',
+    total: recipients.length,
+    sent: 0,
+    failed: 0,
+    next: 0,
+    recipients,
+    createdAt: at,
+    updatedAt: at,
+    createdBy: user.uid,
+    createdByName: user.name || '',
+  })
+  return { id, total: recipients.length }
+}
+
+/** Manda o próximo lote de um disparo. Para quando acaba, quando cancelam ou quando o tempo acaba. */
+export async function runBroadcast(id, { budgetMs = 50_000 } = {}) {
+  const lock = `waLocks/${id}`
+  if (!(await takeLock(lock))) return { skipped: 'rodando em outra chamada' }
+  const start = Date.now()
+  try {
+    let snap = await getDoc(bcPath(id))
+    if (!snap.exists) return { skipped: 'não existe' }
+    let bc = snap.data()
+    const recipients = bc.recipients || []
+    let next = Number(bc.next) || 0
+    let sent = Number(bc.sent) || 0
+    let failed = Number(bc.failed) || 0
+    while (bc.status === 'sending' && next < recipients.length && Date.now() - start < budgetMs) {
+      const group = recipients.slice(next, next + 5)
+      await Promise.all(
+        group.map(async (r) => {
+          try {
+            const out = await sendMessage({
+              to: r.to,
+              template: { name: bc.template.name, lang: bc.template.lang, params: r.params, headerText: r.headerText, headerMedia: bc.headerMedia, buttonParams: r.buttonParams },
+              by: 'broadcast',
+              byName: `Disparo: ${bc.name}`,
+              convExtra: r.name ? { name: r.name } : {},
+            })
+            const patch = { lastBroadcastId: id, lastBroadcastAt: nowIso() }
+            if (bc.aiMode === 'auto') Object.assign(patch, { aiMode: 'auto', knownContactOverride: true, handoffReason: null })
+            else patch.aiMode = 'off'
+            if (r.leadId) {
+              const c = await getDoc(convPath(out.waId)).catch(() => null)
+              if (c?.exists && !c.data().leadId) patch.leadId = r.leadId
+            }
+            await updateDoc(convPath(out.waId), patch).catch(() => {})
+            r.status = 'sent'
+            r.waId = out.waId
+            sent++
+          } catch (e) {
+            r.status = 'failed'
+            r.error = String(e.message || 'erro').slice(0, 200)
+            failed++
+          }
+        })
+      )
+      next += group.length
+      // Relê o status: alguém pode ter cancelado no meio.
+      const cur = await getDoc(bcPath(id)).catch(() => null)
+      const status = cur?.exists ? cur.data().status : bc.status
+      const done = next >= recipients.length
+      const patch = { recipients, next, sent, failed, updatedAt: nowIso(), ...(done && status === 'sending' ? { status: 'done', finishedAt: nowIso() } : {}) }
+      await updateDoc(bcPath(id), patch)
+      bc = { ...bc, ...patch, status: patch.status || status }
+    }
+    return { id, next, sent, failed, status: bc.status }
+  } finally {
+    await deleteDoc(lock).catch(() => {})
+  }
+}
+
+/** Sweep: continua os disparos que ficaram no meio. */
+export async function runBroadcasts({ budgetMs = 45_000 } = {}) {
+  const open = await queryDocs('waBroadcasts', [['status', 'sending']])
+  const results = []
+  const start = Date.now()
+  for (const bc of open) {
+    const left = budgetMs - (Date.now() - start)
+    if (left < 8_000) break
+    results.push(await runBroadcast(bc.id, { budgetMs: left }).catch((e) => ({ id: bc.id, error: e.message })))
+  }
+  return results
+}
+
+export async function cancelBroadcast(id) {
+  const snap = await getDoc(bcPath(id))
+  if (!snap.exists) throw new WaError(404, 'Disparo não encontrado.')
+  if (snap.data().status !== 'sending') return { ok: true }
+  await updateDoc(bcPath(id), { status: 'canceled', updatedAt: nowIso(), finishedAt: nowIso() })
+  return { ok: true }
 }

@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { AlertTriangle, Bot, Check, CheckCheck, Clock, MessageCircle, Send, Sparkles } from 'lucide-react'
 import { Button } from '../ui/Button'
-import { Field, Input, Select } from '../ui/Field'
+import { Field, Input } from '../ui/Field'
 import { replyWithAi, sendWaTemplate, sendWaText } from '../../services/whatsappService'
-import { waInWindow, type WaConversation, type WaMessage, type WaTemplate } from '../../types/whatsapp'
+import { waInWindow, type WaConversation, type WaMessage, type WaTemplate, type WaTemplateExtras } from '../../types/whatsapp'
+import { TemplateBubble, TemplateExtraFields, TemplatePickerField, tplKey } from './WaTemplatePicker'
 
 /* Peças do WhatsApp usadas na caixa de conversas, na ficha do lead e nas Vendas. */
 
@@ -16,7 +17,7 @@ export const STATUS_LABEL: Record<string, string> = {
   failed: 'não enviada',
 }
 
-export const AUTO = new Set(['ai', 'followup', 'cart', 'reminder'])
+export const AUTO = new Set(['ai', 'followup', 'cart', 'reminder', 'broadcast'])
 
 export const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
@@ -43,6 +44,7 @@ export function authorLabel(m: WaMessage, conv: Pick<WaConversation, 'name'>) {
   if (m.by === 'followup') return m.byName || 'Follow-up automático'
   if (m.by === 'reminder') return m.byName || 'Lembrete da reunião'
   if (m.by === 'cart') return 'Carrinho abandonado'
+  if (m.by === 'broadcast') return m.byName || 'Disparo'
   return m.byName || 'Equipe'
 }
 
@@ -142,28 +144,27 @@ export function MessageBubble({ m, conv, first, srPrefix = '' }: { m: WaMessage;
 
 export function TemplateComposer({ to, name, templates, onSent }: { to: string; name?: string; templates: WaTemplate[]; onSent: (waId: string) => void }) {
   const approved = templates.filter((t) => t.status === 'APPROVED')
-  const [tplKey, setTplKey] = useState('')
+  const [key, setKey] = useState('')
   const [params, setParams] = useState<string[]>([])
+  const [extras, setExtras] = useState<WaTemplateExtras>({})
   const [sending, setSending] = useState(false)
-  const tpl = approved.find((t) => `${t.name}|${t.language}` === tplKey)
+  const tpl = approved.find((t) => tplKey(t) === key)
 
-  const pick = (key: string) => {
-    setTplKey(key)
-    const next = approved.find((t) => `${t.name}|${t.language}` === key)
+  const pick = (next: WaTemplate | null) => {
+    setKey(next ? tplKey(next) : '')
+    setExtras({})
     const first = (name || '').trim().split(/\s+/)[0] || ''
     setParams(next ? Array.from({ length: next.vars }, (_, i) => (i === 0 ? first : '')) : [])
   }
-
-  const preview = tpl ? tpl.body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => params[Number(n) - 1] || `{{${n}}}`) : ''
 
   const send = async () => {
     if (!tpl) return
     if (params.some((p) => !p.trim())) return toast.error('Preencha todas as variáveis do modelo.')
     setSending(true)
     try {
-      const out = await sendWaTemplate(to, { name: tpl.name, lang: tpl.language, params }, name)
+      const out = await sendWaTemplate(to, { name: tpl.name, lang: tpl.language, params, ...extras }, name)
       toast.success('Mensagem de modelo enviada')
-      pick('')
+      pick(null)
       onSent(out.waId)
     } catch (e) {
       toast.error((e as Error).message)
@@ -175,31 +176,27 @@ export function TemplateComposer({ to, name, templates, onSent }: { to: string; 
   if (!approved.length) {
     return <p className="text-sm text-slate-500">Nenhum modelo aprovado ainda. Crie um no Gerenciador do WhatsApp do Meta e espere a aprovação.</p>
   }
+  const varLabel = (i: number) => {
+    const n = tpl?.varNames?.[i]
+    return n && !/^\d+$/.test(n) ? `Variável ${i + 1} (${n})` : `Variável ${i + 1}`
+  }
   return (
     <div className="flex flex-col gap-3">
-      <Field label="Mensagem de modelo">
-        <Select value={tplKey} onChange={(e) => pick(e.target.value)}>
-          <option value="">Escolha um modelo</option>
-          {approved.map((t) => (
-            <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
-              {t.name} ({t.language})
-            </option>
-          ))}
-        </Select>
-      </Field>
+      <TemplatePickerField label="Mensagem de modelo" templates={templates} value={key} onChange={pick} />
       {tpl && params.length > 0 && (
         <div className="grid gap-2 sm:grid-cols-2">
           {params.map((p, i) => (
-            <Field key={i} label={`Variável ${i + 1}`}>
+            <Field key={i} label={varLabel(i)}>
               <Input value={p} onChange={(e) => setParams((cur) => cur.map((x, j) => (j === i ? e.target.value : x)))} />
             </Field>
           ))}
         </div>
       )}
+      {tpl && <TemplateExtraFields tpl={tpl} extras={extras} onChange={setExtras} />}
       {tpl && (
-        <div className="wa-wall rounded-xl p-3">
-          <span className="mb-1.5 block text-xs font-semibold text-slate-400">Prévia</span>
-          <p className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tr-md bg-[#0b5d4a] px-3 py-2 text-sm text-white shadow-sm">{preview}</p>
+        <div className="wa-wall flex flex-col items-end rounded-xl p-3">
+          <span className="mb-1.5 self-start text-xs font-semibold text-slate-400">Como vai chegar</span>
+          <TemplateBubble tpl={tpl} params={params} extras={extras} />
         </div>
       )}
       <div className="flex justify-end">
