@@ -63,9 +63,14 @@ export function documentError(raw: string | undefined | null): string | null {
 
 /** Erro de um link preenchido (null = está ok ou vazio). Aceita sem o
  *  "https://" (ex: instagram.com/empresa). */
+/** "@empresa" (perfil do Instagram) — vira instagram.com/empresa. */
+const AT_HANDLE_RE = /^@([A-Za-z0-9._]{1,30})$/
+
 export function linkError(raw: string | undefined | null): string | null {
   const v = (raw ?? '').trim()
   if (!v) return null
+  if (AT_HANDLE_RE.test(v)) return null
+  if (v.startsWith('@')) return 'Esse @ não é válido — use só letras, números, ponto e _'
   const url = /^https?:\/\//i.test(v) ? v : `https://${v}`
   try {
     const u = new URL(url)
@@ -79,5 +84,7 @@ export function linkError(raw: string | undefined | null): string | null {
 /** Link com "https://" na frente quando o lead não colocou. */
 export function normalizeLinkAnswer(raw: string): string {
   const v = raw.trim()
+  const handle = AT_HANDLE_RE.exec(v)
+  if (handle) return `https://instagram.com/${handle[1]}`
   return !v || /^https?:\/\//i.test(v) ? v : `https://${v}`
 }
