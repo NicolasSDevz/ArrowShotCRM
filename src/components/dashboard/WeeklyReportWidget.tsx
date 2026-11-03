@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { format, subDays } from 'date-fns'
+import { format, subDays, startOfWeek } from 'date-fns'
 import { Check, FileBarChart, BarChart3, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
@@ -16,8 +16,9 @@ function toDateStr(d: Date) {
   return format(d, 'yyyy-MM-dd')
 }
 
-/** Widget "Envio de Relatórios Semanais" — só pra Ciane/Nicolas, só às
- *  segundas, só enquanto houver cliente de tráfego pago sem marcar. Estado
+/** Widget "Envio de Relatórios Semanais" — só pra Ciane/Nicolas. Aparece
+ *  na segunda e, se a semana não foi concluída (ex.: segunda foi feriado),
+ *  continua aparecendo de terça a sexta até tudo ser marcado. Estado
  *  salvo em /weeklyReportChecks/{userId}_{weekKey} (ver
  *  services/weeklyReportCheckService.ts e utils/isoWeek.ts) — novo doc a
  *  cada semana ISO, então "reseta sozinho" sem precisar de job nenhum. */
@@ -39,7 +40,10 @@ export function WeeklyReportWidget() {
 
   const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
   const canSee = personKey === 'ciane' || personKey === 'nicolas'
-  const isMonday = new Date().getDay() === 1
+  const weekday = new Date().getDay()
+  const isMonday = weekday === 1
+  // Terça a sexta: só aparece se ficou relatório pendente (checado abaixo).
+  const isLateWeekday = weekday >= 2 && weekday <= 5
   const weekKey = isoWeekKey()
 
   // Dono "de verdade" pra esse fim: prioriza quem está de fato responsável
@@ -79,7 +83,7 @@ export function WeeklyReportWidget() {
   const eligibleIds = useMemo(() => eligibleClients.map((c) => c.id), [eligibleClients])
   const eligibleIdsKey = eligibleIds.join(',')
 
-  const active = canSee && isMonday && !optimizationsLoading && eligibleIds.length > 0
+  const active = canSee && (isMonday || isLateWeekday) && !optimizationsLoading && eligibleIds.length > 0
 
   useEffect(() => {
     setJustCompleted(false)
@@ -122,13 +126,15 @@ export function WeeklyReportWidget() {
 
   const toggle = (clientId: string) => applyCheck(clientId, !localChecks[clientId])
 
-  // Semana anterior completa (segunda a domingo) — o widget só existe às
-  // segundas, então "hoje - 7" é sempre a segunda passada e "hoje - 1" o
-  // domingo passado.
-  const lastWeekStart = toDateStr(subDays(new Date(), 7))
-  const lastWeekEnd = toDateStr(subDays(new Date(), 1))
+  // Semana anterior completa (segunda a domingo), contada a partir da
+  // segunda desta semana — vale também quando o envio atrasa pra terça+.
+  const thisMonday = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const lastWeekStart = toDateStr(subDays(thisMonday, 7))
+  const lastWeekEnd = toDateStr(subDays(thisMonday, 1))
 
   if (!active) return null
+  // Depois da segunda, semana já concluída não precisa mais aparecer.
+  if (!isMonday && doc?.completedAt != null && !justCompleted) return null
 
   const done = eligibleIds.filter((id) => localChecks[id]).length
   const total = eligibleIds.length

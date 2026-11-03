@@ -24,7 +24,7 @@ export function subscribeWeeklyReportCheck(
 /** Garante que o doc da semana existe, com todos os clientes elegíveis de
  *  agora presentes em `checks` (novos entram como não enviados) — nunca
  *  sobrescreve um check que já existia. Chamado toda vez que o widget monta
- *  numa segunda-feira. */
+ *  numa segunda-feira (ou de terça a sexta, se a semana ficou pendente). */
 export async function ensureWeeklyReportCheck(userId: string, weekKey: string, eligibleClientIds: string[]) {
   const ref = doc(db, COLLECTION, docId(userId, weekKey))
   const snap = await getDoc(ref)
