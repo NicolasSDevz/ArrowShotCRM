@@ -196,7 +196,7 @@ async function findConversation(ev, selfEmail) {
       if (cs[0]) return { waId: cs[0].id, conv: cs[0], how: 'telefone do lead' }
     }
   }
-  const emails = (ev.attendees || []).map((a) => String(a.email || '').toLowerCase()).filter((e) => e && e !== selfEmail && !a?.self)
+  const emails = (ev.attendees || []).filter((a) => !a?.self).map((a) => String(a.email || '').toLowerCase()).filter((e) => e && e !== selfEmail && e !== ev.organizer)
   for (const email of emails) {
     const leads = await queryDocs('leads', [['email', email]]).catch(() => [])
     for (const l of leads) {
