@@ -17,6 +17,9 @@
 //   POST sdr-analyze   { waId } refaz a análise do SDR (etapa, temperatura, perfil) sem mandar nada
 //   POST broadcast     { name, template: { name, lang }, headerMedia?, aiMode, recipients: [{ to, name, leadId, params, headerText?, buttonParams? }] }
 //   POST broadcast-cancel { id }
+//   POST broadcast-resume { id }   retoma um disparo pausado
+//   POST broadcast-check  { id }   confere a entrega e agrupa os erros por motivo
+//   POST broadcast-retry  { id }   novo disparo só com quem não recebeu (motivo que dá pra resolver)
 
 import '../_lib/quietDeprecation.js'
 import { waitUntil } from '@vercel/functions'
@@ -44,6 +47,9 @@ import {
   runBroadcast,
   runBroadcasts,
   cancelBroadcast,
+  resumeBroadcast,
+  checkBroadcast,
+  retryBroadcast,
 } from '../_lib/whatsapp.js'
 
 // O webhook precisa do corpo cru pra conferir a assinatura do Meta.
@@ -187,6 +193,25 @@ const ADMIN = {
   'POST broadcast': async (req, user) => {
     const out = await createBroadcast(await readJson(req), user)
     // Começa a mandar já; o que não couber no tempo o sweep continua (5 em 5 min).
+    waitUntil(runBroadcast(out.id, { budgetMs: 90_000 }).catch((e) => console.warn('[whatsapp] disparo falhou:', e.message)))
+    return out
+  },
+  'POST broadcast-resume': async (req) => {
+    const b = await readJson(req)
+    if (!/^bc_[a-z0-9]+$/.test(String(b.id || ''))) throw new WaError(400, 'Disparo inválido.')
+    const out = await resumeBroadcast(b.id)
+    waitUntil(runBroadcast(b.id, { budgetMs: 90_000 }).catch((e) => console.warn('[whatsapp] disparo falhou:', e.message)))
+    return out
+  },
+  'POST broadcast-check': async (req) => {
+    const b = await readJson(req)
+    if (!/^bc_[a-z0-9]+$/.test(String(b.id || ''))) throw new WaError(400, 'Disparo inválido.')
+    return checkBroadcast(b.id)
+  },
+  'POST broadcast-retry': async (req, user) => {
+    const b = await readJson(req)
+    if (!/^bc_[a-z0-9]+$/.test(String(b.id || ''))) throw new WaError(400, 'Disparo inválido.')
+    const out = await retryBroadcast(b.id, user)
     waitUntil(runBroadcast(out.id, { budgetMs: 90_000 }).catch((e) => console.warn('[whatsapp] disparo falhou:', e.message)))
     return out
   },

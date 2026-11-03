@@ -47,6 +47,7 @@ export type NotificationType =
   | 'system_error' // Uma tela do CRM/checkout quebrou (api/_lib/errorReport.js)
   | 'whatsapp_handoff' // WhatsApp: a IA passou a conversa para a equipe (entityId = número)
   | 'whatsapp_approval' // WhatsApp: contato novo, a equipe diz se a IA atende (entityId = número)
+  | 'whatsapp_account' // WhatsApp: problema da conta (pagamento, token, bloqueio); entityId = disparo
 
 export interface AppNotification {
   id: string
@@ -105,6 +106,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   system_error: 'Erro numa tela',
   whatsapp_handoff: 'WhatsApp precisa de atendimento',
   whatsapp_approval: 'WhatsApp: contato novo para aprovar',
+  whatsapp_account: 'Problema na conta do WhatsApp',
 }
 
 /** Avisos de rotina que deixaram de ser enviados (21/10/2026): o sino ficava

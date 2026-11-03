@@ -14,7 +14,8 @@
 
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
-import { getDoc, setDoc, updateDoc, deleteDoc, listDocs, queryDocs, queryRecent, createDocIfMissing, incrementField } from './firebaseAdmin.js'
+import { getDoc, setDoc, updateDoc, updateDocPaths, deleteDoc, listDocs, queryDocs, queryRecent, createDocIfMissing, incrementField } from './firebaseAdmin.js'
+import { classifyWaError, publicInfo } from './waErrors.js'
 import { encryptToken, decryptToken } from './tokenCrypto.js'
 import { sendPushToUsers } from './webPush.js'
 import { getBaseVendas, formatBaseVendasForPrompt } from './baseVendas.js'
@@ -249,7 +250,9 @@ async function graph(cfg, path, { method = 'GET', body } = {}) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     const e = data?.error || {}
-    throw new WaError(502, explainGraphError(e) || `Erro do WhatsApp (${res.status})`)
+    const err = new WaError(502, explainGraphError(e) || `Erro do WhatsApp (${res.status})`)
+    err.metaCode = Number(e.code) || 0
+    throw err
   }
   return data
 }
@@ -570,7 +573,7 @@ async function ensureConversation(waId, { name = '', kind = 'lead', extra = {}, 
  * `template` = { name, lang, params } (a qualquer hora).
  * by: 'ai' | 'followup' | 'cart' | uid de quem mandou pelo CRM.
  */
-export async function sendMessage({ to, text, template, by, byName = '', convExtra = {}, kind = 'lead' }) {
+export async function sendMessage({ to, text, template, by, byName = '', convExtra = {}, kind = 'lead', msgExtra = {} }) {
   const cfg = await getWaConfig()
   if (!cfg) throw new WaError(400, 'O WhatsApp ainda não foi conectado em WhatsApp > Configurações.')
   const target = toE164Digits(to)
@@ -619,6 +622,7 @@ export async function sendMessage({ to, text, template, by, byName = '', convExt
     status: 'sent',
     by,
     byName,
+    ...msgExtra,
   })
   const patch = { lastMessageAt: at, lastMessageText: shown.slice(0, 160), lastDirection: 'out', updatedAt: at }
   // Quem respondeu pelo CRM zera o "não lidas".
@@ -715,10 +719,19 @@ export async function handleWebhook(payload) {
         const waId = s.recipient_id
         if (!waId || !s.id) continue
         const patch = { status: s.status, statusAt: new Date(Number(s.timestamp || 0) * 1000 || Date.now()).toISOString() }
-        if (s.status === 'failed') patch.error = explainGraphError(s.errors?.[0] || {}) || s.errors?.[0]?.title || 'Falhou'
+        if (s.status === 'failed') {
+          patch.error = explainGraphError(s.errors?.[0] || {}) || s.errors?.[0]?.title || 'Falhou'
+          patch.errorCode = Number(s.errors?.[0]?.code) || 0
+        }
         // Só atualiza mensagem que saiu pelo CRM (o PATCH criaria uma vazia).
         const known = await getDoc(msgPath(waId, s.id)).catch(() => ({ exists: false }))
-        if (known.exists) await updateDoc(msgPath(waId, s.id), patch).catch(() => {})
+        if (known.exists) {
+          const before = known.data()
+          await updateDoc(msgPath(waId, s.id), patch).catch(() => {})
+          if (s.status === 'failed' && before.status !== 'failed') {
+            await onDeliveryFailed(waId, before, patch.errorCode, s.errors?.[0]?.title || patch.error).catch((e) => console.warn('[whatsapp] aviso de falha:', e.message))
+          }
+        }
       }
 
       const names = Object.fromEntries((v.contacts || []).map((c) => [c.wa_id, c.profile?.name || '']))
@@ -1722,6 +1735,7 @@ export async function runBroadcast(id, { budgetMs = 50_000 } = {}) {
     let next = Number(bc.next) || 0
     let sent = Number(bc.sent) || 0
     let failed = Number(bc.failed) || 0
+    let accountHit = null
     while (bc.status === 'sending' && next < recipients.length && Date.now() - start < budgetMs) {
       const group = recipients.slice(next, next + 5)
       await Promise.all(
@@ -1733,6 +1747,7 @@ export async function runBroadcast(id, { budgetMs = 50_000 } = {}) {
               by: 'broadcast',
               byName: `Disparo: ${bc.name}`,
               convExtra: r.name ? { name: r.name } : {},
+              msgExtra: { broadcastId: id },
             })
             const patch = { lastBroadcastId: id, lastBroadcastAt: nowIso() }
             if (bc.aiMode === 'auto') Object.assign(patch, { aiMode: 'auto', knownContactOverride: true, handoffReason: null })
@@ -1748,7 +1763,10 @@ export async function runBroadcast(id, { budgetMs = 50_000 } = {}) {
           } catch (e) {
             r.status = 'failed'
             r.error = String(e.message || 'erro').slice(0, 200)
+            r.errorCode = Number(e.metaCode) || 0
             failed++
+            const info = classifyWaError(e.metaCode, e.message)
+            if (info.level === 'account') accountHit = info
           }
         })
       )
@@ -1760,6 +1778,15 @@ export async function runBroadcast(id, { budgetMs = 50_000 } = {}) {
       const patch = { recipients, next, sent, failed, updatedAt: nowIso(), ...(done && status === 'sending' ? { status: 'done', finishedAt: nowIso() } : {}) }
       await updateDoc(bcPath(id), patch)
       bc = { ...bc, ...patch, status: patch.status || status }
+      // Problema da conta (pagamento, token...): para tudo e avisa, senão o resto falha igual.
+      if (accountHit) {
+        await notifyAccountIssue(accountHit, { broadcastId: id })
+        if (accountHit.block && bc.status === 'sending') {
+          await pauseBroadcasts(accountHit)
+          bc.status = 'paused'
+        }
+        accountHit = null
+      }
     }
     return { id, next, sent, failed, status: bc.status }
   } finally {
@@ -1783,7 +1810,123 @@ export async function runBroadcasts({ budgetMs = 45_000 } = {}) {
 export async function cancelBroadcast(id) {
   const snap = await getDoc(bcPath(id))
   if (!snap.exists) throw new WaError(404, 'Disparo não encontrado.')
-  if (snap.data().status !== 'sending') return { ok: true }
+  if (!['sending', 'paused'].includes(snap.data().status)) return { ok: true }
   await updateDoc(bcPath(id), { status: 'canceled', updatedAt: nowIso(), finishedAt: nowIso() })
   return { ok: true }
+}
+
+/* ---------------------- problemas de entrega ---------------------- */
+
+/** Avisa admins e gerentes (sino + celular) de problema da conta, no máx. 1x a cada 6h por motivo. */
+async function notifyAccountIssue(info, { broadcastId = '' } = {}) {
+  if (!(await rateLimit(`wa-account-${info.key}`, 1, 6 * 3600_000).catch(() => false))) return
+  const ids = await staffIds(null)
+  const message = `${info.title}. ${info.why} O que fazer: ${info.fix}${info.block ? ' Os disparos em andamento foram pausados.' : ''}`
+  for (const userId of ids) {
+    await setDoc(`notifications/wa_account_${info.key}_${Date.now()}_${userId.slice(0, 6)}`, {
+      userId,
+      type: 'whatsapp_account',
+      message,
+      actorName: 'WhatsApp',
+      entityId: broadcastId,
+      read: false,
+      createdAt: new Date(),
+    }).catch(() => {})
+  }
+  await sendPushToUsers(ids, { title: `WhatsApp: ${info.title}`, body: message, url: '/leads?aba=conversas&wa=disparo', tag: `wa-account-${info.key}` }).catch(() => {})
+}
+
+/** Pausa os disparos em andamento (dá para retomar depois). */
+async function pauseBroadcasts(info) {
+  const open = await queryDocs('waBroadcasts', [['status', 'sending']]).catch(() => [])
+  for (const bc of open) {
+    await updateDoc(bcPath(bc.id), { status: 'paused', pausedAt: nowIso(), pausedReason: info.title, updatedAt: nowIso() }).catch(() => {})
+  }
+}
+
+/** Status "failed" que o Meta mandou depois do envio: conta no disparo e avisa se for da conta. */
+async function onDeliveryFailed(waId, msg, code, text) {
+  const info = classifyWaError(code, text)
+  let bcId = msg.broadcastId || ''
+  if (!bcId && msg.by === 'broadcast') {
+    const conv = await getDoc(convPath(waId)).catch(() => null)
+    bcId = conv?.exists ? conv.data().lastBroadcastId || '' : ''
+  }
+  if (bcId) {
+    const base = `delivery.reasons.${info.key}`
+    await updateDocPaths(bcPath(bcId), { delivery: { reasons: { [info.key]: publicInfo(info) } } }, ['title', 'why', 'fix', 'level', 'retry', 'code'].map((f) => `${base}.${f}`))
+    await incrementField(bcPath(bcId), `${base}.count`, 1)
+    await incrementField(bcPath(bcId), 'delivery.failed', 1)
+  }
+  if (info.level === 'account') {
+    await notifyAccountIssue(info, { broadcastId: bcId })
+    if (info.block) await pauseBroadcasts(info)
+  }
+}
+
+export async function resumeBroadcast(id) {
+  const snap = await getDoc(bcPath(id))
+  if (!snap.exists) throw new WaError(404, 'Disparo não encontrado.')
+  if (snap.data().status !== 'paused') return { ok: true }
+  await updateDoc(bcPath(id), { status: 'sending', pausedReason: null, updatedAt: nowIso() })
+  return { ok: true }
+}
+
+/** Confere a entrega de cada pessoa do disparo e agrupa os erros por motivo. */
+export async function checkBroadcast(id) {
+  const snap = await getDoc(bcPath(id))
+  if (!snap.exists) throw new WaError(404, 'Disparo não encontrado.')
+  const bc = snap.data()
+  const reasons = {}
+  const add = (info, r, text) => {
+    const k = info.key
+    if (!reasons[k]) reasons[k] = { ...publicInfo(info), count: 0, people: [] }
+    reasons[k].count++
+    reasons[k].people.push({ to: r.to, name: r.name || '', error: String(text || '').slice(0, 160) })
+  }
+  let delivered = 0
+  let read = 0
+  let waiting = 0
+  const recipients = bc.recipients || []
+  for (const r of recipients) if (r.status === 'failed') add(classifyWaError(r.errorCode, r.error), r, r.error)
+  const sent = recipients.filter((r) => r.status === 'sent' && r.waId)
+  for (let i = 0; i < sent.length; i += 25) {
+    await Promise.all(
+      sent.slice(i, i + 25).map(async (r) => {
+        const msgs = await queryRecent(`waConversations/${r.waId}`, 'messages', 'at', 15).catch(() => [])
+        const m = msgs.find((x) => x.broadcastId === id) || msgs.find((x) => x.by === 'broadcast' && x.template?.name === bc.template?.name && String(x.at) >= String(bc.createdAt))
+        if (!m) waiting++
+        else if (m.status === 'failed') add(classifyWaError(m.errorCode, m.error), r, m.error)
+        else if (m.status === 'read') read++
+        else if (m.status === 'delivered') delivered++
+        else waiting++
+      })
+    )
+  }
+  const failed = Object.values(reasons).reduce((a, b) => a + b.count, 0)
+  const delivery = { checkedAt: nowIso(), delivered, read, waiting, failed, reasons }
+  await updateDoc(bcPath(id), { delivery })
+  return delivery
+}
+
+/** Novo disparo só com quem não recebeu por um motivo que já dá para resolver (pagamento, token...). */
+export async function retryBroadcast(id, user) {
+  const delivery = await checkBroadcast(id)
+  const snap = await getDoc(bcPath(id))
+  const bc = snap.data()
+  if (bc.status === 'sending') throw new WaError(409, 'Esse disparo ainda está enviando. Espere terminar ou cancele.')
+  const again = new Set()
+  for (const r of Object.values(delivery.reasons)) if (r.retry) for (const p of r.people) again.add(p.to)
+  const recipients = (bc.recipients || []).filter((r) => again.has(r.to))
+  if (!recipients.length) throw new WaError(400, 'Ninguém para reenviar: os erros que sobraram são de pessoas que não podem receber.')
+  return createBroadcast(
+    {
+      name: `${bc.name} (reenvio)`.slice(0, 80),
+      template: { name: bc.template.name, lang: bc.template.lang },
+      headerMedia: bc.headerMedia,
+      aiMode: bc.aiMode,
+      recipients: recipients.map((r) => ({ to: r.to, name: r.name, leadId: r.leadId, params: r.params, headerText: r.headerText, buttonParams: r.buttonParams })),
+    },
+    user
+  )
 }

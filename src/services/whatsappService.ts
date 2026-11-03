@@ -10,6 +10,7 @@ import {
   type WaTemplate,
   type WaTemplateExtras,
   type WaBroadcast,
+  type WaBroadcastDelivery,
 } from '../types/whatsapp'
 
 /** Cliente de /api/whatsapp (ver api/whatsapp/index.js) + leituras em tempo real. */
@@ -111,3 +112,6 @@ export interface BroadcastInput {
 
 export const createBroadcast = (body: BroadcastInput) => api<{ id: string; total: number }>('broadcast', { method: 'POST', body })
 export const cancelBroadcast = (id: string) => api<{ ok: boolean }>('broadcast-cancel', { method: 'POST', body: { id } })
+export const resumeBroadcast = (id: string) => api<{ ok: boolean }>('broadcast-resume', { method: 'POST', body: { id } })
+export const checkBroadcast = (id: string) => api<WaBroadcastDelivery>('broadcast-check', { method: 'POST', body: { id } })
+export const retryBroadcast = (id: string) => api<{ id: string; total: number }>('broadcast-retry', { method: 'POST', body: { id } })

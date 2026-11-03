@@ -97,7 +97,30 @@ export interface WaBroadcastRecipient {
   params: string[]
   status: 'pending' | 'sent' | 'failed'
   error: string
+  errorCode?: number
   waId?: string
+}
+
+/** Um motivo de erro do disparo, já explicado em português pelo servidor (api/_lib/waErrors.js). */
+export interface WaDeliveryReason {
+  title: string
+  why: string
+  fix: string
+  /** account = problema da conta inteira; person = só daquele número; temp = passageiro. */
+  level: 'account' | 'person' | 'temp'
+  retry: boolean
+  code: number
+  count: number
+  people?: { to: string; name: string; error: string }[]
+}
+
+export interface WaBroadcastDelivery {
+  checkedAt?: string
+  delivered?: number
+  read?: number
+  waiting?: number
+  failed?: number
+  reasons?: Record<string, WaDeliveryReason>
 }
 
 export interface WaBroadcast {
@@ -105,7 +128,9 @@ export interface WaBroadcast {
   name: string
   template: { name: string; lang: string; category: string }
   aiMode: WaAiMode
-  status: 'sending' | 'done' | 'canceled'
+  status: 'sending' | 'paused' | 'done' | 'canceled'
+  pausedReason?: string | null
+  delivery?: WaBroadcastDelivery
   total: number
   sent: number
   failed: number

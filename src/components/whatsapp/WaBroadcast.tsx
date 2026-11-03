@@ -6,9 +6,9 @@ import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { useLeads } from '../../hooks/useLeads'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
-import { cancelBroadcast, createBroadcast, listenBroadcasts } from '../../services/whatsappService'
+import { cancelBroadcast, checkBroadcast, createBroadcast, listenBroadcasts, resumeBroadcast, retryBroadcast } from '../../services/whatsappService'
 import { leadPipelineId, isQuestionnaireLead, stageOfLead } from '../../types'
-import type { WaBroadcast, WaTemplate, WaTemplateExtras } from '../../types/whatsapp'
+import type { WaBroadcast, WaDeliveryReason, WaTemplate, WaTemplateExtras } from '../../types/whatsapp'
 import { TemplateBubble, TemplateExtraFields, TemplatePickerField, prettyTemplateName, templateNeeds, tplKey } from './WaTemplatePicker'
 import { waPhoneKey } from '../../utils/phoneKey'
 
@@ -69,23 +69,161 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2
 
 /* ------------------------------ histórico ------------------------------ */
 
+const LEVEL_LABEL: Record<WaDeliveryReason['level'], { label: string; tone: string }> = {
+  account: { label: 'Problema da conta', tone: 'bg-red-500/15 text-red-300' },
+  temp: { label: 'Passageiro', tone: 'bg-sky-500/15 text-sky-300' },
+  person: { label: 'Só desse número', tone: 'bg-slate-500/15 text-slate-300' },
+}
+const LEVEL_ORDER = { account: 0, temp: 1, person: 2 } as const
+
+/** Erros do disparo agrupados por motivo, com o que quer dizer e o que fazer. */
+function DeliveryProblems({ bc }: { bc: WaBroadcast }) {
+  const [busy, setBusy] = useState<'check' | 'retry' | null>(null)
+  const [openKey, setOpenKey] = useState<string | null>(null)
+  const [confirmRetry, setConfirmRetry] = useState(false)
+  const d = bc.delivery
+  const reasons = Object.entries(d?.reasons || {})
+    .filter(([, r]) => r && r.count > 0)
+    .sort(([, a], [, b]) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || b.count - a.count)
+  const retryCount = reasons.reduce((n, [, r]) => n + (r.retry ? r.people?.length || 0 : 0), 0)
+
+  const check = async () => {
+    setBusy('check')
+    try {
+      await checkBroadcast(bc.id)
+      toast.success('Entrega conferida.')
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+  // Abre conferindo sozinho se nunca conferiu ou se faz mais de 10 min.
+  useEffect(() => {
+    const old = !d?.checkedAt || Date.now() - new Date(d.checkedAt).getTime() > 10 * 60_000
+    if (old && bc.status !== 'sending') void check()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bc.id])
+
+  const retry = async () => {
+    setBusy('retry')
+    try {
+      const out = await retryBroadcast(bc.id)
+      toast.success(`Reenvio criado para ${out.total} pessoa${out.total === 1 ? '' : 's'}. Ele aparece no topo do histórico.`)
+      setConfirmRetry(false)
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <section aria-label={`Entrega do disparo ${bc.name}`} className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-sm font-semibold text-slate-800">Entrega e erros</h4>
+        <Button size="sm" variant="secondary" onClick={check} loading={busy === 'check'}>
+          Conferir entrega
+        </Button>
+      </div>
+      {d?.checkedAt ? (
+        <p className="mt-1 text-xs text-slate-500">
+          Conferido às {fmtDate(d.checkedAt)}: <strong className="text-slate-800">{d.read || 0}</strong> lidas, <strong className="text-slate-800">{d.delivered || 0}</strong> entregues sem ler, <strong className="text-slate-800">{d.waiting || 0}</strong> sem confirmação ainda e{' '}
+          <strong className="text-red-400">{d.failed || 0}</strong> não receberam.
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-slate-500">{busy === 'check' ? 'Conferindo pessoa por pessoa...' : 'Ainda não conferido.'}</p>
+      )}
+
+      {reasons.length === 0 ? (
+        d?.checkedAt && <p className="mt-2 text-xs text-emerald-400">Nenhum erro de entrega.</p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-2" aria-label="Motivos dos erros">
+          {reasons.map(([key, r]) => {
+            const lvl = LEVEL_LABEL[r.level] || LEVEL_LABEL.person
+            const open = openKey === key
+            return (
+              <li key={key} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <AlertTriangle size={14} className={r.level === 'account' ? 'text-red-400' : 'text-amber-400'} aria-hidden="true" />
+                  <p className="text-sm font-semibold text-slate-800">
+                    {r.title}: {r.count} pessoa{r.count === 1 ? '' : 's'}
+                  </p>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${lvl.tone}`}>{lvl.label}</span>
+                </div>
+                {r.why && <p className="mt-1 text-xs text-slate-500">{r.why}</p>}
+                {r.fix && (
+                  <p className="mt-1 text-xs text-slate-700">
+                    <strong>O que fazer:</strong> {r.fix}
+                  </p>
+                )}
+                {!!r.people?.length && (
+                  <>
+                    <button type="button" onClick={() => setOpenKey(open ? null : key)} aria-expanded={open} className="mt-1 text-xs font-semibold text-brand-500 hover:underline">
+                      {open ? 'Esconder pessoas' : `Ver pessoas (${r.people.length})`}
+                    </button>
+                    {open && (
+                      <ul className="mt-1 max-h-40 overflow-y-auto rounded bg-slate-50 p-2 text-xs" aria-label={`Pessoas com ${r.title}`}>
+                        {r.people.map((p) => (
+                          <li key={p.to} className="py-0.5">
+                            <span className="font-semibold text-slate-700">{p.name || p.to}</span> <span className="text-slate-400">({p.to})</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {retryCount > 0 && bc.status !== 'sending' && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {!confirmRetry ? (
+            <Button size="sm" onClick={() => setConfirmRetry(true)}>
+              Reenviar para quem não recebeu ({retryCount})
+            </Button>
+          ) : (
+            <>
+              <p className="text-xs text-slate-600" role="status">
+                Vai criar um disparo novo para {retryCount} pessoa{retryCount === 1 ? '' : 's'}, com o mesmo modelo. Resolva o problema da conta antes, senão falha de novo.
+              </p>
+              <Button size="sm" onClick={retry} loading={busy === 'retry'}>
+                Confirmar reenvio
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setConfirmRetry(false)}>
+                Voltar
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function BroadcastCard({ bc }: { bc: WaBroadcast }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(bc.status === 'paused')
   const [busy, setBusy] = useState(false)
   const done = bc.sent + bc.failed
   const pct = bc.total ? Math.round((done / bc.total) * 100) : 0
-  const failed = (bc.recipients || []).filter((r) => r.status === 'failed')
+  const liveFailed = bc.delivery?.failed || 0
+  const problems = bc.failed + liveFailed
   const status =
     bc.status === 'sending'
       ? { label: 'Enviando', tone: 'bg-sky-500/15 text-sky-300' }
-      : bc.status === 'canceled'
-        ? { label: 'Cancelado', tone: 'bg-slate-500/15 text-slate-300' }
-        : { label: 'Concluído', tone: 'bg-emerald-500/15 text-emerald-300' }
-  const cancel = async () => {
+      : bc.status === 'paused'
+        ? { label: 'Pausado', tone: 'bg-amber-500/15 text-amber-300' }
+        : bc.status === 'canceled'
+          ? { label: 'Cancelado', tone: 'bg-slate-500/15 text-slate-300' }
+          : { label: 'Concluído', tone: 'bg-emerald-500/15 text-emerald-300' }
+  const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true)
     try {
-      await cancelBroadcast(bc.id)
-      toast.success('Disparo cancelado. O que já saiu não volta.')
+      await fn()
+      toast.success(ok)
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -104,6 +242,11 @@ function BroadcastCard({ bc }: { bc: WaBroadcast }) {
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${status.tone}`}>{status.label}</span>
       </div>
+      {bc.status === 'paused' && (
+        <p className="mt-2 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-300" role="status">
+          Pausado sozinho{bc.pausedReason ? `: ${bc.pausedReason}` : ''}. O resto falharia igual. Resolva o problema (veja abaixo) e clique em Retomar.
+        </p>
+      )}
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`${pct}% enviado`}>
         <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
       </div>
@@ -111,36 +254,31 @@ function BroadcastCard({ bc }: { bc: WaBroadcast }) {
         <span>
           <strong className="text-slate-800">{bc.sent}</strong> enviadas
         </span>
-        {bc.failed > 0 && (
+        {problems > 0 && (
           <span className="text-red-400">
-            <strong>{bc.failed}</strong> com erro
+            <strong>{problems}</strong> com erro
           </span>
         )}
         <span>
           de <strong className="text-slate-800">{bc.total}</strong>
         </span>
         <span className="ml-auto flex gap-2">
-          {failed.length > 0 && (
-            <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="font-semibold text-brand-500 hover:underline">
-              {open ? 'Esconder erros' : 'Ver erros'}
-            </button>
+          <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="font-semibold text-brand-500 hover:underline">
+            {open ? 'Esconder entrega' : problems > 0 ? 'Ver erros e o que fazer' : 'Ver entrega'}
+          </button>
+          {bc.status === 'paused' && (
+            <Button size="sm" onClick={() => run(() => resumeBroadcast(bc.id), 'Disparo retomado.')} loading={busy}>
+              Retomar
+            </Button>
           )}
-          {bc.status === 'sending' && (
-            <Button size="sm" variant="danger" onClick={cancel} loading={busy}>
+          {(bc.status === 'sending' || bc.status === 'paused') && (
+            <Button size="sm" variant="danger" onClick={() => run(() => cancelBroadcast(bc.id), 'Disparo cancelado. O que já saiu não volta.')} loading={busy}>
               Cancelar
             </Button>
           )}
         </span>
       </div>
-      {open && (
-        <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg bg-slate-50 p-2 text-xs">
-          {failed.map((r) => (
-            <li key={r.to} className="py-1">
-              <span className="font-semibold text-slate-700">{r.name || r.to}</span> <span className="text-slate-400">({r.to})</span>: <span className="text-red-400">{r.error}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {open && <DeliveryProblems bc={bc} />}
     </li>
   )
 }
@@ -516,6 +654,14 @@ export function BroadcastModal({ open, onClose, templates, initialPipelineId }: 
     if (!open) return
     return listenBroadcasts(setRows, () => setRows([]))
   }, [open])
+  // Disparo pausado por problema na conta: abre direto no histórico pra mostrar o motivo.
+  const [autoTab, setAutoTab] = useState(true)
+  useEffect(() => {
+    if (autoTab && rows.some((r) => r.status === 'paused')) {
+      setTab('history')
+      setAutoTab(false)
+    }
+  }, [rows, autoTab])
   const running = rows.filter((r) => r.status === 'sending').length
   return (
     <Modal
@@ -537,7 +683,10 @@ export function BroadcastModal({ open, onClose, templates, initialPipelineId }: 
               ['history', `Histórico${rows.length ? ` (${rows.length})` : ''}`],
             ] as const
           ).map(([t, label]) => (
-            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold ${tab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
+            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => {
+                setTab(t)
+                setAutoTab(false)
+              }} className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold ${tab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
               {label}
               {t === 'history' && running > 0 && <span className="rounded-full bg-sky-500 px-1.5 text-[11px] font-bold text-white">{running} enviando</span>}
             </button>

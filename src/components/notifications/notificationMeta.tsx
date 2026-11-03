@@ -81,6 +81,7 @@ export const NOTIFICATION_ICON: Record<NotificationType, IconType> = {
   system_error: Bug,
   whatsapp_handoff: MessageCircle,
   whatsapp_approval: MessageCircle,
+  whatsapp_account: AlertTriangle,
 }
 
 /** Icon chip background/text, per the spec's colors (azul, verde, vermelho,
@@ -128,6 +129,7 @@ export const NOTIFICATION_ICON_STYLE: Record<NotificationType, string> = {
   system_error: 'bg-red-50 text-red-600',
   whatsapp_handoff: 'bg-emerald-50 text-emerald-600',
   whatsapp_approval: 'bg-amber-50 text-amber-600',
+  whatsapp_account: 'bg-red-50 text-red-600',
 }
 
 /** "há 5 minutos" / "há 2 horas" / "ontem às 14:30" / "dd/MM/yyyy às HH:mm". */
@@ -158,6 +160,7 @@ export function resolveNotificationRoute(n: Pick<AppNotification, 'type' | 'enti
   }
   // Avisos da Loja (venda, Pix, reembolso, erro no Meta) abrem direto na aba Vendas.
   if (n.type.startsWith('store_')) return '/loja?aba=vendas'
+  if (n.type === 'whatsapp_account') return '/leads?aba=conversas&wa=disparo'
   if (n.type === 'whatsapp_handoff' || n.type === 'whatsapp_approval') return n.entityId ? `/leads?aba=conversas&c=${n.entityId}` : '/leads?aba=conversas'
   if (!n.entityType) return null
   switch (n.entityType) {
