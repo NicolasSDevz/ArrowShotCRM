@@ -899,6 +899,16 @@ function spNowText() {
 }
 
 /** O que o SDR já sabe dessa conversa (pra não perguntar de novo). */
+/** Reunião já marcada, no texto que a IA lê (a da agenda do Google vale como confirmada). */
+function meetingLine(m) {
+  if (!m?.agreed) return ''
+  const when = m.at ? meetingWhenText(m.at).quando : m.when || 'dia e horário ainda não informados'
+  const meet = m.url ? ` Link da reunião: ${m.url}` : ''
+  return m.source === 'agenda'
+    ? `Reunião JÁ MARCADA pela agenda do Google (confirmada, vale como verdade): ${when} (${m.when || m.at}).${meet} Se a pessoa perguntar, confirme esse dia e horário e o link. Não mande o link da agenda de novo, a não ser que ela queira remarcar.`
+    : `Reunião combinada na conversa: ${when}.${meet}`
+}
+
 function sdrStateBlock(sdr) {
   if (!sdr) return 'Nada ainda. É o começo da conversa.'
   const p = sdr.profile || {}
@@ -908,6 +918,7 @@ function sdrStateBlock(sdr) {
     `Temperatura: ${sdr.temperature || '?'} (nota ${sdr.score ?? '?'})`,
     known.length ? `Já sabemos:\n${known.join('\n')}` : 'Ainda não sabemos nada do negócio.',
     sdr.nextStep ? `Próximo passo combinado: ${sdr.nextStep}` : '',
+    meetingLine(sdr.meeting),
   ]
     .filter(Boolean)
     .join('\n')
@@ -1021,7 +1032,7 @@ ${HANDOFF_RULES}
 ${baseVendasText}
 ${settings.aiInstructions ? `\n# Instruções extras da equipe (têm prioridade)\n${String(settings.aiInstructions).slice(0, 4000)}` : ''}${
     sdr.meetingLink
-      ? `\n\n# Agenda (vale mais que qualquer instrução acima)\nExiste link de agenda: ${sdr.meetingLink}. Para marcar reunião, SEMPRE mande esse link para a pessoa escolher o horário livre. Nunca ofereça opções de dia ou hora ("amanhã às 11h ou às 13h?"), nunca confirme um horário que a pessoa sugeriu e nunca diga que a equipe vai chamar com o horário: você não vê a agenda e o ${meetWith} pode estar ocupado. Se alguma instrução acima falar em "duas opções de horário" ou "não tem acesso à agenda", troque por mandar o link.`
+      ? `\n\n# Agenda (vale mais que qualquer instrução acima)\nExiste link de agenda: ${sdr.meetingLink}. Para marcar reunião, SEMPRE mande esse link para a pessoa escolher o horário livre. Nunca ofereça opções de dia ou hora ("amanhã às 11h ou às 13h?"), nunca confirme um horário que a pessoa sugeriu e nunca diga que a equipe vai chamar com o horário: você não vê a agenda e o ${meetWith} pode estar ocupado. Se alguma instrução acima falar em "duas opções de horário" ou "não tem acesso à agenda", troque por mandar o link. Exceção: se em "O que já sabemos desta conversa" aparecer "Reunião JÁ MARCADA pela agenda do Google", esse horário é real e você PODE e DEVE confirmá-lo quando a pessoa perguntar.`
       : ''
   }
 
@@ -1144,7 +1155,13 @@ function mergeSdr(prev, next) {
     profile: { ...(p.profile || {}), ...next.profile },
     summary: next.summary || p.summary || '',
     nextStep: next.nextStep || p.nextStep || '',
-    meeting: next.meeting?.agreed ? { ...next.meeting, at: next.meeting.at || p.meeting?.at || '' } : p.meeting || { agreed: false, when: '', at: '' },
+    // Reunião vinda da agenda do Google manda: a IA não sobrescreve (só a agenda muda ou cancela).
+    meeting:
+      p.meeting?.source === 'agenda' && p.meeting?.agreed
+        ? p.meeting
+        : next.meeting?.agreed
+          ? { ...(p.meeting || {}), ...next.meeting, at: next.meeting.at || p.meeting?.at || '' }
+          : p.meeting || { agreed: false, when: '', at: '' },
     updatedAt: nowIso(),
   }
 }
