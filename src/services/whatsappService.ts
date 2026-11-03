@@ -114,6 +114,24 @@ export interface BroadcastInput {
 
 export const createBroadcast = (body: BroadcastInput) => api<{ id: string; total: number }>('broadcast', { method: 'POST', body })
 export const cancelBroadcast = (id: string) => api<{ ok: boolean }>('broadcast-cancel', { method: 'POST', body: { id } })
+export interface GcalStatus {
+  connected: boolean
+  email: string
+  lastSyncAt: string | null
+  error: string | null
+  upcoming: { eventId: string; title: string; at: string; when: string; waId: string; name: string; how: string }[]
+}
+export function listenGcalStatus(cb: (s: GcalStatus | null) => void): Unsubscribe {
+  return onSnapshot(
+    doc(db, 'waSettings', 'gcal'),
+    (snap) => cb(snap.exists() ? (snap.data() as GcalStatus) : null),
+    () => cb(null)
+  )
+}
+export const gcalAuthUrl = () => api<{ url: string }>('gcal-auth-url', { method: 'POST', body: {} })
+export const gcalConnect = (url: string) => api<{ connected: boolean; email: string }>('gcal-connect', { method: 'POST', body: { url } })
+export const gcalSync = () => api<{ linked?: number; error?: string }>('gcal-sync', { method: 'POST', body: {} })
+export const gcalDisconnect = () => api<{ connected: boolean }>('gcal-disconnect', { method: 'POST', body: {} })
 export const resumeBroadcast = (id: string) => api<{ ok: boolean }>('broadcast-resume', { method: 'POST', body: { id } })
 export const checkBroadcast = (id: string) => api<WaBroadcastDelivery>('broadcast-check', { method: 'POST', body: { id } })
 export const retryBroadcast = (id: string) => api<{ id: string; total: number }>('broadcast-retry', { method: 'POST', body: { id } })

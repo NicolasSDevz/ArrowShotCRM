@@ -818,6 +818,11 @@ async function staffIds(conv) {
   return [...ids]
 }
 
+/** Aviso da agenda do Google (reunião marcada, remarcada ou cancelada). */
+export async function notifyCalendar(conv, waId, message) {
+  await notifyTeam({ ...conv, waId }, message).catch(() => {})
+}
+
 /** Aviso no sino + no celular. Texto com o nome primeiro e sem emoji (leitor de tela). */
 async function notifyTeam(conv, message, { bell = true, type = 'whatsapp_handoff', actions } = {}) {
   const ids = await staffIds(conv)

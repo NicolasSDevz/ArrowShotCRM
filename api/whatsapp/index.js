@@ -17,12 +17,14 @@
 //   POST sdr-analyze   { waId } refaz a análise do SDR (etapa, temperatura, perfil) sem mandar nada
 //   POST broadcast     { name, template: { name, lang }, headerMedia?, aiMode, recipients: [{ to, name, leadId, params, headerText?, buttonParams? }] }
 //   POST broadcast-cancel { id }
+//   POST gcal-auth-url / gcal-connect { url } / gcal-sync / gcal-disconnect   agenda do Google (api/_lib/gcal.js)
 //   POST broadcast-resume { id }   retoma um disparo pausado
 //   POST broadcast-check  { id }   confere a entrega e agrupa os erros por motivo
 //   POST broadcast-retry  { id }   novo disparo só com quem não recebeu (motivo que dá pra resolver)
 
 import '../_lib/quietDeprecation.js'
 import { waitUntil } from '@vercel/functions'
+import { GcalError, gcalAuthUrl, gcalConnect, gcalDisconnect, runCalendarSync } from '../_lib/gcal.js'
 import { requireInternalUser, AuthError } from '../_lib/auth.js'
 import { rateLimit, publicOrigin } from '../_lib/store/core.js'
 import {
@@ -47,6 +49,7 @@ import {
   runBroadcast,
   runBroadcasts,
   cancelBroadcast,
+  notifyCalendar,
   resumeBroadcast,
   checkBroadcast,
   retryBroadcast,
@@ -139,6 +142,8 @@ async function webhookReceive(req, res) {
 async function sweep(req, res) {
   if (!(await rateLimit('wa-sweep', 1, 4 * 60_000))) return res.status(200).json({ skipped: true })
   const origin = publicOrigin(req)
+  // Agenda primeiro: reunião marcada pelo link já entra a tempo do lembrete.
+  const calendar = await runCalendarSync({ notify: notifyCalendar }).catch((e) => ({ error: e.message }))
   const [followUps, carts, reminders, pending, broadcasts] = await Promise.all([
     runFollowUps(origin).catch((e) => ({ error: e.message })),
     runCartRecovery(origin).catch((e) => ({ error: e.message })),
@@ -146,13 +151,29 @@ async function sweep(req, res) {
     runPendingReplies(origin).catch((e) => ({ error: e.message })),
     runBroadcasts().catch((e) => ({ error: e.message })),
   ])
-  return res.status(200).json({ followUps, carts, reminders, pending, broadcasts })
+  return res.status(200).json({ calendar, followUps, carts, reminders, pending, broadcasts })
 }
 
 /* ------------------------------ equipe ------------------------------ */
 
 const ADMIN = {
   'GET status': async (req) => waStatus(publicOrigin(req)),
+  'POST gcal-auth-url': async (req, user) => {
+    if (user.role !== 'admin' && user.role !== 'manager') throw new WaError(403, 'Só admin ou gerente conecta a agenda.')
+    return { url: gcalAuthUrl() }
+  },
+  'POST gcal-connect': async (req, user) => {
+    if (user.role !== 'admin' && user.role !== 'manager') throw new WaError(403, 'Só admin ou gerente conecta a agenda.')
+    const b = await readJson(req)
+    const out = await gcalConnect(b.url)
+    const sync = await runCalendarSync({ notify: notifyCalendar }).catch((e) => ({ error: e.message }))
+    return { ...out, sync }
+  },
+  'POST gcal-sync': async () => runCalendarSync({ notify: notifyCalendar }),
+  'POST gcal-disconnect': async (req, user) => {
+    if (user.role !== 'admin' && user.role !== 'manager') throw new WaError(403, 'Só admin ou gerente desconecta a agenda.')
+    return gcalDisconnect()
+  },
   'POST credentials': async (req, user) => {
     if (user.role !== 'admin' && user.role !== 'manager') throw new WaError(403, 'Só admin ou gerente conecta o WhatsApp.')
     return saveWaCredentials(await readJson(req), user.uid)
@@ -248,7 +269,7 @@ export default async function handler(req, res) {
     }
     return res.status(404).json({ error: 'Ação desconhecida' })
   } catch (err) {
-    const status = err instanceof WaError || err instanceof AuthError ? err.status : 500
+    const status = err instanceof WaError || err instanceof AuthError || err instanceof GcalError ? err.status : 500
     if (status === 500) console.error(`[whatsapp] ${route} falhou:`, err)
     // Firestore fora do ar (cota estourada / faturamento suspenso): devolve 503 pro Meta
     // reenviar depois (ele tenta por até 7 dias) e a mensagem não se perde.

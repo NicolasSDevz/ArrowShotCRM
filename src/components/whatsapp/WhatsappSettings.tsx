@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import toast from 'react-hot-toast'
-import { BellRing, Bot, ChevronDown, Copy, Link2, Maximize2, Plus, RefreshCw, ShoppingCart, Timer, Trash2 } from 'lucide-react'
+import { BellRing, Bot, CalendarDays, ChevronDown, Copy, Link2, Maximize2, Plus, RefreshCw, ShoppingCart, Timer, Trash2 } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
-import { listenWaSettings, saveWaCredentials, saveWaSettings } from '../../services/whatsappService'
+import { gcalAuthUrl, gcalConnect, gcalDisconnect, gcalSync, listenGcalStatus, listenWaSettings, saveWaCredentials, saveWaSettings, type GcalStatus } from '../../services/whatsappService'
 import { TemplatePickerField } from './WaTemplatePicker'
 import { WA_CART_PARAM_LABEL, WA_REMINDER_PARAM_LABEL, type WaCartParam, type WaFollowUpStep, type WaReminderParam, type WaReminderStep, type WaSettings, type WaStatus, type WaTemplate } from '../../types/whatsapp'
 
@@ -218,6 +218,111 @@ function ReminderStepRow({ step, templates, onChange, onRemove }: { step: WaRemi
         </div>
       </div>
     </li>
+  )
+}
+
+/* ------------------------------ agenda do Google ------------------------------ */
+
+function GcalCard() {
+  const [st, setSt] = useState<GcalStatus | null>(null)
+  const [pasted, setPasted] = useState('')
+  const [busy, setBusy] = useState<'open' | 'connect' | 'sync' | 'off' | null>(null)
+  const [opened, setOpened] = useState(false)
+  useEffect(() => listenGcalStatus(setSt), [])
+  const run = async (k: typeof busy, fn: () => Promise<unknown>, ok?: string) => {
+    setBusy(k)
+    try {
+      await fn()
+      if (ok) toast.success(ok)
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+  const open = () =>
+    run('open', async () => {
+      const { url } = await gcalAuthUrl()
+      window.open(url, '_blank', 'noopener')
+      setOpened(true)
+    })
+  const connected = Boolean(st?.connected)
+  return (
+    <Card
+      icon={<CalendarDays size={19} />}
+      tone="bg-sky-500/15 text-sky-400"
+      title="Agenda do Google"
+      description="Quem marca pelo link da agenda entra sozinho no CRM: dia, hora e link do Meet vão para a conversa e os lembretes saem no horário certo."
+      badge={<Badge on={connected && !st?.error} offText={connected ? 'Com erro' : 'Desligada'} />}
+    >
+      {connected ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-slate-700">
+            Conectada{st?.email ? ` com ${st.email}` : ''}.{' '}
+            <span className="text-slate-500">{st?.lastSyncAt ? `Última leitura: ${new Date(st.lastSyncAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}. Lê de 5 em 5 minutos.` : 'Ainda não leu.'}</span>
+          </p>
+          {st?.error && (
+            <p className="rounded-lg bg-red-500/10 p-2 text-sm text-red-300" role="alert">
+              {st.error}
+            </p>
+          )}
+          <div>
+            <p className="mb-1 text-xs font-medium text-slate-500">Próximas reuniões marcadas</p>
+            {st?.upcoming?.length ? (
+              <ul className="flex flex-col divide-y divide-slate-100 rounded-xl border border-slate-200" aria-label="Próximas reuniões da agenda">
+                {st.upcoming.map((u) => (
+                  <li key={u.eventId} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                    <span className="font-semibold text-slate-800">{u.when}</span>
+                    <span className="min-w-0 flex-1 truncate text-slate-600">{u.name || u.title}</span>
+                    {u.waId ? (
+                      <a href={`/leads?aba=conversas&c=${u.waId}`} className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-400 hover:underline">
+                        Ligada à conversa
+                      </a>
+                    ) : (
+                      <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-semibold text-amber-400" title="Não achei o WhatsApp dessa pessoa. Peça o telefone na página de agendamento.">
+                        Sem WhatsApp achado
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-400">Nenhuma reunião marcada nos próximos 30 dias.</p>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">Para ligar cada reunião à conversa, a página de agendamento precisa pedir o telefone: no Google Agenda, abra a página de agendamento &gt; Formulário de reserva &gt; adicione "Número de telefone" como obrigatório.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" icon={<RefreshCw size={14} aria-hidden="true" />} loading={busy === 'sync'} onClick={() => run('sync', gcalSync, 'Agenda lida.')}>
+              Ler agora
+            </Button>
+            <Button size="sm" variant="ghost" loading={busy === 'off'} onClick={() => run('off', gcalDisconnect, 'Agenda desconectada.')}>
+              Desconectar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <ol className="flex flex-col gap-3 text-sm text-slate-700">
+          <li>
+            <strong>1.</strong> Clique e entre com a conta do Google <strong>da agenda do Bruno</strong>. Se aparecer "O Google não verificou este app", clique em <em>Avançado</em> e depois em <em>Acessar</em>. Marque a permissão da agenda e clique em <em>Continuar</em>.
+            <div className="mt-2">
+              <Button size="sm" loading={busy === 'open'} onClick={open} icon={<Link2 size={14} aria-hidden="true" />}>
+                Abrir o Google
+              </Button>
+            </div>
+          </li>
+          <li>
+            <strong>2.</strong> No fim vai abrir uma página que <strong>não carrega</strong> (endereço começando com <code>http://localhost</code>). É assim mesmo: copie o endereço inteiro da barra do navegador e cole aqui.
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Input value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="http://localhost/?code=..." aria-label="Endereço da página depois de autorizar" className="min-w-[240px] flex-1" />
+              <Button size="sm" disabled={!pasted.trim()} loading={busy === 'connect'} onClick={() => run('connect', async () => { await gcalConnect(pasted); setPasted('') }, 'Agenda conectada!')}>
+                Conectar
+              </Button>
+            </div>
+            {opened && <p className="mt-1 text-xs text-slate-500">O código vale poucos minutos. Se der "venceu", clique em Abrir o Google de novo.</p>}
+          </li>
+        </ol>
+      )}
+    </Card>
   )
 }
 
@@ -580,6 +685,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
           )}
           {tab === 'lembrete' && (
             <>
+            <GcalCard />
             <Card
               icon={<BellRing size={19} />}
               tone="bg-emerald-500/15 text-emerald-400"
