@@ -776,3 +776,8 @@ body {
 .wa-hub .wa-composer {
   padding-right: 4.75rem;
 }
+/* Archer arrastado para a esquerda: o espaço passa para o outro lado. */
+body[data-archer-side='left'] .wa-hub .wa-composer {
+  padding-right: revert-layer;
+  padding-left: 4.75rem;
+}

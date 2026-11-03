@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Minus, X, Send, History, SquarePen, ArrowLeft, Trash2 } from 'lucide-react'
@@ -217,7 +217,10 @@ export function AiChatPanel({
   onPickChat,
   onNewChat,
   onDeleteChat,
+  style,
 }: {
+  /** Posição e tamanho (lado e altura vêm do botão arrastável, ver useArcherPosition). */
+  style?: CSSProperties
   messages: AiChatMessage[]
   /** Mensagens usadas hoje / limite diário (null = ainda carregando). */
   quota: AiQuota | null
@@ -256,8 +259,8 @@ export function AiChatPanel({
 
   return (
     <div
-      className="fixed bottom-[92px] right-6 z-30 flex w-[380px] flex-col overflow-hidden rounded-2xl shadow-2xl"
-      style={{ height: 520, backgroundColor: C.white, animation: 'ai-panel-in 180ms ease-out' }}
+      className="fixed z-30 flex flex-col overflow-hidden rounded-2xl shadow-2xl"
+      style={{ bottom: 92, right: 24, width: 380, height: 520, ...style, backgroundColor: C.white, animation: 'ai-panel-in 180ms ease-out' }}
     >
       <style>{`
         @keyframes ai-panel-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }

@@ -11,6 +11,7 @@ import {
   type ArcherChat,
 } from '../../services/archerChatStore'
 import { AiChatPanel } from './AiChatPanel'
+import { useArcherPosition } from './useArcherPosition'
 import type { AiChatMessage } from '../../types/ai'
 
 /** Depois disso sem resposta, para de mostrar "digitando" (o servidor corta em ~100s). */
@@ -57,6 +58,7 @@ export function AiAssistantWidget() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [history, setHistory] = useState<ArcherChat[] | null>(null)
   const createdAtRef = useRef<number | null>(null)
+  const archerPos = useArcherPosition()
 
   // Conversa que estava aberta antes do F5.
   useEffect(() => {
@@ -171,6 +173,7 @@ export function AiAssistantWidget() {
     <>
       {visible && (
         <AiChatPanel
+          style={archerPos.panelStyle}
           messages={messages}
           quota={quota}
           sending={busy}
@@ -222,12 +225,20 @@ export function AiAssistantWidget() {
           vez; o botão flutuante usa o mesmo tratamento por segurança. */}
       <style>{`.ai-fab:hover { transform: scale(1.05); background-color: #1D4ED8 !important; }`}</style>
       <button
-        onClick={handleToggleButton}
+        onClick={() => {
+          if (archerPos.consumeDragClick()) return
+          handleToggleButton()
+        }}
+        {...archerPos.handlers}
         aria-label="Assistente de IA"
-        title="Falar com Archer"
-        className="ai-fab fixed bottom-6 right-6 z-30 flex h-[52px] w-[52px] items-center justify-center rounded-full text-2xl transition-transform duration-150 ease-in-out"
-        style={{ backgroundColor: '#2563EB', color: '#FFFFFF', boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}
+        aria-describedby="archer-fab-dica"
+        title="Falar com Archer (arraste para mudar de lugar)"
+        className="ai-fab fixed z-30 flex h-[52px] w-[52px] touch-none select-none items-center justify-center rounded-full text-2xl transition-transform duration-150 ease-in-out"
+        style={{ ...archerPos.buttonStyle, backgroundColor: '#2563EB', color: '#FFFFFF', boxShadow: archerPos.dragging ? '0 10px 24px rgba(37,99,235,0.55)' : '0 4px 12px rgba(37,99,235,0.4)' }}
       >
+        <span id="archer-fab-dica" className="sr-only">
+          Arraste para mudar de lugar. Pelo teclado: Alt mais seta para a esquerda ou para a direita troca o lado, Alt mais seta para cima ou para baixo sobe ou desce.
+        </span>
         🏹
         {unread > 0 && (
           <span
