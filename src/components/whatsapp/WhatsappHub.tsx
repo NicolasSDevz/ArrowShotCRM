@@ -73,7 +73,7 @@ export function WhatsappHub({ onOpenLead }: { onOpenLead: (leadId: string) => vo
     <>
       <button type="button" onClick={() => setPanel('disparo')} className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-400 transition hover:bg-emerald-500/20" aria-label="Disparo em massa" title="Disparo em massa">
         <Megaphone size={16} aria-hidden="true" />
-        <span className="hidden xl:inline">Disparo</span>
+        <span className="sr-only">Disparo</span>
       </button>
       <button type="button" onClick={() => setPanel('guia')} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700" aria-label={`Como funciona${missing > 0 ? `, falta ${missing} passo${missing === 1 ? '' : 's'}` : ''}`} title="Como funciona">
         <HelpCircle size={16} aria-hidden="true" />

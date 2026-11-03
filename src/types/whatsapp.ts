@@ -49,6 +49,9 @@ export interface WaConversation {
   lastDirection: 'in' | 'out' | null
   /** Última mensagem do contato: abre a janela de 24h de texto livre. */
   lastInboundAt: string | null
+  /** Último disparo em massa que essa pessoa recebeu (api runBroadcast). */
+  lastBroadcastId?: string | null
+  lastBroadcastAt?: string | null
   /** Análise do SDR, atualizada a cada resposta da IA. */
   sdr?: WaSdr | null
 }

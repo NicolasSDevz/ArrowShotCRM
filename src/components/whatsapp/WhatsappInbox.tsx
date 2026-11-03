@@ -1,14 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Bot, CalendarCheck, MessageCircle, Plus, Search, ShoppingCart, UserRound, X } from 'lucide-react'
+import { Bot, CalendarCheck, Megaphone, MessageCircle, Plus, Search, ShoppingCart, UserRound, X } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Field, Input } from '../ui/Field'
 import { EmptyPane, TemplateComposer, displayName, listTime } from './WaParts'
 import { WaThread } from './WaThread'
 import { hasMeeting, isHot } from './waSdr'
-import type { WaConversation, WaTemplate } from '../../types/whatsapp'
+import type { WaBroadcast, WaConversation, WaTemplate } from '../../types/whatsapp'
+import { listenBroadcasts } from '../../services/whatsappService'
 import { useLeads } from '../../hooks/useLeads'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { findConversationLead, useWaConversations } from '../../hooks/useWaConversations'
@@ -17,13 +18,15 @@ import { isQuestionnaireLead, locateLead } from '../../types'
 // Peças antigas importadas daqui por outras telas.
 export { AUTO, Composer, STATUS_LABEL, StatusTicks, Switch, TemplateComposer, authorLabel, dayLabel, hhmm } from './WaParts'
 
-export type WaFilter = 'all' | 'unread' | 'waiting' | 'hot' | 'meeting' | 'new' | 'crm' | 'ai' | 'human' | 'cart'
+export type WaFilter = 'all' | 'unread' | 'waiting' | 'hot' | 'meeting' | 'new' | 'crm' | 'ai' | 'human' | 'cart' | 'broadcast' | 'replied'
 
 const FILTERS: { id: WaFilter; label: string; long: string; main?: boolean }[] = [
   { id: 'all', label: 'Todas', long: 'Todas as conversas', main: true },
-  { id: 'unread', label: 'Não lidas', long: 'Só não lidas', main: true },
   { id: 'waiting', label: 'Bruno', long: 'Esperando resposta do Bruno', main: true },
-  { id: 'ai', label: 'IA', long: 'IA atendendo', main: true },
+  { id: 'ai', label: 'IA', long: 'IA conversando com quem respondeu', main: true },
+  { id: 'broadcast', label: 'Disparo', long: 'Receberam disparo e ainda não responderam', main: true },
+  { id: 'replied', label: 'Responderam o disparo', long: 'Responderam o disparo' },
+  { id: 'unread', label: 'Não lidas', long: 'Só não lidas' },
   { id: 'hot', label: 'Quentes', long: 'Leads quentes, segundo o SDR' },
   { id: 'meeting', label: 'Reunião', long: 'Reunião combinada pelo SDR' },
   { id: 'human', label: 'Com a equipe', long: 'Com a equipe' },
@@ -34,6 +37,12 @@ const FILTERS: { id: WaFilter; label: string; long: string; main?: boolean }[] =
 
 /** Contato falou por último e a IA não está atendendo: alguém da equipe precisa responder. */
 const isWaiting = (c: WaConversation) => c.aiMode === 'off' && c.lastDirection === 'in' && !/^\[(reagiu|reação)/.test(c.lastMessageText || '')
+/** Recebeu disparo e ainda não respondeu: fica em "Disparo", separado de quem já conversa. */
+const awaitingBroadcast = (c: WaConversation) => Boolean(c.lastBroadcastAt) && (!c.lastInboundAt || c.lastInboundAt < (c.lastBroadcastAt || ''))
+/** Respondeu depois do disparo. */
+const repliedBroadcast = (c: WaConversation) => Boolean(c.lastBroadcastAt && c.lastInboundAt && c.lastInboundAt > c.lastBroadcastAt)
+/** IA de fato conversando: atendimento ligado e a pessoa já falou (quem só recebeu disparo fica de fora). */
+const aiTalking = (c: WaConversation) => c.aiMode !== 'off' && Boolean(c.lastInboundAt) && !awaitingBroadcast(c)
 
 /* ------------------------------ nova conversa ------------------------------ */
 
@@ -102,6 +111,7 @@ export function WhatsappInbox({
     return l.createdBy === 'whatsapp' ? 'new' : 'crm'
   }
   const [search, setSearch] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   // Altura medida: do topo da caixa até o fim da janela (a página não rola, a conversa cabe inteira).
   const boxRef = useRef<HTMLDivElement>(null)
@@ -146,17 +156,40 @@ export function WhatsappInbox({
     if (f === 'meeting') return hasMeeting(c)
     if (f === 'new') return originOf(c) === 'new'
     if (f === 'crm') return originOf(c) === 'crm'
-    if (f === 'ai') return c.aiMode !== 'off'
+    if (f === 'ai') return aiTalking(c)
+    if (f === 'broadcast') return awaitingBroadcast(c)
+    if (f === 'replied') return repliedBroadcast(c)
     if (f === 'human') return c.aiMode === 'off'
     if (f === 'cart') return c.kind === 'cart'
     return true
   }
+
+  // Qual disparo (?d=bc_...), só nos filtros de disparo.
+  const bcFilters = filter === 'broadcast' || filter === 'replied'
+  const [broadcasts, setBroadcasts] = useState<WaBroadcast[]>([])
+  useEffect(() => {
+    if (!bcFilters) return
+    return listenBroadcasts(setBroadcasts, () => setBroadcasts([]))
+  }, [bcFilters])
+  const bcId = bcFilters ? params.get('d') || '' : ''
+  const setBcId = (id: string) => {
+    const next = new URLSearchParams(params)
+    if (id) next.set('d', id)
+    else next.delete('d')
+    setParams(next, { replace: true })
+  }
+  const bcStats = useMemo(() => {
+    if (!bcFilters) return null
+    const of = (rows || []).filter((c) => c.lastBroadcastAt && (!bcId || c.lastBroadcastId === bcId))
+    return { waiting: of.filter(awaitingBroadcast).length, replied: of.filter(repliedBroadcast).length, ai: of.filter((c) => repliedBroadcast(c) && aiTalking(c)).length }
+  }, [rows, bcFilters, bcId])
 
   const list = useMemo(() => {
     const q = search.trim().toLowerCase()
     const qDigits = q.replace(/\D/g, '')
     return (rows || []).filter((c) => {
       if (!matches(c, filter)) return false
+      if (bcId && c.lastBroadcastId !== bcId) return false
       if (!q) return true
       return (
         (c.name || '').toLowerCase().includes(q) ||
@@ -166,7 +199,7 @@ export function WhatsappInbox({
         (c.sdr?.profile?.cidade || '').toLowerCase().includes(q)
       )
     })
-  }, [rows, search, filter, leads]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rows, search, filter, leads, bcId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (rows) onCount?.(rows.length)
@@ -197,21 +230,11 @@ export function WhatsappInbox({
   return (
     <div ref={boxRef} style={boxH ? { height: boxH } : undefined} className={`wa-hub flex ${boxH ? '' : heightClass} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
       <aside className={`w-full shrink-0 flex-col border-r border-slate-200 md:flex md:w-[320px] xl:w-[360px] ${showThread ? 'hidden' : 'flex'}`} aria-label="Lista de conversas">
-        <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200 p-3">
+        <div className="flex shrink-0 flex-col gap-2.5 border-b border-slate-200 p-3">
           <div className="flex items-center gap-2">
-            <label className="relative block flex-1">
-              <span className="sr-only">Buscar conversa por nome, número, empresa, cidade ou mensagem</span>
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              <input
-                type="search"
-                name="wa-busca-conversa"
-                autoComplete="off"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar conversa"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15"
-              />
-            </label>
+            <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-slate-800">
+              Conversas {rows && <span className="text-sm font-normal text-slate-400">{rows.length}</span>}
+            </h2>
             <button
               type="button"
               onClick={() => {
@@ -226,6 +249,45 @@ export function WhatsappInbox({
             </button>
             {tools}
           </div>
+          <label className="relative block">
+            <span className="sr-only">Buscar conversa por nome, número, empresa, cidade ou mensagem</span>
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <input
+              ref={searchRef}
+              type="text"
+              inputMode="search"
+              enterKeyHint="search"
+              name="wa-busca-conversa"
+              autoComplete="off"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && search) {
+                  e.preventDefault()
+                  setSearch('')
+                }
+              }}
+              placeholder="Buscar nome, número, empresa ou mensagem"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-10 text-[15px] text-slate-800 outline-none transition placeholder:text-[13px] placeholder:text-slate-400 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('')
+                  searchRef.current?.focus()
+                }}
+                className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Limpar busca"
+                title="Limpar busca"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            )}
+          </label>
+          <p className="sr-only" aria-live="polite">
+            {rows && (search || filter !== 'all') ? `${list.length} conversa${list.length === 1 ? '' : 's'} encontrada${list.length === 1 ? '' : 's'}` : ''}
+          </p>
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar conversas">
             {FILTERS.filter((f) => f.main || moreOpen || f.id === filter).map((f) => {
               const on = filter === f.id
@@ -238,7 +300,7 @@ export function WhatsappInbox({
                   aria-label={`${f.long}: ${n}`}
                   title={f.long}
                   onClick={() => setFilter(on && f.id !== 'all' ? 'all' : f.id)}
-                  className={`inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition ${on ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  className={`inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs font-semibold transition ${on ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                 >
                   {f.label}
                   {f.id !== 'all' && n > 0 && <span className={on ? 'text-white/80' : f.id === 'waiting' ? 'text-amber-500' : 'text-slate-400'}>{n}</span>}
@@ -249,12 +311,36 @@ export function WhatsappInbox({
               type="button"
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen((v) => !v)}
-              className="inline-flex h-7 items-center rounded-full px-2.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+              className="inline-flex h-8 items-center rounded-full px-3 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
             >
               {moreOpen ? 'Menos' : 'Mais'}
               <span className="sr-only"> filtros</span>
             </button>
           </div>
+          {bcFilters && (
+            <div className="flex flex-col gap-1.5 rounded-xl bg-slate-50 p-2">
+              <label className="flex items-center gap-2 text-xs text-slate-500">
+                <span className="shrink-0">Disparo:</span>
+                <select value={bcId} onChange={(e) => setBcId(e.target.value)} className="h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-800">
+                  <option value="">Todos os disparos</option>
+                  {broadcasts.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {bcStats && (
+                <p className="text-xs text-slate-500">
+                  <strong className="text-slate-800">{bcStats.waiting}</strong> sem resposta ·{' '}
+                  <button type="button" onClick={() => setFilter('replied')} className="font-semibold text-emerald-400 hover:underline">
+                    {bcStats.replied} responderam
+                  </button>
+                  {bcStats.replied > 0 && <> ({bcStats.ai} com a IA)</>}
+                </p>
+              )}
+            </div>
+          )}
         </div>
         {rows === null ? (
           <ul className="flex-1 space-y-1 p-2" aria-label="Carregando conversas">
@@ -274,7 +360,8 @@ export function WhatsappInbox({
           <ul className="min-h-0 flex-1 overflow-y-auto p-1.5">
             {list.map((c) => {
               const active = c.waId === selected
-              const status = c.kind === 'cart' ? 'carrinho abandonado' : c.aiMode === 'off' ? 'com a equipe' : 'IA atendendo'
+              const waitingBc = awaitingBroadcast(c)
+              const status = c.kind === 'cart' ? 'carrinho abandonado' : waitingBc ? 'recebeu disparo, ainda não respondeu' : c.aiMode === 'off' ? 'com a equipe' : 'IA atendendo'
               const unread = c.unread > 0
               const lead = leadOf(c)
               const where = lead && !isQuestionnaireLead(lead) ? locateLead(pipelines, lead) : null
@@ -296,10 +383,10 @@ export function WhatsappInbox({
                     <span className="relative mt-0.5 shrink-0">
                       <Avatar name={displayName(c)} size="lg" />
                       <span
-                        className={`absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-[var(--dk-surface)] text-white ${c.kind === 'cart' ? 'bg-amber-500' : c.aiMode === 'off' ? 'bg-emerald-600' : 'bg-violet-500'}`}
+                        className={`absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-[var(--dk-surface)] text-white ${c.kind === 'cart' ? 'bg-amber-500' : waitingBc ? 'bg-sky-500' : c.aiMode === 'off' ? 'bg-emerald-600' : 'bg-violet-500'}`}
                         aria-hidden="true"
                       >
-                        {c.kind === 'cart' ? <ShoppingCart size={9} /> : c.aiMode === 'off' ? <UserRound size={9} /> : <Bot size={9} />}
+                        {c.kind === 'cart' ? <ShoppingCart size={9} /> : waitingBc ? <Megaphone size={9} /> : c.aiMode === 'off' ? <UserRound size={9} /> : <Bot size={9} />}
                       </span>
                     </span>
                     <span className="min-w-0 flex-1">
@@ -317,9 +404,13 @@ export function WhatsappInbox({
                         </span>
                         {unread && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">{c.unread}</span>}
                       </span>
-                      {(isWaiting(c) || hasMeeting(c) || isHot(c)) && (
+                      {(isWaiting(c) || hasMeeting(c) || isHot(c) || waitingBc) && (
                         <span className="mt-1 flex">
-                          {isWaiting(c) ? (
+                          {waitingBc ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-sky-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-sky-400">
+                              <Megaphone size={10} aria-hidden="true" /> Disparo, sem resposta
+                            </span>
+                          ) : isWaiting(c) ? (
                             <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-500">Esperando o Bruno</span>
                           ) : hasMeeting(c) ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-400">
