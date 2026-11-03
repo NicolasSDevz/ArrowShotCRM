@@ -33,7 +33,7 @@ async function api<T>(acao: string, init: { method?: 'GET' | 'POST'; body?: unkn
 }
 
 export function listenConversations(cb: (rows: WaConversation[]) => void, onError?: (e: Error) => void): Unsubscribe {
-  const q = query(collection(db, 'waConversations'), orderBy('lastMessageAt', 'desc'), limit(300))
+  const q = query(collection(db, 'waConversations'), orderBy('lastMessageAt', 'desc'), limit(450))
   return onSnapshot(
     q,
     (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<WaConversation, 'id'>) }))),
