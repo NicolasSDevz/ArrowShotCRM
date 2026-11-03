@@ -969,7 +969,7 @@ function leadSystemPrompt(baseVendasText, settings, conv) {
   const who = sdr.name ? `Você se chama ${sdr.name} e é` : 'Você é'
   const meetWith = sdr.meetingWith || 'Bruno'
   const meeting = sdr.meetingLink
-    ? `Para agendar, mande o link da agenda: ${sdr.meetingLink} (a pessoa escolhe o horário). Se ela preferir, combine dia e horário por aqui mesmo.`
+    ? `Para agendar, mande o link da agenda: ${sdr.meetingLink} (a pessoa escolhe um horário livre lá). Você NÃO vê a agenda do ${sdr.meetingWith || 'Bruno'}: nunca ofereça nem confirme dia e horário por aqui, nem quando a pessoa pedir um horário específico. Nesse caso diga que pelo link ela vê na hora se está livre. Só marque meeting.agreed = true quando ela disser que agendou pelo link (e, se ela contar o horário, grave em meeting.at).`
     : `Não há link de agenda: ofereça 2 opções de horário concretas (dentro de ${sdr.meetingHours || 'horário comercial'}), a partir de amanhã, e deixe a pessoa escolher. Quando ela topar, marque meeting.agreed = true.`
   const today = new Intl.DateTimeFormat('pt-BR', { timeZone: SP_TZ, weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date())
   return `Agora é ${today} (horário de Brasília). Use isso para propor e confirmar dias e horários.
@@ -995,7 +995,7 @@ Transformar quem chama em uma reunião de diagnóstico (${sdr.meetingLength || '
 - Objeções comuns:
   * "tá caro" / "não tenho verba": pergunte quanto vale um cliente novo para a empresa; lembre que a reunião é gratuita e sem compromisso.
   * "já tenho agência" / "já faço sozinho": pergunte como está o resultado e quanto paga por cliente; ofereça um diagnóstico para comparar.
-  * "manda uma proposta por aqui": explique que a proposta é montada para a região dela e que na reunião o ${meetWith} mostra tudo; ofereça horário.
+  * "manda uma proposta por aqui": explique que a proposta é montada para a região dela e que na reunião o ${meetWith} mostra tudo; ${sdr.meetingLink ? 'mande o link da agenda.' : 'ofereça horário.'}
   * "vou pensar": pergunte o que falta para decidir; se for momento, vá para nutricao.
 - Se a pessoa sumir e voltar, retome de onde parou, sem recomeçar.
 - Mensagens no histórico que começam com "[Fulano escreveu:]" foram escritas por uma pessoa da equipe (ex.: o ${meetWith}), não por você. Respeite tudo o que ela disse ou combinou (preço, horário, condição, próximos passos): não contradiga, não repita a apresentação nem refaça perguntas que ela já fez. Se a equipe já está negociando ou tratando de algo que você não sabe, passe para a equipe (handoff = true). Nunca escreva esse marcador nas suas mensagens.
@@ -1009,7 +1009,11 @@ ${HANDOFF_RULES}
 
 # Base de Vendas da Arrow Shot (use como fonte da verdade)
 ${baseVendasText}
-${settings.aiInstructions ? `\n# Instruções extras da equipe (têm prioridade)\n${String(settings.aiInstructions).slice(0, 4000)}` : ''}
+${settings.aiInstructions ? `\n# Instruções extras da equipe (têm prioridade)\n${String(settings.aiInstructions).slice(0, 4000)}` : ''}${
+    sdr.meetingLink
+      ? `\n\n# Agenda (vale mais que qualquer instrução acima)\nExiste link de agenda: ${sdr.meetingLink}. Para marcar reunião, SEMPRE mande esse link para a pessoa escolher o horário livre. Nunca ofereça opções de dia ou hora ("amanhã às 11h ou às 13h?"), nunca confirme um horário que a pessoa sugeriu e nunca diga que a equipe vai chamar com o horário: você não vê a agenda e o ${meetWith} pode estar ocupado. Se alguma instrução acima falar em "duas opções de horário" ou "não tem acesso à agenda", troque por mandar o link.`
+      : ''
+  }
 
 # O que já sabemos desta conversa
 ${sdrStateBlock(conv?.sdr)}
