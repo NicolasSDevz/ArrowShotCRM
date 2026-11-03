@@ -581,6 +581,7 @@ export async function sendMessage({ to, text, template, by, byName = '', convExt
 
   const existing = await getDoc(convPath(target)).catch(() => ({ exists: false }))
   const conv = existing.exists ? existing.data() : null
+  if (conv?.optOut && template && by === 'broadcast') throw new WaError(400, 'Essa pessoa pediu para não receber mais mensagens (botão Bloquear ou Não quero).')
   if (text && !template && !inWindow(conv)) {
     throw new WaError(409, 'Passou de 24h desde a última mensagem do contato (ou ele nunca chamou). Use uma mensagem de modelo.')
   }
@@ -766,9 +767,13 @@ export async function handleWebhook(payload) {
           updatedAt: nowIso(),
         }
         if (names[waId] && !conv.name) patch.name = names[waId]
+        // Botão "Bloquear" / "Não quero" do modelo: não manda mais disparo nem follow-up, e a IA não responde.
+        const optOut = (m.type === 'button' || m.type === 'interactive') && OPT_OUT_TEXT.test(String(text || '').trim())
+        if (optOut) Object.assign(patch, { optOut: true, optOutAt: at, followUpStopped: true, aiMode: 'off', handoffReason: 'Pediu para não receber mensagens' })
         await updateDoc(convPath(waId), patch)
         await incrementField(convPath(waId), 'unread', 1).catch(() => {})
-        touched.add(waId)
+        if (conv.lastBroadcastId) await onBroadcastReply(waId).catch((e) => console.warn('[whatsapp] funil do disparo:', e.message))
+        if (!optOut) touched.add(waId)
       }
 
       // Mensagens que a equipe mandou pelo app do WhatsApp no celular (mesmo número,
@@ -1534,6 +1539,8 @@ export async function runMeetingReminders() {
   const settings = await getWaSettings()
   const r = settings.reminder
   if (!r.enabled) return { skipped: 'desligado' }
+  const steps = Array.isArray(r.steps) ? r.steps.filter((s) => s && s.enabled !== false) : []
+  if (steps.length) return runMeetingReminderSteps(settings, steps)
   const before = Math.max(5, Number(r.minutesBefore) || 30) * 60_000
   const now = Date.now()
   const convs = await queryDocs('waConversations', [['sdr.meeting.agreed', true]])
@@ -1570,6 +1577,76 @@ export async function runMeetingReminders() {
       console.warn(`[whatsapp] lembrete ${conv.waId}:`, e.message)
       await updateDoc(convPath(conv.waId), { meetingReminderError: e.message.slice(0, 200) }).catch(() => {})
       await notifyTeam(conv, `${conv.name || conv.phone}: o lembrete da reunião ${quando} não foi enviado. ${e.message}`).catch(() => {})
+    }
+  }
+  return { sent }
+}
+
+const REMINDER_DEFAULT_TEXT = {
+  1440: 'Oi {nome}! Passando pra lembrar da nossa reunião {quando} com o {com}. Link: {link}',
+  60: 'Oi {nome}, nossa reunião com o {com} é daqui a 1 hora, às {hora}. Link: {link}',
+  15: 'Oi {nome}, faltam 15 minutos pra nossa reunião! Link: {link}',
+  0: 'Oi {nome}, estamos começando! Entra pelo link: {link}',
+}
+
+function reminderParam(key, ctx) {
+  if (key === 'nome') return ctx.name || 'tudo bem'
+  if (key === 'quando') return ctx.quando
+  if (key === 'hora') return ctx.hora
+  if (key === 'link') return ctx.link
+  if (key === 'com') return ctx.com
+  return ''
+}
+
+/** Lembretes em vários tempos (ex.: 24h, 1h, 15 min e na hora), um de cada por reunião. */
+async function runMeetingReminderSteps(settings, steps) {
+  const r = settings.reminder
+  const now = Date.now()
+  const convs = await queryDocs('waConversations', [['sdr.meeting.agreed', true]])
+  let sent = 0
+  for (const conv of convs) {
+    const at = conv.sdr?.meeting?.at
+    if (!at || conv.kind === 'cart') continue
+    const left = meetingTime(at) - now
+    if (left < -10 * 60_000) continue
+    const done = conv.meetingReminders?.at === at ? conv.meetingReminders.done || [] : []
+    const due = steps.filter((s) => left <= Number(s.minutesBefore || 0) * 60_000 && !done.includes(Number(s.minutesBefore || 0)))
+    if (!due.length) continue
+    // Só o mais próximo da hora: quem marcou em cima da hora não recebe o de 24h atrasado.
+    const pick = due.reduce((a, b) => (Number(b.minutesBefore) < Number(a.minutesBefore) ? b : a))
+    await updateDoc(convPath(conv.waId), { meetingReminders: { at, done: [...done, ...due.map((s) => Number(s.minutesBefore || 0))] }, meetingReminderError: null })
+    const name = firstName(conv.name)
+    const { quando, hora } = meetingWhenText(at, now)
+    const ctx = { name, quando, hora, com: settings.sdr?.meetingWith || 'Bruno', link: conv.sdr?.meeting?.url || r.meetingUrl || '' }
+    const mins = Number(pick.minutesBefore || 0)
+    let text = String(pick.text || REMINDER_DEFAULT_TEXT[mins] || REMINDER_DEFAULT_TEXT[60])
+    if (!ctx.link) text = text.replace(/\s*(Link:|Entra pelo link:)\s*\{link\}/g, '').replace('{link}', '')
+    text = text
+      .replaceAll('{nome}', name || '')
+      .replaceAll('{quando}', quando)
+      .replaceAll('{hora}', hora)
+      .replaceAll('{com}', ctx.com)
+      .replaceAll('{link}', ctx.link)
+      .replace(/^Oi ,/, 'Oi,')
+      .replace(/^Oi ([,!])/, 'Oi$1')
+      .trim()
+    const label = mins >= 60 ? `${Math.round(mins / 60)}h antes` : mins > 0 ? `${mins} min antes` : 'na hora'
+    try {
+      if (inWindow(conv)) {
+        await sendMessage({ to: conv.waId, text, by: 'reminder', byName: `Lembrete da reunião (${label})` })
+      } else if (pick.templateName) {
+        const keys = Array.isArray(pick.params) ? pick.params : []
+        const params = keys.map((k) => reminderParam(k, ctx))
+        if (keys.includes('link') && !ctx.link) throw new Error('O modelo do lembrete pede o link da reunião, mas não tem link cadastrado (Configurar > Lembrete).')
+        await sendMessage({ to: conv.waId, template: { name: pick.templateName, lang: pick.templateLang || 'pt_BR', params }, by: 'reminder', byName: `Lembrete da reunião (${label})` })
+      } else {
+        throw new Error(`Passou de 24h desde a última mensagem do contato e o lembrete de ${label} não tem modelo escolhido.`)
+      }
+      sent++
+    } catch (e) {
+      console.warn(`[whatsapp] lembrete ${conv.waId}:`, e.message)
+      await updateDoc(convPath(conv.waId), { meetingReminderError: e.message.slice(0, 200) }).catch(() => {})
+      await notifyTeam(conv, `${conv.name || conv.phone}: o lembrete da reunião (${label}) não foi enviado. ${e.message}`).catch(() => {})
     }
   }
   return { sent }
@@ -1670,6 +1747,48 @@ export async function markReadOnWhatsapp(waId) {
 // lotes: começa na hora (waitUntil) e o sweep continua se não deu tempo.
 
 const BROADCAST_MAX = 1000
+
+/* Funil do disparo (como os funis de disparo do Kommo): cada passo leva o lead para uma etapa.
+   flow = { pipelineId, stepStages: [etapa do passo 1, 2...], repliedPipelineId, repliedStage,
+            noReplyStage, noReplyAfterHours, errorStage } — tudo opcional. */
+const sid = (v) => (typeof v === 'string' && /^[\w-]{1,80}$/.test(v) ? v : '')
+function cleanFlow(f) {
+  if (!f || typeof f !== 'object') return null
+  const flow = {
+    pipelineId: sid(f.pipelineId),
+    stepStages: (Array.isArray(f.stepStages) ? f.stepStages : []).slice(0, 12).map(sid),
+    repliedPipelineId: sid(f.repliedPipelineId),
+    repliedStage: sid(f.repliedStage),
+    noReplyStage: sid(f.noReplyStage),
+    noReplyAfterHours: Math.min(Math.max(Number(f.noReplyAfterHours) || 48, 1), 24 * 30),
+    errorStage: sid(f.errorStage),
+  }
+  return flow.pipelineId || flow.repliedStage ? flow : null
+}
+
+const pipelineCache = new Map()
+async function wonStages(pipelineId) {
+  const key = pipelineId || 'default'
+  if (pipelineCache.has(key)) return pipelineCache.get(key)
+  const snap = pipelineId && pipelineId !== 'default' ? await getDoc(`leadPipelines/${pipelineId}`).catch(() => null) : null
+  const ids = new Set(['closed'])
+  for (const st of snap?.exists ? snap.data().stages || [] : []) if (st.kind === 'won') ids.add(st.id)
+  pipelineCache.set(key, ids)
+  return ids
+}
+
+/** Move o lead para a etapa do funil. Lead já ganho (cliente) não sai do lugar. */
+async function moveLeadTo(leadId, pipelineId, stageId, why) {
+  if (!leadId || !stageId) return
+  const snap = await getDoc(`leads/${leadId}`).catch(() => null)
+  if (!snap?.exists) return
+  const lead = snap.data()
+  if ((await wonStages(lead.pipelineId)).has(lead.status)) return
+  const pid = pipelineId && pipelineId !== 'default' ? pipelineId : null
+  if ((lead.pipelineId || null) === pid && lead.status === stageId) return
+  await updateDoc(`leads/${leadId}`, { pipelineId: pid, status: stageId, order: -Date.now(), stageChangedAt: new Date(), updatedAt: new Date(), movedBy: why || 'disparo' }).catch((e) => console.warn('[whatsapp] mover lead:', e.message))
+}
+const SEQUENCE_MAX = 11 // passos depois do primeiro (Reativ 1 a 12)
 const bcPath = (id) => `waBroadcasts/${id}`
 
 export async function createBroadcast(input, user) {
@@ -1705,10 +1824,31 @@ export async function createBroadcast(input, user) {
   // Confere o modelo com a 1ª pessoa antes de gravar (link do topo, botão...).
   templatePayload({ name: tplName, lang, params: recipients[0].params, headerText: recipients[0].headerText, headerMedia: input.headerMedia, buttonParams: recipients[0].buttonParams }, tpl)
 
+  // Sequência: próximos modelos para quem não responder (como o Disparo 1 a 5 do Kommo).
+  const all = await listTemplates()
+  const sequence = []
+  for (const [i, st] of (Array.isArray(input.sequence) ? input.sequence : []).slice(0, SEQUENCE_MAX).entries()) {
+    const sName = String(st?.template?.name || '')
+    const sLang = String(st?.template?.lang || 'pt_BR')
+    const sTpl = all.find((t) => t.name === sName && t.language === sLang)
+    if (!sTpl || sTpl.status !== 'APPROVED') throw new WaError(400, `Passo ${i + 2} da sequência: modelo não encontrado ou não aprovado.`)
+    if (sTpl.vars && sTpl.vars !== tpl.vars) throw new WaError(400, `Passo ${i + 2} da sequência: o modelo "${sName}" tem partes para preencher diferentes do primeiro. Use um modelo sem partes ou com as mesmas.`)
+    try {
+      templatePayload({ name: sName, lang: sLang, params: sTpl.vars ? recipients[0].params : [], headerText: '', headerMedia: '', buttonParams: {} }, sTpl)
+    } catch {
+      throw new WaError(400, `Passo ${i + 2} da sequência: o modelo "${sName}" precisa de imagem, título ou link de botão, e a sequência não preenche isso.`)
+    }
+    const afterHours = Math.min(Math.max(Number(st.afterHours) || 48, 1), 24 * 30)
+    sequence.push({ name: sName, lang: sLang, category: sTpl.category || '', vars: sTpl.vars || 0, afterHours })
+  }
+
   const id = `bc_${Date.now().toString(36)}${randomBytes(3).toString('hex')}`
   const at = nowIso()
+  const flow = cleanFlow(input.flow)
   await setDoc(bcPath(id), {
     name,
+    sequence,
+    flow,
     template: { name: tplName, lang, category: tpl.category || '' },
     headerMedia: String(input.headerMedia || '').trim().slice(0, 1000),
     aiMode: input.aiMode === 'off' ? 'off' : 'auto',
@@ -1763,6 +1903,14 @@ export async function runBroadcast(id, { budgetMs = 50_000 } = {}) {
             await updateDoc(convPath(out.waId), patch).catch(() => {})
             r.status = 'sent'
             r.waId = out.waId
+            if (bc.sequence?.length) {
+              r.step = 0
+              r.nextAt = new Date(Date.now() + bc.sequence[0].afterHours * 3600_000).toISOString()
+            } else if (bc.flow?.noReplyStage) {
+              r.step = 0
+              r.nextAt = new Date(Date.now() + bc.flow.noReplyAfterHours * 3600_000).toISOString()
+            }
+            if (bc.flow) await moveLeadTo(r.leadId, bc.flow.pipelineId, bc.flow.stepStages?.[0], `disparo ${id}`)
             sent++
           } catch (e) {
             r.status = 'failed'
@@ -1771,6 +1919,7 @@ export async function runBroadcast(id, { budgetMs = 50_000 } = {}) {
             failed++
             const info = classifyWaError(e.metaCode, e.message)
             if (info.level === 'account') accountHit = info
+            else if (bc.flow?.errorStage) await moveLeadTo(r.leadId, bc.flow.pipelineId, bc.flow.errorStage, `disparo ${id}`)
           }
         })
       )
@@ -1779,7 +1928,8 @@ export async function runBroadcast(id, { budgetMs = 50_000 } = {}) {
       const cur = await getDoc(bcPath(id)).catch(() => null)
       const status = cur?.exists ? cur.data().status : bc.status
       const done = next >= recipients.length
-      const patch = { recipients, next, sent, failed, updatedAt: nowIso(), ...(done && status === 'sending' ? { status: 'done', finishedAt: nowIso() } : {}) }
+      const finish = bc.sequence?.length || bc.flow?.noReplyStage ? { status: 'sequence' } : { status: 'done', finishedAt: nowIso() }
+      const patch = { recipients, next, sent, failed, updatedAt: nowIso(), ...(done && status === 'sending' ? finish : {}) }
       await updateDoc(bcPath(id), patch)
       bc = { ...bc, ...patch, status: patch.status || status }
       // Problema da conta (pagamento, token...): para tudo e avisa, senão o resto falha igual.
@@ -1808,13 +1958,106 @@ export async function runBroadcasts({ budgetMs = 45_000 } = {}) {
     if (left < 8_000) break
     results.push(await runBroadcast(bc.id, { budgetMs: left }).catch((e) => ({ id: bc.id, error: e.message })))
   }
+  const seqs = await queryDocs('waBroadcasts', [['status', 'sequence']]).catch(() => [])
+  for (const bc of seqs) {
+    const left = budgetMs - (Date.now() - start)
+    if (left < 8_000) break
+    results.push(await runSequence(bc.id, { budgetMs: left }).catch((e) => ({ id: bc.id, error: e.message })))
+  }
   return results
+}
+
+/** Próximo passo da sequência para quem não respondeu. Só de seg a sáb, 8h às 20h. */
+export async function runSequence(id, { budgetMs = 40_000, max = 40 } = {}) {
+  if (!isBusinessTime(Date.now())) return { id, skipped: 'fora do horário' }
+  const lock = `waLocks/${id}_seq`
+  if (!(await takeLock(lock))) return { id, skipped: 'rodando em outra chamada' }
+  const start = Date.now()
+  try {
+    const snap = await getDoc(bcPath(id))
+    if (!snap.exists) return { id, skipped: 'não existe' }
+    const bc = snap.data()
+    if (bc.status !== 'sequence') return { id, skipped: bc.status }
+    const seq = bc.sequence || []
+    const recipients = bc.recipients || []
+    const now = Date.now()
+    let sentNow = 0
+    let accountHit = null
+    for (const r of recipients) {
+      if (sentNow >= max || Date.now() - start > budgetMs || accountHit) break
+      if (r.status !== 'sent' || r.seqDone || !r.nextAt || new Date(r.nextAt).getTime() > now || !r.waId) continue
+      const c = await getDoc(convPath(r.waId)).catch(() => null)
+      const conv = c?.exists ? c.data() : {}
+      // Respondeu, recebeu outro disparo ou o lead fechou/perdeu: sai da sequência.
+      if (conv.lastInboundAt && conv.lastInboundAt > bc.createdAt) {
+        r.seqDone = 'respondeu'
+        continue
+      }
+      if (conv.lastBroadcastId && conv.lastBroadcastId !== id) {
+        r.seqDone = 'outro disparo'
+        continue
+      }
+      if (r.leadId) {
+        const lead = await getDoc(`leads/${r.leadId}`).catch(() => null)
+        const st = lead?.exists ? lead.data().status : null
+        if (st === 'closed' || st === 'lost') {
+          r.seqDone = 'lead fechado ou perdido'
+          continue
+        }
+      }
+      const stepIdx = Number(r.step || 0) + 1
+      const st = seq[stepIdx - 1]
+      if (!st) {
+        // Passou o último prazo sem resposta.
+        r.seqDone = 'não respondeu'
+        r.nextAt = null
+        if (bc.flow?.noReplyStage) await moveLeadTo(r.leadId, bc.flow.pipelineId, bc.flow.noReplyStage, `disparo ${id}`)
+        continue
+      }
+      try {
+        await sendMessage({
+          to: r.waId,
+          template: { name: st.name, lang: st.lang, params: st.vars ? r.params : [] },
+          by: 'broadcast',
+          byName: `Disparo: ${bc.name} (passo ${stepIdx + 1})`,
+          msgExtra: { broadcastId: id, seqStep: stepIdx },
+        })
+        await updateDoc(convPath(r.waId), { lastBroadcastId: id, lastBroadcastAt: nowIso() }).catch(() => {})
+        r.step = stepIdx
+        const nextSt = seq[stepIdx]
+        const wait = nextSt ? nextSt.afterHours : bc.flow?.noReplyStage ? bc.flow.noReplyAfterHours : 0
+        r.nextAt = wait ? new Date(Date.now() + wait * 3600_000).toISOString() : null
+        if (!wait) r.seqDone = 'terminou'
+        if (bc.flow) await moveLeadTo(r.leadId, bc.flow.pipelineId, bc.flow.stepStages?.[stepIdx], `disparo ${id}`)
+        sentNow++
+      } catch (e) {
+        const info = classifyWaError(e.metaCode, e.message)
+        if (info.level === 'account') {
+          accountHit = info
+          break
+        }
+        r.seqDone = 'erro'
+        r.seqError = String(e.message || 'erro').slice(0, 200)
+        if (bc.flow?.errorStage) await moveLeadTo(r.leadId, bc.flow.pipelineId, bc.flow.errorStage, `disparo ${id}`)
+      }
+    }
+    const open = recipients.some((r) => r.status === 'sent' && !r.seqDone && r.nextAt)
+    const patch = { recipients, updatedAt: nowIso(), seqSent: Number(bc.seqSent || 0) + sentNow, ...(open ? {} : { status: 'done', finishedAt: nowIso() }) }
+    await updateDoc(bcPath(id), patch)
+    if (accountHit) {
+      await notifyAccountIssue(accountHit, { broadcastId: id })
+      if (accountHit.block) await pauseBroadcasts(accountHit)
+    }
+    return { id, sent: sentNow, open }
+  } finally {
+    await deleteDoc(lock).catch(() => {})
+  }
 }
 
 export async function cancelBroadcast(id) {
   const snap = await getDoc(bcPath(id))
   if (!snap.exists) throw new WaError(404, 'Disparo não encontrado.')
-  if (!['sending', 'paused'].includes(snap.data().status)) return { ok: true }
+  if (!['sending', 'paused', 'sequence'].includes(snap.data().status)) return { ok: true }
   await updateDoc(bcPath(id), { status: 'canceled', updatedAt: nowIso(), finishedAt: nowIso() })
   return { ok: true }
 }
@@ -1840,11 +2083,27 @@ async function notifyAccountIssue(info, { broadcastId = '' } = {}) {
   await sendPushToUsers(ids, { title: `WhatsApp: ${info.title}`, body: message, url: '/leads?aba=conversas&wa=disparo', tag: `wa-account-${info.key}` }).catch(() => {})
 }
 
+const OPT_OUT_TEXT = /^(bloquear|n[aã]o quero|parar|sair)$/i
+
+/** A pessoa respondeu um disparo com funil: leva o lead para a etapa de "respondeu" (uma vez por disparo). */
+export async function onBroadcastReply(waId) {
+  const snap = await getDoc(convPath(waId)).catch(() => null)
+  const conv = snap?.exists ? snap.data() : null
+  if (!conv?.lastBroadcastId || conv.bcRepliedFor === conv.lastBroadcastId || !conv.leadId) return
+  const bc = await getDoc(bcPath(conv.lastBroadcastId)).catch(() => null)
+  const flow = bc?.exists ? bc.data().flow : null
+  await updateDoc(convPath(waId), { bcRepliedFor: conv.lastBroadcastId }).catch(() => {})
+  if (!flow?.repliedStage) return
+  await moveLeadTo(conv.leadId, flow.repliedPipelineId || flow.pipelineId, flow.repliedStage, `respondeu disparo ${conv.lastBroadcastId}`)
+}
+
 /** Pausa os disparos em andamento (dá para retomar depois). */
 async function pauseBroadcasts(info) {
-  const open = await queryDocs('waBroadcasts', [['status', 'sending']]).catch(() => [])
-  for (const bc of open) {
-    await updateDoc(bcPath(bc.id), { status: 'paused', pausedAt: nowIso(), pausedReason: info.title, updatedAt: nowIso() }).catch(() => {})
+  for (const st of ['sending', 'sequence']) {
+    const open = await queryDocs('waBroadcasts', [['status', st]]).catch(() => [])
+    for (const bc of open) {
+      await updateDoc(bcPath(bc.id), { status: 'paused', pausedFrom: st, pausedAt: nowIso(), pausedReason: info.title, updatedAt: nowIso() }).catch(() => {})
+    }
   }
 }
 
@@ -1855,6 +2114,14 @@ async function onDeliveryFailed(waId, msg, code, text) {
   if (!bcId && msg.by === 'broadcast') {
     const conv = await getDoc(convPath(waId)).catch(() => null)
     bcId = conv?.exists ? conv.data().lastBroadcastId || '' : ''
+  }
+  if (bcId && info.level === 'person') {
+    const bc = await getDoc(bcPath(bcId)).catch(() => null)
+    const flow = bc?.exists ? bc.data().flow : null
+    if (flow?.errorStage) {
+      const conv = await getDoc(convPath(waId)).catch(() => null)
+      await moveLeadTo(conv?.exists ? conv.data().leadId : '', flow.pipelineId, flow.errorStage, `disparo ${bcId}`)
+    }
   }
   if (bcId) {
     const base = `delivery.reasons.${info.key}`
@@ -1871,9 +2138,12 @@ async function onDeliveryFailed(waId, msg, code, text) {
 export async function resumeBroadcast(id) {
   const snap = await getDoc(bcPath(id))
   if (!snap.exists) throw new WaError(404, 'Disparo não encontrado.')
-  if (snap.data().status !== 'paused') return { ok: true }
-  await updateDoc(bcPath(id), { status: 'sending', pausedReason: null, updatedAt: nowIso() })
-  return { ok: true }
+  const bc = snap.data()
+  if (bc.status !== 'paused') return { ok: true }
+  const mainDone = Number(bc.next || 0) >= (bc.recipients || []).length
+  const status = mainDone ? (bc.sequence?.length ? 'sequence' : 'done') : 'sending'
+  await updateDoc(bcPath(id), { status, pausedReason: null, pausedFrom: null, updatedAt: nowIso() })
+  return { ok: true, status }
 }
 
 /** Confere a entrega de cada pessoa do disparo e agrupa os erros por motivo. */
@@ -1918,7 +2188,7 @@ export async function retryBroadcast(id, user) {
   const delivery = await checkBroadcast(id)
   const snap = await getDoc(bcPath(id))
   const bc = snap.data()
-  if (bc.status === 'sending') throw new WaError(409, 'Esse disparo ainda está enviando. Espere terminar ou cancele.')
+  if (bc.status === 'sending' || bc.status === 'sequence') throw new WaError(409, 'Esse disparo ainda está enviando. Espere terminar ou cancele.')
   const again = new Set()
   for (const r of Object.values(delivery.reasons)) if (r.retry) for (const p of r.people) again.add(p.to)
   const recipients = (bc.recipients || []).filter((r) => again.has(r.to))

@@ -101,6 +101,11 @@ export interface WaBroadcastRecipient {
   status: 'pending' | 'sent' | 'failed'
   error: string
   errorCode?: number
+  /** Sequência: último passo enviado (0 = o primeiro modelo) e quando sai o próximo. */
+  step?: number
+  nextAt?: string | null
+  /** Saiu da sequência: respondeu, não respondeu, terminou, outro disparo, erro... */
+  seqDone?: string
   waId?: string
 }
 
@@ -131,7 +136,19 @@ export interface WaBroadcast {
   name: string
   template: { name: string; lang: string; category: string }
   aiMode: WaAiMode
-  status: 'sending' | 'paused' | 'done' | 'canceled'
+  status: 'sending' | 'sequence' | 'paused' | 'done' | 'canceled'
+  /** Próximos modelos para quem não responder (passo 2 em diante). */
+  sequence?: { name: string; lang: string; category: string; vars: number; afterHours: number }[]
+  /** Funil: cada passo leva o lead para uma etapa (api cleanFlow). */
+  flow?: {
+    pipelineId: string
+    stepStages: string[]
+    repliedPipelineId: string
+    repliedStage: string
+    noReplyStage: string
+    noReplyAfterHours: number
+    errorStage: string
+  } | null
   pausedReason?: string | null
   delivery?: WaBroadcastDelivery
   total: number
@@ -181,6 +198,32 @@ export interface WaReminderSettings {
   /** Modelo usado quando passou de 24h da última mensagem do contato ({{1}} = nome, {{2}} = quando). */
   templateName: string
   templateLang: string
+  /** Lembretes em vários tempos (24h, 1h, 15 min, na hora). Com isso preenchido, minutesBefore/text/templateName não valem. */
+  steps?: WaReminderStep[]
+  /** Link da sala da reunião (Meet/Zoom), usado em {link} e nos modelos que pedem o link. */
+  meetingUrl?: string
+}
+
+export type WaReminderParam = 'nome' | 'quando' | 'hora' | 'link' | 'com'
+
+export interface WaReminderStep {
+  /** Minutos antes da reunião (0 = na hora). */
+  minutesBefore: number
+  enabled?: boolean
+  /** Texto dentro de 24h. Vazio = padrão. Aceita {nome}, {quando}, {hora}, {link}, {com}. */
+  text: string
+  templateName: string
+  templateLang: string
+  /** O que vai em cada {{n}} do modelo, na ordem. */
+  params: WaReminderParam[]
+}
+
+export const WA_REMINDER_PARAM_LABEL: Record<WaReminderParam, string> = {
+  nome: 'Primeiro nome',
+  quando: 'Quando (ex.: amanhã às 9h)',
+  hora: 'Hora (ex.: 9h)',
+  link: 'Link da reunião',
+  com: 'Com quem (ex.: Bruno)',
 }
 
 export interface WaSdrSettings {

@@ -108,6 +108,8 @@ export interface BroadcastInput {
   headerMedia?: string
   aiMode: 'auto' | 'off'
   recipients: { to: string; name: string; leadId?: string; params: string[]; headerText?: string; buttonParams?: Record<string, string> }[]
+  sequence?: { template: { name: string; lang: string }; afterHours: number }[]
+  flow?: NonNullable<WaBroadcast['flow']> | null
 }
 
 export const createBroadcast = (body: BroadcastInput) => api<{ id: string; total: number }>('broadcast', { method: 'POST', body })

@@ -153,6 +153,14 @@ export const WA_ERRORS = {
     retry: true,
     match: /something went wrong|service unavailable/i,
   },
+  opt_out: {
+    title: 'Pediu para não receber',
+    why: 'A pessoa tocou em "Bloquear" ou "Não quero" num modelo antes, então o CRM não manda mais disparo para ela.',
+    fix: 'Nada a fazer. Se ela chamar, dá para responder normalmente.',
+    level: 'person',
+    retry: false,
+    match: /pediu para não receber/i,
+  },
   crm_db: {
     title: 'CRM fora do ar no envio',
     why: 'O banco do CRM (Firebase) estava sem cota ou com o pagamento suspenso. A mensagem pode ter saído mesmo assim, mas o CRM não registrou.',

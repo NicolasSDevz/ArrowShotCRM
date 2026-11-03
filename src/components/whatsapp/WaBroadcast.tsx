@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import toast from 'react-hot-toast'
-import { AlertTriangle, Bot, CheckCircle2, Megaphone, Search, Send, UserRound, XCircle } from 'lucide-react'
+import { AlertTriangle, Bot, CheckCircle2, Megaphone, Plus, Search, Send, Trash2, UserRound, XCircle } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
@@ -8,6 +8,7 @@ import { useLeads } from '../../hooks/useLeads'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { cancelBroadcast, checkBroadcast, createBroadcast, listenBroadcasts, resumeBroadcast, retryBroadcast } from '../../services/whatsappService'
 import { leadPipelineId, isQuestionnaireLead, stageOfLead } from '../../types'
+import type { PipelineStage, ResolvedPipeline } from '../../types/leadPipeline'
 import type { WaBroadcast, WaDeliveryReason, WaTemplate, WaTemplateExtras } from '../../types/whatsapp'
 import { TemplateBubble, TemplateExtraFields, TemplatePickerField, prettyTemplateName, templateNeeds, tplKey } from './WaTemplatePicker'
 import { waPhoneKey } from '../../utils/phoneKey'
@@ -214,7 +215,9 @@ function BroadcastCard({ bc }: { bc: WaBroadcast }) {
   const status =
     bc.status === 'sending'
       ? { label: 'Enviando', tone: 'bg-sky-500/15 text-sky-300' }
-      : bc.status === 'paused'
+      : bc.status === 'sequence'
+        ? { label: 'Em sequência', tone: 'bg-violet-500/15 text-violet-300' }
+        : bc.status === 'paused'
         ? { label: 'Pausado', tone: 'bg-amber-500/15 text-amber-300' }
         : bc.status === 'canceled'
           ? { label: 'Cancelado', tone: 'bg-slate-500/15 text-slate-300' }
@@ -271,13 +274,14 @@ function BroadcastCard({ bc }: { bc: WaBroadcast }) {
               Retomar
             </Button>
           )}
-          {(bc.status === 'sending' || bc.status === 'paused') && (
+          {(bc.status === 'sending' || bc.status === 'paused' || bc.status === 'sequence') && (
             <Button size="sm" variant="danger" onClick={() => run(() => cancelBroadcast(bc.id), 'Disparo cancelado. O que já saiu não volta.')} loading={busy}>
               Cancelar
             </Button>
           )}
         </span>
       </div>
+      <SequenceSummary bc={bc} />
       {open && <DeliveryProblems bc={bc} />}
     </li>
   )
@@ -315,6 +319,267 @@ function Step({ n, title, children, hint }: { n: number; title: string; hint?: s
   )
 }
 
+/* ------------------------------ sequência + funil ------------------------------ */
+
+interface SeqStep {
+  key: string
+  afterHours: number
+}
+interface FlowDraft {
+  pipelineId: string
+  stepStages: string[]
+  noReplyStage: string
+  noReplyAfterHours: number
+  errorStage: string
+  repliedPipelineId: string
+  repliedStage: string
+}
+const EMPTY_FLOW: FlowDraft = { pipelineId: '', stepStages: [], noReplyStage: '', noReplyAfterHours: 48, errorStage: '', repliedPipelineId: '', repliedStage: '' }
+
+/** "reativ_1_v8i941" -> { base: 'reativ_', n: 1 }; "d1_0p82kp" -> { base: 'd', n: 1 }. */
+function seriesOf(name: string): { base: string; n: number } | null {
+  const m = /^(.*?)(\d+)_[a-z0-9]{6}$/i.exec(name)
+  return m ? { base: m[1], n: Number(m[2]) } : null
+}
+
+/** Próximos modelos da mesma série (reativ_2, reativ_3...), na ordem. */
+function nextInSeries(tpl: WaTemplate | undefined, templates: WaTemplate[]): WaTemplate[] {
+  const s = tpl && seriesOf(tpl.name)
+  if (!s) return []
+  const out: WaTemplate[] = []
+  for (let n = s.n + 1; n < s.n + 13; n++) {
+    const t = templates.find((x) => x.status === 'APPROVED' && x.language === tpl!.language && seriesOf(x.name)?.base === s.base && seriesOf(x.name)?.n === n)
+    if (!t) break
+    out.push(t)
+  }
+  return out
+}
+
+const norm = (v: string) => v.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+/** Etapa do funil para o passo n (1 = primeiro modelo): pelo número no nome ("Disparo 2", "Reativ 2", "Fup 2") ou pela ordem. */
+function stageForStep(stages: PipelineStage[], n: number): string {
+  const byNum = stages.find((st) => new RegExp(`(^|\\D)${n}$`).test(norm(st.label).trim()) && !/nao respondeu|erro/.test(norm(st.label)))
+  if (byNum) return byNum.id
+  const open = stages.filter((st) => st.kind === 'open' && !/lista|nao respondeu|erro/.test(norm(st.label)))
+  return open[n - 1]?.id || ''
+}
+const stageLike = (stages: PipelineStage[], re: RegExp) => stages.find((st) => re.test(norm(st.label)))?.id || ''
+
+function SequenceAndFlow({
+  tpl,
+  templates,
+  steps,
+  onSteps,
+  flow,
+  onFlow,
+  pipelines,
+  usesLeads,
+  people,
+}: {
+  tpl: WaTemplate | undefined
+  templates: WaTemplate[]
+  steps: SeqStep[]
+  onSteps: (s: SeqStep[]) => void
+  flow: FlowDraft
+  onFlow: (f: FlowDraft) => void
+  pipelines: ResolvedPipeline[]
+  usesLeads: boolean
+  people: number
+}) {
+  const series = nextInSeries(tpl, templates)
+  const pipe = pipelines.find((p) => p.id === flow.pipelineId)
+  const repliedPipe = pipelines.find((p) => p.id === (flow.repliedPipelineId || flow.pipelineId))
+  const total = 1 + steps.length
+  const stepTpl = (k: string) => templates.find((t) => tplKey(t) === k)
+  const badVars = steps.filter((st) => {
+    const t = stepTpl(st.key)
+    return t && t.vars && tpl && t.vars !== tpl.vars
+  }).length
+
+  const pickPipeline = (id: string) => {
+    const p = pipelines.find((x) => x.id === id)
+    if (!p) return onFlow({ ...EMPTY_FLOW })
+    const sales = pipelines.find((x) => x.isDefault) || pipelines[0]
+    onFlow({
+      ...flow,
+      pipelineId: p.id,
+      stepStages: Array.from({ length: total }, (_, i) => stageForStep(p.stages, i + 1)),
+      noReplyStage: stageLike(p.stages, /nao respondeu/),
+      errorStage: stageLike(p.stages, /erro/),
+      repliedPipelineId: flow.repliedPipelineId || sales?.id || '',
+      repliedStage: flow.repliedStage || (sales ? stageLike(sales.stages, /em contato|respondeu/) || sales.stages[1]?.id || '' : ''),
+    })
+  }
+  // Mudou o número de passos: completa as etapas que faltam.
+  useEffect(() => {
+    if (!pipe || flow.stepStages.length === total) return
+    onFlow({ ...flow, stepStages: Array.from({ length: total }, (_, i) => flow.stepStages[i] ?? stageForStep(pipe.stages, i + 1)) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total, pipe?.id])
+
+  const stageSelect = (value: string, onChange: (v: string) => void, label: string, p = pipe) => (
+    <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+      <option value="">Não mover</option>
+      {p?.stages.map((st) => (
+        <option key={st.id} value={st.id}>
+          {st.label}
+        </option>
+      ))}
+    </Select>
+  )
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <p className="text-sm text-slate-600">Quem não responder recebe a próxima mensagem sozinho, no tempo que você escolher. Quem responder sai da sequência e vai para a IA ou para a equipe. Só envia de segunda a sábado, das 8h às 20h.</p>
+        {series.length > 0 && steps.length === 0 && (
+          <Button size="sm" variant="secondary" onClick={() => onSteps(series.map((t) => ({ key: tplKey(t), afterHours: 24 })))}>
+            Montar a sequência com {series.map((t) => prettyTemplateName(t.name)).join(', ')} (1 a cada 24h)
+          </Button>
+        )}
+        {steps.length > 0 && (
+          <ol className="flex flex-col gap-2" aria-label="Passos da sequência">
+            {steps.map((st, i) => {
+              const t = stepTpl(st.key)
+              const wrong = Boolean(t && t.vars && tpl && t.vars !== tpl.vars)
+              return (
+                <li key={i} className="rounded-xl border border-slate-200 p-2.5">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <span className="pb-2 text-sm font-semibold text-slate-800">Passo {i + 2}</span>
+                    <label className="flex items-center gap-1.5 pb-1.5 text-xs text-slate-500">
+                      depois de
+                      <input
+                        type="number"
+                        min={1}
+                        max={720}
+                        value={st.afterHours}
+                        onChange={(e) => onSteps(steps.map((x, j) => (j === i ? { ...x, afterHours: Math.max(1, Number(e.target.value) || 24) } : x)))}
+                        className="h-8 w-16 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+                        aria-label={`Horas sem resposta antes do passo ${i + 2}`}
+                      />
+                      horas sem resposta
+                    </label>
+                    <button type="button" onClick={() => onSteps(steps.filter((_, j) => j !== i))} className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-400" aria-label={`Tirar o passo ${i + 2}`}>
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  </div>
+                  <TemplatePickerField label={`Modelo do passo ${i + 2}`} templates={templates} value={st.key} onChange={(nt) => onSteps(steps.map((x, j) => (j === i ? { ...x, key: nt ? tplKey(nt) : '' } : x)))} />
+                  {wrong && <p className="mt-1 text-xs text-amber-400">Esse modelo tem partes para preencher diferentes do primeiro. Use um sem partes ou com as mesmas.</p>}
+                </li>
+              )
+            })}
+          </ol>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" icon={<Plus size={14} aria-hidden="true" />} disabled={steps.length >= 11} onClick={() => onSteps([...steps, { key: '', afterHours: 24 }])}>
+            Adicionar passo
+          </Button>
+          {steps.length > 0 && (
+            <Button size="sm" variant="ghost" onClick={() => onSteps([])}>
+              Sem sequência
+            </Button>
+          )}
+        </div>
+        {badVars > 0 && <p className="text-xs text-amber-400">Corrija o modelo de {badVars} passo{badVars === 1 ? '' : 's'}.</p>}
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-xl bg-slate-50 p-3">
+        <span className="text-sm font-semibold text-slate-800">Mover no funil (opcional)</span>
+        {!usesLeads ? (
+          <p className="text-xs text-slate-500">Só para quem vem de "Leads do funil". Números colados não têm ficha para mover.</p>
+        ) : (
+          <>
+            <Field label="Funil do disparo" hint='Ex.: um funil "Reativação" com as etapas Lista, Reativ 1, Reativ 2... Não respondeu, Erro de envio. Crie o funil em Leads, se ainda não tiver.'>
+              <Select value={flow.pipelineId} onChange={(e) => pickPipeline(e.target.value)}>
+                <option value="">Não mover os leads</option>
+                {pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {pipe && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {Array.from({ length: total }, (_, i) => (
+                  <Field key={i} label={`Recebeu o passo ${i + 1}, vai para`}>
+                    {stageSelect(flow.stepStages[i] || '', (v) => onFlow({ ...flow, stepStages: Array.from({ length: total }, (_, j) => (j === i ? v : flow.stepStages[j] || '')) }), `Etapa depois do passo ${i + 1}`)}
+                  </Field>
+                ))}
+                <Field label="Não respondeu nenhum, vai para">{stageSelect(flow.noReplyStage, (v) => onFlow({ ...flow, noReplyStage: v }), 'Etapa de quem não respondeu')}</Field>
+                {flow.noReplyStage && (
+                  <label className="flex items-center gap-1.5 self-end pb-2 text-xs text-slate-500">
+                    depois de
+                    <input
+                      type="number"
+                      min={1}
+                      max={720}
+                      value={flow.noReplyAfterHours}
+                      onChange={(e) => onFlow({ ...flow, noReplyAfterHours: Math.max(1, Number(e.target.value) || 48) })}
+                      className="h-8 w-16 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+                      aria-label="Horas depois do último passo para marcar como não respondeu"
+                    />
+                    horas do último passo
+                  </label>
+                )}
+                <Field label="Deu erro no envio, vai para">{stageSelect(flow.errorStage, (v) => onFlow({ ...flow, errorStage: v }), 'Etapa de erro de envio')}</Field>
+              </div>
+            )}
+            {pipe && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Field label="Quando responder, levar para o funil">
+                  <Select value={flow.repliedPipelineId || flow.pipelineId} onChange={(e) => onFlow({ ...flow, repliedPipelineId: e.target.value, repliedStage: '' })}>
+                    {pipelines.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Na etapa">{stageSelect(flow.repliedStage, (v) => onFlow({ ...flow, repliedStage: v }), 'Etapa de quem respondeu', repliedPipe)}</Field>
+              </div>
+            )}
+            {pipe && <p className="text-xs text-slate-500">Lead que já é cliente (etapa de ganho) não sai do lugar.</p>}
+          </>
+        )}
+      </div>
+      {steps.length > 0 && tpl?.category === 'MARKETING' && people > 0 && (
+        <p className="text-xs text-amber-300">Se ninguém responder, a sequência inteira custa perto de R$ {(people * total * 0.35).toFixed(2).replace('.', ',')} ({total} mensagens por pessoa).</p>
+      )}
+    </div>
+  )
+}
+
+/** Resumo da sequência no cartão do histórico. */
+function SequenceSummary({ bc }: { bc: WaBroadcast }) {
+  const seq = bc.sequence || []
+  if (!seq.length && !bc.flow?.noReplyStage) return null
+  const rs = (bc.recipients || []).filter((r) => r.status === 'sent')
+  const going = rs.filter((r) => !r.seqDone && r.nextAt).length
+  const replied = rs.filter((r) => r.seqDone === 'respondeu').length
+  const noReply = rs.filter((r) => r.seqDone === 'não respondeu' || r.seqDone === 'terminou').length
+  const out = rs.filter((r) => r.seqDone && !['respondeu', 'não respondeu', 'terminou'].includes(r.seqDone)).length
+  const perStep = Array.from({ length: seq.length + 1 }, (_, i) => rs.filter((r) => !r.seqDone && Number(r.step || 0) === i).length)
+  const next = rs
+    .filter((r) => !r.seqDone && r.nextAt)
+    .map((r) => r.nextAt as string)
+    .sort()[0]
+  return (
+    <div className="mt-2 rounded-lg bg-violet-500/10 p-2.5 text-xs text-slate-600">
+      <p>
+        <strong className="text-slate-800">Sequência de {seq.length + 1} passos:</strong> {going} ainda recebendo · <span className="text-emerald-400">{replied} responderam</span> · {noReply} não responderam
+        {out > 0 ? ` · ${out} saíram (outro disparo, lead fechado ou erro)` : ''}
+      </p>
+      {going > 0 && (
+        <p className="mt-0.5 text-slate-500">
+          Esperando: {perStep.map((n, i) => (n ? `${n} no passo ${i + 1}` : '')).filter(Boolean).join(', ')}
+          {next ? `. Próximo envio a partir de ${fmtDate(next)}` : ''}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function NewBroadcast({ templates, initialPipelineId, onDone }: { templates: WaTemplate[]; initialPipelineId?: string; onDone: () => void }) {
   const { data: leads } = useLeads()
   const { pipelines } = useLeadPipelines()
@@ -334,6 +599,8 @@ function NewBroadcast({ templates, initialPipelineId, onDone }: { templates: WaT
   const [aiMode, setAiMode] = useState<'auto' | 'off'>('auto')
   const [confirm, setConfirm] = useState(false)
   const [sending, setSending] = useState(false)
+  const [seqSteps, setSeqSteps] = useState<SeqStep[]>([])
+  const [flow, setFlow] = useState<FlowDraft>(EMPTY_FLOW)
 
   useEffect(() => {
     if (!pipelineId && pipelines[0]) setPipelineId(pipelines[0].id)
@@ -384,7 +651,11 @@ function NewBroadcast({ templates, initialPipelineId, onDone }: { templates: WaT
   const extrasMissing = Boolean(tpl && (need.headerVar && !extras.headerText?.trim())) || need.urlButtons.some((b) => !extras.buttonParams?.[b.index]?.trim())
   const sample = recipients[0]
   const cat = tpl?.category
-  const ready = Boolean(tpl && recipients.length && !missing && !extrasMissing && confirm)
+  const seqOk = seqSteps.every((st) => {
+    const t = templates.find((x) => tplKey(x) === st.key)
+    return t && (!t.vars || t.vars === tpl?.vars)
+  })
+  const ready = Boolean(tpl && recipients.length && !missing && !extrasMissing && seqOk && confirm)
 
   const toggleStage = (id: string) => {
     setStages((cur) => {
@@ -430,6 +701,11 @@ function NewBroadcast({ templates, initialPipelineId, onDone }: { templates: WaT
           headerText: extras.headerText || '',
           buttonParams: extras.buttonParams || {},
         })),
+        sequence: seqSteps.map((st) => {
+          const t = templates.find((x) => tplKey(x) === st.key)!
+          return { template: { name: t.name, lang: t.language }, afterHours: st.afterHours }
+        }),
+        flow: mode === 'leads' && (flow.pipelineId || flow.repliedStage) ? flow : null,
       })
       toast.success(`Disparo começou: ${out.total} pessoa${out.total === 1 ? '' : 's'}. Acompanhe no histórico.`)
       onDone()
@@ -580,7 +856,11 @@ function NewBroadcast({ templates, initialPipelineId, onDone }: { templates: WaT
         </div>
       </Step>
 
-      <Step n={3} title="Revisar e disparar">
+      <Step n={3} title="Se não responder" hint="Opcional: próximas mensagens automáticas e etapas do funil, igual aos funis de disparo do Kommo.">
+        <SequenceAndFlow tpl={tpl} templates={templates} steps={seqSteps} onSteps={setSeqSteps} flow={flow} onFlow={setFlow} pipelines={pipelines} usesLeads={mode === 'leads'} people={recipients.length} />
+      </Step>
+
+      <Step n={4} title="Revisar e disparar">
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_340px]">
           <div className="flex flex-col gap-3">
             <Field label="Nome do disparo (só pra vocês)">
@@ -632,7 +912,7 @@ function NewBroadcast({ templates, initialPipelineId, onDone }: { templates: WaT
         <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
           {!ready && (
             <span className="text-xs text-slate-400">
-              {!recipients.length ? 'Escolha quem recebe.' : !tpl ? 'Escolha o modelo.' : missing || extrasMissing ? 'Complete as partes do modelo.' : 'Marque a confirmação.'}
+              {!recipients.length ? 'Escolha quem recebe.' : !tpl ? 'Escolha o modelo.' : missing || extrasMissing ? 'Complete as partes do modelo.' : !seqOk ? 'Escolha o modelo de cada passo da sequência.' : 'Marque a confirmação.'}
             </span>
           )}
           <Button onClick={send} loading={sending} disabled={!ready} icon={<Send size={15} aria-hidden="true" />}>
@@ -662,7 +942,7 @@ export function BroadcastModal({ open, onClose, templates, initialPipelineId }: 
       setAutoTab(false)
     }
   }, [rows, autoTab])
-  const running = rows.filter((r) => r.status === 'sending').length
+  const running = rows.filter((r) => r.status === 'sending' || r.status === 'sequence').length
   return (
     <Modal
       open={open}

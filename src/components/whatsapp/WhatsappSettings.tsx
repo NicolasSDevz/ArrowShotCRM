@@ -7,7 +7,7 @@ import { Field, Input, Select, Textarea } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
 import { listenWaSettings, saveWaCredentials, saveWaSettings } from '../../services/whatsappService'
 import { TemplatePickerField } from './WaTemplatePicker'
-import { WA_CART_PARAM_LABEL, type WaCartParam, type WaFollowUpStep, type WaSettings, type WaStatus, type WaTemplate } from '../../types/whatsapp'
+import { WA_CART_PARAM_LABEL, WA_REMINDER_PARAM_LABEL, type WaCartParam, type WaFollowUpStep, type WaReminderParam, type WaReminderStep, type WaSettings, type WaStatus, type WaTemplate } from '../../types/whatsapp'
 
 /* ------------------------------ peças ------------------------------ */
 
@@ -139,6 +139,86 @@ function InstructionsBox({ value, onChange }: { value: string; onChange: (v: str
 function TemplateSelect({ templates, name, lang, onChange, label }: { templates: WaTemplate[]; name: string; lang: string; onChange: (name: string, lang: string) => void; label: string }) {
   const value = name ? `${name}|${lang || 'pt_BR'}` : ''
   return <TemplatePickerField label={label} templates={templates} value={value} allowNone noneLabel="Tirar" onChange={(t) => onChange(t?.name || '', t?.language || 'pt_BR')} />
+}
+
+/* ------------------------------ lembretes ------------------------------ */
+
+const REMINDER_TIMES: { minutes: number; label: string; match: RegExp }[] = [
+  { minutes: 1440, label: '24 horas antes', match: /24h/ },
+  { minutes: 60, label: '1 hora antes', match: /1h/ },
+  { minutes: 15, label: '15 minutos antes', match: /15/ },
+  { minutes: 0, label: 'Na hora', match: /na_hora/ },
+]
+
+const reminderLabel = (m: number) => (m >= 60 ? (m % 60 === 0 ? `${m / 60} hora${m === 60 ? '' : 's'} antes` : `${m} minutos antes`) : m > 0 ? `${m} minutos antes` : 'Na hora')
+
+/** Monta os 4 tempos já com os modelos "confirmacao_..." aprovados, se existirem. */
+function defaultReminderSteps(templates: WaTemplate[]): WaReminderStep[] {
+  const confirm = templates.filter((t) => t.status === 'APPROVED' && /^confirmacao/i.test(t.name))
+  return REMINDER_TIMES.map(({ minutes, match }) => {
+    const t = confirm.find((x) => match.test(x.name))
+    const params: WaReminderParam[] = !t ? [] : t.vars >= 3 ? ['nome', 'hora', 'link'] : t.vars === 2 ? ['nome', 'link'] : t.vars === 1 ? ['nome'] : []
+    return { minutesBefore: minutes, enabled: true, text: '', templateName: t?.name || '', templateLang: t?.language || 'pt_BR', params }
+  })
+}
+
+function ReminderStepRow({ step, templates, onChange, onRemove }: { step: WaReminderStep; templates: WaTemplate[]; onChange: (s: WaReminderStep) => void; onRemove: () => void }) {
+  const tpl = templates.find((t) => t.name === step.templateName && t.language === (step.templateLang || 'pt_BR')) || templates.find((t) => t.name === step.templateName)
+  const vars = tpl?.vars || 0
+  const params = Array.from({ length: vars }, (_, i) => step.params?.[i] || (i === 0 ? 'nome' : 'link'))
+  return (
+    <li className="rounded-xl border border-slate-200 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <input type="checkbox" checked={step.enabled !== false} onChange={(e) => onChange({ ...step, enabled: e.target.checked })} className="h-4 w-4 accent-emerald-500" />
+          {reminderLabel(step.minutesBefore)}
+        </label>
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
+          <input
+            type="number"
+            min={0}
+            max={2880}
+            value={step.minutesBefore}
+            onChange={(e) => onChange({ ...step, minutesBefore: Math.max(0, Number(e.target.value) || 0) })}
+            className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+            aria-label={`Minutos antes da reunião (${reminderLabel(step.minutesBefore)})`}
+          />
+          min antes
+        </label>
+        <button type="button" onClick={onRemove} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-400" aria-label={`Tirar o lembrete de ${reminderLabel(step.minutesBefore)}`}>
+          <Trash2 size={15} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="mt-2 grid gap-3 md:grid-cols-2">
+        <Field label="Texto (dentro de 24h, grátis)" hint="Vazio = texto padrão. Use {nome}, {quando}, {hora}, {link} e {com}.">
+          <Textarea rows={2} value={step.text} onChange={(e) => onChange({ ...step, text: e.target.value })} />
+        </Field>
+        <div className="flex flex-col gap-2">
+          <TemplateSelect label="Modelo (depois de 24h)" templates={templates} name={step.templateName} lang={step.templateLang} onChange={(n, l) => onChange({ ...step, templateName: n, templateLang: l, params: [] })} />
+          {params.map((k, i) => (
+            <label key={i} className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="w-10 shrink-0 font-semibold text-amber-300">{`{{${i + 1}}}`}</span>
+              <Select
+                value={k}
+                onChange={(e) => {
+                  const next = [...params]
+                  next[i] = e.target.value as WaReminderParam
+                  onChange({ ...step, params: next })
+                }}
+                aria-label={`O que entra em {{${i + 1}}}`}
+              >
+                {(Object.keys(WA_REMINDER_PARAM_LABEL) as WaReminderParam[]).map((p) => (
+                  <option key={p} value={p}>
+                    {WA_REMINDER_PARAM_LABEL[p]}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          ))}
+        </div>
+      </div>
+    </li>
+  )
 }
 
 /* ------------------------------ conexão ------------------------------ */
@@ -508,35 +588,76 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
               badge={<Badge on={s.reminder.enabled} />}
             >
               <Toggle checked={s.reminder.enabled} onChange={(v) => edit((c) => ({ ...c, reminder: { ...c.reminder, enabled: v } }))} label="Mandar lembrete antes da reunião" />
-              <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                <span>Mandar</span>
-                <input
-                  type="number"
-                  min={10}
-                  max={1440}
-                  value={s.reminder.minutesBefore}
-                  onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, minutesBefore: Number(e.target.value) || 30 } }))}
-                  className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
-                />
-                <span>minutos antes da reunião</span>
-              </label>
-              <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Texto (dentro de 24h)" hint="Use {nome}, {quando} (ex.: hoje às 9h), {hora} e {com}.">
-                  <Textarea
-                    rows={3}
-                    value={s.reminder.text}
-                    placeholder="Oi {nome}, passando pra lembrar da nossa reunião {quando} com o {com}. Até já!"
-                    onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, text: e.target.value } }))}
-                  />
-                </Field>
-                <TemplateSelect
-                  label="Modelo (depois de 24h): {{1}} = nome, {{2}} = quando"
-                  templates={templates}
-                  name={s.reminder.templateName}
-                  lang={s.reminder.templateLang}
-                  onChange={(n, l) => edit((c) => ({ ...c, reminder: { ...c.reminder, templateName: n, templateLang: l } }))}
-                />
-              </div>
+              <Field label="Link da sala da reunião" hint="Meet, Zoom... Entra no {link} do texto e nos modelos que pedem o link.">
+                <Input value={s.reminder.meetingUrl || ''} placeholder="https://meet.google.com/..." onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, meetingUrl: e.target.value.trim() } }))} />
+              </Field>
+              {s.reminder.steps?.length ? (
+                <>
+                  <ul className="flex flex-col gap-2" aria-label="Tempos do lembrete">
+                    {s.reminder.steps.map((st, idx) => (
+                      <ReminderStepRow
+                        key={idx}
+                        step={st}
+                        templates={templates}
+                        onChange={(nst) => edit((c) => ({ ...c, reminder: { ...c.reminder, steps: (c.reminder.steps || []).map((x, k) => (k === idx ? nst : x)) } }))}
+                        onRemove={() => edit((c) => ({ ...c, reminder: { ...c.reminder, steps: (c.reminder.steps || []).filter((_, k) => k !== idx) } }))}
+                      />
+                    ))}
+                  </ul>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      icon={<Plus size={14} aria-hidden="true" />}
+                      onClick={() => edit((c) => ({ ...c, reminder: { ...c.reminder, steps: [...(c.reminder.steps || []), { minutesBefore: 30, enabled: true, text: '', templateName: '', templateLang: 'pt_BR', params: [] }] } }))}
+                    >
+                      Adicionar tempo
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => edit((c) => ({ ...c, reminder: { ...c.reminder, steps: [] } }))}>
+                      Voltar para um lembrete só
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-400">Cada reunião recebe cada tempo uma vez só. Quem marcar em cima da hora recebe só o mais próximo (não chega o de 24h atrasado).</p>
+                </>
+              ) : (
+                <>
+                  <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                    <span>Mandar</span>
+                    <input
+                      type="number"
+                      min={10}
+                      max={1440}
+                      value={s.reminder.minutesBefore}
+                      onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, minutesBefore: Number(e.target.value) || 30 } }))}
+                      className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+                    />
+                    <span>minutos antes da reunião</span>
+                  </label>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="Texto (dentro de 24h)" hint="Use {nome}, {quando} (ex.: hoje às 9h), {hora} e {com}.">
+                      <Textarea
+                        rows={3}
+                        value={s.reminder.text}
+                        placeholder="Oi {nome}, passando pra lembrar da nossa reunião {quando} com o {com}. Até já!"
+                        onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, text: e.target.value } }))}
+                      />
+                    </Field>
+                    <TemplateSelect
+                      label="Modelo (depois de 24h): {{1}} = nome, {{2}} = quando"
+                      templates={templates}
+                      name={s.reminder.templateName}
+                      lang={s.reminder.templateLang}
+                      onChange={(n, l) => edit((c) => ({ ...c, reminder: { ...c.reminder, templateName: n, templateLang: l } }))}
+                    />
+                  </div>
+                  <div className="rounded-xl bg-emerald-500/10 p-3">
+                    <p className="text-sm text-slate-700">Quer lembrar em vários tempos, igual no Kommo (24h, 1h, 15 min e na hora)? Já usa os modelos de confirmação aprovados.</p>
+                    <Button size="sm" className="mt-2" onClick={() => edit((c) => ({ ...c, reminder: { ...c.reminder, steps: defaultReminderSteps(templates) } }))}>
+                      Usar lembrete em 4 tempos
+                    </Button>
+                  </div>
+                </>
+              )}
             </Card>
             </>
           )}
