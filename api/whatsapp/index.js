@@ -225,7 +225,14 @@ export default async function handler(req, res) {
   } catch (err) {
     const status = err instanceof WaError || err instanceof AuthError ? err.status : 500
     if (status === 500) console.error(`[whatsapp] ${route} falhou:`, err)
-    // Webhook sempre devolve 200 em erro interno: senão o Meta reenvia em loop.
+    // Firestore fora do ar (cota estourada / faturamento suspenso): devolve 503 pro Meta
+    // reenviar depois (ele tenta por até 7 dias) e a mensagem não se perde.
+    // As travas por id de mensagem evitam gravar ou responder em dobro.
+    if (route === 'POST webhook' && /quota exceeded|RESOURCE_EXHAUSTED|\b429\b|\b503\b/i.test(errorText(err))) {
+      console.error('[whatsapp] Firestore indisponível, Meta vai reenviar:', errorText(err))
+      return res.status(503).json({ ok: false, retry: true })
+    }
+    // Outros erros devolvem 200: senão o Meta reenvia em loop.
     if (route === 'POST webhook') return res.status(200).json({ ok: false })
     // Telas internas (só equipe logada) mostram o motivo real pra dar pra corrigir.
     const internal = Boolean(ADMIN[route])
