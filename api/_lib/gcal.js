@@ -4,18 +4,15 @@
 // o evento aparece aqui: o CRM acha a conversa pelo telefone (ou e-mail) que ela preencheu,
 // grava dia, hora e link do Meet em conv.sdr.meeting e os lembretes saem sozinhos.
 //
-// Login: o mesmo app OAuth do Google Ads (GOOGLE_ADS_CLIENT_ID/SECRET, tipo "computador").
-// Como esse tipo só aceita voltar para http://localhost, o admin cola no CRM o endereço
-// da página que não abriu (tem o ?code=...) e o servidor troca pelo token.
-// Token fica cifrado em waSecrets/main.gcal; o resumo da última leitura em waSettings/gcal.
+// Sem login do Google: o Bruno cola o "Endereço secreto no formato iCal" da agenda dele
+// (Configurações da agenda > Integrar agenda). Fica cifrado em waSecrets/main.gcal;
+// o resumo da última leitura fica em waSettings/gcal.
 
 import { getDoc, updateDoc, updateDocPaths, setDoc, queryDocs } from './firebaseAdmin.js'
 import { encryptToken, decryptToken } from './tokenCrypto.js'
 
 const SECRETS = 'waSecrets/main'
 const STATUS = 'waSettings/gcal'
-const REDIRECT = 'http://localhost'
-const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', 'openid', 'email']
 const SP_TZ = 'America/Sao_Paulo'
 
 export class GcalError extends Error {
@@ -25,93 +22,126 @@ export class GcalError extends Error {
   }
 }
 
-function client() {
-  const id = process.env.GOOGLE_ADS_CLIENT_ID
-  const secret = process.env.GOOGLE_ADS_CLIENT_SECRET
-  if (!id || !secret) throw new GcalError(500, 'Falta o login do Google no servidor (GOOGLE_ADS_CLIENT_ID e GOOGLE_ADS_CLIENT_SECRET na Vercel).')
-  return { id, secret }
-}
-
-export function gcalAuthUrl() {
-  const { id } = client()
-  const u = new URL('https://accounts.google.com/o/oauth2/v2/auth')
-  u.searchParams.set('client_id', id)
-  u.searchParams.set('redirect_uri', REDIRECT)
-  u.searchParams.set('response_type', 'code')
-  u.searchParams.set('scope', SCOPES.join(' '))
-  u.searchParams.set('access_type', 'offline')
-  u.searchParams.set('prompt', 'consent')
-  return u.toString()
-}
-
-/** Recebe o endereço colado (http://localhost/?code=...) ou só o código. */
-export async function gcalConnect(pasted) {
-  const raw = String(pasted || '').trim()
-  let code = raw
+function checkIcalUrl(raw) {
+  const url = String(raw || '').trim()
+  let u
   try {
-    const u = new URL(raw)
-    if (u.searchParams.get('error')) throw new GcalError(400, 'O Google não autorizou. Tente de novo e clique em Permitir.')
-    code = u.searchParams.get('code') || ''
-  } catch (e) {
-    if (e instanceof GcalError) throw e
-  }
-  if (!code || code.length < 20) throw new GcalError(400, 'Não achei o código. Cole o endereço inteiro da página que abriu depois de autorizar (começa com http://localhost).')
-  const { id, secret } = client()
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ code, client_id: id, client_secret: secret, redirect_uri: REDIRECT, grant_type: 'authorization_code' }),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok || !data.refresh_token) {
-    const why = data.error === 'invalid_grant' ? 'O código venceu ou já foi usado. Clique em "Abrir o Google" de novo.' : data.error_description || data.error || `erro ${res.status}`
-    throw new GcalError(400, `Não deu para conectar: ${why}`)
-  }
-  let email = ''
-  try {
-    email = JSON.parse(Buffer.from(String(data.id_token || '').split('.')[1] || '', 'base64url').toString('utf8')).email || ''
+    u = new URL(url)
   } catch {
-    /* sem e-mail: tudo bem */
+    throw new GcalError(400, 'Isso não parece um endereço. Cole o "Endereço secreto no formato iCal" inteiro.')
   }
-  // Testa a leitura da agenda já (API desligada no projeto dá erro aqui, com o motivo).
-  await calendarGet(data.access_token, 'calendars/primary')
-  await updateDoc(SECRETS, { gcal: { refreshToken: encryptToken(data.refresh_token), email, connectedAt: new Date().toISOString() } })
-  await setDoc(STATUS, { connected: true, email, connectedAt: new Date().toISOString(), lastSyncAt: null, error: null, upcoming: [] })
-  return { connected: true, email }
+  if (u.protocol !== 'https:' || u.hostname !== 'calendar.google.com' || !/\/calendar\/ical\/.+\.ics$/.test(u.pathname)) {
+    throw new GcalError(400, 'Esse não é o endereço secreto iCal. Ele começa com https://calendar.google.com/calendar/ical/ e termina com .ics.')
+  }
+  if (/\/public\/basic\.ics$/.test(u.pathname)) throw new GcalError(400, 'Esse é o endereço público. Use o "Endereço secreto no formato iCal" (fica logo abaixo).')
+  return url
+}
+
+async function fetchIcal(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(20_000) })
+  if (res.status === 404) throw new GcalError(400, 'O Google não achou essa agenda. O endereço secreto pode ter sido trocado: copie de novo e cole aqui.')
+  if (!res.ok) throw new GcalError(502, `A agenda do Google respondeu erro ${res.status}.`)
+  const text = await res.text()
+  if (!text.includes('BEGIN:VCALENDAR')) throw new GcalError(400, 'O endereço não devolveu uma agenda.')
+  return text
+}
+
+/** Recebe o endereço secreto iCal, testa e guarda cifrado. */
+export async function gcalConnect(pasted) {
+  const url = checkIcalUrl(pasted)
+  const text = await fetchIcal(url)
+  const email = decodeURIComponent((/\/calendar\/ical\/([^/]+)\//.exec(new URL(url).pathname) || [])[1] || '')
+  const name = (/^X-WR-CALNAME:(.*)$/m.exec(text) || [])[1]?.trim() || ''
+  await updateDoc(SECRETS, { gcal: { icalUrl: encryptToken(url), email, connectedAt: new Date().toISOString() } })
+  await setDoc(STATUS, { connected: true, email: email || name, connectedAt: new Date().toISOString(), lastSyncAt: null, error: null, upcoming: [], links: {} })
+  return { connected: true, email: email || name }
 }
 
 export async function gcalDisconnect() {
   await updateDoc(SECRETS, { gcal: null })
-  await setDoc(STATUS, { connected: false, email: '', lastSyncAt: null, error: null, upcoming: [] })
+  await setDoc(STATUS, { connected: false, email: '', lastSyncAt: null, error: null, upcoming: [], links: {} })
   return { connected: false }
 }
 
-async function accessToken() {
-  const snap = await getDoc(SECRETS)
-  const g = snap.exists ? snap.data().gcal : null
-  if (!g?.refreshToken) return null
-  const { id, secret } = client()
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ refresh_token: decryptToken(g.refreshToken), client_id: id, client_secret: secret, grant_type: 'refresh_token' }),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new GcalError(401, data.error === 'invalid_grant' ? 'A autorização da agenda foi revogada ou venceu. Conecte de novo.' : `Login da agenda falhou: ${data.error || res.status}`)
-  return data.access_token
+/** Mantido para a rota antiga: agora não tem login, só o endereço. */
+export function gcalAuthUrl() {
+  return 'https://calendar.google.com/calendar/r/settings'
 }
 
-async function calendarGet(token, path, params = {}) {
-  const u = new URL(`https://www.googleapis.com/calendar/v3/${path}`)
-  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, String(v))
-  const res = await fetch(u, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const msg = data?.error?.message || `erro ${res.status}`
-    if (/has not been used|is disabled/i.test(msg)) throw new GcalError(400, 'A API do Google Agenda está desligada no projeto do Google (arrowshot-ads-api). Ative em console.cloud.google.com > APIs > Google Calendar API.')
-    throw new GcalError(res.status, `Agenda do Google: ${msg}`)
+async function icalUrl() {
+  const snap = await getDoc(SECRETS)
+  const g = snap.exists ? snap.data().gcal : null
+  return g?.icalUrl ? decryptToken(g.icalUrl) : null
+}
+
+/* ------------------------------ iCal ------------------------------ */
+
+const unescape = (v) => String(v || '').replace(/\\n/gi, '\n').replace(/\\([,;\\])/g, '$1')
+
+/** Hora do iCal ("20261105T170000Z" ou TZID=America/Sao_Paulo:20261105T140000) em ISO com fuso. */
+function icalTime(params, value) {
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/.exec(value.trim())
+  if (!m || !m[4]) return null // dia inteiro
+  const [, y, mo, d, h, mi, sec = '00', z] = m
+  if (z) return `${y}-${mo}-${d}T${h}:${mi}:${sec}Z`
+  const tz = (/TZID=([^;:]+)/.exec(params) || [])[1] || SP_TZ
+  // Converte hora local do fuso para UTC (acha o deslocamento do fuso nesse dia).
+  // Deslocamento do fuso nesse instante: hora "de parede" no fuso lida como se fosse UTC, menos o instante.
+  const guess = Date.UTC(+y, +mo - 1, +d, +h, +mi, +sec)
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      .formatToParts(new Date(guess))
+      .map((x) => [x.type, x.value])
+  )
+  const wall = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second)
+  return new Date(guess - (wall - guess)).toISOString()
+}
+
+export function parseIcal(text) {
+  const lines = text.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '').split(/\r?\n/)
+  const events = []
+  let ev = null
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') {
+      ev = { attendees: [] }
+      continue
+    }
+    if (line === 'END:VEVENT') {
+      if (ev) events.push(ev)
+      ev = null
+      continue
+    }
+    if (!ev) continue
+    const i = line.indexOf(':')
+    if (i < 0) continue
+    const left = line.slice(0, i)
+    const value = line.slice(i + 1)
+    const [name, ...rest] = left.split(';')
+    const params = rest.join(';')
+    if (name === 'UID') ev.id = value
+    else if (name === 'DTSTART') ev.start = icalTime(params, value)
+    else if (name === 'SUMMARY') ev.summary = unescape(value)
+    else if (name === 'DESCRIPTION') ev.description = unescape(value)
+    else if (name === 'LOCATION') ev.location = unescape(value)
+    else if (name === 'STATUS') ev.status = value.toLowerCase()
+    else if (name === 'LAST-MODIFIED') ev.updated = value
+    else if (name === 'RRULE') ev.recurring = true
+    else if (name === 'RECURRENCE-ID') ev.recurrenceId = value
+    else if (name === 'X-GOOGLE-CONFERENCE') ev.hangoutLink = value
+    else if (name === 'ORGANIZER') ev.organizer = value.replace(/^mailto:/i, '').toLowerCase()
+    else if (name === 'ATTENDEE') {
+      const email = value.replace(/^mailto:/i, '').toLowerCase()
+      const cn = (/CN=("?)([^";]*)\1/.exec(params) || [])[2] || ''
+      const partstat = (/PARTSTAT=([^;]+)/.exec(params) || [])[1] || ''
+      ev.attendees.push({ email, displayName: cn, responseStatus: partstat === 'DECLINED' ? 'declined' : 'accepted' })
+    }
   }
-  return data
+  // Meet que só aparece na descrição.
+  for (const e of events) {
+    if (!e.hangoutLink) e.hangoutLink = (/(https:\/\/meet\.google\.com\/[a-z-]+)/i.exec(e.description || '') || [])[1] || ''
+    if (!e.updated) e.updated = ''
+  }
+  return events
 }
 
 /* ------------------------------ leitura ------------------------------ */
@@ -184,32 +214,28 @@ const meetUrl = (ev) => ev.hangoutLink || (ev.conferenceData?.entryPoints || [])
  * notify(conv, waId, texto) avisa a equipe (vem do whatsapp.js).
  */
 export async function runCalendarSync({ notify } = {}) {
-  let token
+  let url
   try {
-    token = await accessToken()
+    url = await icalUrl()
   } catch (e) {
-    await updateDocPaths(STATUS, { error: e.message, lastSyncAt: new Date().toISOString() }, ['error', 'lastSyncAt']).catch(() => {})
     return { error: e.message }
   }
-  if (!token) return { skipped: 'agenda não conectada' }
+  if (!url) return { skipped: 'agenda não conectada' }
   const status = await getDoc(STATUS).catch(() => null)
   const selfEmail = String(status?.exists ? status.data().email || '' : '').toLowerCase()
   const now = Date.now()
-  let data
+  let items
   try {
-    data = await calendarGet(token, 'calendars/primary/events', {
-      timeMin: new Date(now - 3600_000).toISOString(),
-      timeMax: new Date(now + 30 * 86400_000).toISOString(),
-      singleEvents: true,
-      orderBy: 'startTime',
-      showDeleted: true,
-      maxResults: 250,
-    })
+    const all = parseIcal(await fetchIcal(url))
+    items = all
+      .filter((e) => e.start && !e.recurring && new Date(e.start).getTime() > now - 3600_000 && new Date(e.start).getTime() < now + 30 * 86400_000)
+      .map((e) => ({ ...e, start: { dateTime: e.start } }))
+      .sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime))
   } catch (e) {
     await updateDocPaths(STATUS, { error: e.message, lastSyncAt: new Date().toISOString() }, ['error', 'lastSyncAt']).catch(() => {})
     return { error: e.message }
   }
-
+  const data = { items }
   const upcoming = []
   let linked = 0
   // Eventos já vistos e não mudaram desde a última leitura: não procura a conversa de novo.
@@ -217,7 +243,7 @@ export async function runCalendarSync({ notify } = {}) {
   const links = {}
   for (const ev of data.items || []) {
     if (!ev.start?.dateTime) continue // dia inteiro: não é reunião
-    const others = (ev.attendees || []).filter((a) => !a.self && String(a.email || '').toLowerCase() !== selfEmail)
+    const others = (ev.attendees || []).filter((a) => !a.self && String(a.email || '').toLowerCase() !== selfEmail && a.email !== ev.organizer)
     const looksBooked = others.length > 0 || phonesOf(ev).length > 0
     if (!looksBooked) continue
     const at = spLocal(ev.start.dateTime)
@@ -250,6 +276,18 @@ export async function runCalendarSync({ notify } = {}) {
     linked++
     const changed = m.eventId === ev.id ? 'remarcou a reunião para' : 'marcou reunião pela agenda:'
     await notify?.(hit.conv, hit.waId, `${hit.conv.name || hit.waId} ${changed} ${row.when}.`)
+  }
+  // Evento que estava ligado a uma conversa e sumiu da agenda (ainda no futuro) = cancelado.
+  for (const [evId, prev] of Object.entries(prevLinks)) {
+    if (links[evId] || !prev?.row?.waId) continue
+    const t = prev.row.at ? new Date(`${prev.row.at}:00-03:00`).getTime() : 0
+    if (!t || t < now) continue
+    const c = await getDoc(`waConversations/${prev.row.waId}`).catch(() => null)
+    const conv = c?.exists ? c.data() : null
+    if (conv?.sdr?.meeting?.eventId === evId && conv.sdr.meeting.agreed) {
+      await updateDocPaths(`waConversations/${prev.row.waId}`, { sdr: { meeting: { agreed: false, when: '', at: '', url: '', eventId: evId } } }, ['sdr.meeting']).catch(() => {})
+      await notify?.(conv, prev.row.waId, `${conv.name || prev.row.waId} cancelou a reunião de ${prev.row.when} (sumiu da agenda).`)
+    }
   }
   await setDoc(STATUS, {
     connected: true,

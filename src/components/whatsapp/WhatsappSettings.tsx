@@ -5,7 +5,7 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
-import { gcalAuthUrl, gcalConnect, gcalDisconnect, gcalSync, listenGcalStatus, listenWaSettings, saveWaCredentials, saveWaSettings, type GcalStatus } from '../../services/whatsappService'
+import { gcalConnect, gcalDisconnect, gcalSync, listenGcalStatus, listenWaSettings, saveWaCredentials, saveWaSettings, type GcalStatus } from '../../services/whatsappService'
 import { TemplatePickerField } from './WaTemplatePicker'
 import { WA_CART_PARAM_LABEL, WA_REMINDER_PARAM_LABEL, type WaCartParam, type WaFollowUpStep, type WaReminderParam, type WaReminderStep, type WaSettings, type WaStatus, type WaTemplate } from '../../types/whatsapp'
 
@@ -226,8 +226,7 @@ function ReminderStepRow({ step, templates, onChange, onRemove }: { step: WaRemi
 function GcalCard() {
   const [st, setSt] = useState<GcalStatus | null>(null)
   const [pasted, setPasted] = useState('')
-  const [busy, setBusy] = useState<'open' | 'connect' | 'sync' | 'off' | null>(null)
-  const [opened, setOpened] = useState(false)
+  const [busy, setBusy] = useState<'connect' | 'sync' | 'off' | null>(null)
   useEffect(() => listenGcalStatus(setSt), [])
   const run = async (k: typeof busy, fn: () => Promise<unknown>, ok?: string) => {
     setBusy(k)
@@ -240,12 +239,6 @@ function GcalCard() {
       setBusy(null)
     }
   }
-  const open = () =>
-    run('open', async () => {
-      const { url } = await gcalAuthUrl()
-      window.open(url, '_blank', 'noopener')
-      setOpened(true)
-    })
   const connected = Boolean(st?.connected)
   return (
     <Card
@@ -303,22 +296,25 @@ function GcalCard() {
       ) : (
         <ol className="flex flex-col gap-3 text-sm text-slate-700">
           <li>
-            <strong>1.</strong> Clique e entre com a conta do Google <strong>da agenda do Bruno</strong>. Se aparecer "O Google não verificou este app", clique em <em>Avançado</em> e depois em <em>Acessar</em>. Marque a permissão da agenda e clique em <em>Continuar</em>.
+            <strong>1.</strong> No computador, abra a <strong>agenda do Google do Bruno</strong> e vá em <strong>Configurações</strong> (engrenagem lá em cima).
             <div className="mt-2">
-              <Button size="sm" loading={busy === 'open'} onClick={open} icon={<Link2 size={14} aria-hidden="true" />}>
-                Abrir o Google
-              </Button>
+              <a href="https://calendar.google.com/calendar/r/settings" target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-500 px-3 text-sm font-semibold text-white hover:bg-emerald-600">
+                <Link2 size={14} aria-hidden="true" /> Abrir as configurações da agenda
+              </a>
             </div>
           </li>
           <li>
-            <strong>2.</strong> No fim vai abrir uma página que <strong>não carrega</strong> (endereço começando com <code>http://localhost</code>). É assim mesmo: copie o endereço inteiro da barra do navegador e cole aqui.
+            <strong>2.</strong> Na esquerda, em <em>Configurações das minhas agendas</em>, clique no nome do Bruno e depois em <strong>Integrar agenda</strong>.
+          </li>
+          <li>
+            <strong>3.</strong> Copie o <strong>Endereço secreto no formato iCal</strong> (o de baixo, que termina com <code>.ics</code>) e cole aqui:
             <div className="mt-2 flex flex-wrap gap-2">
-              <Input value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="http://localhost/?code=..." aria-label="Endereço da página depois de autorizar" className="min-w-[240px] flex-1" />
+              <Input value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" aria-label="Endereço secreto da agenda no formato iCal" className="min-w-[240px] flex-1" />
               <Button size="sm" disabled={!pasted.trim()} loading={busy === 'connect'} onClick={() => run('connect', async () => { await gcalConnect(pasted); setPasted('') }, 'Agenda conectada!')}>
                 Conectar
               </Button>
             </div>
-            {opened && <p className="mt-1 text-xs text-slate-500">O código vale poucos minutos. Se der "venceu", clique em Abrir o Google de novo.</p>}
+            <p className="mt-1 text-xs text-slate-500">Esse endereço é secreto: não mande pra ninguém. O CRM guarda ele cifrado e só lê a agenda, nunca mexe.</p>
           </li>
         </ol>
       )}
