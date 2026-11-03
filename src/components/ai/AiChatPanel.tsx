@@ -1,7 +1,7 @@
 import { useEffect, useRef, type CSSProperties } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Minus, X, Send, History, SquarePen, ArrowLeft, Trash2 } from 'lucide-react'
+import { Minus, X, Send, History, SquarePen, ArrowLeft, Trash2, Maximize2, Minimize2 } from 'lucide-react'
 import type { AiChatMessage } from '../../types/ai'
 import type { AiQuota } from '../../services/aiChatService'
 import type { ArcherChat } from '../../services/archerChatStore'
@@ -218,7 +218,12 @@ export function AiChatPanel({
   onNewChat,
   onDeleteChat,
   style,
+  big = false,
+  onToggleBig,
 }: {
+  /** Caixa grande (mais larga e alta). */
+  big?: boolean
+  onToggleBig?: () => void
   /** Posição e tamanho (lado e altura vêm do botão arrastável, ver useArcherPosition). */
   style?: CSSProperties
   messages: AiChatMessage[]
@@ -330,6 +335,11 @@ export function AiChatPanel({
           <button onClick={onNewChat} aria-label="Nova conversa" title="Nova conversa" className="ai-icon-btn rounded-md p-1.5" style={{ color: C.slate400 }}>
             <SquarePen size={15} />
           </button>
+          {onToggleBig && (
+            <button onClick={onToggleBig} aria-label={big ? 'Diminuir a caixa' : 'Aumentar a caixa'} aria-pressed={big} title={big ? 'Diminuir a caixa' : 'Aumentar a caixa'} className="ai-icon-btn rounded-md p-1.5" style={{ color: C.slate400 }}>
+              {big ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+          )}
           <button onClick={onMinimize} aria-label="Minimizar" className="ai-icon-btn rounded-md p-1.5" style={{ color: C.slate400 }}>
             <Minus size={15} />
           </button>

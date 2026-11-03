@@ -11,6 +11,7 @@ interface Pos {
 }
 
 const KEY = 'archer.pos'
+const BIG_KEY = 'archer.big'
 const SIZE = 52
 const GAP = 24 // distância da borda lateral
 const MIN = 16 // distância mínima do topo/fundo
@@ -37,6 +38,23 @@ const clampBottom = (b: number, h: number) => Math.round(Math.min(Math.max(b, MI
 
 export function useArcherPosition() {
   const [pos, setPos] = useState<Pos>(load)
+  // Caixa grande: mais larga e quase da altura da tela.
+  const [big, setBig] = useState(() => {
+    try {
+      return localStorage.getItem(BIG_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleBig = () =>
+    setBig((v) => {
+      try {
+        localStorage.setItem(BIG_KEY, v ? '0' : '1')
+      } catch {
+        /* sem storage */
+      }
+      return !v
+    })
   const [vh, setVh] = useState(() => window.innerHeight)
   const [vw, setVw] = useState(() => window.innerWidth)
   // Enquanto arrasta: canto superior esquerdo do botão, em px.
@@ -130,9 +148,10 @@ export function useArcherPosition() {
   const panelStyle: CSSProperties = {
     [pos.side]: GAP,
     ...(above ? { bottom: bottom + SIZE + 16 } : { top: vh - bottom + 12 }),
-    height: Math.max(280, Math.min(520, room)),
-    width: Math.min(380, vw - 2 * MIN),
+    height: Math.max(280, Math.min(big ? 1000 : 520, room)),
+    width: Math.min(big ? 720 : 380, vw - 2 * MIN),
+    transition: 'width 160ms ease, height 160ms ease',
   }
 
-  return { side: pos.side, dragging: Boolean(drag), buttonStyle, panelStyle, handlers: { onPointerDown, onPointerMove, onPointerUp, onKeyDown }, consumeDragClick }
+  return { big, toggleBig, side: pos.side, dragging: Boolean(drag), buttonStyle, panelStyle, handlers: { onPointerDown, onPointerMove, onPointerUp, onKeyDown }, consumeDragClick }
 }

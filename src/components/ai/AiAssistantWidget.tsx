@@ -174,6 +174,8 @@ export function AiAssistantWidget() {
       {visible && (
         <AiChatPanel
           style={archerPos.panelStyle}
+          big={archerPos.big}
+          onToggleBig={archerPos.toggleBig}
           messages={messages}
           quota={quota}
           sending={busy}
