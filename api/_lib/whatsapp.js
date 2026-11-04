@@ -1579,18 +1579,25 @@ export async function runMeetingReminders() {
     const name = firstName(conv.name)
     const { quando, hora } = meetingWhenText(at, now)
     const com = settings.sdr?.meetingWith || 'Bruno'
-    const text = (r.text || 'Oi {nome}, passando pra lembrar da nossa reunião {quando} com o {com}. Até já!')
+    // Link do Meet que veio da agenda do Google (ou o link fixo do lembrete, se tiver).
+    const link = conv.sdr?.meeting?.url || r.meetingUrl || ''
+    let base = r.text || (link ? 'Oi {nome}, passando pra lembrar da nossa reunião {quando} com o {com}. Link pra entrar: {link}' : 'Oi {nome}, passando pra lembrar da nossa reunião {quando} com o {com}. Até já!')
+    if (link && r.text && !r.text.includes('{link}')) base = `${r.text}
+Link pra entrar: {link}`
+    if (!link) base = base.replace(/\s*(Link pra entrar:|Link:|Entra pelo link:)\s*\{link\}/g, '').replace('{link}', '')
+    const text = base
       .replaceAll('{nome}', name || '')
       .replaceAll('{quando}', quando)
       .replaceAll('{hora}', hora)
       .replaceAll('{com}', com)
+      .replaceAll('{link}', link)
       .replace(/^Oi ,/, 'Oi,')
       .trim()
     try {
       if (inWindow(conv)) {
         await sendMessage({ to: conv.waId, text, by: 'reminder', byName: 'Lembrete da reunião' })
       } else if (r.templateName) {
-        await sendMessage({ to: conv.waId, template: { name: r.templateName, lang: r.templateLang || 'pt_BR', params: [name || 'tudo bem', quando] }, by: 'reminder', byName: 'Lembrete da reunião' })
+        await sendMessage({ to: conv.waId, template: { name: r.templateName, lang: r.templateLang || 'pt_BR', params: [name || 'tudo bem', link || quando] }, by: 'reminder', byName: 'Lembrete da reunião' })
       } else {
         throw new Error('Passou de 24h desde a última mensagem do contato e não há modelo de lembrete escolhido.')
       }
