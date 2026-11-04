@@ -25,7 +25,8 @@ import { publicOrigin, reconcilePendingOrders, retryFailedCapi, notifyAbandonedC
 import { sendRecoveryEmails } from '../_lib/store/archerCheckout.js'
 
 const WARN_WITHIN_DAYS = 7
-const RENOTIFY_AFTER_MS = 20 * 3600 * 1000
+// Repete a cada ~3 dias (todo dia era barulho demais).
+const RENOTIFY_AFTER_MS = 70 * 3600 * 1000
 const SP_TZ = 'America/Sao_Paulo'
 const INTERNAL_ROLES = new Set(['admin', 'manager', 'employee'])
 
@@ -55,31 +56,36 @@ async function runTokenExpiryCheck() {
   ])
   const recipientIds = [...new Set([...managers, ...admins].filter((u) => u.active !== false).map((u) => u.id))]
 
-  let notified = 0
+  // Um aviso só com todos os clientes (antes era 1 por cliente por pessoa, todo dia: ~50 avisos/dia).
+  const rows = []
   for (const t of expiring) {
     const clientDoc = await getDoc(`clients/${t.clientId}`).catch(() => ({ exists: false }))
     const name = clientDoc.exists ? clientDoc.data().companyName || 'cliente' : 'cliente'
     const d = daysUntil(t.expiresAt)
-    const dias = d <= 0 ? 'expirou' : `expira em ${Math.max(1, Math.ceil(d))} dia(s)`
-    const message =
-      `⚠️ Token Meta Ads expirando — ${name}. O token de acesso Meta Ads ${dias}. ` +
-      `Abra a ficha do cliente → Planejamento de Campanha → Acessos para renovar.`
-
-    for (const userId of recipientIds) {
-      await setDoc(`notifications/${randomUUID()}`, {
-        userId,
-        type: 'meta_token_expiring',
-        message,
-        actorName: 'Sistema',
-        entityType: 'client',
-        entityId: t.clientId,
-        read: false,
-        createdAt: new Date(),
-      }).catch((e) => console.error('[cron/daily] tokenExpiry — falha ao criar notificação:', e.message))
-      notified++
-    }
-    await markExpiryNotified(t.clientId)
+    rows.push({ name, d, clientId: t.clientId })
   }
+  rows.sort((x, y) => x.d - y.d)
+  const label = (r) => `${r.name} (${r.d <= 0 ? 'expirou' : `${Math.max(1, Math.ceil(r.d))} dia${Math.ceil(r.d) > 1 ? 's' : ''}`})`
+  const message =
+    rows.length === 1
+      ? `Token do Meta Ads expirando: ${label(rows[0])}. Renove em Métricas > Contas e tokens.`
+      : `${rows.length} tokens do Meta Ads expirando: ${rows.map(label).join(', ')}. Renove em Métricas > Contas e tokens.`
+
+  let notified = 0
+  for (const userId of recipientIds) {
+    await setDoc(`notifications/${randomUUID()}`, {
+      userId,
+      type: 'meta_token_expiring',
+      message,
+      actorName: 'Sistema',
+      entityType: 'client',
+      entityId: rows.length === 1 ? rows[0].clientId : '',
+      read: false,
+      createdAt: new Date(),
+    }).catch((e) => console.error('[cron/daily] tokenExpiry — falha ao criar notificação:', e.message))
+    notified++
+  }
+  for (const t of expiring) await markExpiryNotified(t.clientId)
 
   return { checked: all.length, notified }
 }

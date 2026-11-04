@@ -1430,8 +1430,12 @@ ${teamOpenedBlock(settings.sdr?.meetingWith || 'Bruno', settings.sdr?.name || ''
   const newMeeting = sdr?.meeting?.agreed && !prev?.meeting?.agreed
   if (handed) {
     await updateDoc(convPath(waId), { aiMode: 'off', handoffReason: why || 'A IA pediu ajuda', handoffAt: nowIso() })
-    await notifyTeam(conv, `${who} precisa de atendimento humano no WhatsApp. Motivo: ${why || 'a IA pediu ajuda'}.`)
-  } else if (newMeeting) {
+    // Resposta automática de outra empresa não precisa de ninguém agora: fica na conversa, sem aviso.
+    if (!/autom[áa]tic|mensagem padr|bot d[ae]|fora do hor[áa]rio/i.test(why || '')) {
+      await notifyTeam(conv, `${who} precisa de atendimento humano no WhatsApp. Motivo: ${why || 'a IA pediu ajuda'}.`)
+    }
+  } else if (newMeeting && !settings.sdr?.meetingLink) {
+    // Com link de agenda, o aviso certo (com dia e hora) vem da própria agenda do Google.
     await notifyTeam(conv, `${who} marcou reunião pelo WhatsApp: ${sdr.meeting.when || 'ver conversa'}. Confirmar na agenda.`)
   } else if (sdr?.temperature === 'quente' && prev?.temperature !== 'quente') {
     await notifyTeam(conv, `${who} está quente no WhatsApp, nota ${sdr.score}. ${sdr.summary}`)
