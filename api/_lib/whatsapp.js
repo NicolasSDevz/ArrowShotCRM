@@ -786,6 +786,8 @@ export async function handleWebhook(payload) {
         const text = inboundText(m)
         const fresh = await createDocIfMissing(msgPath(waId, m.id), { direction: 'out', type: m.type, text, at, by: 'phone', byName: 'Celular da Arrow Shot', status: 'sent' })
         if (!fresh) continue
+        // Apagar, reagir ou editar pelo celular não é responder: a IA continua.
+        if (NOISE_TYPES.has(m.type)) continue
         // Conversa que a equipe começou pelo celular não vira lead novo.
         await ensureConversation(waId, { linkLead: false })
         await updateDoc(convPath(waId), {
@@ -1268,8 +1270,9 @@ export async function maybeAutoReply(waId, origin, { waitMs, force = false } = {
   // Outra chamada do webhook mais nova cuida da resposta.
   if (!force && new Date(conv.lastInboundAt).getTime() > new Date(lastIn.at).getTime() + 1000) return { skipped: 'mais nova a caminho' }
   // Trava: uma resposta por mensagem recebida, mesmo com dois webhooks juntos.
-  // Forçada (equipe passou a conversa): trava própria, a da mensagem já foi usada.
-  const lockPath = force ? `waLocks/${waId}_force_${Date.now()}` : `waLocks/${waId}_${lastIn.id.slice(-40).replace(/[^\w-]/g, '')}`
+  // A forçada (equipe passou a conversa) usa a mesma trava: senão a varredura de 5 min
+  // e o "Passar pro Jonas" respondem juntos e saem mensagens em dobro.
+  const lockPath = `waLocks/${waId}_${lastIn.id.slice(-40).replace(/[^\w-]/g, '')}`
   if (!(await takeLock(lockPath))) return { skipped: 'em andamento' }
   try {
     const out = await autoReplyLocked(waId, origin, settings, conv, recent, { force })
