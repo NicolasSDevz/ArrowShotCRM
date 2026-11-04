@@ -89,6 +89,9 @@ export const updateWaConversation = (
   patch: { aiMode?: 'auto' | 'off'; followUpStopped?: boolean; read?: boolean; leadId?: string | null; name?: string; handover?: boolean }
 ) => api<{ ok: true }>('conversation', { method: 'POST', body: { waId, ...patch } })
 
+export const sendStageMessage = (body: { leadId: string; pipelineId: string; stageId: string }) =>
+  api<{ sent?: boolean; skipped?: string; stage?: string }>('stage-message', { method: 'POST', body })
+
 export const replyWithAi = (waId: string) => api<{ replied?: boolean; skipped?: string; handoff?: boolean }>('reply-ai', { method: 'POST', body: { waId } })
 
 export const analyzeWaConversation = (waId: string) => api<{ sdr: WaSdr }>('sdr-analyze', { method: 'POST', body: { waId } })

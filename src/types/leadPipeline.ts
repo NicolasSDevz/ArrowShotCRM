@@ -5,12 +5,28 @@ import { LEAD_STATUS_COLOR, LEAD_STATUS_LABEL, LEAD_STATUS_ORDER } from './lead'
  *  etapa de perda (pede o motivo). As demais são 'open'. */
 export type PipelineStageKind = 'open' | 'won' | 'lost'
 
+/** De onde vem cada variável do modelo: dado do lead ou texto fixo. */
+export type StageVarSource = 'first' | 'full' | 'company' | 'city' | 'fixed'
+
+/** Modelo de WhatsApp (aprovado pelo Meta) que sai quando o lead entra na etapa. */
+export interface StageWaMessage {
+  templateName: string
+  templateLang: string
+  /** Uma por variável do corpo: de onde vem + texto (fixo ou reserva quando falta o dado). */
+  vars: { source: StageVarSource; text: string }[]
+  extras?: { headerText?: string; headerMedia?: string; buttonParams?: Record<string, string> }
+  /** 'auto' = o Jonas responde quem responder (com follow-up); 'off' = fica com a equipe. */
+  aiMode: 'auto' | 'off'
+}
+
 export interface PipelineStage {
   id: string
   label: string
   /** Hex da etapa (coluna do Kanban e badges). */
   color: string
   kind: PipelineStageKind
+  /** Mensagem automática de WhatsApp desta etapa. */
+  waMessage?: StageWaMessage | null
 }
 
 export type PipelineFieldType = 'text' | 'long_text' | 'number' | 'currency' | 'date' | 'select' | 'link' | 'checkbox'

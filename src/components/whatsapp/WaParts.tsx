@@ -17,7 +17,7 @@ export const STATUS_LABEL: Record<string, string> = {
   failed: 'não enviada',
 }
 
-export const AUTO = new Set(['ai', 'followup', 'cart', 'reminder', 'broadcast'])
+export const AUTO = new Set(['ai', 'followup', 'cart', 'reminder', 'broadcast', 'stage'])
 
 export const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 

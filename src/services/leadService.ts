@@ -219,6 +219,7 @@ export async function moveLeadStatus(
     userId
   )
   if (changed) {
+    if (pipeline) fireStageMessage(lead, pipeline.id, newStatus, pipeline)
     await logActivity({
       entityType: 'lead',
       entityId: lead.id,
@@ -248,6 +249,24 @@ export async function moveLeadStatus(
  *  "Mover para" do lead) ou, sem ela, na primeira etapa — as etapas de cada
  *  pipeline são diferentes. Os campos extras do pipeline antigo ficam
  *  guardados no lead, caso ele volte. */
+/** Etapa com mensagem de WhatsApp: manda o modelo pro lead (o servidor confere tudo de novo). */
+function fireStageMessage(lead: Lead, pipelineId: string, stageId: string, pipeline?: ResolvedPipeline) {
+  const stage = pipeline?.stages.find((s) => s.id === stageId)
+  if (!stage?.waMessage?.templateName) return
+  const who = lead.contactName || lead.companyName || 'lead'
+  void import('./whatsappService')
+    .then(({ sendStageMessage }) => sendStageMessage({ leadId: lead.id, pipelineId, stageId }))
+    .then(async (r) => {
+      const { default: toast } = await import('react-hot-toast')
+      if (r.sent) toast.success(`Mensagem da etapa "${stage.label}" enviada no WhatsApp de ${who}`)
+      else if (r.skipped && r.skipped !== 'etapa sem mensagem' && r.skipped !== 'lead saiu da etapa') toast(`Mensagem da etapa não enviada pra ${who}: ${r.skipped}`)
+    })
+    .catch(async (e) => {
+      const { default: toast } = await import('react-hot-toast')
+      toast.error(`Mensagem da etapa não saiu pra ${who}: ${(e as Error).message}`)
+    })
+}
+
 export async function moveLeadToPipeline(
   lead: Lead,
   target: ResolvedPipeline,
@@ -280,6 +299,7 @@ export async function moveLeadToPipeline(
     userId,
     userName,
   })
+  fireStageMessage(lead, target.id, stage.id, target)
 }
 
 export async function deleteLead(lead: Lead, userId: string, userName: string) {

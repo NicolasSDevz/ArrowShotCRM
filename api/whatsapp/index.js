@@ -21,6 +21,7 @@
 //   POST broadcast-resume { id }   retoma um disparo pausado
 //   POST broadcast-check  { id }   confere a entrega e agrupa os erros por motivo
 //   POST broadcast-retry  { id }   novo disparo só com quem não recebeu (motivo que dá pra resolver)
+//   POST stage-message    { leadId, pipelineId, stageId }   manda o modelo da etapa do funil
 
 import '../_lib/quietDeprecation.js'
 import { waitUntil } from '@vercel/functions'
@@ -53,6 +54,7 @@ import {
   resumeBroadcast,
   checkBroadcast,
   retryBroadcast,
+  sendStageMessage,
 } from '../_lib/whatsapp.js'
 
 // O webhook precisa do corpo cru pra conferir a assinatura do Meta.
@@ -215,6 +217,10 @@ const ADMIN = {
       waitUntil(maybeAutoReply(b.waId, publicOrigin(req), { waitMs: 0, force: true }).catch((e) => console.warn('[whatsapp] passar pra IA:', e.message)))
     }
     return out
+  },
+  'POST stage-message': async (req) => {
+    const b = await readJson(req)
+    return sendStageMessage({ leadId: String(b.leadId || ''), pipelineId: String(b.pipelineId || ''), stageId: String(b.stageId || '') })
   },
   'POST reply-ai': async (req) => {
     const b = await readJson(req)

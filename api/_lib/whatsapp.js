@@ -581,7 +581,7 @@ export async function sendMessage({ to, text, template, by, byName = '', convExt
 
   const existing = await getDoc(convPath(target)).catch(() => ({ exists: false }))
   const conv = existing.exists ? existing.data() : null
-  if (conv?.optOut && template && by === 'broadcast') throw new WaError(400, 'Essa pessoa pediu para não receber mais mensagens (botão Bloquear ou Não quero).')
+  if (conv?.optOut && template && (by === 'broadcast' || by === 'stage')) throw new WaError(400, 'Essa pessoa pediu para não receber mais mensagens (botão Bloquear ou Não quero).')
   if (text && !template && !inWindow(conv)) {
     throw new WaError(409, 'Passou de 24h desde a última mensagem do contato (ou ele nunca chamou). Use uma mensagem de modelo.')
   }
@@ -627,7 +627,7 @@ export async function sendMessage({ to, text, template, by, byName = '', convExt
   })
   const patch = { lastMessageAt: at, lastMessageText: shown.slice(0, 160), lastDirection: 'out', updatedAt: at }
   // Quem respondeu pelo CRM zera o "não lidas".
-  if (by !== 'ai' && by !== 'followup' && by !== 'cart' && by !== 'broadcast') patch.unread = 0
+  if (by !== 'ai' && by !== 'followup' && by !== 'cart' && by !== 'broadcast' && by !== 'stage') patch.unread = 0
   await updateDoc(convPath(waId), patch)
   return { id, waId, text: shown }
 }
@@ -1079,6 +1079,7 @@ function staffAuthor(m) {
   if (m.direction !== 'out' || AUTO_SENDERS.has(m.by)) return ''
   if (m.by === 'phone') return 'Bruno, pelo celular'
   if (m.by === 'broadcast') return 'Disparo em massa da equipe (mensagem de modelo)'
+  if (m.by === 'stage') return 'Mensagem automática da etapa do funil (modelo da equipe)'
   return m.byName ? `${m.byName}, da equipe` : 'equipe'
 }
 
@@ -2269,4 +2270,52 @@ export async function retryBroadcast(id, user) {
     },
     user
   )
+}
+
+/* ----------------------- mensagem da etapa do funil ----------------------- */
+// Cada etapa do pipeline pode ter um modelo aprovado (stage.waMessage). Quando a equipe
+// move o lead para essa etapa na tela, a tela chama isto e o modelo sai pro WhatsApp do lead.
+
+const STAGE_RESEND_MS = 7 * 86400_000
+
+function stageVar(m, lead) {
+  const name = String(lead.contactName || '').trim()
+  if (m?.source === 'fixed') return String(m.text || '').trim()
+  const v = m?.source === 'first' ? name.split(/\s+/)[0] || '' : m?.source === 'full' ? name : m?.source === 'company' ? lead.companyName : m?.source === 'city' ? lead.cityRegion : ''
+  return String(v || '').trim() || String(m?.text || '').trim()
+}
+
+export async function sendStageMessage({ leadId, pipelineId, stageId }) {
+  if (!leadId || !stageId) throw new WaError(400, 'Faltou o lead ou a etapa.')
+  const pid = pipelineId || 'default'
+  const pipe = await getDoc(`leadPipelines/${pid}`).catch(() => null)
+  const stage = (pipe?.exists ? pipe.data().stages || [] : []).find((s) => s.id === stageId)
+  const cfg = stage?.waMessage
+  if (!cfg?.templateName) return { skipped: 'etapa sem mensagem' }
+  const snap = await getDoc(`leads/${leadId}`)
+  if (!snap.exists) throw new WaError(404, 'Lead não encontrado.')
+  const lead = snap.data()
+  // Só se o lead ainda está nessa etapa (a pessoa pode ter arrastado e voltado).
+  if ((lead.pipelineId || 'default') !== pid || lead.status !== stageId) return { skipped: 'lead saiu da etapa' }
+  const phone = digits(lead.whatsapp || lead.phone || '')
+  if (phone.length < 10) return { skipped: 'lead sem WhatsApp' }
+  const last = lead.stageMessages?.[stageId]
+  if (last && Date.now() - new Date(last).getTime() < STAGE_RESEND_MS) return { skipped: 'já recebeu essa mensagem nos últimos 7 dias' }
+
+  const params = (cfg.vars || []).map((m) => stageVar(m, lead))
+  if (params.some((v) => !v)) throw new WaError(400, `Falta dado do lead para preencher o modelo da etapa "${stage.label}" (nome, empresa ou cidade). Coloque um texto de reserva na configuração da etapa.`)
+  const ex = cfg.extras || {}
+  const out = await sendMessage({
+    to: phone,
+    template: { name: cfg.templateName, lang: cfg.templateLang || 'pt_BR', params, headerText: ex.headerText, headerMedia: ex.headerMedia, buttonParams: ex.buttonParams },
+    by: 'stage',
+    byName: `Etapa: ${stage.label}`,
+    convExtra: lead.contactName ? { name: lead.contactName } : {},
+  })
+  const patch = { leadId }
+  if (cfg.aiMode === 'off') patch.aiMode = 'off'
+  else Object.assign(patch, { aiMode: 'auto', knownContactOverride: true, handoffReason: null, aiTakeover: { at: nowIso() }, followUpStopped: false, followUpStep: 0 })
+  await updateDoc(convPath(out.waId), patch).catch(() => {})
+  await updateDoc(`leads/${leadId}`, { stageMessages: { ...(lead.stageMessages || {}), [stageId]: nowIso() } }).catch(() => {})
+  return { sent: true, waId: out.waId, stage: stage.label }
 }

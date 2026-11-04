@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react'
+import { ArrowUp, ArrowDown, MessageCircle, Plus, Trash2 } from 'lucide-react'
+import { StageMessageEditor } from './StageMessageEditor'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
@@ -55,6 +56,7 @@ export function LeadPipelineModal({
   const [stages, setStages] = useState<PipelineStage[]>([])
   const [fields, setFields] = useState<PipelineField[]>([])
   const [saving, setSaving] = useState(false)
+  const [msgOpen, setMsgOpen] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -80,7 +82,11 @@ export function LeadPipelineModal({
       label: f.label.trim(),
       options: f.type === 'select' ? (f.options ?? []).map((o) => o.trim()).filter(Boolean) : undefined,
     }))
-    const cleanStages = stages.map((s) => ({ ...s, label: s.label.trim() }))
+    if (stages.some((s) => s.waMessage && s.waMessage.vars.some((v) => v.source === 'fixed' && !v.text.trim()))) {
+      return toast.error('Preencha o texto fixo das variáveis da mensagem de WhatsApp')
+    }
+    // JSON tira campos "undefined" (o Firestore recusa).
+    const cleanStages = stages.map((s) => JSON.parse(JSON.stringify({ ...s, label: s.label.trim(), waMessage: s.waMessage || null })) as PipelineStage)
     setSaving(true)
     try {
       if (pipeline) {
@@ -148,6 +154,15 @@ export function LeadPipelineModal({
                         </option>
                       ))}
                     </Select>
+                    <button
+                      type="button"
+                      onClick={() => setMsgOpen((cur) => (cur === s.id ? null : s.id))}
+                      aria-expanded={msgOpen === s.id}
+                      title={s.waMessage ? 'Mensagem de WhatsApp desta etapa (ligada)' : 'Mandar mensagem de WhatsApp quando o lead entrar nesta etapa'}
+                      className={`inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold transition ${s.waMessage ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
+                    >
+                      <MessageCircle size={13} aria-hidden="true" /> {s.waMessage ? 'Mensagem' : 'WhatsApp'}
+                    </button>
                     <button type="button" onClick={() => setStages((c) => move(c, i, -1))} disabled={i === 0} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 disabled:opacity-30" title="Mover pra esquerda">
                       <ArrowUp size={13} />
                     </button>
@@ -164,6 +179,7 @@ export function LeadPipelineModal({
                       <Trash2 size={13} />
                     </button>
                     {count > 0 && <span className="w-full pl-1 text-[11px] text-slate-400">{count} lead(s) nesta etapa</span>}
+                    {msgOpen === s.id && <StageMessageEditor stage={s} onChange={(m) => updateStage(s.id, { waMessage: m })} />}
                   </div>
                 )
               })}
