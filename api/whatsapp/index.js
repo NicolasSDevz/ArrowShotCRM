@@ -210,6 +210,10 @@ const ADMIN = {
     if (!isWaId(b.waId)) throw new WaError(400, 'Conversa inválida.')
     const out = await updateConversation(b.waId, b)
     if (b.read === true) await markReadOnWhatsapp(b.waId)
+    // Passou pro Jonas e o contato já falou: a IA responde agora, lendo o que a equipe escreveu.
+    if (b.handover === true) {
+      waitUntil(maybeAutoReply(b.waId, publicOrigin(req), { waitMs: 0, force: true }).catch((e) => console.warn('[whatsapp] passar pra IA:', e.message)))
+    }
     return out
   },
   'POST reply-ai': async (req) => {

@@ -891,6 +891,16 @@ Na última mensagem você perguntou se a pessoa já é cliente ou já conversou 
 - NÃO (ou contou do negócio, ou perguntou do serviço): siga como SDR normal, a partir da abertura/descoberta, sem repetir a apresentação.
 - Resposta vaga: trate como NÃO e siga, com gentileza.`
 
+/** A equipe começou a conversa (ou passou pra IA): a IA continua de onde o Bruno parou. */
+function teamOpenedBlock(meetWith, name) {
+  return `# A equipe começou esta conversa e passou para você (vale mais que a regra "Conversa antiga")
+Quem puxou o assunto foi o ${meetWith} ou alguém da equipe (mensagens marcadas "[... escreveu:]"). O contato está respondendo a ELES, então é normal ele falar com o ${meetWith}, citar a feira, a reunião ou responder só "sim", "bom dia" ou "pode ser".
+- Leia tudo o que a equipe escreveu e continue exatamente de onde parou. Ex.: se o ${meetWith} ofereceu um diagnóstico e a pessoa disse "sim", siga para marcar a reunião.
+- Na sua primeira fala, apresente-se rapidinho como ${name ? `${name}, ` : ''}da equipe do ${meetWith} (ex.: "Aqui é ${name ? `o ${name}` : 'da equipe'}, trabalho com o ${meetWith} e vou seguir com você por aqui"). Não repita a apresentação da Arrow Shot que a equipe já fez.
+- NÃO pergunte se já é cliente e NÃO passe para a equipe só porque a equipe escreveu antes, porque a pessoa citou o ${meetWith} ou porque a conversa parece continuação. Isso aqui é continuação de propósito.
+- Só passe para a equipe nos casos das regras de passar para humano (pedir para falar com uma pessoa, reclamação, negociar valor, fechar agora, dúvida que você não sabe responder).`
+}
+
 const SDR_STAGES = ['abertura', 'descoberta', 'qualificacao', 'agendamento', 'agendado', 'nutricao', 'desqualificado']
 const SDR_FIELDS = ['nome', 'empresa', 'cidade', 'servico', 'tamanho', 'anuncia', 'investimento', 'objetivo', 'decisor', 'prazo']
 
@@ -1084,7 +1094,10 @@ function toTurns(msgs) {
     if (last && last.role === role) last.content += `\n${content}`
     else turns.push({ role, content })
   }
-  while (turns.length && turns[0].role !== 'user') turns.shift()
+  // A conversa começou com mensagem da equipe (ex.: o Bruno chamou primeiro pelo celular).
+  // A API pede que o 1º turno seja do contato, então entra um aviso antes, em vez de
+  // jogar fora a abertura (sem ela a IA não entendia a que o contato estava respondendo).
+  if (turns.length && turns[0].role !== 'user') turns.unshift({ role: 'user', content: '[Começo da conversa: quem mandou a primeira mensagem foi a equipe, logo abaixo. O contato está respondendo a ela.]' })
   return turns
 }
 
@@ -1217,7 +1230,7 @@ const typingMs = (text) => Math.min(5000, 1500 + String(text).length * 35)
  * Responde com a IA se estiver ligada pra essa conversa. Espera uns segundos
  * antes: quem manda 3 mensagens seguidas recebe uma resposta só.
  */
-export async function maybeAutoReply(waId, origin, { waitMs } = {}) {
+export async function maybeAutoReply(waId, origin, { waitMs, force = false } = {}) {
   const settings = await getWaSettings()
   const wait = waitMs ?? Math.min(90, Math.max(5, Number(settings.aiDelaySeconds) || 25)) * 1000
   if (settings.aiEnabled && wait) await sleep(wait)
@@ -1229,11 +1242,16 @@ export async function maybeAutoReply(waId, origin, { waitMs } = {}) {
     if (settings.notifyEveryMessage) await notifyTeam(conv, `${conv.name || conv.phone} mandou: ${conv.lastMessageText || 'mensagem nova'}`, { bell: false })
     return { skipped: 'humano atendendo' }
   }
-  if (conv.lastDirection !== 'in') return { skipped: 'já respondida' }
+  if (conv.lastDirection !== 'in' && !force) return { skipped: 'já respondida' }
 
   const recent = (await queryRecent(convPath(waId), 'messages', 'at', 30)).reverse()
   const lastIn = [...recent].reverse().find((m) => m.direction === 'in' && !NOISE_TYPES.has(m.type))
   if (!lastIn) return { skipped: 'sem mensagem' }
+  // Passada pra IA, mas quem falou por último foi a equipe: não atropela, o follow-up retoma depois.
+  if (force) {
+    const lastReal = [...recent].reverse().find((m) => !NOISE_TYPES.has(m.type))
+    if (lastReal?.direction === 'out' && staffAuthor(lastReal)) return { skipped: 'a equipe falou por último' }
+  }
 
   // Quem já é cliente ou já está com a equipe não recebe o SDR: a IA não responde
   // e avisa a equipe. Só vale antes da IA falar nessa conversa.
@@ -1247,12 +1265,13 @@ export async function maybeAutoReply(waId, origin, { waitMs } = {}) {
   }
 
   // Outra chamada do webhook mais nova cuida da resposta.
-  if (new Date(conv.lastInboundAt).getTime() > new Date(lastIn.at).getTime() + 1000) return { skipped: 'mais nova a caminho' }
+  if (!force && new Date(conv.lastInboundAt).getTime() > new Date(lastIn.at).getTime() + 1000) return { skipped: 'mais nova a caminho' }
   // Trava: uma resposta por mensagem recebida, mesmo com dois webhooks juntos.
-  const lockPath = `waLocks/${waId}_${lastIn.id.slice(-40).replace(/[^\w-]/g, '')}`
+  // Forçada (equipe passou a conversa): trava própria, a da mensagem já foi usada.
+  const lockPath = force ? `waLocks/${waId}_force_${Date.now()}` : `waLocks/${waId}_${lastIn.id.slice(-40).replace(/[^\w-]/g, '')}`
   if (!(await takeLock(lockPath))) return { skipped: 'em andamento' }
   try {
-    const out = await autoReplyLocked(waId, origin, settings, conv, recent)
+    const out = await autoReplyLocked(waId, origin, settings, conv, recent, { force })
     // Fica travada se a IA respondeu ou escolheu ficar quieta; senão a próxima tentativa
     // (a varredura de 5 min) pode responder.
     if (out.replied || out.quiet) await updateDoc(lockPath, { done: true }).catch(() => {})
@@ -1325,7 +1344,7 @@ async function takeLock(path) {
   return true
 }
 
-async function autoReplyLocked(waId, origin, settings, conv, recent) {
+async function autoReplyLocked(waId, origin, settings, conv, recent, { force = false } = {}) {
   const ai = anthropic()
   if (!ai) return { skipped: 'sem chave da IA' }
   if (!(await rateLimit('wa-ai-day', AI_DAILY_LIMIT, 24 * 3600_000))) {
@@ -1335,13 +1354,23 @@ async function autoReplyLocked(waId, origin, settings, conv, recent) {
 
   const turns = toTurns(recent)
   if (!turns.length) return { skipped: 'sem turnos' }
+  // Equipe passou a conversa e a última fala é nossa (ex.: a IA tinha chamado o Bruno): retoma.
+  if (force && turns[turns.length - 1].role === 'assistant') {
+    turns.push({ role: 'user', content: '[Instrução interna, não é o contato falando] A equipe passou esta conversa para você agora. Se a última mensagem nossa dizia que ia chamar alguém da equipe, ignore isso e continue a conversa de onde o contato parou, respondendo ao que ele disse. Não peça desculpa nem explique a troca.' })
+  }
   let system = await conversationPrompt(conv, settings, origin)
   // Respondeu a um disparo em massa: a IA precisa saber o que foi mandado
   // (o histórico dela começa na 1ª fala do contato e cortaria essa mensagem).
   const lastBc = [...recent].reverse().find((m) => m.direction === 'out' && m.by === 'broadcast')
   if (lastBc) system += `\n\n# Disparo da equipe\nA equipe mandou esta mensagem para a pessoa (disparo em massa, ${fmtDate(lastBc.at) || 'recente'}):\n"""${clip(lastBc.text, 1200)}"""\nEla respondeu a isso. Continue a conversa a partir do que a mensagem dizia, sem repetir a mensagem e sem perguntar se já é cliente.`
+  // A equipe abriu a conversa (Bruno chamou primeiro) ou passou a conversa pra IA.
+  const firstReal = recent.find((m) => !NOISE_TYPES.has(m.type))
+  const teamOpened = conv.kind === 'lead' && (Boolean(conv.aiTakeover) || (recent.length < 30 && firstReal?.direction === 'out' && Boolean(staffAuthor(firstReal))))
+  if (teamOpened) system += `
+
+${teamOpenedBlock(settings.sdr?.meetingWith || 'Bruno', settings.sdr?.name || '')}`
   // Número que o CRM não conhecia: antes de vender, pergunta se já é cliente.
-  if (conv.kind === 'lead' && conv.leadMatch !== 'existing') {
+  if (conv.kind === 'lead' && conv.leadMatch !== 'existing' && !teamOpened) {
     const ours = recent.filter((m) => m.direction === 'out')
     const lastOurs = ours[ours.length - 1]
     const firstIn = recent.find((m) => m.direction === 'in' && !NOISE_TYPES.has(m.type))
@@ -1747,7 +1776,11 @@ export async function updateConversation(waId, input) {
   if (input.aiMode === 'auto' || input.aiMode === 'off') {
     patch.aiMode = input.aiMode
     // Equipe devolveu pra IA: vale mesmo se for cliente/lead já atendido.
-    if (input.aiMode === 'auto') Object.assign(patch, { handoffReason: null, knownContactOverride: true })
+    if (input.aiMode === 'auto') Object.assign(patch, { handoffReason: null, knownContactOverride: true, aiTakeover: { at: nowIso() }, aiFail: null })
+  }
+  // "Passar pro Jonas": IA + follow-up ligados de uma vez, continuando o que a equipe começou.
+  if (input.handover === true) {
+    Object.assign(patch, { aiMode: 'auto', handoffReason: null, knownContactOverride: true, aiTakeover: { at: nowIso() }, aiFail: null, followUpStopped: false, followUpStep: 0, followUpError: null })
   }
   if (typeof input.followUpStopped === 'boolean') patch.followUpStopped = input.followUpStopped
   if (input.read === true) patch.unread = 0

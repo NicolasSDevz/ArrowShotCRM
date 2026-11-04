@@ -86,7 +86,7 @@ export const sendWaTemplate = (to: string, template: { name: string; lang: strin
 
 export const updateWaConversation = (
   waId: string,
-  patch: { aiMode?: 'auto' | 'off'; followUpStopped?: boolean; read?: boolean; leadId?: string | null; name?: string }
+  patch: { aiMode?: 'auto' | 'off'; followUpStopped?: boolean; read?: boolean; leadId?: string | null; name?: string; handover?: boolean }
 ) => api<{ ok: true }>('conversation', { method: 'POST', body: { waId, ...patch } })
 
 export const replyWithAi = (waId: string) => api<{ replied?: boolean; skipped?: string; handoff?: boolean }>('reply-ai', { method: 'POST', body: { waId } })

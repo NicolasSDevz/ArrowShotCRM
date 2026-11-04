@@ -314,12 +314,18 @@ export function LeadFeed({ lead, active = true }: { lead: Lead; active?: boolean
         </div>
       )}
 
-      {conv?.aiMode === 'off' && conv.handoffReason && (
+      {conv && conv.kind !== 'cart' && (!aiOn || !followOn) && (
         <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800" role="status">
           <AlertTriangle size={15} className="shrink-0" aria-hidden="true" />
-          <span className="flex-1">A IA passou para a equipe: {conv.handoffReason}</span>
-          <button type="button" className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold hover:bg-amber-100" onClick={() => run('ai', () => updateWaConversation(conv.waId, { aiMode: 'auto' }), 'Conversa devolvida para a IA')}>
-            Devolver para a IA
+          <span className="flex-1">
+            {!aiOn
+              ? conv.handoffReason && !/celular/i.test(conv.handoffReason)
+                ? `A IA passou para a equipe: ${conv.handoffReason}`
+                : 'Conversa com a equipe. O Jonas não está respondendo aqui.'
+              : 'O Jonas responde, mas o follow-up está parado.'}
+          </span>
+          <button type="button" className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold hover:bg-amber-100" onClick={() => run('ai', () => updateWaConversation(conv.waId, { handover: true }), 'Conversa passada pro Jonas: IA e follow-up ligados')}>
+            Passar pro Jonas
           </button>
         </div>
       )}

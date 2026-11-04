@@ -9,7 +9,7 @@ import { EmptyPane, TemplateComposer, displayName, listTime } from './WaParts'
 import { WaThread } from './WaThread'
 import { hasMeeting, isHot } from './waSdr'
 import type { WaBroadcast, WaConversation, WaTemplate } from '../../types/whatsapp'
-import { listenBroadcasts } from '../../services/whatsappService'
+import { listenBroadcasts, updateWaConversation } from '../../services/whatsappService'
 import { useLeads } from '../../hooks/useLeads'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { findConversationLead, useWaConversations } from '../../hooks/useWaConversations'
@@ -211,6 +211,40 @@ export function WhatsappInbox({
     return out
   }, [rows, leads]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Escolher várias conversas e passar todas pro Jonas (IA + follow-up) de uma vez.
+  const [picking, setPicking] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [handing, setHanding] = useState(false)
+  const togglePick = (waId: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(waId)) next.delete(waId)
+      else next.add(waId)
+      return next
+    })
+  const stopPicking = () => {
+    setPicking(false)
+    setPicked(new Set())
+  }
+  const handOver = async () => {
+    const ids = [...picked]
+    if (!ids.length) return
+    setHanding(true)
+    let ok = 0
+    for (const waId of ids) {
+      try {
+        await updateWaConversation(waId, { handover: true })
+        ok++
+      } catch {
+        /* conta abaixo */
+      }
+    }
+    setHanding(false)
+    if (ok === ids.length) toast.success(`${ok} conversa${ok === 1 ? '' : 's'} com o Jonas: IA e follow-up ligados`)
+    else toast.error(`Passei ${ok} de ${ids.length}. Tente de novo nas que faltaram.`)
+    stopPicking()
+  }
+
   const current = (rows || []).find((c) => c.waId === selected) || null
   const showThread = Boolean(current) || creating
 
@@ -309,6 +343,14 @@ export function WhatsappInbox({
             })}
             <button
               type="button"
+              aria-pressed={picking}
+              onClick={() => (picking ? stopPicking() : setPicking(true))}
+              className={`inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs font-semibold transition ${picking ? 'bg-violet-500 text-white' : 'text-violet-400 hover:bg-violet-500/15'}`}
+            >
+              <Bot size={13} aria-hidden="true" /> {picking ? 'Cancelar escolha' : 'Passar várias pro Jonas'}
+            </button>
+            <button
+              type="button"
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen((v) => !v)}
               className="inline-flex h-8 items-center rounded-full px-3 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
@@ -317,6 +359,19 @@ export function WhatsappInbox({
               <span className="sr-only"> filtros</span>
             </button>
           </div>
+          {picking && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-violet-500/10 p-2 text-xs text-slate-600" role="region" aria-label="Passar conversas pro Jonas">
+              <span className="min-w-0 flex-1">
+                {picked.size ? `${picked.size} escolhida${picked.size === 1 ? '' : 's'}.` : 'Marque as conversas na lista.'} O Jonas lê o que o Bruno escreveu e continua.
+              </span>
+              <button type="button" onClick={() => setPicked(new Set(list.map((c) => c.waId)))} className="rounded-lg px-2 py-1 font-semibold text-violet-400 hover:bg-violet-500/15">
+                Marcar as {list.length} da lista
+              </button>
+              <Button size="sm" disabled={!picked.size} loading={handing} onClick={handOver}>
+                Passar {picked.size || ''} pro Jonas
+              </Button>
+            </div>
+          )}
           {bcFilters && (
             <div className="flex flex-col gap-1.5 rounded-xl bg-slate-50 p-2">
               <label className="flex items-center gap-2 text-xs text-slate-500">
@@ -368,10 +423,21 @@ export function WhatsappInbox({
               const origin = originOf(c)
               const company = c.sdr?.profile?.empresa || lead?.companyName
               return (
-                <li key={c.waId}>
+                <li key={c.waId} className={picking ? 'flex items-center gap-1 pl-1.5' : undefined}>
+                  {picking && (
+                    <input
+                      type="checkbox"
+                      checked={picked.has(c.waId)}
+                      onChange={() => togglePick(c.waId)}
+                      aria-label={`Escolher ${displayName(c)} para passar pro Jonas`}
+                      className="h-4 w-4 shrink-0 accent-violet-500"
+                    />
+                  )}
                   <button
                     type="button"
+                    tabIndex={picking ? -1 : undefined}
                     onClick={() => {
+                      if (picking) return togglePick(c.waId)
                       setCreating(false)
                       select(c.waId)
                     }}

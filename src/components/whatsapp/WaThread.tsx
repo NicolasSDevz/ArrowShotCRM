@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { AlertTriangle, ArrowLeft, ArrowRight, CalendarCheck, ChevronRight, RefreshCw, ScanSearch, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Bot, CalendarCheck, ChevronRight, RefreshCw, ScanSearch, X } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
 import { Composer, DayDivider, MessageBubble, Switch, authorLabel, displayName } from './WaParts'
 import { SDR_FIELDS, SDR_FIELD_LABEL, SDR_FLOW, SDR_STAGE, SDR_TEMP } from './waSdr'
@@ -303,12 +303,22 @@ export function WaThread({
           </div>
         </header>
 
-        {conv.aiMode === 'off' && conv.handoffReason && !/celular/i.test(conv.handoffReason) && (
-          <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-slate-700" role="status">
-            <AlertTriangle size={15} className="shrink-0 text-amber-500" aria-hidden="true" />
-            <span className="flex-1">A IA passou para a equipe: {conv.handoffReason}</span>
-            <button type="button" className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-amber-500 hover:bg-amber-500/15" onClick={() => run('ai', () => updateWaConversation(conv.waId, { aiMode: 'auto' }), 'Conversa devolvida para a IA')}>
-              Devolver para a IA
+        {conv.kind !== 'cart' && (!aiOn || !followOn) && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-violet-500/30 bg-violet-500/10 px-4 py-2 text-sm text-slate-700" role="status">
+            <Bot size={15} className="shrink-0 text-violet-400" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              {!aiOn
+                ? conv.handoffReason && !/celular/i.test(conv.handoffReason)
+                  ? `A IA passou para a equipe: ${conv.handoffReason}`
+                  : 'Conversa com a equipe. O Jonas não está respondendo aqui.'
+                : 'O Jonas responde, mas o follow-up está parado.'}
+            </span>
+            <button
+              type="button"
+              className="shrink-0 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-600"
+              onClick={() => run('ai', () => updateWaConversation(conv.waId, { handover: true }), 'Conversa passada pro Jonas: IA e follow-up ligados')}
+            >
+              Passar pro Jonas
             </button>
           </div>
         )}
