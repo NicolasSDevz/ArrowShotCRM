@@ -207,10 +207,10 @@ const ADMIN = {
     if (b.takeOver !== false) await updateConversation(out.waId, { aiMode: 'off', read: true }).catch(() => {})
     return out
   },
-  'POST conversation': async (req) => {
+  'POST conversation': async (req, user) => {
     const b = await readJson(req)
     if (!isWaId(b.waId)) throw new WaError(400, 'Conversa inválida.')
-    const out = await updateConversation(b.waId, b)
+    const out = await updateConversation(b.waId, b, user)
     if (b.read === true) await markReadOnWhatsapp(b.waId)
     // Passou pro Jonas e o contato já falou: a IA responde agora, lendo o que a equipe escreveu.
     if (b.handover === true) {

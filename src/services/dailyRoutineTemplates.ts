@@ -28,7 +28,8 @@ export interface RoutineItem {
  *  from scratch, they just start with an empty list. */
 export function resolveRoutinePersonKey(userName: string): RoutinePersonKey | undefined {
   const name = userName.toLowerCase()
-  if (name.includes('bruno')) return 'bruno'
+  // O usuário do Bruno ficou com o e-mail no lugar do nome.
+  if (name.includes('bruno') || name.trim() === 'arrowshotmkt@gmail.com') return 'bruno'
   if (name.includes('jamilson') || name.includes('janilson')) return 'jamilson'
   if (name.includes('ciane')) return 'ciane'
   if (name.includes('nicolas') || name.includes('nícolas')) return 'nicolas'

@@ -54,6 +54,10 @@ export interface WaConversation {
   lastBroadcastAt?: string | null
   /** Análise do SDR, atualizada a cada resposta da IA. */
   sdr?: WaSdr | null
+  /** Observação da equipe no Raio-x: a IA lê antes de responder. */
+  teamNotes?: string | null
+  teamNotesBy?: string | null
+  teamNotesAt?: string | null
 }
 
 export interface WaMessage {

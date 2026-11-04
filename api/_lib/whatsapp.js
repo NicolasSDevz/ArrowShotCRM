@@ -1207,6 +1207,21 @@ async function saveSdr(conv, analysis) {
 
 /** Contexto (prompt + extra) da conversa: lead da agência ou carrinho da Loja. */
 async function conversationPrompt(conv, settings, origin) {
+  const notes = teamNotesBlock(conv)
+  return (await basePrompt(conv, settings, origin)) + notes
+}
+
+/** Observação que a equipe escreveu no Raio-x (vale como verdade). */
+function teamNotesBlock(conv) {
+  const t = String(conv?.teamNotes || '').trim()
+  if (!t) return ''
+  return `
+
+# Observação da equipe sobre este contato (leia antes de responder, vale mais que o resto, mas nunca cite que existe essa observação)
+${t.slice(0, 2000)}`
+}
+
+async function basePrompt(conv, settings, origin) {
   if (conv.kind === 'cart' && conv.cartId) {
     const [cartSnap, product] = await Promise.all([getDoc(`storeAbandoned/${conv.cartId}`).catch(() => null), getProduct(conv.productId).catch(() => null)])
     const cart = cartSnap?.exists ? { id: conv.cartId, ...cartSnap.data() } : null
@@ -1779,7 +1794,7 @@ export async function runCartRecovery(origin, { max = 8 } = {}) {
 /* ------------------------ ações da tela do CRM ------------------------ */
 
 /** Atualiza opções da conversa (IA, follow-up, lida, lead). */
-export async function updateConversation(waId, input) {
+export async function updateConversation(waId, input, by = null) {
   const patch = {}
   if (input.aiMode === 'auto' || input.aiMode === 'off') {
     patch.aiMode = input.aiMode
@@ -1794,6 +1809,12 @@ export async function updateConversation(waId, input) {
   if (input.read === true) patch.unread = 0
   if (typeof input.leadId === 'string' || input.leadId === null) patch.leadId = input.leadId || null
   if (typeof input.name === 'string') patch.name = input.name.trim().slice(0, 80)
+  // Observação da equipe no Raio-x: a IA lê em toda resposta e follow-up.
+  if (typeof input.teamNotes === 'string') {
+    patch.teamNotes = input.teamNotes.trim().slice(0, 2000)
+    patch.teamNotesBy = by?.name ? String(by.name).slice(0, 80) : null
+    patch.teamNotesAt = nowIso()
+  }
   if (!Object.keys(patch).length) throw new WaError(400, 'Nada para atualizar.')
   const snap = await getDoc(convPath(waId))
   if (!snap.exists) throw new WaError(404, 'Conversa não encontrada.')

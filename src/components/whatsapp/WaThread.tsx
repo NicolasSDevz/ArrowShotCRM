@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { AlertTriangle, ArrowLeft, ArrowRight, Bot, CalendarCheck, ChevronRight, RefreshCw, ScanSearch, X } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
@@ -34,6 +34,59 @@ export function SdrPanel({ conv, onClose }: { conv: WaConversation; onClose?: ()
   const offFlow = sdr && flowIdx < 0 ? SDR_STAGE[sdr.stage] : null
   const known = sdr ? SDR_FIELDS.filter((k) => sdr.profile?.[k]).length : 0
 
+  // Observação da equipe: fica fora do sdr pra não sumir quando a IA refaz a análise.
+  const savedNotes = conv.teamNotes ?? ''
+  const [notes, setNotes] = useState(savedNotes)
+  const [savingNotes, setSavingNotes] = useState(false)
+  const notesId = useId()
+  useEffect(() => setNotes(savedNotes), [conv.waId, savedNotes])
+  const notesDirty = notes.trim() !== savedNotes.trim()
+  const saveNotes = async () => {
+    setSavingNotes(true)
+    try {
+      await updateWaConversation(conv.waId, { teamNotes: notes })
+      toast.success(notes.trim() ? 'Observação salva. A IA vai ler antes de responder.' : 'Observação apagada.')
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setSavingNotes(false)
+    }
+  }
+
+  const notesBox = (
+    <div>
+      <label htmlFor={notesId} className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        Observação da equipe
+      </label>
+      <textarea
+        id={notesId}
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        rows={4}
+        maxLength={2000}
+        placeholder="Ex.: já é cliente do Bruno, não oferecer reunião; prefere áudio; só atende depois das 18h."
+        aria-describedby={`${notesId}-hint`}
+        className="w-full resize-y rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-violet-400 focus:outline-none"
+      />
+      <div className="mt-1.5 flex items-center gap-2">
+        <p id={`${notesId}-hint`} className="flex-1 text-[11px] leading-snug text-slate-400">
+          A IA lê isso antes de cada resposta e follow-up.
+          {conv.teamNotesAt && savedNotes && (
+            <> Salva {conv.teamNotesBy ? `por ${conv.teamNotesBy} ` : ''}em {new Date(conv.teamNotesAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}.</>
+          )}
+        </p>
+        <button
+          type="button"
+          onClick={saveNotes}
+          disabled={!notesDirty || savingNotes}
+          className="inline-flex h-8 shrink-0 items-center rounded-lg bg-violet-500 px-3 text-xs font-semibold text-white transition hover:bg-violet-600 disabled:opacity-50"
+        >
+          {savingNotes ? 'Salvando…' : 'Salvar observação'}
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <section className="flex h-full flex-col" aria-labelledby={`sdr-${conv.waId}`}>
       <header className="flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
@@ -58,6 +111,7 @@ export function SdrPanel({ conv, onClose }: { conv: WaConversation; onClose?: ()
       </header>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+        {notesBox}
         {!sdr || !t ? (
           <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center">
             <p className="text-sm font-medium text-slate-600">Sem raio-x ainda</p>
