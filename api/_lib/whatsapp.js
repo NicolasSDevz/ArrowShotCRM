@@ -517,6 +517,27 @@ async function createLeadFromWhatsapp(waId, name) {
   return id
 }
 
+/**
+ * Quem respondeu uma conversa sem card: liga ao lead que já existe com esse número ou
+ * cria um Novo Lead. Cliente da agência não vira lead (fica marcado pra não checar de novo).
+ */
+export async function linkLeadOnReply(waId, name) {
+  const lead = await findLeadByPhone(waId)
+  if (lead === undefined) return null
+  if (lead) {
+    await updateDoc(convPath(waId), { leadId: lead.id, leadMatch: 'existing' })
+    return lead.id
+  }
+  if (await findClientByPhone(waId)) {
+    await updateDoc(convPath(waId), { leadMatch: 'client' })
+    return null
+  }
+  if (!(await getWaSettings()).autoCreateLead) return null
+  const id = await createLeadFromWhatsapp(waId, name)
+  await updateDoc(convPath(waId), { leadId: id, leadMatch: 'created' })
+  return id
+}
+
 /** Garante a conversa e devolve os dados dela. */
 export async function ensureConversation(waId, { name = '', kind = 'lead', extra = {}, linkLead = true } = {}) {
   const snap = await getDoc(convPath(waId))
@@ -758,6 +779,8 @@ export async function handleWebhook(payload) {
         }
 
         const conv = await ensureConversation(waId, { name: names[waId] || '' })
+        // Conversa que a equipe começou pelo celular e a pessoa respondeu: vira card no funil.
+        if (conv.kind === 'lead' && !conv.leadId && !conv.leadMatch) await linkLeadOnReply(waId, names[waId] || conv.name || '').catch((e) => console.warn('[whatsapp] lead na resposta:', e.message))
         const patch = {
           lastMessageAt: at,
           lastMessageText: text.slice(0, 160),
