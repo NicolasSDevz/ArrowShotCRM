@@ -360,16 +360,23 @@ export function WhatsappInbox({
             </button>
           </div>
           {picking && (
-            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-violet-500/10 p-2 text-xs text-slate-600" role="region" aria-label="Passar conversas pro Jonas">
-              <span className="min-w-0 flex-1">
-                {picked.size ? `${picked.size} escolhida${picked.size === 1 ? '' : 's'}.` : 'Marque as conversas na lista.'} O Jonas lê o que o Bruno escreveu e continua.
-              </span>
-              <button type="button" onClick={() => setPicked(new Set(list.map((c) => c.waId)))} className="rounded-lg px-2 py-1 font-semibold text-violet-400 hover:bg-violet-500/15">
-                Marcar as {list.length} da lista
-              </button>
-              <Button size="sm" disabled={!picked.size} loading={handing} onClick={handOver}>
-                Passar {picked.size || ''} pro Jonas
-              </Button>
+            <div className="flex flex-col gap-2 rounded-xl bg-violet-500/10 p-2.5 text-xs text-slate-600" role="region" aria-label="Passar conversas pro Jonas">
+              <p>{picked.size ? `${picked.size} conversa${picked.size === 1 ? '' : 's'} marcada${picked.size === 1 ? '' : 's'}.` : 'Marque na lista as conversas que o Jonas vai assumir.'}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" disabled={!picked.size} loading={handing} onClick={handOver}>
+                  Passar {picked.size || ''} pro Jonas
+                </Button>
+                {list.length <= 50 && (
+                  <button type="button" onClick={() => setPicked(new Set(list.map((c) => c.waId)))} className="rounded-lg px-2 py-1 font-semibold text-violet-400 hover:bg-violet-500/15">
+                    Marcar as {list.length} da lista
+                  </button>
+                )}
+                {picked.size > 0 && (
+                  <button type="button" onClick={() => setPicked(new Set())} className="rounded-lg px-2 py-1 font-semibold text-slate-500 hover:bg-slate-100">
+                    Desmarcar
+                  </button>
+                )}
+              </div>
             </div>
           )}
           {bcFilters && (
