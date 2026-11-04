@@ -142,16 +142,23 @@ async function webhookReceive(req, res) {
 async function sweep(req, res) {
   if (!(await rateLimit('wa-sweep', 1, 4 * 60_000))) return res.status(200).json({ skipped: true })
   const origin = publicOrigin(req)
-  // Agenda primeiro: reunião marcada pelo link já entra a tempo do lembrete.
-  const calendar = await runCalendarSync({ notify: notifyCalendar }).catch((e) => ({ error: e.message }))
-  const [followUps, carts, reminders, pending, broadcasts] = await Promise.all([
-    runFollowUps(origin).catch((e) => ({ error: e.message })),
-    runCartRecovery(origin).catch((e) => ({ error: e.message })),
-    runMeetingReminders().catch((e) => ({ error: e.message })),
-    runPendingReplies(origin).catch((e) => ({ error: e.message })),
-    runBroadcasts().catch((e) => ({ error: e.message })),
-  ])
-  return res.status(200).json({ calendar, followUps, carts, reminders, pending, broadcasts })
+  const work = async () => {
+    // Agenda primeiro: reunião marcada pelo link já entra a tempo do lembrete.
+    const calendar = await runCalendarSync({ notify: notifyCalendar }).catch((e) => ({ error: e.message }))
+    const [followUps, carts, reminders, pending, broadcasts] = await Promise.all([
+      runFollowUps(origin).catch((e) => ({ error: e.message })),
+      runCartRecovery(origin).catch((e) => ({ error: e.message })),
+      runMeetingReminders().catch((e) => ({ error: e.message })),
+      runPendingReplies(origin).catch((e) => ({ error: e.message })),
+      runBroadcasts().catch((e) => ({ error: e.message })),
+    ])
+    return { calendar, followUps, carts, reminders, pending, broadcasts }
+  }
+  // ?wait=1 espera e devolve o resultado (teste manual). Sem isso responde na hora e trabalha por trás:
+  // o cron-job.org desiste em 30 s e acusava "Timeout" quando a agenda demorava.
+  if (req.query?.wait === '1') return res.status(200).json(await work())
+  waitUntil(work().catch((e) => console.warn('[whatsapp] varredura falhou:', e.message)))
+  return res.status(200).json({ started: true })
 }
 
 /* ------------------------------ equipe ------------------------------ */
