@@ -164,7 +164,13 @@ function whenText(iso) {
 
 /** Telefones que aparecem no evento (formulário da página de agendamento cai na descrição). */
 function phonesOf(ev) {
-  const text = [ev.description, ev.location, ev.summary].filter(Boolean).join(' \n ')
+  // Tira o bloco que o Google Meet põe na descrição (número de discagem e PIN do Meet não são do cliente).
+  const desc = String(ev.description || '')
+    .split(/-::~:~::~/)[0]
+    .split(/\n/)
+    .filter((l) => !/meet\.google|PIN|Participar|Join|Entrar (por|com)|telefone \(|by phone|dial/i.test(l))
+    .join('\n')
+  const text = [desc, ev.location, ev.summary].filter(Boolean).join(' \n ')
   const out = new Set()
   for (const m of text.matchAll(/(\+?\d[\d\s().-]{8,}\d)/g)) {
     let d = digits(m[1]).replace(/^0+/, '')
@@ -202,6 +208,20 @@ async function findConversation(ev, selfEmail) {
     for (const l of leads) {
       const cs = await queryDocs('waConversations', [['leadId', l.id]]).catch(() => [])
       if (cs[0]) return { waId: cs[0].id, conv: cs[0], how: 'e-mail do lead' }
+    }
+  }
+  // Número no evento, mas a pessoa nunca falou com a gente (ex.: o Bruno criou a reunião e
+  // escreveu o WhatsApp na descrição): abre a conversa (e o lead) pra o lembrete sair.
+  const firstPhone = phonesOf(ev)[0]
+  if (firstPhone) {
+    const guest = (ev.attendees || []).find((a) => !a?.self && String(a.email || '').toLowerCase() !== selfEmail && a.email !== ev.organizer)
+    const name = guest?.displayName || (/\(([^)]+)\)/.exec(String(ev.summary || '')) || [])[1]?.trim() || ''
+    try {
+      const { ensureConversation } = await import('./whatsapp.js')
+      const conv = await ensureConversation(firstPhone, { name: name.slice(0, 80) })
+      return { waId: firstPhone, conv, how: 'telefone (conversa nova)' }
+    } catch (e) {
+      console.warn('[gcal] não abriu a conversa do telefone do evento:', e.message)
     }
   }
   return null

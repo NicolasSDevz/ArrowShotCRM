@@ -518,7 +518,7 @@ async function createLeadFromWhatsapp(waId, name) {
 }
 
 /** Garante a conversa e devolve os dados dela. */
-async function ensureConversation(waId, { name = '', kind = 'lead', extra = {}, linkLead = true } = {}) {
+export async function ensureConversation(waId, { name = '', kind = 'lead', extra = {}, linkLead = true } = {}) {
   const snap = await getDoc(convPath(waId))
   if (snap.exists) return { id: waId, ...snap.data() }
   let leadId = null
