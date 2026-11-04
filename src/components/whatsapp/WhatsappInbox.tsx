@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Bot, CalendarCheck, Megaphone, MessageCircle, Plus, Search, ShoppingCart, UserRound, X } from 'lucide-react'
+import { ArrowRight, Bot, CalendarCheck, Check, Megaphone, MessageCircle, Plus, Search, ShoppingCart, UserRound, X } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Field, Input } from '../ui/Field'
@@ -345,9 +345,9 @@ export function WhatsappInbox({
               type="button"
               aria-pressed={picking}
               onClick={() => (picking ? stopPicking() : setPicking(true))}
-              className={`inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs font-semibold transition ${picking ? 'bg-violet-500 text-white' : 'text-violet-400 hover:bg-violet-500/15'}`}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition ${picking ? 'border-violet-500 bg-violet-500 text-white' : 'border-violet-500/30 text-violet-300 hover:bg-violet-500/15'}`}
             >
-              <Bot size={13} aria-hidden="true" /> {picking ? 'Cancelar escolha' : 'Passar várias pro Jonas'}
+              {picking ? <X size={13} aria-hidden="true" /> : <Bot size={13} aria-hidden="true" />} {picking ? 'Cancelar' : 'Passar pro Jonas'}
             </button>
             <button
               type="button"
@@ -359,26 +359,6 @@ export function WhatsappInbox({
               <span className="sr-only"> filtros</span>
             </button>
           </div>
-          {picking && (
-            <div className="flex flex-col gap-2 rounded-xl bg-violet-500/10 p-2.5 text-xs text-slate-600" role="region" aria-label="Passar conversas pro Jonas">
-              <p>{picked.size ? `${picked.size} conversa${picked.size === 1 ? '' : 's'} marcada${picked.size === 1 ? '' : 's'}.` : 'Marque na lista as conversas que o Jonas vai assumir.'}</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" disabled={!picked.size} loading={handing} onClick={handOver}>
-                  Passar {picked.size || ''} pro Jonas
-                </Button>
-                {list.length <= 50 && (
-                  <button type="button" onClick={() => setPicked(new Set(list.map((c) => c.waId)))} className="rounded-lg px-2 py-1 font-semibold text-violet-400 hover:bg-violet-500/15">
-                    Marcar as {list.length} da lista
-                  </button>
-                )}
-                {picked.size > 0 && (
-                  <button type="button" onClick={() => setPicked(new Set())} className="rounded-lg px-2 py-1 font-semibold text-slate-500 hover:bg-slate-100">
-                    Desmarcar
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
           {bcFilters && (
             <div className="flex flex-col gap-1.5 rounded-xl bg-slate-50 p-2">
               <label className="flex items-center gap-2 text-xs text-slate-500">
@@ -419,7 +399,7 @@ export function WhatsappInbox({
         ) : list.length === 0 ? (
           <p className="p-6 text-center text-sm text-slate-400">{rows.length ? 'Nenhuma conversa nesse filtro.' : 'Nenhuma conversa ainda. Quando alguém chamar no WhatsApp, aparece aqui.'}</p>
         ) : (
-          <ul className="min-h-0 flex-1 overflow-y-auto p-1.5">
+          <ul className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-1.5">
             {list.map((c) => {
               const active = c.waId === selected
               const waitingBc = awaitingBroadcast(c)
@@ -430,14 +410,14 @@ export function WhatsappInbox({
               const origin = originOf(c)
               const company = c.sdr?.profile?.empresa || lead?.companyName
               return (
-                <li key={c.waId} className={picking ? 'flex items-center gap-1 pl-1.5' : undefined}>
+                <li key={c.waId} className="relative">
                   {picking && (
                     <input
                       type="checkbox"
                       checked={picked.has(c.waId)}
                       onChange={() => togglePick(c.waId)}
                       aria-label={`Escolher ${displayName(c)} para passar pro Jonas`}
-                      className="h-4 w-4 shrink-0 accent-violet-500"
+                      className="peer sr-only"
                     />
                   )}
                   <button
@@ -450,9 +430,17 @@ export function WhatsappInbox({
                     }}
                     aria-current={active ? 'true' : undefined}
                     aria-label={`${displayName(c)}${company ? `, ${company}` : ''}. ${isWaiting(c) ? 'Esperando resposta do Bruno. ' : ''}${c.sdr ? `${c.sdr.temperature}, ${c.sdr.stage}. ` : ''}${origin === 'crm' ? 'Já estava no CRM. ' : origin === 'new' ? 'Lead novo. ' : ''}${where ? `Etapa ${where.stage.label}. ` : ''}${unread ? `${c.unread} não lidas. ` : ''}${status}. Última mensagem ${c.lastDirection === 'in' ? 'do contato' : 'nossa'}: ${c.lastMessageText || 'sem mensagem'}. ${listTime(c.lastMessageAt)}`}
-                    className={`relative flex w-full items-start gap-3 rounded-xl px-2.5 py-2.5 text-left transition ${active ? 'bg-emerald-500/10' : 'hover:bg-slate-50'}`}
+                    className={`relative flex w-full min-w-0 items-start gap-3 rounded-xl px-2.5 py-2.5 text-left transition peer-focus-visible:ring-2 peer-focus-visible:ring-violet-400 ${picking && picked.has(c.waId) ? 'bg-violet-500/15 ring-1 ring-violet-500/50' : active && !picking ? 'bg-emerald-500/10' : 'hover:bg-slate-50'}`}
                   >
-                    {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-emerald-500" aria-hidden="true" />}
+                    {picking && (
+                      <span
+                        className={`mt-3 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${picked.has(c.waId) ? 'border-violet-500 bg-violet-500 text-white' : 'border-slate-300'}`}
+                        aria-hidden="true"
+                      >
+                        {picked.has(c.waId) && <Check size={12} strokeWidth={3} />}
+                      </span>
+                    )}
+                    {active && !picking && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-emerald-500" aria-hidden="true" />}
                     <span className="relative mt-0.5 shrink-0">
                       <Avatar name={displayName(c)} size="lg" />
                       <span
@@ -500,6 +488,42 @@ export function WhatsappInbox({
               )
             })}
           </ul>
+        )}
+        {picking && (
+          <div className="shrink-0 border-t border-violet-500/30 bg-gradient-to-r from-violet-600/25 via-violet-500/15 to-transparent p-3" role="region" aria-label="Passar conversas pro Jonas">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-500 text-white shadow-lg shadow-violet-500/30" aria-hidden="true">
+                <Bot size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-800" aria-live="polite">
+                  {picked.size ? `${picked.size} conversa${picked.size === 1 ? '' : 's'} marcada${picked.size === 1 ? '' : 's'}` : 'Toque nas conversas'}
+                </p>
+                <p className="text-xs text-slate-500">O Jonas lê o que o Bruno escreveu e continua, com follow-up.</p>
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-center gap-2">
+              <button
+                type="button"
+                disabled={!picked.size || handing}
+                onClick={handOver}
+                className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-violet-500 px-3 text-sm font-semibold text-white transition hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {handing ? 'Passando…' : <>Passar {picked.size || ''} pro Jonas <ArrowRight size={15} aria-hidden="true" /></>}
+              </button>
+              {picked.size > 0 ? (
+                <button type="button" onClick={() => setPicked(new Set())} className="h-9 rounded-xl px-3 text-xs font-semibold text-slate-500 hover:bg-slate-100">
+                  Desmarcar
+                </button>
+              ) : (
+                list.length <= 50 && (
+                  <button type="button" onClick={() => setPicked(new Set(list.map((c) => c.waId)))} className="h-9 rounded-xl px-3 text-xs font-semibold text-violet-300 hover:bg-violet-500/15">
+                    Marcar {list.length}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
         )}
       </aside>
       <div className={`min-h-0 min-w-0 flex-1 flex-col ${showThread ? 'flex' : 'hidden md:flex'}`}>
