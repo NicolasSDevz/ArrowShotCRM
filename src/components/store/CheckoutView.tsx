@@ -403,7 +403,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
           <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide" style={{ background: `color-mix(in srgb, ${bumpColor} 14%, transparent)`, color: bumpColor }}>Opcional</span>
         </p>
         <p className="mt-1 text-sm opacity-70">
-          Você já está comprando <strong>{data.name}</strong>. Marque só se quiser levar junto.
+          Você já está comprando <strong>{data.name.trim()}</strong>. Marque só se quiser levar junto.
         </p>
       </div>
     )
