@@ -413,9 +413,33 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
                 <button type="button" onClick={() => onChange({ testimonials: c.testimonials.filter((_, j) => j !== i) })} className="rounded-lg px-2 text-slate-400 hover:bg-slate-100 hover:text-red-600" aria-label={`Remover depoimento ${i + 1}`}><Trash2 size={15} /></button>
               </div>
               <Textarea aria-label={`Texto do depoimento ${i + 1}`} rows={2} placeholder="Depoimento" value={t.text} onChange={(e) => onChange({ testimonials: c.testimonials.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)) })} />
+              <ImageField label={`Foto de ${t.name || `quem deu o depoimento ${i + 1}`} (opcional)`} value={t.photoUrl ?? null} onChange={(v) => onChange({ testimonials: c.testimonials.map((x, j) => (j === i ? { ...x, photoUrl: v || undefined } : x)) })} productId={product.id} assetKey={`testimonial-${i}`} aspect="aspect-square" />
             </div>
           ))}
           <button type="button" onClick={() => onChange({ testimonials: [...c.testimonials, { name: '', text: '' }] })} className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"><Plus size={13} /> Adicionar depoimento</button>
+        </fieldset>
+        <fieldset className="space-y-2">
+          <legend className="mb-1 text-xs font-medium text-slate-500">Prints de prova social (WhatsApp, resultados, avaliações)</legend>
+          <p className="text-[11px] text-slate-400">Aparecem inteiros, sem corte, lado a lado (a pessoa arrasta pro lado). Até 10.</p>
+          <Field label="Título do bloco"><Input value={d.proofTitle ?? ''} placeholder="Quem já comprou" onChange={(ev) => setDesign({ proofTitle: ev.target.value })} /></Field>
+          {(d.proofImages ?? []).map((src, i) => (
+            <ImageField key={i} label={`Print ${i + 1}`} value={src} onChange={(v) => { const list = d.proofImages ?? []; setDesign({ proofImages: v ? list.map((x, j) => (j === i ? v : x)) : list.filter((_, j) => j !== i) }) }} productId={product.id} assetKey={`side-proof-${i}`} aspect="aspect-[3/4]" />
+          ))}
+          {(d.proofImages ?? []).length < 10 && (
+            <button type="button" onClick={() => setDesign({ proofImages: [...(d.proofImages ?? []), ''] })} className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"><Plus size={13} /> Adicionar print</button>
+          )}
+          {(d.proofImages ?? []).some(Boolean) && (
+            <Segmented
+              label="Onde os prints aparecem"
+              value={d.proofPosition ?? 'side'}
+              onChange={(v) => setDesign({ proofPosition: v })}
+              options={[
+                { value: 'side', content: 'Lateral', title: 'Na coluna lateral (no celular fica embaixo do formulário)' },
+                { value: 'top', content: 'Acima dos dados', title: 'Logo acima de "Seus dados", no computador e no celular' },
+                { value: 'button', content: 'Depois do botão', title: 'Embaixo do cartão de pagamento' },
+              ]}
+            />
+          )}
         </fieldset>
         <fieldset className="space-y-2">
           <legend className="mb-1 text-xs font-medium text-slate-500">Imagens da lateral (mockups, prints, bônus)</legend>
@@ -498,6 +522,7 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
         <Toggle label="Benefícios e garantia antes do formulário" hint="Por padrão o formulário vem primeiro e a lateral desce pra baixo." checked={!!d.mobile?.sideFirst} onChange={(v) => setMobile({ sideFirst: v })} />
         <Toggle label="Esconder as imagens da lateral" hint="Deixa a página mais curta no celular." checked={!!d.mobile?.hideSideImages} onChange={(v) => setMobile({ hideSideImages: v })} />
         <Toggle label="Esconder os depoimentos" checked={!!d.mobile?.hideTestimonials} onChange={(v) => setMobile({ hideTestimonials: v })} />
+        <Toggle label="Selos de segurança acima do formulário" hint={'Os selos marcados viram uma grade pequena logo acima de "Seus dados" e saem da lateral e do botão no celular.'} checked={!!d.mobile?.sealsTop} onChange={(v) => setMobile({ sealsTop: v })} />
       </EditorSection>
       <EditorSection collapsible defaultOpen={openAll} title="Botão fixo">
         <Toggle label="Botão de comprar fixo no rodapé" hint="Fica sempre visível enquanto a pessoa rola, com o valor total. Não aparece no cartão de crédito (o Mercado Pago tem o botão próprio)." checked={!!d.mobile?.stickyButton} onChange={(v) => setMobile({ stickyButton: v })} />

@@ -101,6 +101,12 @@ export interface StoreCheckoutDesign {
   sealsPosition?: 'button' | 'side' | 'both'
   /** Selos em linha (etiquetas pequenas) ou em grade (com ícone grande). */
   sealsStyle?: 'row' | 'grid'
+  /** Prints de prova social (WhatsApp, resultados, avaliações), mostrados inteiros. */
+  proofImages?: string[]
+  /** Título do bloco de prints (vazio = "Quem já comprou"). */
+  proofTitle?: string
+  /** Onde os prints aparecem: lateral (no celular desce pra baixo), acima do formulário ou embaixo do botão. */
+  proofPosition?: 'side' | 'top' | 'button'
   /** Cartão de garantia: título e texto próprios (vazio = padrão). */
   guaranteeTitle?: string
   guaranteeText?: string
@@ -128,6 +134,8 @@ export interface StoreCheckoutDesign {
     sideFirst?: boolean
     hideSideImages?: boolean
     hideTestimonials?: boolean
+    /** Selos de segurança em grade logo acima de "Seus dados" (só no celular; saem da lateral e do botão). */
+    sealsTop?: boolean
     /** Botão "Comprar" fixo no rodapé da tela enquanto rola. */
     stickyButton?: boolean
   }

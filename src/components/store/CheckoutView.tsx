@@ -284,9 +284,11 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     ...checkoutSeals(d, c.guaranteeDays).map((k) => ({ icon: SEAL_ICONS[k] ?? BadgeCheck, ...sealCopy(k, d, c.guaranteeDays) })),
     ...(d.customSeals ?? []).filter(Boolean).map((t) => ({ icon: BadgeCheck, title: t, text: '' })),
   ].filter((x) => x.title)
-  const sealsAt = d.sealsPosition ?? 'side'
+  // No celular os selos podem subir pra cima do formulário; aí saem da lateral e do botão.
+  const sealsTop = !!(mobile && mb.sealsTop && seals.length > 0)
+  const sealsAt = sealsTop ? 'top' : (d.sealsPosition ?? 'side')
   // Lateral: um cartão por selo, todos do mesmo tamanho, um embaixo do outro.
-  const sealCards = sealsAt !== 'button' && seals.map((x, i) => (
+  const sealCards = (sealsAt === 'side' || sealsAt === 'both') && seals.map((x, i) => (
     <section key={`seal-${i}`} className="flex min-h-[92px] items-center gap-4 p-5 shadow-sm" style={cardStyle}>
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in srgb, ${iconColor} 14%, transparent)` }} aria-hidden="true">
         <x.icon size={24} style={{ color: iconColor }} />
@@ -298,7 +300,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     </section>
   ))
   // Embaixo do botão: etiquetas pequenas.
-  const sealsRow = sealsAt !== 'side' && seals.length > 0 && (
+  const sealsRow = (sealsAt === 'button' || sealsAt === 'both') && seals.length > 0 && (
     <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5" aria-label="Garantias da compra">
       {seals.map((x, i) => (
         <li key={i} className="flex items-center gap-1.5 text-xs font-semibold opacity-80">
@@ -307,6 +309,37 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
         </li>
       ))}
     </ul>
+  )
+
+  // Celular, acima de "Seus dados": grade compacta, ícone + título.
+  const sealsGrid = sealsTop && (
+    <ul className="grid grid-cols-2 gap-2" aria-label="Garantias da compra">
+      {seals.map((x, i) => (
+        <li key={i} className={`flex items-center gap-2 px-3 py-2.5 text-xs font-semibold leading-tight shadow-sm ${seals.length % 2 === 1 && i === seals.length - 1 ? 'col-span-2 justify-center' : ''}`} style={cardStyle}>
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in srgb, ${iconColor} 14%, transparent)` }} aria-hidden="true">
+            <x.icon size={15} style={{ color: iconColor }} />
+          </span>
+          {x.title}
+        </li>
+      ))}
+    </ul>
+  )
+
+  // Prints de prova social: inteiros, lado a lado com rolagem (arrasta pro lado).
+  const proofImgs = (d.proofImages ?? []).filter(Boolean)
+  const proofAt = d.proofPosition ?? 'side'
+  const proofBlock = proofImgs.length > 0 && (
+    <section className="p-4 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-provas`}>
+      <h2 id={`${uid}-provas`} className="mb-3 text-base font-semibold" style={titleStyle}>{d.proofTitle || 'Quem já comprou'}</h2>
+      <ul className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1">
+        {proofImgs.map((src, i) => (
+          <li key={i} className={`shrink-0 snap-center ${proofImgs.length === 1 ? 'w-full' : 'w-[78%]'}`}>
+            <img src={src} alt={`Prova social ${i + 1} de ${proofImgs.length}`} loading="lazy" className="mx-auto max-h-[420px] w-full object-contain" style={{ borderRadius: radius }} />
+          </li>
+        ))}
+      </ul>
+      {proofImgs.length > 1 && <p className="mt-2 text-center text-xs opacity-50" aria-hidden="true">Arraste para o lado →</p>}
+    </section>
   )
 
   // Order bumps: cada um no lugar escolhido. No celular a lateral fica embaixo de tudo, então "Lateral" sobe pra cima do botão.
@@ -372,7 +405,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   // fica sozinho e centralizado, em vez de colado à esquerda com um buraco à direita.
   const showSideImages = !(mobile && mb.hideSideImages) && c.sideImages.length > 0
   const showTestimonials = !(mobile && mb.hideTestimonials) && c.testimonials.length > 0
-  const hasSide = cdPos === 'side' || data.bumps.some((b) => bumpPos(b) === 'side') || showSideImages || c.benefits.length > 0 || (sealsAt !== 'button' && seals.length > 0) || showTestimonials
+  const hasSide = cdPos === 'side' || data.bumps.some((b) => bumpPos(b) === 'side') || showSideImages || c.benefits.length > 0 || ((sealsAt === 'side' || sealsAt === 'both') && seals.length > 0) || showTestimonials || (proofAt === 'side' && !!proofBlock)
   const layout = !mobile && !hasSide ? 'single' : side
   const pageWidth = layout === 'single' ? 'max-w-2xl' : width
 
@@ -399,6 +432,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
         </section>
       )}
       {sealCards}
+      {proofAt === 'side' && proofBlock}
       {!(mobile && mb.hideTestimonials) && c.testimonials.map((t, i) => (
         <figure key={i} className="p-5 shadow-sm" style={cardStyle}>
           <div className="mb-2 flex gap-0.5 text-amber-400" aria-label="5 estrelas">{[0, 1, 2, 3, 4].map((s) => <Star key={s} size={14} fill="currentColor" />)}</div>
@@ -437,6 +471,8 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
             </section>
 
             {bumpsBlock('top')}
+            {proofAt === 'top' && proofBlock}
+            {sealsGrid}
 
             {/* Dados */}
             <section className="space-y-3 p-5 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-dados`}>
@@ -571,6 +607,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               {sealsRow}
               <p className="flex items-center justify-center gap-1.5 text-xs opacity-60"><Lock size={12} /> Pagamento seguro processado pelo Mercado Pago</p>
             </section>
+            {proofAt === 'button' && proofBlock}
           </form>
   )
 
