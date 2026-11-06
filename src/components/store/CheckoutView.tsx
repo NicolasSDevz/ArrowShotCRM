@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, BadgeCheck, Check, CreditCard, Headphones, Infinity as InfinityIcon, Lock, QrCode, ShieldCheck, Star, Ticket, UserCheck, Zap, type LucideIcon } from 'lucide-react'
+import { ArrowRight, BadgeCheck, Check, CreditCard, Gift, Headphones, Infinity as InfinityIcon, Lock, QrCode, ShieldCheck, Star, Ticket, UserCheck, Zap, type LucideIcon } from 'lucide-react'
 import { checkCoupon, createOrder, sendCheckoutLead, type PublicCheckout } from '../../services/storeApi'
 import { maskDocument, maskPhone } from '../../utils/masks'
 import { trackMetaPixel } from '../../utils/metaPixel'
@@ -394,13 +394,35 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const bumpsBlock = (pos: NonNullable<PublicCheckout['bumps'][number]['position']>) => {
     const list = data.bumps.filter((b) => bumpPos(b) === pos)
     if (!list.length) return null
-    if (pos === 'payment' || pos === 'button') return <div className="space-y-3">{list.map(renderBump)}</div>
+    // Cabeçalho deixa claro que é extra: o cliente já está comprando o produto principal.
+    const head = (
+      <div id={`${uid}-ofertas-${pos}`}>
+        <p className="flex items-center gap-2 text-base font-semibold" style={titleStyle}>
+          <Gift size={18} style={{ color: bumpColor }} aria-hidden="true" />
+          {list.length > 1 ? 'Ofertas especiais' : 'Oferta especial'}
+          <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide" style={{ background: `color-mix(in srgb, ${bumpColor} 14%, transparent)`, color: bumpColor }}>Opcional</span>
+        </p>
+        <p className="mt-1 text-sm opacity-70">
+          Você já está comprando <strong>{data.name}</strong>. Marque só se quiser levar junto.
+        </p>
+      </div>
+    )
+    if (pos === 'payment' || pos === 'button') {
+      return (
+        <div role="group" aria-labelledby={`${uid}-ofertas-${pos}`} className={`space-y-3 ${pos === 'payment' ? 'border-b border-black/10 pb-4' : ''}`}>
+          {head}
+          {list.map(renderBump)}
+        </div>
+      )
+    }
     return (
-      <section className="space-y-3 p-5 shadow-sm" style={cardStyle} aria-label="Ofertas especiais">
+      <section className="space-y-3 p-5 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-ofertas-${pos}`}>
+        {head}
         {list.map(renderBump)}
       </section>
     )
   }
+  const bumpsInPayment = data.bumps.some((b) => bumpPos(b) === 'payment')
 
   // Lateral vazia no computador (ex.: selos só no botão e sem benefícios): o formulário
   // fica sozinho e centralizado, em vez de colado à esquerda com um buraco à direita.
@@ -521,6 +543,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               <h2 id={`${uid}-pag`} className="text-base font-semibold" style={titleStyle}>Pagamento</h2>
               {/* Ofertas primeiro: Pix e o formulário do cartão ficam embaixo delas. */}
               {bumpsBlock('payment')}
+              {bumpsInPayment && methods.length > 0 && <p className="text-sm font-semibold" style={titleStyle}>Como você quer pagar?</p>}
               {methods.length === 0 ? (
                 <p className="text-sm text-amber-700">Nenhuma forma de pagamento disponível. Fale com o vendedor.</p>
               ) : (
