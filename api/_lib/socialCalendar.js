@@ -146,12 +146,24 @@ export async function askCalendar({ ficha, recentOwn, neighbourThemes, posts, mo
     max_tokens: MAX_TOKENS,
     system: SYSTEM,
     tools: [TOOL],
-    tool_choice: { type: 'tool', name: 'preencher_calendario' },
+    // Este modelo não aceita tool_choice forçado ("tool"/"any") — o system
+    // prompt manda chamar a ferramenta e, se vier texto, tenta ler o JSON.
+    tool_choice: { type: 'auto' },
     messages: [{ role: 'user', content: userContent }],
   })
 
   const toolUse = response.content.find((b) => b.type === 'tool_use')
-  const out = Array.isArray(toolUse?.input?.posts) ? toolUse.input.posts : []
+  let out = Array.isArray(toolUse?.input?.posts) ? toolUse.input.posts : []
+  if (out.length === 0) {
+    const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n')
+    const json = text.match(/\{[\s\S]*\}/)
+    try {
+      const parsed = json ? JSON.parse(json[0]) : null
+      if (Array.isArray(parsed?.posts)) out = parsed.posts
+    } catch {
+      /* segue para o erro abaixo */
+    }
+  }
   if (out.length === 0) throw new Error('A IA não devolveu o calendário')
 
   // Casa pela posição e confere data/formato — a grade manda, a IA só preenche.
