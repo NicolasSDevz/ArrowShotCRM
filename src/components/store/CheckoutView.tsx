@@ -539,8 +539,9 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
             {bumpsBlock('beforePayment')}
 
             {/* Pagamento */}
-            <section className="space-y-4 p-5 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-pag`}>
-              <h2 id={`${uid}-pag`} className="text-base font-semibold" style={titleStyle}>Pagamento</h2>
+            {/* Com oferta dentro, o título "Pagamento" sai: o cartão abre direto em "Oferta especial" (não confunde com o produto). */}
+            <section className="space-y-4 p-5 shadow-sm" style={cardStyle} aria-label="Pagamento">
+              {!bumpsInPayment && <h2 className="text-base font-semibold" style={titleStyle}>Pagamento</h2>}
               {/* Ofertas primeiro: Pix e o formulário do cartão ficam embaixo delas. */}
               {bumpsBlock('payment')}
               {bumpsInPayment && methods.length > 0 && <p className="text-sm font-semibold" style={titleStyle}>Como você quer pagar?</p>}
