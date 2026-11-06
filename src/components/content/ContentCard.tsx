@@ -81,6 +81,19 @@ export function ContentCard({
       )}
       <p className="text-sm font-semibold text-slate-900">{content.title}</p>
 
+      {content.media && content.media.length > 0 && (
+        <div className="mt-2 flex items-center gap-1.5">
+          {content.media.slice(0, 4).map((m) =>
+            m.kind === 'video' ? (
+              <video key={m.storagePath} src={m.url} muted preload="metadata" className="h-12 w-10 rounded object-cover" />
+            ) : (
+              <img key={m.storagePath} src={m.url} alt="" loading="lazy" className="h-12 w-10 rounded object-cover" />
+            )
+          )}
+          {content.media.length > 4 && <span className="text-xs text-slate-400">+{content.media.length - 4}</span>}
+        </div>
+      )}
+
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <Badge className="bg-slate-100 text-slate-500">
           <FormatIcon size={11} /> {CONTENT_FORMAT_LABEL[content.type] ?? CONTENT_TYPE_LABEL[content.type]}

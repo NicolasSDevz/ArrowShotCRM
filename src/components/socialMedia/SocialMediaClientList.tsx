@@ -1,30 +1,25 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { format, isBefore, isSameMonth, startOfDay } from 'date-fns'
+import { format, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
+import { cycleTargetMonth as clientCycleMonth } from '../../utils/socialCycle'
 import { useAllContents } from '../../hooks/useContents'
 import { useUsers } from '../../hooks/useUsers'
 import { Avatar } from '../ui/Avatar'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
-import { CLIENT_PACKAGE_LABEL, STYLE_CATALOG_LABEL, getClientOwnerIds, isClientInOperation, type Client } from '../../types/client'
+import { getClientOwnerIds, isClientInOperation, type Client } from '../../types/client'
+import { socialPlanLabel } from '../../types/socialPlan'
+import { CYCLE_STAGE_CLASS, CYCLE_STAGE_LABEL, clientCycle } from '../../utils/socialCycle'
+import { monthLabel } from '../../services/socialMonthService'
 import type { Content } from '../../types/content'
 
 /** Mesmo padrão de ClientsPage.tsx: filtro de gestor com default pro
  *  próprio nome quando logado como Ciane/Nicolas. */
 const MANAGER_FILTER_NAMES = ['Ciane', 'Nicolas']
-
-function monthSummary(contents: Content[]) {
-  const now = new Date()
-  const inScope = contents.filter((c) => !c.scheduledDate || isSameMonth(c.scheduledDate.toDate(), now))
-  const red = inScope.filter((c) => c.status === 'ideas' || c.status === 'production').length
-  const yellow = inScope.filter((c) => c.status === 'review' || c.status === 'waiting_client').length
-  const green = inScope.filter((c) => c.status === 'approved' || c.status === 'scheduled' || c.status === 'published').length
-  return { red, yellow, green }
-}
 
 function nextPublication(contents: Content[]): Content | undefined {
   const today = startOfDay(new Date())
@@ -53,15 +48,6 @@ export function SocialMediaClientList() {
       .map((id) => userMap[id]?.name)
       .filter((n): n is string => !!n)
 
-  const filtered = useMemo(() => {
-    return clients.filter((c) => {
-      if (!isClientInOperation(c) || !c.modules?.socialMedia) return false
-      if (managerFilter && !ownerNames(c).includes(managerFilter)) return false
-      return true
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients, managerFilter, userMap])
-
   const contentsByClient = useMemo(() => {
     const map = new Map<string, Content[]>()
     for (const c of contents) {
@@ -72,9 +58,38 @@ export function SocialMediaClientList() {
     return map
   }, [contents])
 
+  const cycles = useMemo(() => new Map(clients.map((c) => [c.id, clientCycle(contentsByClient.get(c.id) ?? [])])), [clients, contentsByClient])
+
+  // Atrasados primeiro, depois quem está mais no começo do ciclo.
+  const filtered = useMemo(() => {
+    const order = ['plan', 'production', 'review', 'client', 'schedule', 'done']
+    return clients
+      .filter((c) => {
+        if (!isClientInOperation(c) || !c.modules?.socialMedia) return false
+        if (managerFilter && !ownerNames(c).includes(managerFilter)) return false
+        return true
+      })
+      .sort((a, b) => {
+        const ca = cycles.get(a.id)!, cb = cycles.get(b.id)!
+        if (!!ca.late !== !!cb.late) return ca.late ? -1 : 1
+        return order.indexOf(ca.stage) - order.indexOf(cb.stage)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients, managerFilter, userMap, cycles])
+
+  const lateCount = filtered.filter((c) => cycles.get(c.id)?.late).length
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-slate-500">
+          Ciclo de <strong className="text-slate-700">{monthLabel(clientCycleMonth())}</strong>
+          {lateCount > 0 ? (
+            <span className="ml-2 rounded-md bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">{lateCount} atrasado(s)</span>
+          ) : (
+            <span className="ml-2 text-xs text-emerald-600">tudo no prazo</span>
+          )}
+        </p>
         <select
           value={managerFilter}
           onChange={(e) => setManagerFilterChoice(e.target.value)}
@@ -93,7 +108,7 @@ export function SocialMediaClientList() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((client) => {
             const clientContents = contentsByClient.get(client.id) ?? []
-            const { red, yellow, green } = monthSummary(clientContents)
+            const cycle = cycles.get(client.id)!
             const next = nextPublication(clientContents)
             const ownerId = getClientOwnerIds(client).find((id) => MANAGER_FILTER_NAMES.includes(userMap[id]?.name ?? ''))
             const owner = ownerId ? userMap[ownerId] : undefined
@@ -108,18 +123,36 @@ export function SocialMediaClientList() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-slate-800">{client.companyName}</p>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {client.package && <Badge className="bg-brand-50 text-brand-600">{CLIENT_PACKAGE_LABEL[client.package]}</Badge>}
-                      {client.styleCatalog && (
-                        <Badge className="bg-slate-100 text-slate-500">{STYLE_CATALOG_LABEL[client.styleCatalog]}</Badge>
+                      {client.socialPlan ? (
+                        <Badge className="bg-brand-50 text-brand-600">{socialPlanLabel(client.socialPlan)}</Badge>
+                      ) : (
+                        <Badge className="bg-amber-50 text-amber-700">Sem plano definido</Badge>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 text-sm text-slate-600">
-                  <span title="A produzir">🔴 {red}</span>
-                  <span title="Em revisão/aguardando">🟡 {yellow}</span>
-                  <span title="Aprovados/agendados">🟢 {green}</span>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge className={CYCLE_STAGE_CLASS[cycle.stage]}>{CYCLE_STAGE_LABEL[cycle.stage]}</Badge>
+                    {cycle.total > 0 && (
+                      <span className="text-xs text-slate-500">
+                        {cycle.counts.scheduled}/{cycle.total} agendados
+                      </span>
+                    )}
+                  </div>
+                  {cycle.total > 0 && (
+                    <div className="flex h-1.5 overflow-hidden rounded-full bg-slate-100" title="Produção · Revisão · Cliente · Aprovado · Agendado">
+                      {(['production', 'review', 'client', 'approved', 'scheduled'] as const).map((k) => (
+                        <div
+                          key={k}
+                          style={{ width: `${(cycle.counts[k] / cycle.total) * 100}%` }}
+                          className={{ production: 'bg-blue-400', review: 'bg-amber-400', client: 'bg-violet-400', approved: 'bg-teal-400', scheduled: 'bg-emerald-500' }[k]}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {cycle.late && <p className="text-xs font-semibold text-red-600">⚠️ {cycle.late}</p>}
                 </div>
 
                 <p className="text-xs text-slate-500">

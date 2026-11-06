@@ -62,6 +62,19 @@ export interface Content extends BaseDoc {
    *  link (owner/admin + the assignee) — captured at link-generation time
    *  because the public page can't read the users collection. */
   approvalNotifyUserIds?: string[]
+  /** Arte do post, na ordem em que aparece (telas do carrossel, a foto do
+   *  estático, o vídeo do reels e a capa). Arquivos no Storage. */
+  media?: ContentMedia[]
+  /** Link de aprovação do mês (approvalLinks/{token}) que levou este post
+   *  ao cliente. */
+  approvalLinkId?: string | null
+}
+
+export interface ContentMedia {
+  url: string
+  storagePath: string
+  kind: 'image' | 'video'
+  name: string
 }
 
 export const CONTENT_STATUS_LABEL: Record<ContentStatus, string> = {
@@ -87,7 +100,7 @@ export const CONTENT_STATUS_ORDER: ContentStatus[] = [
 ]
 
 export const CONTENT_TYPE_LABEL: Record<ContentType, string> = {
-  post: 'Post',
+  post: 'Estático',
   carousel: 'Carrossel',
   reels: 'Reels',
   story: 'Story',
@@ -99,7 +112,8 @@ export const CONTENT_TYPE_LABEL: Record<ContentType, string> = {
  *  "Formato") and shown no card do Kanban — mesmos valores de ContentType,
  *  só a palavra muda. */
 export const CONTENT_FORMAT_LABEL: Partial<Record<ContentType, string>> = {
-  post: 'Post',
+  post: 'Estático',
+  carousel: 'Carrossel',
   reels: 'Reel',
   story: 'Stories',
 }

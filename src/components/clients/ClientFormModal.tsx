@@ -1,3 +1,5 @@
+import { SocialPlanEditor } from '../socialMedia/SocialPlanEditor'
+import type { SocialPlan } from '../../types/socialPlan'
 import { useEffect, useMemo, useState } from 'react'
 import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
@@ -22,7 +24,6 @@ import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInpu
 import { fetchAddressByCep } from '../../services/viaCepService'
 import { BRAZIL_STATES } from '../../utils/brazilStates'
 import {
-  CLIENT_PACKAGE_LABEL,
   CLIENT_STATUS_LABEL,
   CLIENT_CATEGORY_LABEL,
   CHURN_TYPE_COUNTS_DEFAULT,
@@ -81,6 +82,7 @@ const EMPTY = {
   addressZip: '',
   whatsappGroupLink: '',
   package: '' as ClientPackage | '',
+  socialPlan: null as SocialPlan | null,
   styleCatalog: '' as StyleCatalog | '',
   ownerIds: [] as string[],
   monthlyValue: '',
@@ -258,6 +260,7 @@ export function ClientFormModal({
         addressZip: client.address?.zip ? maskCep(client.address.zip) : '',
         whatsappGroupLink: client.whatsappGroupLink ?? '',
         package: client.package ?? '',
+        socialPlan: client.socialPlan ?? null,
         styleCatalog: client.styleCatalog ?? '',
         ownerIds: getClientOwnerIds(client),
         monthlyValue: client.monthlyValue != null ? maskCurrencyInput(String(Math.round(client.monthlyValue * 100))) : '',
@@ -406,6 +409,7 @@ export function ClientFormModal({
             : undefined,
         whatsappGroupLink: form.whatsappGroupLink.trim() || undefined,
         package: socialMedia ? form.package || undefined : undefined,
+        socialPlan: socialMedia ? form.socialPlan ?? undefined : undefined,
         styleCatalog: socialMedia ? form.styleCatalog || undefined : undefined,
         landingPageType: landingPage ? form.landingPageType || undefined : undefined,
         ownerIds: form.ownerIds.length > 0 ? form.ownerIds : undefined,
@@ -852,15 +856,8 @@ export function ClientFormModal({
 
           {socialMedia && (
             <div className="flex flex-col gap-2.5 border-t border-slate-200 pt-2.5">
-              <Field label="Pacote (Social Mídia)">
-                <Select value={form.package} onChange={(e) => set('package', e.target.value as ClientPackage)}>
-                  <option value="">Nenhum</option>
-                  {Object.entries(CLIENT_PACKAGE_LABEL).map(([v, l]) => (
-                    <option key={v} value={v}>
-                      {l}
-                    </option>
-                  ))}
-                </Select>
+              <Field label="Plano (Social Mídia)">
+                <SocialPlanEditor value={form.socialPlan} onChange={(plan) => set('socialPlan', plan)} />
               </Field>
               <Field label="Catálogo de estilo (Social Mídia)">
                 <Select

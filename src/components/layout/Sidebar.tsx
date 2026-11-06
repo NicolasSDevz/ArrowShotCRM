@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   ListChecks,
+  Sparkles,
   Users,
   CalendarDays,
   Gauge,
@@ -59,6 +60,7 @@ const mainNav: NavItem[] = [
   { to: '/operacional', label: 'Operacional', icon: ListChecks },
   { to: '/leads', label: 'Leads', icon: UserPlus },
   { to: '/clientes', label: 'Clientes', icon: Users },
+  { to: '/social-media', label: 'Social Mídia', icon: Sparkles },
   // Reuniões e Calendário são a mesma página (abas) — o item fica aceso nas duas rotas.
   { to: '/reunioes', label: 'Reuniões', icon: CalendarDays, alsoActive: ['/calendario'] },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },

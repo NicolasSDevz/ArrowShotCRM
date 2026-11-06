@@ -28,6 +28,9 @@ const ReportsPage = lazyPage(() => import('./pages/ReportsPage'), 'ReportsPage')
 const MonthlyReportPage = lazyPage(() => import('./pages/MonthlyReportPage'), 'MonthlyReportPage')
 const TeamPage = lazyPage(() => import('./pages/TeamPage'), 'TeamPage')
 const PublicApprovalPage = lazyPage(() => import('./pages/PublicApprovalPage'), 'PublicApprovalPage')
+const PublicMonthApprovalPage = lazyPage(() => import('./pages/PublicMonthApprovalPage'), 'PublicMonthApprovalPage')
+const SocialMediaPage = lazyPage(() => import('./pages/SocialMediaPage'), 'SocialMediaPage')
+const SocialMediaClientPage = lazyPage(() => import('./pages/SocialMediaClientPage'), 'SocialMediaClientPage')
 const PublicReportPage = lazyPage(() => import('./pages/PublicReportPage'), 'PublicReportPage')
 const PublicAccessPage = lazyPage(() => import('./pages/PublicAccessPage'), 'PublicAccessPage')
 const LeadCapturePage = lazyPage(() => import('./pages/LeadCapturePage'), 'LeadCapturePage')
@@ -105,6 +108,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/aprovar/:contentId/:token" element={<PublicApprovalPage />} />
+          <Route path="/aprovacao/:token" element={<PublicMonthApprovalPage />} />
           <Route path="/captura/:formId" element={<LeadCapturePage />} />
           <Route path="/relatorio/:token" element={<PublicReportPage />} />
           <Route path="/acessos/:token" element={<PublicAccessPage />} />
@@ -140,7 +144,8 @@ function App() {
             <Route path="/clientes" element={<ClientsPage />} />
             <Route path="/clientes/:id" element={<ClientDetailPage />} />
             {/* Social Mídia saiu do menu (não era usado): links antigos caem em Clientes */}
-            <Route path="/social-media/*" element={<Navigate to="/clientes" replace />} />
+            <Route path="/social-media" element={<SocialMediaPage />} />
+            <Route path="/social-media/:clientId" element={<SocialMediaClientPage />} />
             <Route path="/calendario" element={<CalendarMeetingsPage initialTab="calendario" />} />
             <Route path="/reunioes" element={<CalendarMeetingsPage initialTab="reunioes" />} />
             <Route path="/leads" element={<LeadsPage />} />

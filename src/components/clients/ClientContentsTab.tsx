@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Plus, Upload, CalendarPlus, Sparkles } from 'lucide-react'
+import { Plus, Upload, CalendarPlus, Send } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { useContents } from '../../hooks/useContents'
@@ -10,8 +10,8 @@ import { ContentCard } from '../content/ContentCard'
 import { ContentDrawer } from '../content/ContentDrawer'
 import { ContentFormModal } from '../content/ContentFormModal'
 import { ImportEditorialCalendarModal } from '../content/ImportEditorialCalendarModal'
-import { GenerateCalendarPromptModal } from '../content/GenerateCalendarPromptModal'
-import { GeneratePautaModal } from '../content/GeneratePautaModal'
+import { GenerateMonthModal } from '../socialMedia/GenerateMonthModal'
+import { SendMonthApprovalModal } from '../socialMedia/SendMonthApprovalModal'
 import { Tabs } from '../ui/Tabs'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
@@ -35,6 +35,7 @@ const ACCENTS: Record<ContentStatus, string> = {
  *  roxo=Reel, verde=Stories). Carrossel/Vídeo/Outro caem no padrão neutro. */
 const FORMAT_CHIP_CLASS: Partial<Record<ContentType, string>> = {
   post: 'bg-blue-100 text-blue-700',
+  carousel: 'bg-amber-100 text-amber-700',
   reels: 'bg-violet-100 text-violet-700',
   story: 'bg-emerald-100 text-emerald-700',
 }
@@ -61,8 +62,8 @@ export function ClientContentsTab({ client }: { client: Client }) {
   const [openContentId, setOpenContentId] = useState<string | null>(null)
   const [creating, setCreating] = useState<CreatingContext | null>(null)
   const [importingCalendar, setImportingCalendar] = useState(false)
-  const [genCalendarOpen, setGenCalendarOpen] = useState(false)
-  const [genPautaOpen, setGenPautaOpen] = useState(false)
+  const [genMonthOpen, setGenMonthOpen] = useState(false)
+  const [sendOpen, setSendOpen] = useState(false)
   const [month, setMonth] = useState(() => new Date())
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -92,11 +93,11 @@ export function ClientContentsTab({ client }: { client: Client }) {
         <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreating({})}>
           Novo conteúdo
         </Button>
-        <Button size="sm" variant="secondary" icon={<CalendarPlus size={13} />} onClick={() => setGenCalendarOpen(true)}>
-          Gerar calendário
+        <Button size="sm" variant="secondary" icon={<CalendarPlus size={13} />} onClick={() => setGenMonthOpen(true)}>
+          Gerar mês
         </Button>
-        <Button size="sm" variant="secondary" icon={<Sparkles size={13} />} onClick={() => setGenPautaOpen(true)}>
-          Gerar pauta
+        <Button size="sm" variant="secondary" icon={<Send size={13} />} onClick={() => setSendOpen(true)}>
+          Enviar para aprovação
         </Button>
         <Button size="sm" variant="secondary" icon={<Upload size={13} />} onClick={() => setImportingCalendar(true)}>
           Importar calendário
@@ -161,8 +162,8 @@ export function ClientContentsTab({ client }: { client: Client }) {
         defaultScheduledDate={creating?.date}
       />
       <ImportEditorialCalendarModal open={importingCalendar} onClose={() => setImportingCalendar(false)} clientId={client.id} />
-      <GenerateCalendarPromptModal open={genCalendarOpen} onClose={() => setGenCalendarOpen(false)} defaultClientId={client.id} />
-      <GeneratePautaModal open={genPautaOpen} onClose={() => setGenPautaOpen(false)} />
+      {genMonthOpen && <GenerateMonthModal open onClose={() => setGenMonthOpen(false)} client={client} contents={contents} />}
+      {sendOpen && <SendMonthApprovalModal open onClose={() => setSendOpen(false)} client={client} contents={contents} />}
     </div>
   )
 }

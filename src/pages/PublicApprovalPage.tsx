@@ -128,9 +128,19 @@ export function PublicApprovalPage() {
               )}
             </div>
 
-            <p className="text-xs text-slate-500">
-              A prévia visual (arte/vídeo) ainda não está disponível neste link — em breve.
-            </p>
+            {content.media && content.media.length > 0 ? (
+              <div className="flex snap-x snap-mandatory overflow-x-auto rounded-lg bg-black">
+                {content.media.map((m, i) =>
+                  m.kind === 'video' ? (
+                    <video key={i} src={m.url} controls playsInline preload="metadata" className="aspect-[4/5] w-full shrink-0 snap-center object-contain" />
+                  ) : (
+                    <img key={i} src={m.url} alt={`Tela ${i + 1}`} className="aspect-[4/5] w-full shrink-0 snap-center object-contain" />
+                  )
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">A arte deste post ainda vai ser enviada.</p>
+            )}
 
             {phase === 'requesting' ? (
               <div className="flex flex-col gap-2">

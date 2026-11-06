@@ -5,6 +5,7 @@ import type { CampaignPlanning } from './campaignPlanning'
 import type { SalesFunnel } from './salesFunnel'
 import type { LandingPage, LandingPageType } from './landingPage'
 import type { DiscountType } from './product'
+import type { SocialPlan } from './socialPlan'
 
 export type ClientStatus = 'active' | 'paused' | 'churned' | 'prospect'
 
@@ -148,6 +149,9 @@ export interface Client extends BaseDoc {
   categoria?: ClientCategory
   package?: ClientPackage
   styleCatalog?: StyleCatalog
+  /** Plano de Social Mídia (2x ou 3x por semana, com a grade de dias e
+   *  formatos). Ver types/socialPlan.ts. */
+  socialPlan?: SocialPlan
   /** Tipo de Landing Page contratado — só relevante quando modules.landingPage
    *  === true (ver landingPage.ts). */
   landingPageType?: LandingPageType

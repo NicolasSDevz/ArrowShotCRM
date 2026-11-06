@@ -1,3 +1,4 @@
+import { socialPlanLabel } from '../types/socialPlan'
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
@@ -137,7 +138,7 @@ export function ClientDetailPage() {
                 {client.categoria && (
                   <Badge className={CLIENT_CATEGORY_BADGE[client.categoria]}>{CLIENT_CATEGORY_LABEL[client.categoria]}</Badge>
                 )}
-                {client.package && <Badge className="bg-brand-50 text-brand-600">{CLIENT_PACKAGE_LABEL[client.package]}</Badge>}
+                {client.socialPlan ? <Badge className="bg-brand-50 text-brand-600">{socialPlanLabel(client.socialPlan)}</Badge> : client.package && <Badge className="bg-brand-50 text-brand-600">{CLIENT_PACKAGE_LABEL[client.package]}</Badge>}
                 {client.styleCatalog && (
                   <Badge className="bg-slate-100 text-slate-500">{STYLE_CATALOG_LABEL[client.styleCatalog]}</Badge>
                 )}

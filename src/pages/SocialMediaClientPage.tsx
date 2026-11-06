@@ -1,3 +1,4 @@
+import { socialPlanLabel } from '../types/socialPlan'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useClients } from '../hooks/useClients'
@@ -40,7 +41,7 @@ export function SocialMediaClientPage() {
         <Avatar name={client.companyName} photoURL={client.logoUrl} size="md" />
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-semibold text-slate-800">{client.companyName}</h1>
-          {client.package && <Badge className="bg-brand-50 text-brand-600">{CLIENT_PACKAGE_LABEL[client.package]}</Badge>}
+          {client.socialPlan ? <Badge className="bg-brand-50 text-brand-600">{socialPlanLabel(client.socialPlan)}</Badge> : client.package && <Badge className="bg-brand-50 text-brand-600">{CLIENT_PACKAGE_LABEL[client.package]}</Badge>}
           {client.styleCatalog && (
             <Badge className="bg-slate-100 text-slate-500">{STYLE_CATALOG_LABEL[client.styleCatalog]}</Badge>
           )}

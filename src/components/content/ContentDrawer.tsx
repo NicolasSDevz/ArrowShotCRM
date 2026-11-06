@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import { Trash2, ThumbsUp, RotateCcw, Link2, Copy, XCircle } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
@@ -8,11 +9,14 @@ import { Button } from '../ui/Button'
 import { CommentsPanel } from '../comments/CommentsPanel'
 import { ActivityPanel } from '../activity/ActivityPanel'
 import { FilesPanel } from '../files/FilesPanel'
+import { ContentMediaPanel } from './ContentMediaPanel'
 import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
 import { useUsers } from '../../hooks/useUsers'
 import { updateContent, deleteContent } from '../../services/contentService'
-import { approveContent, requestContentChange, generateApprovalLink, revokeApprovalLink } from '../../services/approvalService'
+import { approveContent, requestContentChange, generateApprovalLink, revokeApprovalLink, subscribeApprovals } from '../../services/approvalService'
+import { approvalLinkUrl } from '../../services/socialMonthService'
+import type { Approval } from '../../types'
 import { resolveAdminIds } from '../../utils/userLookup'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import {
@@ -33,12 +37,23 @@ export function ContentDrawer({ content, onClose }: { content: Content | null; o
   const [title, setTitle] = useState(content?.title ?? '')
   const [changeComment, setChangeComment] = useState('')
   const [linkLoading, setLinkLoading] = useState(false)
+  const [approvals, setApprovals] = useState<Approval[]>([])
+  const contentId = content?.id
+
+  useEffect(() => {
+    if (!contentId) return
+    return subscribeApprovals(contentId, setApprovals, (err) => console.error('subscribeApprovals', err))
+  }, [contentId])
 
   if (!content || !profile) return null
 
+  const isMonthLink = !!content.approvalToken && content.approvalLinkId === content.approvalToken
   const approvalUrl = content.approvalToken
-    ? `${window.location.origin}/aprovar/${content.id}/${content.approvalToken}`
+    ? isMonthLink
+      ? approvalLinkUrl(content.approvalToken)
+      : `${window.location.origin}/aprovar/${content.id}/${content.approvalToken}`
     : null
+  const clientRequests = approvals.filter((a) => a.createdBy === 'client-portal')
 
   const handleGenerateLink = async () => {
     setLinkLoading(true)
@@ -193,6 +208,36 @@ export function ContentDrawer({ content, onClose }: { content: Content | null; o
           </Field>
         </div>
 
+        <ContentMediaPanel content={content} onChange={(media) => save({ media })} />
+
+        {clientRequests.length > 0 && (
+          <div className="rounded-lg border border-violet-200 bg-violet-50 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-violet-500">Resposta do cliente</p>
+            <ul className="flex flex-col gap-1.5">
+              {clientRequests.map((a) => (
+                <li key={a.id} className="text-sm text-slate-700">
+                  <span className={a.action === 'approved' ? 'font-semibold text-emerald-600' : 'font-semibold text-amber-600'}>
+                    {a.action === 'approved' ? 'Aprovou' : 'Pediu ajuste'}
+                  </span>
+                  {a.createdAt && <span className="text-xs text-slate-400"> · {format(a.createdAt.toDate(), 'dd/MM HH:mm')}</span>}
+                  {a.comment && <p className="mt-0.5 whitespace-pre-wrap text-slate-600">“{a.comment}”</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {content.type === 'carousel' && (
+          <Field label="Texto das telas">
+            <Textarea
+              rows={4}
+              placeholder="Tela 1: … · Tela 2: …"
+              defaultValue={content.script ?? ''}
+              onBlur={(e) => e.target.value !== (content.script ?? '') && save({ script: e.target.value })}
+            />
+          </Field>
+        )}
+
         {content.type === 'reels' && (
           <Field label="Roteiro (hook → desenvolvimento → CTA)">
             <Textarea
@@ -229,13 +274,14 @@ export function ContentDrawer({ content, onClose }: { content: Content | null; o
               }}
             />
           </Field>
-          <Field label="Link do Canva">
-            <Input
-              defaultValue={content.canvaLink ?? ''}
-              placeholder="https://canva.com/..."
-              onBlur={(e) => e.target.value !== (content.canvaLink ?? '') && save({ canvaLink: e.target.value })}
-            />
-          </Field>
+          {content.canvaLink && (
+            <Field label="Link do Canva (antigo)">
+              <Input
+                defaultValue={content.canvaLink}
+                onBlur={(e) => e.target.value !== (content.canvaLink ?? '') && save({ canvaLink: e.target.value })}
+              />
+            </Field>
+          )}
         </div>
 
         <Field label="Observações">
@@ -247,7 +293,9 @@ export function ContentDrawer({ content, onClose }: { content: Content | null; o
         </Field>
 
         <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Link de aprovação do cliente</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            {isMonthLink ? 'Link de aprovação do mês' : 'Link de aprovação do cliente'}
+          </p>
           {approvalUrl ? (
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5">

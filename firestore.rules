@@ -269,6 +269,19 @@ service cloud.firestore {
       allow delete: if isInternal();
     }
 
+    // ---------- approvalLinks (link de aprovação do mês, /aprovacao/:token) ----------
+    // O id do documento É o token. Quem tem o link lê SÓ esse documento (get,
+    // nunca list) enquanto estiver ativo; os posts em si continuam protegidos
+    // pela regra de contents (approvalToken != null) e só mudam de status pelo
+    // isPublicApprovalUpdate(). Criar/desativar: equipe.
+    match /approvalLinks/{token} {
+      allow get: if resource.data.active == true || isInternal();
+      allow list: if isInternal();
+      allow create: if isInternal() && createdBySelf() && updatedBySelf();
+      allow update: if isInternal() && updatedBySelf();
+      allow delete: if isInternal();
+    }
+
     // ---------- leads (Pipeline de novos clientes) ----------
     // Além do fluxo interno normal, uma resposta anônima de um formulário de
     // captura público (ver /leadForms abaixo e src/pages/LeadCapturePage.tsx)
