@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore'
 import { eachDayOfInterval, endOfMonth, format, isSameDay, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { db } from '../firebase/config'
+import { auth, db } from '../firebase/config'
 import { createContent } from './contentService'
 import { notifyAdminsOfAction } from './notificationService'
 import { logActivity } from './activityService'
@@ -28,6 +28,49 @@ export interface PlannedPost {
   title: string
   /** Já existe um post desse formato nesse dia — não será criado de novo. */
   exists: boolean
+  /** Preenchido pela IA (fillMonthWithAI). */
+  caption?: string
+  cta?: string
+  hashtags?: string[]
+  script?: string
+  notes?: string
+}
+
+/** Pede à IA do CRM (api/ai?acao=calendario) o tema, a legenda e o roteiro de
+ *  cada post da grade, a partir da ficha e dos briefings do cliente. */
+export async function fillMonthWithAI(clientId: string, posts: PlannedPost[]): Promise<PlannedPost[]> {
+  const user = auth.currentUser
+  if (!user) throw new Error('Sessão expirada — entre de novo')
+  const res = await fetch('/api/ai/calendario', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
+    body: JSON.stringify({
+      clientId,
+      posts: posts.map((p) => ({
+        data: format(p.date, 'yyyy-MM-dd'),
+        diaSemana: format(p.date, 'EEEE', { locale: ptBR }),
+        formato: p.type,
+        pilar: p.pillar,
+      })),
+    }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || `A IA não respondeu (${res.status})`)
+  const filled: Array<{ pilar: Content['pillar']; titulo: string; legenda: string; cta: string; hashtags: string[]; roteiro: string; observacoes: string }> = body.posts
+  return posts.map((p, i) => {
+    const f = filled[i]
+    if (!f) return p
+    return {
+      ...p,
+      pillar: f.pilar ?? p.pillar,
+      title: f.titulo || p.title,
+      caption: f.legenda,
+      cta: f.cta,
+      hashtags: f.hashtags,
+      script: f.roteiro,
+      notes: f.observacoes,
+    }
+  })
 }
 
 export function monthKey(d: Date): string {
@@ -86,6 +129,11 @@ export async function generateMonth(
         type: p.type,
         platform: 'instagram',
         pillar: p.pillar,
+        ...(p.caption ? { caption: p.caption } : {}),
+        ...(p.cta ? { cta: p.cta } : {}),
+        ...(p.hashtags?.length ? { hashtags: p.hashtags } : {}),
+        ...(p.script ? { script: p.script } : {}),
+        ...(p.notes ? { notes: p.notes } : {}),
         scheduledDate: Timestamp.fromDate(p.date),
         scheduledTime: plan.time,
         status: 'ideas',

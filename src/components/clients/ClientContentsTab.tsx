@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Plus, Upload, CalendarPlus, Send } from 'lucide-react'
+import { Plus, Upload, CalendarPlus, Send, CalendarCheck } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { useContents } from '../../hooks/useContents'
@@ -17,18 +17,27 @@ import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { ContentMonthGrid } from '../socialMedia/ContentMonthGrid'
 import { moveContentStatus } from '../../services/contentService'
-import { CONTENT_STATUS_LABEL, CONTENT_STATUS_ORDER, type Content, type ContentStatus, type ContentType } from '../../types/content'
+import { type Content, type ContentStatus, type ContentType } from '../../types/content'
 import type { Client } from '../../types'
 
-const ACCENTS: Record<ContentStatus, string> = {
-  ideas: 'bg-slate-400',
-  production: 'bg-blue-500',
-  review: 'bg-amber-500',
-  waiting_client: 'bg-violet-500',
-  approved: 'bg-teal-500',
-  scheduled: 'bg-indigo-500',
-  published: 'bg-emerald-500',
-  cancelled: 'bg-red-400',
+/** Kanban enxuto: três colunas. "Revisar" junta a revisão interna e o que
+ *  está com o cliente; agendados/publicados saem do quadro (botão "Marcar como
+ *  agendado" nos aprovados) e cancelados também. */
+type BoardColumn = 'produzir' | 'revisar' | 'aprovado'
+const BOARD_COLUMNS: { id: BoardColumn; label: string; accent: string }[] = [
+  { id: 'produzir', label: 'Produzir', accent: 'bg-blue-500' },
+  { id: 'revisar', label: 'Revisar', accent: 'bg-amber-500' },
+  { id: 'aprovado', label: 'Aprovado', accent: 'bg-teal-500' },
+]
+const OFF_BOARD = new Set<ContentStatus>(['scheduled', 'published', 'cancelled'])
+function boardColumn(status: ContentStatus): BoardColumn {
+  if (status === 'review' || status === 'waiting_client') return 'revisar'
+  if (status === 'approved') return 'aprovado'
+  return 'produzir'
+}
+function statusForColumn(col: BoardColumn, current: ContentStatus): ContentStatus {
+  if (boardColumn(current) === col) return current
+  return col === 'produzir' ? 'production' : col === 'revisar' ? 'review' : 'approved'
 }
 
 /** Cor do chip no calendário por cliente — por FORMATO (pedido: azul=Post,
@@ -85,7 +94,12 @@ export function ClientContentsTab({ client }: { client: Client }) {
   }, [searchParams])
 
   const openContent = contents.find((c) => c.id === openContentId) ?? null
-  const columns = CONTENT_STATUS_ORDER.map((s) => ({ id: s, label: CONTENT_STATUS_LABEL[s], accent: ACCENTS[s] }))
+  const boardItems = contents.filter((c) => !OFF_BOARD.has(c.status))
+  const scheduledCount = contents.filter((c) => c.status === 'scheduled' || c.status === 'published').length
+  const moveTo = (content: Content, status: ContentStatus, order: number) => {
+    if (!profile) return
+    moveContentStatus(content, status, order, profile.id, profile.name, { clientName: client.companyName, users })
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -109,30 +123,43 @@ export function ClientContentsTab({ client }: { client: Client }) {
           {
             label: 'Kanban',
             content:
-              contents.length === 0 ? (
+              boardItems.length === 0 && scheduledCount === 0 ? (
                 <EmptyState title="Nenhum conteúdo para este cliente" description='Clique em "Novo conteúdo" para começar o planejamento.' />
               ) : (
-                <div className="overflow-x-auto">
-                  <KanbanBoard<Content, ContentStatus>
-                    columns={columns}
-                    items={contents}
-                    getStatus={(c) => c.status}
+                <div className="flex flex-col gap-2 overflow-x-auto">
+                  <KanbanBoard<Content, BoardColumn>
+                    columns={BOARD_COLUMNS}
+                    items={boardItems}
+                    getStatus={(c) => boardColumn(c.status)}
                     renderCard={(c) => (
-                      <ContentCard
-                        content={c}
-                        client={client}
-                        assignee={c.assignedTo ? userMap[c.assignedTo] : undefined}
-                        onClick={() => setOpenContentId(c.id)}
-                      />
+                      <div className="flex flex-col gap-1.5">
+                        <ContentCard
+                          content={c}
+                          client={client}
+                          assignee={c.assignedTo ? userMap[c.assignedTo] : undefined}
+                          onClick={() => setOpenContentId(c.id)}
+                        />
+                        {c.status === 'waiting_client' && (
+                          <p className="px-1 text-[11px] font-semibold text-violet-500">Com o cliente para aprovar</p>
+                        )}
+                        {c.status === 'approved' && (
+                          <button
+                            type="button"
+                            onClick={() => moveTo(c, 'scheduled', c.order)}
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 py-1.5 text-xs font-semibold text-teal-700 transition-colors hover:bg-teal-100"
+                          >
+                            <CalendarCheck size={13} /> Marcar como agendado
+                          </button>
+                        )}
+                      </div>
                     )}
-                    onMove={(content, newStatus, newOrder) => {
-                      if (!profile) return
-                      moveContentStatus(content, newStatus, newOrder, profile.id, profile.name, {
-                        clientName: client.companyName,
-                        users,
-                      })
-                    }}
+                    onMove={(content, col, newOrder) => moveTo(content, statusForColumn(col, content.status), newOrder)}
                   />
+                  {scheduledCount > 0 && (
+                    <p className="text-xs text-slate-500">
+                      {scheduledCount} post(s) já agendados ou publicados saíram do quadro. Eles continuam na aba Calendário.
+                    </p>
+                  )}
                 </div>
               ),
           },

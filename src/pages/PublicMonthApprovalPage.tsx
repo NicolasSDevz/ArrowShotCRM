@@ -34,7 +34,9 @@ export function PublicMonthApprovalPage() {
 
   useEffect(() => {
     if (!token) return
-    getPublicApprovalMonth(token)
+    // Só no `npm run dev`: /aprovacao/demo mostra posts de exemplo, sem banco.
+    const load = import.meta.env.DEV && token === 'demo' ? import('./publicMonthApprovalDemo').then((m) => m.demoMonth()) : getPublicApprovalMonth(token)
+    load
       .then((res) => {
         if (!res || res.contents.length === 0) return setPhase('invalid')
         setLink(res.link)
@@ -45,10 +47,12 @@ export function PublicMonthApprovalPage() {
       .catch(() => setPhase('invalid'))
   }, [token])
 
+  const isDemo = import.meta.env.DEV && token === 'demo'
+
   const approve = async (c: Content) => {
     setBusy(c.id)
     try {
-      await submitPublicApproval(c)
+      if (!isDemo) await submitPublicApproval(c)
       setStates((s) => ({ ...s, [c.id]: 'approved' }))
     } catch (err) {
       console.error(err)
@@ -61,7 +65,7 @@ export function PublicMonthApprovalPage() {
   const requestChange = async (c: Content, comment: string) => {
     setBusy(c.id)
     try {
-      await submitPublicChangeRequest(c, comment)
+      if (!isDemo) await submitPublicChangeRequest(c, comment)
       setStates((s) => ({ ...s, [c.id]: 'changes' }))
     } catch (err) {
       console.error(err)

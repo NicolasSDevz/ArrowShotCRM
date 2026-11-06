@@ -54,6 +54,7 @@ import { runCopilotoSugestao } from '../_lib/copilotoSugestao.js'
 import { runCopilotoResumo } from '../_lib/copilotoResumo.js'
 import { transcribeWithGroq, GroqRateLimitError } from '../_lib/groqWhisper.js'
 import { temAcessoAoCopiloto } from '../_lib/copilotoAccess.js'
+import { runSocialCalendar, validateCalendarInput } from '../_lib/socialCalendar.js'
 
 const ANTHROPIC_MODEL = 'claude-sonnet-5-5'
 const DAILY_MESSAGE_LIMIT = 50
@@ -508,6 +509,21 @@ async function handleResumo(req, res, user) {
   }
 }
 
+/** Calendário editorial do mês preenchido pela IA (botão "Gerar mês"). */
+async function handleCalendario(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada no servidor' })
+  const invalid = validateCalendarInput(req.body)
+  if (invalid) return res.status(400).json({ error: invalid })
+  try {
+    const posts = await runSocialCalendar(req.body)
+    return res.status(200).json({ posts })
+  } catch (err) {
+    console.error('[ai/calendario] falhou:', err?.status, err?.message)
+    return res.status(502).json({ error: err?.message || 'Falha ao montar o calendário' })
+  }
+}
+
 const CHAT_ID_RE = /^[A-Za-z0-9]{10,40}$/
 const CHAT_MAX_SAVED = 120
 
@@ -566,6 +582,7 @@ async function handler(req, res, user) {
   if (req.query.acao === 'sugestao') return handleSugestao(req, res, user)
   if (req.query.acao === 'transcrever') return handleTranscrever(req, res, user)
   if (req.query.acao === 'resumo') return handleResumo(req, res, user)
+  if (req.query.acao === 'calendario') return handleCalendario(req, res, user)
 
   if (req.method === 'GET') {
     try {

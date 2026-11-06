@@ -8,7 +8,7 @@ import { Button } from '../ui/Button'
 import { SocialPlanEditor } from './SocialPlanEditor'
 import { useAuth } from '../../context/AuthContext'
 import { updateClient } from '../../services/clientService'
-import { generateMonth, monthLabel, planMonth } from '../../services/socialMonthService'
+import { fillMonthWithAI, generateMonth, monthLabel, planMonth } from '../../services/socialMonthService'
 import type { Client } from '../../types/client'
 import type { Content } from '../../types/content'
 import type { SocialPlan } from '../../types/socialPlan'
@@ -29,27 +29,40 @@ export function GenerateMonthModal({
   const { profile } = useAuth()
   const [plan, setPlan] = useState<SocialPlan | null>(client.socialPlan ?? null)
   const [month, setMonth] = useState(() => addMonths(new Date(), new Date().getDate() >= 10 ? 1 : 0))
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving] = useState<null | 'ai' | 'save'>(null)
 
   const options = useMemo(() => [0, 1, 2].map((n) => addMonths(new Date(new Date().getFullYear(), new Date().getMonth(), 1), n)), [])
   const preview = useMemo(() => (plan ? planMonth(plan, month, contents) : []), [plan, month, contents])
   const newCount = preview.filter((p) => !p.exists).length
   const planChanged = JSON.stringify(plan) !== JSON.stringify(client.socialPlan ?? null)
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (withAI: boolean) => {
     if (!profile || !plan) return
-    setSaving(true)
     try {
       if (planChanged) await updateClient(client.id, { socialPlan: plan }, profile.id, profile.name)
+      let posts = preview
+      if (withAI) {
+        setSaving('ai')
+        const fresh = preview.filter((p) => !p.exists)
+        try {
+          const filled = await fillMonthWithAI(client.id, fresh)
+          posts = [...preview.filter((p) => p.exists), ...filled]
+        } catch (err) {
+          console.error(err)
+          toast.error(`A IA não conseguiu montar agora: ${(err as Error).message}`)
+          return
+        }
+      }
+      setSaving('save')
       const startOrder = contents.reduce((m, c) => Math.max(m, c.order ?? 0), 0) + 1
-      const n = await generateMonth(client, plan, preview, profile, startOrder)
-      toast.success(n ? `${n} posts criados em ${monthLabel(month)}` : 'Nada novo para criar')
+      const n = await generateMonth(client, plan, posts, profile, startOrder)
+      toast.success(n ? `${n} posts criados em ${monthLabel(month)}${withAI ? ', já com tema e legenda' : ''}` : 'Nada novo para criar')
       onClose()
     } catch (err) {
       console.error(err)
       toast.error('Erro ao gerar o mês')
     } finally {
-      setSaving(false)
+      setSaving(null)
     }
   }
 
@@ -96,15 +109,20 @@ export function GenerateMonthModal({
         )}
 
         <p className="text-xs text-slate-500">
-          Os posts entram em "Produzir" com o tema em aberto. Depois é só preencher legenda e arte, ou importar o calendário pronto.
+          {saving === 'ai'
+            ? 'A IA está lendo a ficha e os briefings do cliente e montando os posts. Leva até 1 minuto.'
+            : 'A IA lê a ficha e os briefings do cliente e já cria cada post com tema, legenda, CTA, hashtags e o texto das telas ou o roteiro. Os posts entram em "Produzir" para revisar e fazer a arte.'}
         </p>
 
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" onClick={onClose} disabled={!!saving}>
             Cancelar
           </Button>
-          <Button onClick={handleGenerate} loading={saving} disabled={!plan || newCount === 0}>
-            Criar {newCount} posts
+          <Button variant="secondary" onClick={() => handleGenerate(false)} disabled={!plan || newCount === 0 || !!saving}>
+            Só as datas
+          </Button>
+          <Button onClick={() => handleGenerate(true)} loading={!!saving} disabled={!plan || newCount === 0}>
+            {saving === 'ai' ? 'Montando…' : `Criar ${newCount} posts com IA`}
           </Button>
         </div>
       </div>
