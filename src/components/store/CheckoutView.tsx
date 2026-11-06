@@ -311,13 +311,14 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     </ul>
   )
 
-  // Celular, acima de "Seus dados": grade compacta, ícone + título.
+  // Celular, acima de "Seus dados": quadradinhos lado a lado (até 3 por linha; 4 viram 2x2), ícone em cima e título embaixo.
+  const sealCols = seals.length === 4 ? 2 : Math.min(seals.length, 3)
   const sealsGrid = sealsTop && (
-    <ul className="grid grid-cols-2 gap-2" aria-label="Garantias da compra">
+    <ul className="grid gap-2" style={{ gridTemplateColumns: `repeat(${sealCols}, minmax(0, 1fr))` }} aria-label="Garantias da compra">
       {seals.map((x, i) => (
-        <li key={i} className={`flex items-center gap-2 px-3 py-2.5 text-xs font-semibold leading-tight shadow-sm ${seals.length % 2 === 1 && i === seals.length - 1 ? 'col-span-2 justify-center' : ''}`} style={cardStyle}>
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in srgb, ${iconColor} 14%, transparent)` }} aria-hidden="true">
-            <x.icon size={15} style={{ color: iconColor }} />
+        <li key={i} className={`flex items-center justify-center text-center font-semibold leading-tight shadow-sm ${sealCols > 1 ? 'aspect-square flex-col gap-1.5 p-2 text-[11px]' : 'gap-2 px-3 py-2.5 text-sm'}`} style={cardStyle}>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in srgb, ${iconColor} 14%, transparent)` }} aria-hidden="true">
+            <x.icon size={18} style={{ color: iconColor }} />
           </span>
           {x.title}
         </li>
