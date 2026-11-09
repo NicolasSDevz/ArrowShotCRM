@@ -30,8 +30,11 @@ export interface ReportMetricSet {
   ctr?: number
   cpc?: number
   cpm?: number
-  /** "Conversas iniciadas" — onsite_conversion.messaging_*. */
+  /** Resultado: "Conversas iniciadas" (onsite_conversion.messaging_*) ou,
+   *  em conta de formulário sem conversa, os leads — ver resultKind. */
   conversations?: number
+  /** 'leads' quando `conversations` está contando leads de formulário. */
+  resultKind?: 'conversas' | 'leads'
   linkClicks?: number
 }
 

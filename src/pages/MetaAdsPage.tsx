@@ -34,7 +34,7 @@ const PRESETS: Exclude<MetaPeriodPreset, 'custom'>[] = ['last_7d', 'last_14d', '
  *  Geral (ver TIPS em OverviewDashboard.tsx). */
 const TIPS = {
   spend: 'Soma do valor gasto em anúncios no período, em todas as contas Meta Ads da agência.',
-  conversations: 'Pessoas que iniciaram uma conversa pelo WhatsApp/Messenger/Instagram Direct a partir do anúncio.',
+  conversations: 'Pessoas que iniciaram uma conversa pelo WhatsApp/Messenger/Instagram Direct a partir do anúncio. Em conta de formulário (ex.: Meinecke) conta os leads.',
   costPerConversation: 'Total investido dividido pelo número de conversas iniciadas — quanto menor, melhor.',
   reach: 'Pessoas únicas que viram os anúncios no período (não conta a mesma pessoa duas vezes).',
   impressions: 'Quantas vezes os anúncios foram exibidos ao todo — a mesma pessoa pode ver o anúncio mais de uma vez.',
@@ -228,7 +228,7 @@ export function MetaAdsPage() {
               tip={TIPS.spend}
             />
             <MetricCard
-              label="Conversas iniciadas"
+              label="Conversas e leads"
               icon={MessageCircle}
               accent="green"
               value={isPrivacyMode ? '•••' : INT(t!.conversations)}
@@ -339,7 +339,7 @@ export function MetaAdsPage() {
                     <th className="px-3 py-2.5">Cliente</th>
                     <th className="px-3 py-2.5">Status</th>
                     <th className="px-3 py-2.5 text-right">Investido</th>
-                    <th className="px-3 py-2.5 text-right">Conversas</th>
+                    <th className="px-3 py-2.5 text-right">Resultados</th>
                     <th className="px-3 py-2.5 text-right">CPL</th>
                     <th className="px-3 py-2.5 text-right">Alcance</th>
                     <th className="px-3 py-2.5 text-right">CTR</th>
@@ -380,7 +380,7 @@ export function MetaAdsPage() {
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap">{status}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums">{r.metrics ? (isPrivacyMode ? 'R$ •.•••,••' : BRL(r.metrics.spend)) : '—'}</td>
-                          <td className="px-3 py-2.5 text-right tabular-nums">{r.metrics ? (isPrivacyMode ? '•••' : INT(r.metrics.conversations)) : '—'}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{r.metrics ? (isPrivacyMode ? '•••' : `${INT(r.metrics.conversations)}${r.metrics.resultKind === 'leads' ? ' leads' : ''}`) : '—'}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums">
                             {r.metrics && r.metrics.conversations > 0 ? (isPrivacyMode ? 'R$ ••,••' : BRL(r.metrics.costPerConversation)) : '—'}
                           </td>

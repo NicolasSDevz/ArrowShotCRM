@@ -14,6 +14,7 @@ import {
 import { db } from '../firebase/config'
 import type { AppNotification, EntityType, NotificationType } from '../types'
 import { isQuietNotificationType } from '../types/notification'
+import { NOTIFICATION_ROUTES, personOfEmail, shouldReceive } from '../config/notificationRouting'
 import { collectionService } from './firestore'
 
 const COLLECTION = 'notifications'
@@ -33,6 +34,8 @@ export async function createNotification(params: {
 }) {
   // Avisos de rotina não viram mais notificação (ver QUIET_NOTIFICATION_TYPES).
   if (isQuietNotificationType(params.type)) return
+  // Cada aviso só vai pra quem cuida do assunto (src/config/notificationRouting.ts).
+  if (!(await recipientAllowed(params.type, params.userId))) return
   // Secondary side-effect: a failure here (rules, rede) must never reject the
   // user action that triggered it — callers `await` this inline, sometimes
   // inside a Promise.all over several recipients.
@@ -59,6 +62,7 @@ export async function upsertOwnNotification(
   id: string,
   params: { userId: string; type: NotificationType; message: string; entityType?: EntityType; entityId?: string }
 ) {
+  if (!(await recipientAllowed(params.type, params.userId))) return
   try {
     await setDoc(doc(db, COLLECTION, id), {
       userId: params.userId,
@@ -73,6 +77,50 @@ export async function upsertOwnNotification(
   } catch (err) {
     console.error('upsertOwnNotification falhou', err)
   }
+}
+
+// --- quem recebe ------------------------------------------------------------
+
+let emailCache: { byId: Map<string, string>; at: number } | null = null
+
+/** id -> e-mail de todos os usuários (cache de 5 min). null se não der pra ler
+ *  (portal público de aprovação, sem login). */
+async function getUserEmails(): Promise<Map<string, string> | null> {
+  if (emailCache && Date.now() - emailCache.at < ADMIN_CACHE_TTL) return emailCache.byId
+  try {
+    const snap = await getDocs(collection(db, 'users'))
+    const byId = new Map<string, string>()
+    snap.docs.forEach((d) => {
+      const u = d.data() as { email?: string; active?: boolean }
+      if (u.active !== false && u.email) byId.set(d.id, u.email)
+    })
+    emailCache = { byId, at: Date.now() }
+    return byId
+  } catch (err) {
+    console.error('getUserEmails falhou', err)
+    return emailCache?.byId ?? null
+  }
+}
+
+async function recipientAllowed(type: NotificationType, userId: string): Promise<boolean> {
+  const route = NOTIFICATION_ROUTES[type]
+  if (!route || route === 'direct') return true
+  const emails = await getUserEmails()
+  if (!emails) return true // sem acesso à lista: não bloqueia
+  return shouldReceive(type, emails.get(userId))
+}
+
+/** Ids de quem cuida desse tipo de aviso (tabela de notificationRouting). */
+async function getRoutedUserIds(type: NotificationType): Promise<string[] | null> {
+  const route = NOTIFICATION_ROUTES[type]
+  if (!route) return null
+  if (route === 'direct') return []
+  const emails = await getUserEmails()
+  if (!emails) return null
+  return [...emails.entries()].filter(([, email]) => {
+    const who = personOfEmail(email)
+    return !!who && route.includes(who)
+  }).map(([id]) => id)
 }
 
 // --- admin CC ---------------------------------------------------------------
@@ -126,7 +174,8 @@ export async function notifyAdminsOfAction(params: {
 }) {
   if (isQuietNotificationType(params.type)) return
   try {
-    const adminIds = await getAdminUserIds()
+    // Vai pra quem cuida do assunto; só cai nos admins se o tipo não estiver na tabela.
+    const adminIds = (await getRoutedUserIds(params.type)) ?? (await getAdminUserIds())
     const skip = new Set([params.actorId, ...(params.alreadyNotified ?? [])])
     await Promise.all(
       adminIds

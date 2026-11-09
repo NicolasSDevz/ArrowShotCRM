@@ -215,7 +215,7 @@ async function loadClient(client, range, periodKey, force) {
     if (snap.exists) {
       const d = snap.data()
       const fetchedAt = d.fetchedAt ? new Date(d.fetchedAt).getTime() : 0
-      if (d.periodKey === periodKey && Date.now() - fetchedAt < CACHE_TTL_MS) {
+      if (d.periodKey === periodKey && Date.now() - fetchedAt < CACHE_TTL_MS && d.metrics?.resultKind) {
         return {
           ...base,
           metrics: d.metrics || EMPTY_METRICS,
@@ -375,6 +375,7 @@ async function agencyOverviewHandler(req, res, user) {
         ? {
             spend: r.metrics.spend || 0,
             conversations: r.metrics.conversations || 0,
+            resultKind: r.metrics.resultKind || 'conversas',
             reach: r.metrics.reach || 0,
             impressions: r.metrics.impressions || 0,
             ctr: r.metrics.ctr || 0,

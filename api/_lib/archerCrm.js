@@ -7,6 +7,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { getDoc, listDocs, queryDocs, setDoc, updateDocPaths } from './firebaseAdmin.js'
+import { routedUserIds } from './notificationRouting.js'
 
 // ---------------------------------------------------------------- utilidades
 
@@ -1020,7 +1021,8 @@ async function logLeadActivity(user, leadId, action, message) {
 /** Mesmo aviso que o frontend manda aos admins (notifyAdminsOfAction), sem o autor. */
 async function notifyAdmins(dir, user, type, message, leadId) {
   try {
-    const admins = (await dir.users()).filter((u) => u.id !== user.uid && u.active !== false && (u.role === 'admin' || u.email === 'gestorarrowshotmkt@gmail.com'))
+    const allowed = new Set(routedUserIds(await dir.users(), type))
+    const admins = (await dir.users()).filter((u) => u.id !== user.uid && allowed.has(u.id))
     await Promise.all(
       admins.map((u) =>
         setDoc(`notifications/${randomUUID()}`, {

@@ -290,7 +290,7 @@ function PerformanceCard({ clients, ownOnly }: { clients: Client[]; ownOnly: boo
     <Card>
       <CardTitle
         tip={{
-          body: 'Meta: gasto e conversas iniciadas de cada conta com token configurado. Google: custo e conversões das contas com ID cadastrado no planejamento. Período termina ontem.',
+          body: 'Meta: gasto e conversas iniciadas (ou leads, em conta de formulário) de cada conta com token configurado. Google: custo e conversões das contas com ID cadastrado no planejamento. Período termina ontem.',
         }}
         action={
           <div className="flex items-center gap-2">
@@ -322,8 +322,8 @@ function PerformanceCard({ clients, ownOnly }: { clients: Client[]; ownOnly: boo
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-live="polite">
         <Stat icon={<Wallet size={13} />} label="Investido (total)" value={loading ? '…' : money(totalSpend)} />
-        <Stat icon={<Megaphone size={13} />} label="Resultados" value={loading ? '…' : INT(totalResults)} hint="Conversas (Meta) + conversões (Google)" />
-        <Stat icon={<Megaphone size={13} />} label="Meta Ads" value={loading ? '…' : money(metaSpend)} hint={`${INT(metaResults)} conversas · ${cpr(metaSpend, metaResults)} cada`} />
+        <Stat icon={<Megaphone size={13} />} label="Resultados" value={loading ? '…' : INT(totalResults)} hint="Conversas e leads (Meta) + conversões (Google)" />
+        <Stat icon={<Megaphone size={13} />} label="Meta Ads" value={loading ? '…' : money(metaSpend)} hint={`${INT(metaResults)} conversas/leads · ${cpr(metaSpend, metaResults)} cada`} />
         <Stat icon={<Megaphone size={13} />} label="Google Ads" value={loading ? '…' : money(googleSpend)} hint={`${INT(googleResults)} conversões · ${cpr(googleSpend, googleResults)} cada`} />
       </div>
 

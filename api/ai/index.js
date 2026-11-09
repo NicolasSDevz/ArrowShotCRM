@@ -287,7 +287,7 @@ async function toolMetaAds(dir, input) {
   const base = { cliente: c.companyName, periodo: { de: dateFrom, ate: dateTo } }
   if (input.nivel === 'conta') {
     const { totals } = await fetchAccountInsights(resolved.token, accountId, dateFrom, dateTo)
-    return { ...base, totais: { ...totals, custoPorConversa: totals.conversations > 0 ? totals.spend / totals.conversations : null } }
+    return { ...base, totais: { ...totals, resultados: totals.conversations, tipoResultado: totals.resultKind, custoPorResultado: totals.conversations > 0 ? totals.spend / totals.conversations : null } }
   }
   const level = input.nivel === 'conjuntos' ? 'adset' : input.nivel === 'anuncios' ? 'ad' : 'campaign'
   return { ...base, [input.nivel]: await fetchLevelInsights(resolved.token, accountId, dateFrom, dateTo, level) }

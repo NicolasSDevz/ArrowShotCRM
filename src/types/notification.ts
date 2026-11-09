@@ -37,6 +37,7 @@ export type NotificationType =
   | 'team_member_added'
   | 'member_health_updated'
   | 'meta_token_expiring'
+  | 'ad_balance_low' // Conta de anúncio de cliente com saldo acabando (cron diário)
   | 'birthday_today' // 🎂 Aniversário de um responsável do cliente hoje
   | 'store_pix_pending' // Loja: Pix direto gerado, conferir no banco e confirmar
   | 'store_sale' // Loja: venda aprovada
@@ -96,6 +97,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   team_member_added: 'Novo membro da equipe',
   member_health_updated: 'Informações de saúde atualizadas',
   meta_token_expiring: 'Token Meta Ads expirando',
+  ad_balance_low: 'Saldo de anúncio acabando',
   birthday_today: 'Aniversário hoje',
   store_pix_pending: 'Pix para conferir',
   store_sale: 'Venda na Loja',

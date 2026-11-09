@@ -50,7 +50,7 @@ export function buildWeeklyReportText(params: {
       `Cliques: ${fmtInt(c.clicks)}`,
       `CTR: ${fmtPct(c.ctr)}%`,
       `Alcance: ${fmtInt(c.reach)}`,
-      `Conversas iniciadas: ${fmtInt(c.conversations)}`,
+      `${c.resultKind === 'leads' ? 'Leads (formulário)' : 'Conversas iniciadas'}: ${fmtInt(c.conversations)}`,
       `Valor investido: R$ ${fmtBRL(c.spend)}`,
       `Saldo Atual: R$ ${fmtBRL(meta.balance)}`
     )

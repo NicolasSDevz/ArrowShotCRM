@@ -181,7 +181,7 @@ export function ReportFunnelSection({ report, editable = true }: { report: Repor
   const cliquesLink = sumOptional(metaCur?.linkClicks ?? metaCur?.clicks, googleCur?.clicks)
   const conversas = sumOptional(metaCur?.conversations, googleCur?.conversions)
   const cliquesLabel = hasGoogle && !hasMeta ? 'Cliques' : 'Cliques no link'
-  const conversasLabel = hasGoogle && !hasMeta ? 'Conversões' : hasGoogle && hasMeta ? 'Conversas/Conversões' : 'Conversas iniciadas'
+  const conversasLabel = hasGoogle && !hasMeta ? 'Conversões' : hasGoogle && hasMeta ? 'Conversas/Conversões' : metaCur?.resultKind === 'leads' ? 'Leads (formulário)' : 'Conversas iniciadas'
 
   // --- dados manuais ---
   const faturamentoTotal = parseCurrencyToNumber(form.faturamentoTotalStr)

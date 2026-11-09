@@ -52,6 +52,9 @@ const CONVERSATION_ACTION_TYPES = [
   'onsite_conversion.messaging_first_reply',
 ]
 const LINK_CLICK_ACTION_TYPES = ['link_click']
+// Contas de formulário (ex.: Meinecke): sem conversa, o resultado é o lead.
+// Mesma lista de api/_lib/metaGraph.js.
+const LEAD_ACTION_TYPES = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead']
 
 const ACTION_TYPE_LABEL: Record<string, string> = {
   link_click: 'Cliques no link',
@@ -108,6 +111,17 @@ function findAction(actions: RawAction[] | undefined, types: string[]): number |
   return undefined
 }
 
+/** Conversas iniciadas; se a linha não tiver nenhuma, os leads de formulário. */
+function findResults(actions: RawAction[] | undefined): number | undefined {
+  const conv = findAction(actions, CONVERSATION_ACTION_TYPES)
+  if (conv) return conv
+  return findAction(actions, LEAD_ACTION_TYPES) ?? conv
+}
+
+function resultKindOf(actions: RawAction[] | undefined): 'conversas' | 'leads' {
+  return !findAction(actions, CONVERSATION_ACTION_TYPES) && findAction(actions, LEAD_ACTION_TYPES) ? 'leads' : 'conversas'
+}
+
 function parseMetricSet(row?: RawInsightsRow): ReportMetricSet {
   if (!row) return {}
   return {
@@ -118,7 +132,8 @@ function parseMetricSet(row?: RawInsightsRow): ReportMetricSet {
     ctr: num(row.ctr),
     cpc: num(row.cpc),
     cpm: num(row.cpm),
-    conversations: findAction(row.actions, CONVERSATION_ACTION_TYPES),
+    conversations: findResults(row.actions),
+    resultKind: resultKindOf(row.actions),
     linkClicks: findAction(row.actions, LINK_CLICK_ACTION_TYPES),
   }
 }
@@ -135,6 +150,7 @@ function aggregateMetricSet(rows: RawInsightsRow[]): ReportMetricSet {
   let reach = 0
   let conversations = 0
   let linkClicks = 0
+  let leadKind = false
   let hasAny = false
   for (const row of rows) {
     const s = num(row.spend)
@@ -144,7 +160,8 @@ function aggregateMetricSet(rows: RawInsightsRow[]): ReportMetricSet {
     impressions += i ?? 0
     clicks += num(row.clicks) ?? 0
     reach += num(row.reach) ?? 0
-    conversations += findAction(row.actions, CONVERSATION_ACTION_TYPES) ?? 0
+    conversations += findResults(row.actions) ?? 0
+    if (resultKindOf(row.actions) === 'leads') leadKind = true
     linkClicks += findAction(row.actions, LINK_CLICK_ACTION_TYPES) ?? 0
   }
   if (!hasAny) return {}
@@ -157,6 +174,7 @@ function aggregateMetricSet(rows: RawInsightsRow[]): ReportMetricSet {
     cpc: clicks > 0 ? spend / clicks : undefined,
     cpm: impressions > 0 ? (spend / impressions) * 1000 : undefined,
     conversations,
+    resultKind: leadKind ? 'leads' : 'conversas',
     linkClicks,
   }
 }
@@ -184,7 +202,7 @@ function toEntitySummary(row: RawInsightsRow, idKey: 'campaign_id' | 'adset_id' 
     ctr: num(row.ctr),
     cpc: num(row.cpc),
     reach: num(row.reach),
-    conversations: findAction(row.actions, CONVERSATION_ACTION_TYPES),
+    conversations: findResults(row.actions),
   }
 }
 
@@ -195,7 +213,7 @@ function toDailyPoint(row: RawInsightsRow): ReportDailyPoint {
     impressions: num(row.impressions),
     clicks: num(row.clicks),
     reach: num(row.reach),
-    conversations: findAction(row.actions, CONVERSATION_ACTION_TYPES),
+    conversations: findResults(row.actions),
   }
 }
 

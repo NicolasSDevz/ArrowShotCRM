@@ -34,8 +34,11 @@ export function buildExecutiveSummary(meta: ReportMetaSnapshot, periodStart: Dat
   )
 
   lines.push(
-    `Dessas, ${fmtInt(c.clicks)} clicaram e ${fmtInt(c.conversations)} entraram em contato pelo WhatsApp` +
-      (cpc != null ? `, com um custo médio de ${fmtBRL(cpc)} por conversa iniciada.` : '.')
+    c.resultKind === 'leads'
+      ? `Dessas, ${fmtInt(c.clicks)} clicaram e ${fmtInt(c.conversations)} preencheram o formulário` +
+          (cpc != null ? `, com um custo médio de ${fmtBRL(cpc)} por lead.` : '.')
+      : `Dessas, ${fmtInt(c.clicks)} clicaram e ${fmtInt(c.conversations)} entraram em contato pelo WhatsApp` +
+          (cpc != null ? `, com um custo médio de ${fmtBRL(cpc)} por conversa iniciada.` : '.')
   )
 
   if (p) {

@@ -13,6 +13,8 @@ export const META_PERIOD_LABEL: Record<Exclude<MetaPeriodPreset, 'custom'>, stri
 export interface MetaClientMetrics {
   spend: number
   conversations: number
+  /** 'leads' = conta de formulário (o número acima são leads). */
+  resultKind?: 'conversas' | 'leads'
   reach: number
   impressions: number
   ctr: number

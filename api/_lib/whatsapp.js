@@ -23,6 +23,7 @@ import { leadContextBlock } from './leadContext.js'
 import { transcribeWithGroq } from './groqWhisper.js'
 import { rateLimit, getProduct, nowIso } from './store/core.js'
 import { productBrief, situationOf, checkoutLink, archerConfig } from './store/archerCheckout.js'
+import { routedUserIds } from './notificationRouting.js'
 
 const GRAPH = 'https://graph.facebook.com/v23.0'
 const MODEL = 'claude-sonnet-5-5'
@@ -832,9 +833,10 @@ export async function handleWebhook(payload) {
 
 /* --------------------------- avisos pra equipe --------------------------- */
 
-async function staffIds(conv) {
+async function staffIds(conv, type = 'whatsapp_handoff') {
   const users = await listDocs('users').catch(() => [])
-  const ids = new Set(users.filter((u) => u.active !== false && (u.role === 'admin' || u.role === 'manager')).map((u) => u.id))
+  // Conversa de venda vai pro Bruno (api/_lib/notificationRouting.js) + quem é dono do lead.
+  const ids = new Set(routedUserIds(users, type))
   if (conv?.leadId) {
     const lead = await getDoc(`leads/${conv.leadId}`).catch(() => null)
     const assigned = lead?.exists ? lead.data().assignedTo : null
@@ -850,7 +852,7 @@ export async function notifyCalendar(conv, waId, message) {
 
 /** Aviso no sino + no celular. Texto com o nome primeiro e sem emoji (leitor de tela). */
 async function notifyTeam(conv, message, { bell = true, type = 'whatsapp_handoff', actions } = {}) {
-  const ids = await staffIds(conv)
+  const ids = await staffIds(conv, type)
   const who = conv.name || conv.phone || prettyPhone(conv.waId)
   if (bell) {
     for (const userId of ids) {
@@ -2181,7 +2183,7 @@ export async function cancelBroadcast(id) {
 /** Avisa admins e gerentes (sino + celular) de problema da conta, no máx. 1x a cada 6h por motivo. */
 async function notifyAccountIssue(info, { broadcastId = '' } = {}) {
   if (!(await rateLimit(`wa-account-${info.key}`, 1, 6 * 3600_000).catch(() => false))) return
-  const ids = await staffIds(null)
+  const ids = await staffIds(null, 'whatsapp_account')
   const message = `${info.title}. ${info.why} O que fazer: ${info.fix}${info.block ? ' Os disparos em andamento foram pausados.' : ''}`
   for (const userId of ids) {
     await setDoc(`notifications/wa_account_${info.key}_${Date.now()}_${userId.slice(0, 6)}`, {

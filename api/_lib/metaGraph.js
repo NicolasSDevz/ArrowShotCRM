@@ -21,13 +21,30 @@ function num(v) {
   return Number.isFinite(n) ? n : 0
 }
 
-function conversationsFrom(actions) {
+// Contas de formulário (ex.: Meinecke) não têm conversa: o resultado é o lead.
+// Mesma lista de src/utils/metaReportData.ts.
+const LEAD_ACTION_TYPES = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead']
+
+function firstAction(actions, types) {
   if (!Array.isArray(actions)) return 0
-  for (const type of CONVERSATION_ACTION_TYPES) {
+  for (const type of types) {
     const hit = actions.find((a) => a.action_type === type)
     if (hit) return num(hit.value)
   }
   return 0
+}
+
+/** Resultado da conta: conversas iniciadas; se não houver nenhuma, leads de formulário. */
+export function resultsFrom(actions) {
+  const conversas = firstAction(actions, CONVERSATION_ACTION_TYPES)
+  if (conversas > 0) return { value: conversas, kind: 'conversas' }
+  const leads = firstAction(actions, LEAD_ACTION_TYPES)
+  if (leads > 0) return { value: leads, kind: 'leads' }
+  return { value: 0, kind: 'conversas' }
+}
+
+function conversationsFrom(actions) {
+  return resultsFrom(actions).value
 }
 
 /** "act_123" ou "123" -> "123". */
@@ -78,6 +95,7 @@ export async function fetchAccountInsights(token, accountId, since, until, { dai
       clicks: num(r.clicks),
       ctr: num(r.ctr),
       conversations: conversationsFrom(r.actions),
+      resultKind: resultsFrom(r.actions).kind,
     },
   }
 }
@@ -86,7 +104,7 @@ export async function fetchAccountInsights(token, accountId, since, until, { dai
  *  vêm na menor unidade da moeda (centavos) -> dividimos por 100. */
 export async function fetchAccountInfo(token, accountId) {
   const params = new URLSearchParams({
-    fields: 'name,currency,balance,amount_spent,account_status,disable_reason',
+    fields: 'name,currency,balance,amount_spent,account_status,disable_reason,is_prepay_account,funding_source_details,spend_cap',
     access_token: token,
   })
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${accountId}?${params.toString()}`
@@ -95,14 +113,41 @@ export async function fetchAccountInfo(token, accountId) {
   if (!res.ok) {
     throw new Error(body?.error?.message || `Graph ${res.status}`)
   }
+  const available = availableFunds(body)
   return {
     name: body.name || null,
     currency: body.currency || 'BRL',
-    balance: body.balance != null ? num(body.balance) / 100 : null,
+    // Saldo que sobra pra gastar (pré-pago/limite); senão o campo antigo do Meta.
+    balance: available != null ? available : body.balance != null ? num(body.balance) / 100 : null,
+    available,
     amountSpent: body.amount_spent != null ? num(body.amount_spent) / 100 : null,
     accountStatus: body.account_status != null ? num(body.account_status) : null,
     disableReason: body.disable_reason != null ? num(body.disable_reason) : null,
   }
+}
+
+/** "R$1.234,56" / "R$ 123.45" -> número. */
+function parseMoney(text) {
+  const m = String(text || '').match(/R\$\s*([\d.,]+)/)
+  if (!m) return null
+  let v = m[1]
+  if (/,\d{1,2}$/.test(v)) v = v.replace(/\./g, '').replace(',', '.')
+  else v = v.replace(/,/g, '')
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Quanto a conta ainda pode gastar: saldo pré-pago (Pix/boleto) ou o que falta
+ *  pro limite de gasto da conta. null = cartão sem limite (não acaba). */
+export function availableFunds(body) {
+  const fsd = body?.funding_source_details
+  if (body?.is_prepay_account || fsd?.type === 20) {
+    const v = parseMoney(fsd?.display_string)
+    if (v != null) return v
+  }
+  const cap = num(body?.spend_cap)
+  if (cap > 0) return Math.max(0, (cap - num(body?.amount_spent)) / 100)
+  return null
 }
 
 /** account_status: 1 = ativa. Qualquer outro valor = conta com restrição. */
@@ -175,7 +220,8 @@ export async function fetchLevelInsights(token, accountId, since, until, level =
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body?.error?.message || `Graph ${res.status}`)
   return (Array.isArray(body.data) ? body.data : []).map((r) => {
-    const conversas = conversationsFrom(r.actions)
+    const res = resultsFrom(r.actions)
+    const conversas = res.value
     const spend = num(r.spend)
     return {
       nome: r[nameField] ?? '—',
@@ -189,8 +235,11 @@ export async function fetchLevelInsights(token, accountId, since, until, level =
       ctr: num(r.ctr),
       cpc: num(r.cpc),
       cpm: num(r.cpm),
-      conversasIniciadas: conversas,
-      custoPorConversa: conversas > 0 ? spend / conversas : null,
+      tipoResultado: res.kind,
+      resultados: conversas,
+      conversasIniciadas: res.kind === 'conversas' ? conversas : 0,
+      leads: res.kind === 'leads' ? conversas : 0,
+      custoPorResultado: conversas > 0 ? spend / conversas : null,
     }
   })
 }

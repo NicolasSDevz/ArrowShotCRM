@@ -18,7 +18,10 @@
 import '../_lib/quietDeprecation.js'
 import { randomUUID } from 'node:crypto'
 import { getDoc, setDoc, queryDocs, listDocs, updateDoc } from '../_lib/firebaseAdmin.js'
-import { listAllTokenStatuses, markExpiryNotified } from '../_lib/metaTokenStore.js'
+import { listAllTokenStatuses, markExpiryNotified, resolveMetaToken } from '../_lib/metaTokenStore.js'
+import { fetchAccountInfo, fetchAccountInsights, normalizeAccountId } from '../_lib/metaGraph.js'
+import { routedUserIds } from '../_lib/notificationRouting.js'
+import { sendPushToUsers } from '../_lib/webPush.js'
 import { computeAndStoreMetrics } from '../_lib/metricsStore.js'
 import { syncInvoice } from '../_lib/store/invoice.js'
 import { publicOrigin, reconcilePendingOrders, retryFailedCapi, notifyAbandonedCarts } from '../_lib/store/core.js'
@@ -28,7 +31,6 @@ const WARN_WITHIN_DAYS = 7
 // Repete a cada ~3 dias (todo dia era barulho demais).
 const RENOTIFY_AFTER_MS = 70 * 3600 * 1000
 const SP_TZ = 'America/Sao_Paulo'
-const INTERNAL_ROLES = new Set(['admin', 'manager', 'employee'])
 
 function daysUntil(iso) {
   return (new Date(iso).getTime() - Date.now()) / (24 * 3600 * 1000)
@@ -50,11 +52,7 @@ async function runTokenExpiryCheck() {
     return { checked: all.length, notified: 0 }
   }
 
-  const [managers, admins] = await Promise.all([
-    queryDocs('users', [['role', 'manager']]),
-    queryDocs('users', [['role', 'admin']]),
-  ])
-  const recipientIds = [...new Set([...managers, ...admins].filter((u) => u.active !== false).map((u) => u.id))]
+  const recipientIds = routedUserIds(await listDocs('users'), 'meta_token_expiring')
 
   // Um aviso só com todos os clientes (antes era 1 por cliente por pessoa, todo dia: ~50 avisos/dia).
   const rows = []
@@ -88,6 +86,64 @@ async function runTokenExpiryCheck() {
   for (const t of expiring) await markExpiryNotified(t.clientId)
 
   return { checked: all.length, notified }
+}
+
+/** Saldo das contas de anúncio dos clientes: avisa Nicolas e Ciane quando a
+ *  conta pré-paga (ou com limite de gasto) tem saldo pra menos de 3 dias.
+ *  Só lê; nunca mexe em saldo/orçamento. Um aviso por dia com todas as contas. */
+const BALANCE_DAYS = 3
+const BALANCE_MIN = 30
+
+async function runAdBalanceCheck() {
+  const [clients, users] = await Promise.all([listDocs('clients'), listDocs('users')])
+  const active = clients.filter(
+    (c) => c.status !== 'churned' && c.status !== 'paused' && c.campaignPlanning?.acessos?.metaAdsAccountId
+  )
+  const until = new Date().toISOString().slice(0, 10)
+  const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10)
+  const low = []
+  for (const c of active) {
+    try {
+      const resolved = await resolveMetaToken(c.id)
+      if (!resolved?.token) continue
+      const accountId = normalizeAccountId(c.campaignPlanning.acessos.metaAdsAccountId)
+      const info = await fetchAccountInfo(resolved.token, accountId)
+      if (info.available == null) continue // cartão sem limite: não acaba
+      const { totals } = await fetchAccountInsights(resolved.token, accountId, since, until)
+      const perDay = (totals.spend || 0) / 7
+      if (perDay <= 0) continue // não está gastando
+      const limit = Math.max(BALANCE_MIN, perDay * BALANCE_DAYS)
+      if (info.available < limit) low.push({ name: c.companyName || 'cliente', clientId: c.id, available: info.available, days: info.available / perDay })
+    } catch (err) {
+      console.warn('[cron/daily] balance —', c.companyName, err.message)
+    }
+  }
+  if (!low.length) return { checked: active.length, low: 0 }
+
+  low.sort((a, b) => a.days - b.days)
+  const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const label = (r) => `${r.name} com ${brl(r.available)} (${r.days < 1 ? 'acaba hoje' : `dá uns ${Math.floor(r.days)} dia${Math.floor(r.days) > 1 ? 's' : ''}`})`
+  const message =
+    low.length === 1
+      ? `Saldo acabando no Meta Ads: ${label(low[0])}. Avise o cliente pra recarregar.`
+      : `Saldo acabando no Meta Ads em ${low.length} contas: ${low.map(label).join('; ')}. Avise os clientes pra recarregar.`
+
+  const ids = routedUserIds(users, 'ad_balance_low')
+  const day = until
+  for (const userId of ids) {
+    await setDoc(`notifications/balance_${day}_${userId.slice(0, 8)}`, {
+      userId,
+      type: 'ad_balance_low',
+      message,
+      actorName: 'Sistema',
+      entityType: 'client',
+      entityId: low.length === 1 ? low[0].clientId : '',
+      read: false,
+      createdAt: new Date(),
+    }).catch((e) => console.error('[cron/daily] balance — falha ao criar notificação:', e.message))
+  }
+  await sendPushToUsers(ids, { title: 'Saldo acabando', body: message, url: '/metricas', tag: `saldo-${day}` }).catch(() => {})
+  return { checked: active.length, low: low.length }
 }
 
 /** Recalcula o snapshot diário de métricas da empresa (MRR, clientes ativos,
@@ -140,7 +196,7 @@ async function runBirthdayNotifications() {
   ])
 
   const clientName = new Map(clients.map((c) => [c.id, c.companyName || 'cliente']))
-  const recipientIds = users.filter((u) => u.active !== false && INTERNAL_ROLES.has(u.role)).map((u) => u.id)
+  const recipientIds = routedUserIds(users, 'birthday_today')
 
   const birthdaysToday = events.filter(
     (e) => e.type === 'birthday' && e.birthdayMonth === month && e.birthdayDay === day && e.lastNotifiedYear !== year
@@ -228,6 +284,7 @@ export default async function handler(req, res) {
 
   for (const [key, run] of [
     ['tokenExpiry', runTokenExpiryCheck],
+    ['adBalance', runAdBalanceCheck],
     ['metrics', runMetricsUpdate],
     ['birthdays', runBirthdayNotifications],
     ['invoices', runInvoiceSync],

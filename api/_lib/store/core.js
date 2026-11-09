@@ -19,6 +19,7 @@ import { trackOrderEvent } from './metaCapi.js'
 import { mpConfigured, getPayment, orderStatusFromMp, refundPayment } from './mercadoPago.js'
 import { mpAccountForOrder } from './mpAccounts.js'
 import { sendPushToUsers } from '../webPush.js'
+import { routedUserIds } from '../notificationRouting.js'
 
 export const nowIso = () => new Date().toISOString()
 
@@ -90,7 +91,9 @@ export async function rateLimit(key, max, windowMs) {
 export async function notifyStaff(type, message, _actorName = 'Loja', { privateTo = null } = {}) {
   try {
     const users = await listDocs('users')
-    const staff = users.filter((u) => u.active !== false && (u.role === 'admin' || u.role === 'manager') && (!privateTo || u.id === privateTo))
+    // Produto "Só eu vejo": só a dona. Senão quem cuida do assunto (vendas = Bruno).
+    const routed = new Set(routedUserIds(users, type))
+    const staff = users.filter((u) => u.active !== false && (privateTo ? u.id === privateTo : routed.has(u.id)))
     const cut = message.indexOf(': ')
     const title = cut > 0 && cut < 40 ? message.slice(0, cut) : 'Loja'
     const body = cut > 0 && cut < 40 ? message.slice(cut + 2) : message

@@ -119,8 +119,17 @@ export function OverviewSection({ meta }: { meta: ReportMetaSnapshot }) {
         <MetricCard icon={<Percent size={18} />} name="CTR" value={fmtPct(c.ctr, m)} curr={c.ctr} prev={p?.ctr} explanation="% de pessoas que clicaram ao ver o anúncio" />
         <MetricCard icon={<Coins size={18} />} name="CPC médio" value={fmtBRL(c.cpc, m)} curr={c.cpc} prev={p?.cpc} goodWhen="down" explanation="Custo médio por cada clique" />
         <MetricCard icon={<Gauge size={18} />} name="CPM médio" value={fmtBRL(c.cpm, m)} curr={c.cpm} prev={p?.cpm} goodWhen="down" explanation="Custo a cada mil vezes que o anúncio aparece" />
-        <MetricCard icon={<MessageCircle size={18} />} name="Conversas iniciadas" value={fmtInt(c.conversations, m)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que mandaram mensagem pelo anúncio" />
-        <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c), m)} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada nova conversa" />
+        {c.resultKind === 'leads' ? (
+          <>
+            <MetricCard icon={<MessageCircle size={18} />} name="Leads (formulário)" value={fmtInt(c.conversations, m)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que preencheram o formulário do anúncio" />
+            <MetricCard icon={<DollarSign size={18} />} name="Custo por lead" value={fmtBRL(costPerConv(c), m)} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada lead" />
+          </>
+        ) : (
+          <>
+            <MetricCard icon={<MessageCircle size={18} />} name="Conversas iniciadas" value={fmtInt(c.conversations, m)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que mandaram mensagem pelo anúncio" />
+            <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c), m)} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada nova conversa" />
+          </>
+        )}
       </div>
     </Section>
   )
@@ -137,7 +146,7 @@ export function FunnelSection({ meta }: { meta: ReportMetaSnapshot }) {
     { label: 'Alcance', value: c.reach, color: '#1D4ED8', prevLabel: 'das impressões', prevValue: c.impressions },
     { label: 'Cliques', value: c.clicks, color: '#3B82F6', prevLabel: 'do alcance', prevValue: c.reach },
     { label: 'Cliques no link', value: c.linkClicks, color: '#60A5FA', prevLabel: 'dos cliques', prevValue: c.clicks },
-    { label: 'Conversas iniciadas', value: c.conversations, color: '#10B981', prevLabel: 'dos cliques no link', prevValue: c.linkClicks ?? c.clicks },
+    { label: c.resultKind === 'leads' ? 'Leads (formulário)' : 'Conversas iniciadas', value: c.conversations, color: '#10B981', prevLabel: 'dos cliques no link', prevValue: c.linkClicks ?? c.clicks },
   ]
   const base = c.impressions ?? 0
   const placeholder = [100, 82, 60, 44, 28]
