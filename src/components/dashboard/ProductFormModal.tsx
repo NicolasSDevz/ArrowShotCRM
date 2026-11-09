@@ -62,7 +62,7 @@ export function ProductFormModal({
         active: product.active,
       })
       setBonuses(toBonusRows(product.bonuses))
-      setActivates(product.activates ?? inferProductModules(product.name))
+      setActivates(product.activates?.length ? product.activates : inferProductModules(product.name))
       setBilling(product.billing ?? inferProductBilling(product.name))
       setTiers((product.tiers ?? []).map((t) => ({ id: t.id, name: t.name, price: t.price != null ? String(t.price) : '', description: t.description ?? '' })))
       setDiscounts((product.discounts ?? []).map((d) => ({ id: d.id, name: d.name, type: d.type, value: String(d.value) })))

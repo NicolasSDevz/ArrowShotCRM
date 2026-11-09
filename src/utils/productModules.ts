@@ -60,7 +60,9 @@ export interface ProductModules {
 }
 
 export function productModules(p: Pick<Product, 'name' | 'activates'>): ProductModules {
-  if (p.activates) return { keys: p.activates, inferred: false }
+  // Lista vazia = ninguém marcou área no cadastro do produto (o form de
+  // produto novo começa vazio); nesse caso vale a sugestão pelo nome.
+  if (p.activates?.length) return { keys: p.activates, inferred: false }
   return { keys: inferProductModules(p.name), inferred: true }
 }
 
