@@ -1,13 +1,15 @@
-import { orderBy, where, Timestamp, type FirestoreError } from 'firebase/firestore'
+import { collection, getDocs, orderBy, query, where, Timestamp, type FirestoreError } from 'firebase/firestore'
+import { db } from '../firebase/config'
 import type { AppUser, Client, Lead, LeadContactEntry, LeadInput, LeadStatus, ResolvedPipeline } from '../types'
-import { contactKeys } from '../utils/leadDuplicates'
+import { contactKeys, clientPhoneKeys, emailKey } from '../utils/leadDuplicates'
 import { waPhoneKey } from '../utils/phoneKey'
 import { LEAD_STATUS_LABEL, LEAD_LOST_REASON_LABEL, LEAD_FORM_STAGE_LABEL, isQuestionnaireLead, type LeadFormStage } from '../types/lead'
 import { collectionService } from './firestore'
 import { logActivity } from './activityService'
-import { createClient } from './clientService'
+import { createClient, updateClient } from './clientService'
 import { createInitialWorkflowTasks } from './clientWorkflowTemplates'
 import { notifyAdminsOfAction } from './notificationService'
+import { updateWaConversation } from './whatsappService'
 import { emitCelebration } from './celebrationService'
 
 const COLLECTION = 'leads'
@@ -419,6 +421,46 @@ export async function linkLeadToClient(lead: Lead, client: Client, userId: strin
     clientId: client.id,
     action: 'updated',
     message: `vinculou o lead ao cliente já existente "${client.companyName}"`,
+    userId,
+    userName,
+  })
+}
+
+/** "Isso é cliente": o lead é uma pessoa de um cliente que já existe (a dona,
+ *  um sócio, a gerente) — não é venda. Põe a pessoa nos contatos do cliente
+ *  (o WhatsApp passa a reconhecê-la como cliente), liga a conversa ao cliente
+ *  e tira o card do funil, então não conta como venda em lugar nenhum. */
+export async function markLeadAsClientContact(lead: Lead, client: Client, role: string, userId: string, userName: string) {
+  const phone = waPhoneKey(lead.whatsapp)
+  const email = emailKey(lead.email)
+  const contacts = [...(client.contacts ?? [])]
+  const already =
+    (phone && clientPhoneKeys(client).includes(phone)) || (!phone && email && [client.email, ...contacts.map((c) => c.email)].some((x) => emailKey(x) === email))
+  if (!already && (lead.whatsapp || lead.email)) {
+    contacts.push({
+      id: crypto.randomUUID(),
+      name: lead.contactName?.trim() || 'Contato',
+      ...(role.trim() ? { role: role.trim() } : {}),
+      ...(lead.whatsapp ? { whatsapp: lead.whatsapp } : {}),
+      ...(lead.email ? { email: lead.email } : {}),
+    })
+    await updateClient(client.id, { contacts }, userId, userName)
+  }
+
+  // Conversas do WhatsApp ligadas a esse lead passam a ser de cliente.
+  const waIds = new Set<string>()
+  if (lead.id.startsWith('wa_')) waIds.add(lead.id.slice(3))
+  const convs = await getDocs(query(collection(db, 'waConversations'), where('leadId', '==', lead.id))).catch(() => null)
+  convs?.forEach((d) => waIds.add(d.id))
+  await Promise.all([...waIds].map((waId) => updateWaConversation(waId, { leadMatch: 'client' }).catch((e) => console.warn('[lead] conversa', waId, e))))
+
+  await base.remove(lead.id)
+  await logActivity({
+    entityType: 'client',
+    entityId: client.id,
+    clientId: client.id,
+    action: 'updated',
+    message: `marcou "${lead.contactName}" como pessoa do cliente (não era venda)`,
     userId,
     userName,
   })

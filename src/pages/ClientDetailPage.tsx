@@ -216,6 +216,13 @@ export function ClientDetailPage() {
               <Phone size={13} className="text-slate-400" /> <PrivateData value={client.whatsapp} mask="••• •••••-••••" />
             </span>
           )}
+          {(client.contacts ?? []).map((c) => (
+            <span key={c.id} className="flex items-center gap-1.5" title="Pessoa do cliente: o WhatsApp dela é reconhecido como cliente">
+              <Phone size={13} className="text-slate-400" /> <PrivateData value={c.name} />
+              {c.role && <span className="text-slate-400">({c.role})</span>}
+              {c.whatsapp && <PrivateData value={c.whatsapp} mask="••• •••••-••••" />}
+            </span>
+          ))}
           {client.email && (
             <span className="flex items-center gap-1.5">
               <Mail size={13} className="text-slate-400" /> <PrivateData value={client.email} mask="••••••@••••••.com" />

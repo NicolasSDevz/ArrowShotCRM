@@ -12,7 +12,7 @@
 //   POST credentials   { token, appSecret, phoneNumberId, wabaId } (admin/gerente)
 //   GET  templates     modelos aprovados
 //   POST send          { to, text } ou { to, template: { name, lang, params } }
-//   POST conversation  { waId, aiMode?, followUpStopped?, read?, leadId?, name? }
+//   POST conversation  { waId, aiMode?, followUpStopped?, read?, leadId?, leadMatch?: "client", name? }
 //   POST reply-ai      { waId } faz a IA responder agora (botão "Responder com IA")
 //   POST sdr-analyze   { waId } refaz a análise do SDR (etapa, temperatura, perfil) sem mandar nada
 //   POST broadcast     { name, template: { name, lang }, headerMedia?, aiMode, recipients: [{ to, name, leadId, params, headerText?, buttonParams? }] }

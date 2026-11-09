@@ -3,7 +3,7 @@ import { FormAnswersList } from './FormAnswerValue'
 import { useLeadForms } from '../../hooks/useLeadForms'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Trash2, ArrowRightCircle, TriangleAlert, Mic } from 'lucide-react'
+import { Trash2, ArrowRightCircle, TriangleAlert, Mic, UserCheck } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
@@ -217,7 +217,7 @@ export function LeadDrawer({
   const { profile } = useAuth()
   const { isPrivacyMode } = usePrivacy()
   const navigate = useNavigate()
-  const [converting, setConverting] = useState(false)
+  const [converting, setConverting] = useState<false | 'convert' | 'contact'>(false)
   const [activeTab, setActiveTab] = useState<number | null>(null)
   // Veio do link de uma chamada do Copiloto: abre nos dados; senão, na conversa.
   const [mobilePane, setMobilePane] = useState<'feed' | 'data'>(initialChamadaId ? 'data' : 'feed')
@@ -249,7 +249,8 @@ export function LeadDrawer({
     onClose()
   }
 
-  const handleConvert = () => setConverting(true)
+  const handleConvert = () => setConverting('convert')
+  const handleIsClient = () => setConverting('contact')
 
   return (
     <>
@@ -332,6 +333,11 @@ export function LeadDrawer({
                   Converter em cliente
                 </Button>
               ))}
+            {!lead.convertedClientId && (
+              <Button size="sm" variant="secondary" icon={<UserCheck size={14} />} onClick={handleIsClient} title="É pessoa de um cliente que já temos: não conta como venda">
+                Já é cliente
+              </Button>
+            )}
             <button onClick={handleDelete} aria-label="Excluir lead" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500">
               <Trash2 size={15} />
             </button>
@@ -360,8 +366,8 @@ export function LeadDrawer({
                 <Button size="sm" variant="secondary" onClick={() => navigate(`/clientes/${clientMatch.client.id}`)}>
                   Ver cliente
                 </Button>
-                <Button size="sm" onClick={handleConvert}>
-                  Vincular
+                <Button size="sm" onClick={handleIsClient}>
+                  É do cliente
                 </Button>
               </div>
             )}
@@ -394,6 +400,7 @@ export function LeadDrawer({
 
       <ConvertLeadModal
         lead={converting ? lead : null}
+        contactOnly={converting === 'contact'}
         onClose={() => setConverting(false)}
         onDone={(clientId) => {
           setConverting(false)

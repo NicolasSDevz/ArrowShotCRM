@@ -3,6 +3,7 @@ import type { SocialPlan } from '../../types/socialPlan'
 import { useEffect, useMemo, useState } from 'react'
 import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
+import { Trash2 } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { ChurnTypeField } from './ChurnTypeField'
@@ -33,6 +34,7 @@ import {
   getClientOwnerIds,
   type Client,
   type ClientCategory,
+  type ClientContact,
   type ClientPackage,
   type ClientServiceContract,
   type ClientStatus,
@@ -72,6 +74,7 @@ function newDraft(product: Product): ContractDraft {
 const EMPTY = {
   companyName: '',
   whatsapp: '',
+  contacts: [] as ClientContact[],
   city: '',
   segment: '',
   document: '',
@@ -250,6 +253,7 @@ export function ClientFormModal({
       setForm({
         companyName: client.companyName,
         whatsapp: client.whatsapp ? maskPhone(client.whatsapp) : '',
+        contacts: (client.contacts ?? []).map((c) => ({ ...c, whatsapp: c.whatsapp ? maskPhone(c.whatsapp) : '' })),
         city: client.city ?? '',
         segment: client.segment ?? '',
         document: client.document ? maskDocument(client.document) : '',
@@ -350,6 +354,10 @@ export function ClientFormModal({
   }
 
   const whatsappIncomplete = form.whatsapp.trim() !== '' && !isPhoneComplete(form.whatsapp)
+  const contactPhoneIncomplete = (c: ClientContact) => !!c.whatsapp?.trim() && !isPhoneComplete(c.whatsapp)
+  const contactsInvalid = form.contacts.some(contactPhoneIncomplete)
+  const setContact = (id: string, patch: Partial<ClientContact>) =>
+    setForm((f) => ({ ...f, contacts: f.contacts.map((c) => (c.id === id ? { ...c, ...patch } : c)) }))
   const whatsappGroupLinkInvalid = form.whatsappGroupLink.trim() !== '' && !form.whatsappGroupLink.trim().startsWith(WHATSAPP_GROUP_PREFIX)
 
   const handleCepChange = async (raw: string) => {
@@ -381,7 +389,7 @@ export function ClientFormModal({
     .join('; ')
 
   // Cliente novo precisa de pelo menos um serviço e, se tem tráfego pago, de uma plataforma.
-  const canSubmit = form.companyName.trim() !== '' && !whatsappIncomplete && !whatsappGroupLinkInvalid && !platformMissing && (!!client || anyService)
+  const canSubmit = form.companyName.trim() !== '' && !whatsappIncomplete && !contactsInvalid && !whatsappGroupLinkInvalid && !platformMissing && (!!client || anyService)
 
   const handleSubmit = async () => {
     if (!canSubmit || !profile) return
@@ -394,6 +402,16 @@ export function ClientFormModal({
       const basePayload = {
         companyName: form.companyName.trim(),
         whatsapp: form.whatsapp || undefined,
+        // Pessoas sem nome nem WhatsApp são descartadas; campos vazios não vão pro banco.
+        contacts: form.contacts
+          .filter((c) => c.name.trim() || c.whatsapp?.trim())
+          .map((c) => ({
+            id: c.id,
+            name: c.name.trim() || 'Contato',
+            ...(c.role?.trim() ? { role: c.role.trim() } : {}),
+            ...(c.whatsapp?.trim() ? { whatsapp: c.whatsapp.trim() } : {}),
+            ...(c.email?.trim() ? { email: c.email.trim() } : {}),
+          })),
         city: form.city || undefined,
         segment: form.segment || undefined,
         document: form.document || undefined,
@@ -605,6 +623,46 @@ export function ClientFormModal({
           )}
         </Field>
 
+        <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pessoas do cliente</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Dona, sócio, gerente... Todo WhatsApp daqui é reconhecido como cliente: quem chamar não vira lead nem conta como venda.
+            </p>
+          </div>
+          {form.contacts.map((c) => (
+            <div key={c.id} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_0.8fr_1fr_auto] sm:items-start">
+              <Input value={c.name} onChange={(e) => setContact(c.id, { name: e.target.value })} placeholder="Nome" aria-label="Nome da pessoa" />
+              <Input value={c.role ?? ''} onChange={(e) => setContact(c.id, { role: e.target.value })} placeholder="Cargo (ex: proprietária)" aria-label="Cargo" />
+              <div>
+                <Input
+                  value={c.whatsapp ?? ''}
+                  onChange={(e) => setContact(c.id, { whatsapp: maskPhone(e.target.value) })}
+                  placeholder="(00) 00000-0000"
+                  aria-label="WhatsApp da pessoa"
+                />
+                {contactPhoneIncomplete(c) && <p className="mt-1 text-xs text-red-500">Número incompleto.</p>}
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, contacts: f.contacts.filter((x) => x.id !== c.id) }))}
+                aria-label="Remover pessoa"
+                className="h-9 rounded-lg px-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          <div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setForm((f) => ({ ...f, contacts: [...f.contacts, { id: crypto.randomUUID(), name: '', role: '', whatsapp: '' }] }))}
+            >
+              + Adicionar pessoa
+            </Button>
+          </div>
+        </div>
         <div className="flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Endereço completo</p>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">

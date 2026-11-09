@@ -449,12 +449,14 @@ const fmtDate = (v) => {
   return ms ? new Intl.DateTimeFormat('pt-BR', { timeZone: SP_TZ, day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(ms)) : ''
 }
 
-/** Cliente da Arrow Shot (coleção clients) com esse número. */
+/** Cliente da Arrow Shot (coleção clients) com esse número: o WhatsApp principal
+ *  ou o de qualquer pessoa cadastrada no cliente (client.contacts). */
 async function findClientByPhone(waId) {
   const key = phoneKey(waId)
   if (!key || key.length < 10) return null
   const rows = await listDocs('clients').catch(() => [])
-  return rows.find((c) => c.whatsapp && phoneKey(c.whatsapp) === key) || null
+  const phones = (c) => [c.whatsapp, ...(Array.isArray(c.contacts) ? c.contacts.map((p) => p?.whatsapp) : [])].filter(Boolean)
+  return rows.find((c) => phones(c).some((w) => phoneKey(w) === key)) || null
 }
 
 /**
@@ -1833,6 +1835,8 @@ export async function updateConversation(waId, input, by = null) {
   if (typeof input.followUpStopped === 'boolean') patch.followUpStopped = input.followUpStopped
   if (input.read === true) patch.unread = 0
   if (typeof input.leadId === 'string' || input.leadId === null) patch.leadId = input.leadId || null
+  // "Isso é cliente": a conversa passa a ser de cliente (o lead foi tirado do funil).
+  if (input.leadMatch === 'client') Object.assign(patch, { leadId: null, leadMatch: 'client' })
   if (typeof input.name === 'string') patch.name = input.name.trim().slice(0, 80)
   // Observação da equipe no Raio-x: a IA lê em toda resposta e follow-up.
   if (typeof input.teamNotes === 'string') {

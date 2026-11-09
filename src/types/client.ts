@@ -127,8 +127,22 @@ export interface ClientServiceContract {
   finalPrice?: number | null
 }
 
+/** Pessoa do cliente que pode chamar a agência (dona, sócio, gerente...).
+ *  O WhatsApp de cada uma faz o CRM reconhecer a conversa como de cliente
+ *  (não vira lead nem conta como venda). */
+export interface ClientContact {
+  id: string
+  name: string
+  /** Cargo livre: proprietária, sócio, gerente, financeiro... */
+  role?: string
+  whatsapp?: string
+  email?: string
+}
+
 export interface Client extends BaseDoc {
   companyName: string
+  /** Pessoas do cliente, além do WhatsApp principal (ver ClientContact). */
+  contacts?: ClientContact[]
   /** @deprecated the client form no longer collects this — kept only so
    *  older docs still display it until they're re-saved. */
   contactName?: string

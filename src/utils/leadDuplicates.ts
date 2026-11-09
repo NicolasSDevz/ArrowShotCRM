@@ -28,33 +28,43 @@ export function nameKey(raw?: string | null): string {
   return n.length >= 3 ? n : ''
 }
 
-export type MatchReason = 'whatsapp' | 'email' | 'empresa'
+export type MatchReason = 'whatsapp' | 'email' | 'empresa' | 'pessoa'
 
 export const MATCH_REASON_LABEL: Record<MatchReason, string> = {
   whatsapp: 'mesmo WhatsApp',
   email: 'mesmo e-mail',
   empresa: 'mesmo nome de empresa',
+  pessoa: 'mesmo nome de pessoa',
 }
 
-type Contact = { whatsapp?: string | null; email?: string | null; companyName?: string | null }
+/** Todos os telefones do cliente (o principal + o de cada pessoa), já como phoneKey. */
+export function clientPhoneKeys(client: Pick<Client, 'whatsapp' | 'contacts'>): string[] {
+  const keys = [client.whatsapp, ...(client.contacts ?? []).map((c) => c.whatsapp)].map((w) => phoneKey(w)).filter(Boolean)
+  return [...new Set(keys)]
+}
 
-function matchReason(a: Contact, b: Contact): MatchReason | null {
-  const pa = phoneKey(a.whatsapp)
-  if (pa && pa === phoneKey(b.whatsapp)) return 'whatsapp'
-  const ea = emailKey(a.email)
-  if (ea && ea === emailKey(b.email)) return 'email'
-  const na = nameKey(a.companyName)
-  if (na && na === nameKey(b.companyName)) return 'empresa'
+function clientMatchReason(lead: Lead, client: Client): MatchReason | null {
+  const p = phoneKey(lead.whatsapp)
+  if (p && clientPhoneKeys(client).includes(p)) return 'whatsapp'
+  const e = emailKey(lead.email)
+  if (e && [client.email, ...(client.contacts ?? []).map((c) => c.email)].some((x) => emailKey(x) === e)) return 'email'
+  const n = nameKey(lead.companyName)
+  if (n && n === nameKey(client.companyName)) return 'empresa'
+  // Nome completo da pessoa (com sobrenome) igual ao de alguém do cliente.
+  const full = (lead.contactName ?? '').trim()
+  const pn = full.includes(' ') ? nameKey(full) : ''
+  if (pn && [client.contactName, ...(client.contacts ?? []).map((c) => c.name)].some((x) => nameKey(x) === pn)) return 'pessoa'
   return null
 }
 
 /** Cliente já cadastrado que é o mesmo contato do lead (WhatsApp e e-mail
- *  pesam mais que o nome da empresa). */
+ *  pesam mais que o nome da empresa, que pesa mais que o nome da pessoa).
+ *  Confere também as pessoas cadastradas no cliente (client.contacts). */
 export function findClientMatch(lead: Lead, clients: Client[]): { client: Client; reason: MatchReason } | null {
   let best: { client: Client; reason: MatchReason } | null = null
-  const rank: Record<MatchReason, number> = { whatsapp: 0, email: 1, empresa: 2 }
+  const rank: Record<MatchReason, number> = { whatsapp: 0, email: 1, empresa: 2, pessoa: 3 }
   for (const client of clients) {
-    const reason = matchReason(lead, client)
+    const reason = clientMatchReason(lead, client)
     if (reason && (!best || rank[reason] < rank[best.reason])) best = { client, reason }
   }
   return best
