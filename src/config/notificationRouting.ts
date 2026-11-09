@@ -50,14 +50,14 @@ export const NOTIFICATION_ROUTES: Record<NotificationType, TeamPerson[] | 'direc
   meeting_created: CS,
   consulting_pending: CS,
   birthday_today: CS,
-  content_review_requested: CS,
-  content_ready_to_schedule: CS,
-  approval_requested: CS,
-  content_approved: CS,
-  change_requested: CS,
-  content_created: CS,
-  content_published: CS,
-  content_imported: CS,
+  content_review_requested: TRAFEGO, // aprovação de conteúdo: Nicolas e Ciane
+  content_ready_to_schedule: TRAFEGO, // aprovação de conteúdo: Nicolas e Ciane
+  approval_requested: TRAFEGO, // aprovação de conteúdo: Nicolas e Ciane
+  content_approved: TRAFEGO, // aprovação de conteúdo: Nicolas e Ciane
+  change_requested: TRAFEGO, // aprovação de conteúdo: Nicolas e Ciane
+  content_created: TRAFEGO, // aprovação de conteúdo: Nicolas e Ciane
+  content_published: TRAFEGO, // aprovação de conteúdo: Nicolas e Ciane
+  content_imported: TRAFEGO, // aprovação de conteúdo: Nicolas e Ciane
   // Sistema — Nicolas
   system_error: SISTEMA,
   store_capi_error: SISTEMA,
