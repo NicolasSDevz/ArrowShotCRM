@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Plus, Upload, CalendarPlus, Send, CalendarCheck } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { Plus, Upload, Sparkles, Send, CalendarCheck, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { useContents } from '../../hooks/useContents'
@@ -12,11 +13,14 @@ import { ContentFormModal } from '../content/ContentFormModal'
 import { ImportEditorialCalendarModal } from '../content/ImportEditorialCalendarModal'
 import { GenerateMonthModal } from '../socialMedia/GenerateMonthModal'
 import { SendMonthApprovalModal } from '../socialMedia/SendMonthApprovalModal'
+import { DeletePostsModal } from '../socialMedia/DeletePostsModal'
 import { Tabs } from '../ui/Tabs'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { ContentMonthGrid } from '../socialMedia/ContentMonthGrid'
-import { moveContentStatus } from '../../services/contentService'
+import { deleteContent, moveContentStatus } from '../../services/contentService'
+import { deleteContentMedia } from '../../services/contentMediaService'
+import { askConfirm } from '../../utils/confirmDialog'
 import { type Content, type ContentStatus, type ContentType } from '../../types/content'
 import type { Client } from '../../types'
 
@@ -73,6 +77,7 @@ export function ClientContentsTab({ client }: { client: Client }) {
   const [importingCalendar, setImportingCalendar] = useState(false)
   const [genMonthOpen, setGenMonthOpen] = useState(false)
   const [sendOpen, setSendOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [month, setMonth] = useState(() => new Date())
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -100,22 +105,35 @@ export function ClientContentsTab({ client }: { client: Client }) {
     if (!profile) return
     moveContentStatus(content, status, order, profile.id, profile.name, { clientName: client.companyName, users })
   }
+  const removeOne = async (content: Content) => {
+    if (!profile) return
+    const ok = await askConfirm({ title: `Apagar "${content.title}"?`, message: 'O post e a arte saem do CRM. Não dá para desfazer.', confirmLabel: 'Apagar', danger: true })
+    if (!ok) return
+    await deleteContent(content, profile.id, profile.name)
+    for (const m of content.media ?? []) await deleteContentMedia(m)
+    toast.success('Post apagado')
+  }
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreating({})}>
-          Novo conteúdo
-        </Button>
-        <Button size="sm" variant="secondary" icon={<CalendarPlus size={13} />} onClick={() => setGenMonthOpen(true)}>
+        <Button size="sm" icon={<Sparkles size={13} />} onClick={() => setGenMonthOpen(true)}>
           Gerar mês
         </Button>
         <Button size="sm" variant="secondary" icon={<Send size={13} />} onClick={() => setSendOpen(true)}>
           Enviar para aprovação
         </Button>
-        <Button size="sm" variant="secondary" icon={<Upload size={13} />} onClick={() => setImportingCalendar(true)}>
-          Importar calendário
-        </Button>
+        <div className="ml-auto flex items-center gap-1">
+          <Button size="sm" variant="ghost" icon={<Plus size={13} />} onClick={() => setCreating({})}>
+            Novo post
+          </Button>
+          <Button size="sm" variant="ghost" icon={<Upload size={13} />} onClick={() => setImportingCalendar(true)} title="Importar calendário (CSV)">
+            Importar
+          </Button>
+          <Button size="sm" variant="ghost" icon={<Trash2 size={13} />} onClick={() => setDeleteOpen(true)} title="Apagar vários posts">
+            Apagar posts
+          </Button>
+        </div>
       </div>
 
       <Tabs
@@ -124,7 +142,7 @@ export function ClientContentsTab({ client }: { client: Client }) {
             label: 'Kanban',
             content:
               boardItems.length === 0 && scheduledCount === 0 ? (
-                <EmptyState title="Nenhum conteúdo para este cliente" description='Clique em "Novo conteúdo" para começar o planejamento.' />
+                <EmptyState title="Nenhum post ainda" description='Clique em "Gerar mês" e a IA monta o calendário do mês a partir do briefing do cliente.' />
               ) : (
                 <div className="flex flex-col gap-2 overflow-x-auto">
                   <KanbanBoard<Content, BoardColumn>
@@ -132,26 +150,27 @@ export function ClientContentsTab({ client }: { client: Client }) {
                     items={boardItems}
                     getStatus={(c) => boardColumn(c.status)}
                     renderCard={(c) => (
-                      <div className="flex flex-col gap-1.5">
-                        <ContentCard
-                          content={c}
-                          client={client}
-                          assignee={c.assignedTo ? userMap[c.assignedTo] : undefined}
-                          onClick={() => setOpenContentId(c.id)}
-                        />
-                        {c.status === 'waiting_client' && (
-                          <p className="px-1 text-[11px] font-semibold text-violet-500">Com o cliente para aprovar</p>
-                        )}
-                        {c.status === 'approved' && (
-                          <button
-                            type="button"
-                            onClick={() => moveTo(c, 'scheduled', c.order)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 py-1.5 text-xs font-semibold text-teal-700 transition-colors hover:bg-teal-100"
-                          >
-                            <CalendarCheck size={13} /> Marcar como agendado
-                          </button>
-                        )}
-                      </div>
+                      <ContentCard
+                        content={c}
+                        assignee={c.assignedTo ? userMap[c.assignedTo] : undefined}
+                        onClick={() => setOpenContentId(c.id)}
+                        onDelete={() => removeOne(c)}
+                        footer={
+                          c.status === 'waiting_client' ? (
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-violet-500">
+                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-500" /> Com o cliente
+                            </span>
+                          ) : c.status === 'approved' ? (
+                            <button
+                              type="button"
+                              onClick={() => moveTo(c, 'scheduled', c.order)}
+                              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-teal-500/10 py-1.5 text-xs font-semibold text-teal-600 transition-colors hover:bg-teal-500/20"
+                            >
+                              <CalendarCheck size={13} /> Marcar como agendado
+                            </button>
+                          ) : undefined
+                        }
+                      />
                     )}
                     onMove={(content, col, newOrder) => moveTo(content, statusForColumn(col, content.status), newOrder)}
                   />
@@ -191,6 +210,7 @@ export function ClientContentsTab({ client }: { client: Client }) {
       <ImportEditorialCalendarModal open={importingCalendar} onClose={() => setImportingCalendar(false)} clientId={client.id} />
       {genMonthOpen && <GenerateMonthModal open onClose={() => setGenMonthOpen(false)} client={client} contents={contents} />}
       {sendOpen && <SendMonthApprovalModal open onClose={() => setSendOpen(false)} client={client} contents={contents} />}
+      {deleteOpen && <DeletePostsModal open onClose={() => setDeleteOpen(false)} client={client} contents={contents} />}
     </div>
   )
 }

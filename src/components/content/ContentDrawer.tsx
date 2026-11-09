@@ -10,6 +10,8 @@ import { CommentsPanel } from '../comments/CommentsPanel'
 import { ActivityPanel } from '../activity/ActivityPanel'
 import { FilesPanel } from '../files/FilesPanel'
 import { ContentMediaPanel } from './ContentMediaPanel'
+import { deleteContentMedia } from '../../services/contentMediaService'
+import { askConfirm } from '../../utils/confirmDialog'
 import { useAuth } from '../../context/AuthContext'
 import { useClients } from '../../hooks/useClients'
 import { useUsers } from '../../hooks/useUsers'
@@ -92,8 +94,10 @@ export function ContentDrawer({ content, onClose }: { content: Content | null; o
   const save = (data: Partial<Content>) => updateContent(content.id, data, profile.id, profile.name)
 
   const handleDelete = async () => {
-    if (!confirm(`Excluir o conteúdo "${content.title}"?`)) return
+    const ok = await askConfirm({ title: `Apagar "${content.title}"?`, message: 'O post e a arte saem do CRM. Não dá para desfazer.', confirmLabel: 'Apagar', danger: true })
+    if (!ok) return
     await deleteContent(content, profile.id, profile.name)
+    for (const m of content.media ?? []) await deleteContentMedia(m)
     onClose()
   }
 
@@ -339,7 +343,7 @@ export function ContentDrawer({ content, onClose }: { content: Content | null; o
         </div>
 
         <Button variant="danger" size="sm" icon={<Trash2 size={14} />} onClick={handleDelete} className="self-start">
-          Excluir conteúdo
+          Apagar post
         </Button>
       </div>
 
