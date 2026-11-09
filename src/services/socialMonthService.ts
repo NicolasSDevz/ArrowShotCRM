@@ -90,7 +90,12 @@ function formatLabel(type: Content['type']) {
  *  pilar em rodízio. O rodízio começa num ponto diferente a cada mês para
  *  o mesmo formato não cair sempre no mesmo pilar. */
 export function planMonth(plan: SocialPlan, month: Date, existing: Content[]): PlannedPost[] {
-  const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) })
+  // Dias que já passaram ficam de fora (cliente que entra no meio do mês).
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const start = startOfMonth(month) < today ? today : startOfMonth(month)
+  const end = endOfMonth(month)
+  const days = start > end ? [] : eachDayOfInterval({ start, end })
   let i = (month.getFullYear() * 12 + month.getMonth()) % PILLAR_ROTATION.length
   const out: PlannedPost[] = []
   for (const date of days) {
