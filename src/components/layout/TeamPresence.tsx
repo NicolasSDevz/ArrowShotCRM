@@ -46,7 +46,7 @@ export function TeamPresence() {
         aria-expanded={open}
         className="relative rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
       >
-        <Users size={18} />
+        <Users size={22} strokeWidth={1.75} />
         {othersOnline.length > 0 && <span className="topbar-stack-ring absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />}
       </button>
 

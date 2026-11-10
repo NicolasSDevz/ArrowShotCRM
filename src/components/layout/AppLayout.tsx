@@ -42,7 +42,7 @@ export function AppLayout() {
         {/* relative: textos sr-only (absolute) da página ficam presos aqui dentro;
             sem isso eles se posicionavam pela janela e criavam barras de rolagem
             com espaço vazio na ficha do cliente. */}
-        <main className="relative flex-1 overflow-y-auto p-8 pb-28 print:static print:overflow-visible print:p-0">
+        <main className="relative flex-1 overflow-y-auto p-4 pb-28 sm:p-6 sm:pb-28 lg:p-8 lg:pb-28 print:static print:overflow-visible print:p-0">
           <ErrorBoundary resetKey={location.pathname}>
             {/* Menu e topo ficam na tela enquanto a página nova baixa. */}
             <Suspense

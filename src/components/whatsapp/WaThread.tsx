@@ -150,7 +150,7 @@ export function SdrPanel({ conv, onClose }: { conv: WaConversation; onClose?: ()
                 <>
                   <ol className="flex items-center gap-1" aria-label={`Etapa ${flowIdx + 1} de ${SDR_FLOW.length}: ${SDR_STAGE[sdr.stage].label}`}>
                     {SDR_FLOW.map((s, i) => (
-                      <li key={s} className="h-1.5 flex-1 rounded-full" style={{ background: i <= flowIdx ? SDR_STAGE[sdr.stage].color : 'var(--dk-surface-4, #2a2a2e)' }} aria-hidden="true" />
+                      <li key={s} className="h-1.5 flex-1 rounded-full" style={{ background: i <= flowIdx ? SDR_STAGE[sdr.stage].color : 'var(--dk-surface-4, #283549)' }} aria-hidden="true" />
                     ))}
                   </ol>
                   <p className="mt-2 text-sm font-semibold" style={{ color: SDR_STAGE[sdr.stage].color }}>

@@ -24,7 +24,7 @@ export function Topbar({
   const togglePresentation = usePresentationToggle()
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 sm:gap-3 sm:px-5">
+    <header className="app-topbar relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3 sm:h-[68px] sm:gap-3 sm:px-7">
       <button
         onClick={onOpenMobileNav}
         className="shrink-0 rounded-md p-1.5 text-slate-500 hover:bg-slate-100 md:hidden"
@@ -73,8 +73,8 @@ export function Topbar({
             aria-label="Menu da conta"
             className="flex items-center gap-1 rounded-full p-0.5 pr-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
           >
-            <Avatar name={profile?.name ?? '?'} photoURL={profile?.photoURL} size="sm" />
-            <ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+            <Avatar name={profile?.name ?? '?'} photoURL={profile?.photoURL} size="md" />
+            <ChevronDown size={18} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
           </button>
           {menuOpen && <AccountMenu onClose={() => setMenuOpen(false)} anchorRef={menuBtnRef} placement="below-end" />}
         </div>

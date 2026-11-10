@@ -33,6 +33,24 @@ const FAMILIES = {
   brand: [217, 72, true],
 }
 
+// Paleta oficial (Dark Premium): cores exatas de texto e de fundo sólido para
+// as famílias que carregam a identidade ou um significado.
+const BLUE = { text: '#7FAEFF', textHover: '#A9C8FF', solid: '#4F8CFF', solidHover: '#3D7BF0' }
+const OVERRIDES = {
+  brand: BLUE,
+  blue: BLUE,
+  sky: { text: '#5CC8FF' },
+  cyan: { text: '#22D3EE', textHover: '#67E8F9' },
+  teal: { text: '#2DD4BF', textHover: '#5EEAD4', solid: '#14A08C', solidHover: '#11907E' },
+  emerald: { text: '#2DD4BF', textHover: '#5EEAD4', solid: '#14A08C', solidHover: '#11907E' },
+  green: { text: '#4ADE9B', textHover: '#86EFAC' },
+  red: { text: '#F87171', textHover: '#FCA5A5', solid: '#DC4E4E', solidHover: '#C84343' },
+  amber: { text: '#F5B84B', textHover: '#F8CB78', solid: '#C98A1E', solidHover: '#B57C1A' },
+  violet: { text: '#A78BFA', textHover: '#C4B5FD' },
+  purple: { text: '#B794F6', textHover: '#D0B8FA' },
+  indigo: { text: '#8EA2FF', textHover: '#B4C1FF' },
+}
+
 const ROOT = ':root[data-theme="dark"]'
 const r2 = (n) => Math.round(n * 100) / 100
 
@@ -63,16 +81,18 @@ for (const [fam, [h, textL, semantic]] of Object.entries(FAMILIES)) {
   })
   // fundos sólidos suaves — "-300..-800"
   const solidL = Math.max(textL - 24, 38)
-  const solid = (shade) => `hsl(${h} 50% ${shade >= 600 ? solidL - 4 : solidL}%)`
+  const o = OVERRIDES[fam] ?? {}
+  const solid = (shade) =>
+    o.solid ? (shade >= 800 ? o.solidHover : o.solid) : `hsl(${h} 50% ${shade >= 600 ? solidL - 4 : solidL}%)`
   for (const shade of [300, 400, 500, 600, 700, 800]) {
     push(base('bg', fam, [shade]), `background-color: ${solid(shade)};`)
   }
   for (const shade of [500, 600, 700]) {
-    push(hover('bg', fam, [shade]), `background-color: ${solid(shade + 100)};`)
+    push(hover('bg', fam, [shade]), `background-color: ${o.solidHover ?? solid(shade + 100)};`)
   }
   // textos pastel legíveis
-  push(base('text', fam, [400, 500, 600, 700, 800, 900]), `color: hsl(${h} 60% ${textL}%);`)
-  push(hover('text', fam, [400, 500, 600, 700, 800]), `color: hsl(${h} 65% ${Math.min(textL + 6, 88)}%);`)
+  push(base('text', fam, [400, 500, 600, 700, 800, 900]), `color: ${o.text ?? `hsl(${h} 60% ${textL}%)`};`)
+  push(hover('text', fam, [400, 500, 600, 700, 800]), `color: ${o.textHover ?? `hsl(${h} 65% ${Math.min(textL + 6, 88)}%)`};`)
   // bordas / anéis / divisores
   push(base('border', fam, [100, 200, 300]), `border-color: hsl(${h} 28% 24%);`)
   push(base('border', fam, [400, 500, 600]), `border-color: hsl(${h} 38% 38%);`)

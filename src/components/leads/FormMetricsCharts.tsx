@@ -5,7 +5,7 @@ import type { LeadFormDailyPoint } from '../../services/leadFormAnalyticsService
  *  com a versão própria do modo escuro. Escopo local (.fm-viz). */
 export const FORM_VIZ_STYLE = `
 .fm-viz { --fm-s1: #2a78d6; --fm-s2: #eb6834; --fm-s3: #1baf7a; --fm-grid: #e2e8f0; --fm-ink: #0f172a; --fm-ink-2: #64748b; --fm-bar: #2a78d6; --fm-track: #f1f5f9; --fm-tip-bg: #0f172a; --fm-tip-ink: #ffffff; }
-:root[data-theme="dark"] .fm-viz { --fm-s1: #3987e5; --fm-s2: #d95926; --fm-s3: #199e70; --fm-grid: #2e2e33; --fm-ink: #ececee; --fm-ink-2: #a1a1aa; --fm-bar: #3987e5; --fm-track: #26262b; --fm-tip-bg: #f4f4f5; --fm-tip-ink: #18181b; }
+:root[data-theme="dark"] .fm-viz { --fm-s1: #4F8CFF; --fm-s2: #22D3EE; --fm-s3: #2DD4BF; --fm-grid: #1F2A3C; --fm-ink: #F1F5F9; --fm-ink-2: #94A3B8; --fm-bar: #4F8CFF; --fm-track: #202B3D; --fm-tip-bg: #0B1220; --fm-tip-ink: #F1F5F9; }
 `
 
 const SERIES = [

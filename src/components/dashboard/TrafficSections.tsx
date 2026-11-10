@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, startOfWeek, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { AlertTriangle, Briefcase, CalendarClock, FileBarChart, Megaphone, RefreshCw, Wallet } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Megaphone, RefreshCw, Users, Wallet } from 'lucide-react'
+import { GoogleLogo, MetaLogo } from '../ui/BrandLogos'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { useOptimizationSchedule } from '../../hooks/useOptimizations'
@@ -96,17 +97,63 @@ export function TrafficSections({ clients, tasks, optimizations, ownOnly, show }
 // Minha carteira
 // ---------------------------------------------------------------------------
 
-function Stat({ icon, label, value, hint, tone = 'slate' }: { icon: ReactNode; label: string; value: string; hint?: string; tone?: 'slate' | 'red' | 'emerald' }) {
+/** Cor de destaque de cada indicador da carteira (borda de cima, contorno e ícone). */
+const STAT_ACCENT = {
+  blue: { line: '#4F8CFF', icon: '#4F8CFF', edge: 'rgb(79 140 255 / 0.38)', tint: 'rgb(79 140 255 / 0.07)' },
+  emerald: { line: '#2DD4BF', icon: '#2DD4BF', edge: 'rgb(45 212 191 / 0.45)', tint: 'rgb(45 212 191 / 0.12)' },
+  amber: { line: '#F59E0B', icon: '#F5B84B', edge: 'rgb(245 158 11 / 0.4)', tint: 'rgb(245 158 11 / 0.06)' },
+  violet: { line: '#A78BFA', icon: '#A78BFA', edge: 'rgb(167 139 250 / 0.4)', tint: 'rgb(167 139 250 / 0.08)' },
+  red: { line: '#F87171', icon: '#F87171', edge: 'rgb(248 113 113 / 0.42)', tint: 'rgb(248 113 113 / 0.08)' },
+  neutral: { line: '#3B4C68', icon: '#CBD5E1', edge: 'rgb(148 163 184 / 0.28)', tint: 'rgb(148 163 184 / 0.04)' },
+} as const
+type StatAccent = keyof typeof STAT_ACCENT
+
+function Stat({
+  icon,
+  label,
+  value,
+  hint,
+  tone = 'slate',
+  accent = 'blue',
+}: {
+  icon: ReactNode
+  label: string
+  value: string
+  hint?: string
+  tone?: 'slate' | 'red' | 'emerald'
+  accent?: StatAccent
+}) {
   const color = tone === 'red' ? 'text-red-600' : tone === 'emerald' ? 'text-emerald-600' : 'text-slate-900'
+  const a = STAT_ACCENT[accent]
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-        <span aria-hidden="true">{icon}</span>
+    <div
+      className="wallet-stat relative flex min-h-[132px] flex-col overflow-hidden rounded-2xl px-3.5 py-4 2xl:p-4 transition-transform duration-200 hover:-translate-y-0.5"
+      style={{
+        border: `1px solid ${a.edge}`,
+        borderTop: `3px solid ${a.line}`,
+        background: `linear-gradient(180deg, ${a.tint} 0%, transparent 70%), var(--wallet-stat-bg, #101827)`,
+      }}
+    >
+      <div className="flex items-start gap-2 text-[14px] font-medium leading-snug text-slate-800 2xl:text-[15px]">
+        <span aria-hidden="true" className="mt-px flex h-5 shrink-0 items-center" style={{ color: a.icon }}>
+          {icon}
+        </span>
         {label}
       </div>
-      <p className={`mt-1 text-xl font-extrabold ${color}`}>{value}</p>
-      {hint && <p className="mt-0.5 text-[11px] text-slate-400">{hint}</p>}
+      <p className={`mt-3 whitespace-nowrap text-[clamp(22px,1.9vw,34px)] font-bold leading-none tracking-tight tabular-nums ${color}`}>{value}</p>
+      {hint && <p className="mt-2 text-[13px] leading-snug text-slate-500">{hint}</p>}
     </div>
+  )
+}
+
+/** Ícone do título da carteira: três barras subindo, em azul. */
+function WalletTitleIcon() {
+  return (
+    <svg width="26" height="22" viewBox="0 0 26 22" aria-hidden="true" focusable="false">
+      <rect x="1" y="12" width="6" height="10" rx="1.5" fill="#4F8CFF" />
+      <rect x="10" y="6" width="6" height="16" rx="1.5" fill="#4F8CFF" />
+      <rect x="19" y="0" width="6" height="22" rx="1.5" fill="#168BFF" />
+    </svg>
   )
 }
 
@@ -152,21 +199,26 @@ function WalletSummary({ clients, tasks, ownOnly }: { clients: Client[]; tasks: 
           body: 'Clientes de tráfego pago ativos (e em onboarding que já têm otimização registrada). O dono do cliente é quem está no Calendário de Otimizações; sem linha lá, vale o responsável do cadastro.',
         }}
       >
-        {ownOnly ? 'Minha carteira de tráfego' : 'Carteira de tráfego da equipe'}
+        <span className="flex items-center gap-3 text-[19px] font-semibold">
+          <WalletTitleIcon />
+          {ownOnly ? 'Minha carteira de tráfego' : 'Carteira de tráfego da equipe'}
+        </span>
       </CardTitle>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat icon={<Briefcase size={13} />} label="Clientes" value={String(clients.length)} hint={`${active.length} ativos`} />
+        <Stat icon={<Users size={19} />} accent="blue" label="Clientes" value={String(clients.length)} hint={`${active.length} ativos`} />
         <Stat
-          icon={<Wallet size={13} />}
+          icon={<Wallet size={19} />}
+          accent="emerald"
           label="Valor mensal"
           value={isPrivacyMode ? 'R$ •.•••' : BRL(monthly)}
           hint="Soma dos contratos ativos"
         />
-        <Stat icon={<Megaphone size={13} />} label="Só Meta" value={String(onlyMeta)} />
-        <Stat icon={<Megaphone size={13} />} label="Só Google" value={String(onlyGoogle)} />
-        <Stat icon={<Megaphone size={13} />} label="Meta + Google" value={String(both)} />
+        <Stat icon={<Megaphone size={19} />} accent="blue" label="Só Meta" value={String(onlyMeta)} />
+        <Stat icon={<GoogleLogo size={19} />} accent="amber" label="Só Google" value={String(onlyGoogle)} />
+        <Stat icon={<MetaLogo size={16} />} accent="violet" label="Meta + Google" value={String(both)} />
         <Stat
-          icon={<CalendarClock size={13} />}
+          icon={<CalendarDays size={19} />}
+          accent={overdue > 0 ? 'red' : 'neutral'}
           label="Tarefas atrasadas"
           value={String(overdue)}
           tone={overdue > 0 ? 'red' : 'emerald'}
@@ -174,9 +226,13 @@ function WalletSummary({ clients, tasks, ownOnly }: { clients: Client[]; tasks: 
         />
       </div>
       {ownOnly && reportTotal > 0 && (
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
-          <FileBarChart size={13} aria-hidden="true" />
-          Relatórios semanais desta semana: <strong className="text-slate-700">{reportDone} de {reportTotal}</strong> enviados
+        <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14.5px] text-slate-600">
+          <CalendarDays size={18} aria-hidden="true" className="text-slate-500" />
+          Relatórios semanais desta semana:{' '}
+          <strong className={reportDone === reportTotal ? 'text-emerald-600' : 'text-amber-600'}>
+            {reportDone} de {reportTotal}
+          </strong>{' '}
+          enviados
         </p>
       )}
     </Card>

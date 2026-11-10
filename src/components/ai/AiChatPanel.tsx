@@ -286,29 +286,29 @@ export function AiChatPanel({
            (com !important pra vencer o style inline e as regras genéricas de
            index.css). Antes só parte do painel escurecia, e negrito/título/
            link ficavam escuro sobre escuro. */
-        :root[data-theme="dark"] .ai-body { background-color: #111113 !important; }
-        :root[data-theme="dark"] .ai-footer { background-color: #151516 !important; border-top-color: #2a2a2e !important; }
-        :root[data-theme="dark"] .ai-bubble { background-color: #1c1c1f !important; border-color: #2e2e33 !important; color: #d6d7db !important; }
-        :root[data-theme="dark"] .ai-md p, :root[data-theme="dark"] .ai-md li, :root[data-theme="dark"] .ai-md td { color: #d6d7db !important; }
-        :root[data-theme="dark"] .ai-input { background-color: #1c1c1f !important; border-color: #2e2e33 !important; color: #e8e8ea !important; }
+        :root[data-theme="dark"] .ai-body { background-color: var(--dk-page) !important; }
+        :root[data-theme="dark"] .ai-footer { background-color: var(--dk-surface) !important; border-top-color: var(--dk-line) !important; }
+        :root[data-theme="dark"] .ai-bubble { background-color: var(--dk-surface-2) !important; border-color: var(--dk-line) !important; color: var(--dk-text-2) !important; }
+        :root[data-theme="dark"] .ai-md p, :root[data-theme="dark"] .ai-md li, :root[data-theme="dark"] .ai-md td { color: var(--dk-text-2) !important; }
+        :root[data-theme="dark"] .ai-input { background-color: var(--dk-input) !important; border-color: var(--dk-line-2) !important; color: var(--dk-text) !important; }
         :root[data-theme="dark"] .ai-md strong,
         :root[data-theme="dark"] .ai-md h1,
         :root[data-theme="dark"] .ai-md h2,
         :root[data-theme="dark"] .ai-md h3,
-        :root[data-theme="dark"] .ai-md th { color: #f1f1f3 !important; }
-        :root[data-theme="dark"] .ai-md a { color: #86adf2 !important; }
-        :root[data-theme="dark"] .ai-md code { background: #2a2a2f; color: #f1f1f3 !important; }
-        :root[data-theme="dark"] .ai-md th { background: #232327; }
+        :root[data-theme="dark"] .ai-md th { color: var(--dk-text) !important; }
+        :root[data-theme="dark"] .ai-md a { color: var(--dk-link) !important; }
+        :root[data-theme="dark"] .ai-md code { background: var(--dk-surface-3); color: var(--dk-text) !important; }
+        :root[data-theme="dark"] .ai-md th { background: var(--dk-surface-3); }
         :root[data-theme="dark"] .ai-md th,
-        :root[data-theme="dark"] .ai-md td { border-color: #34343a !important; }
-        :root[data-theme="dark"] .ai-md hr { border-top-color: #34343a !important; }
+        :root[data-theme="dark"] .ai-md td { border-color: var(--dk-line-2) !important; }
+        :root[data-theme="dark"] .ai-md hr { border-top-color: var(--dk-line-2) !important; }
         .ai-chip { transition: color 120ms, border-color 120ms; }
         .ai-chip:hover { border-color: ${C.brand} !important; color: ${C.brandDark} !important; }
         .ai-icon-btn { transition: color 120ms, background-color 120ms; }
         .ai-icon-btn:hover { background-color: rgba(255,255,255,0.1); color: ${C.white} !important; }
         .ai-hist-item:hover .ai-hist-title { color: ${C.brand}; }
         .ai-hist-del:hover { color: ${C.red} !important; }
-        :root[data-theme="dark"] .ai-hist-item .ai-hist-title { color: #f1f1f3; }
+        :root[data-theme="dark"] .ai-hist-item .ai-hist-title { color: var(--dk-text); }
         .ai-input:focus { outline: none; border-color: ${C.brand} !important; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
       `}</style>
 

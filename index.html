@@ -11,7 +11,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Quiver" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#0B0F17" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -26,6 +26,7 @@
         var publicPage = /^\/(pay|membros|m|captura|aprovar|relatorio|acessos|privacidade|termos)(\/|$)/.test(location.pathname) || /^(pay|checkout|compra|loja)\./i.test(location.hostname)
         if (!publicPage && localStorage.getItem('arrowshot-theme') === 'dark') {
           document.documentElement.setAttribute('data-theme', 'dark')
+          document.documentElement.setAttribute('data-palette', localStorage.getItem('arrowshot-palette') === 'preto' ? 'preto' : 'azul')
         }
       } catch (e) {}
     </script>

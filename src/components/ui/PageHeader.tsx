@@ -20,7 +20,7 @@ export function PageHeader({
         {icon && (
           <span
             aria-hidden="true"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-brand-500"
+            className="page-header-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-brand-500"
           >
             {icon}
           </span>

@@ -2,8 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { BellRing, Camera, Check, Eye, EyeOff, LogOut, Pencil, X } from 'lucide-react'
+import { BellRing, Camera, Check, Eye, EyeOff, LogOut, Palette as PaletteIcon, Pencil, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { useTheme, type Palette } from '../../context/ThemeContext'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { Avatar } from '../ui/Avatar'
 import { compressImageToDataUrl } from '../../utils/imageToDataUrl'
@@ -213,6 +214,7 @@ export function AccountMenu({
           checked={isPrivacyMode}
           onChange={togglePresentation}
         />
+        <PalettePicker />
         <MenuItem
           icon={<BellRing size={14} />}
           onClick={() => {
@@ -234,6 +236,49 @@ export function AccountMenu({
       </div>
     </>,
     document.body
+  )
+}
+
+/** Tema: Azul (Dark Premium) ou Preto (cinza neutro). Fica salvo neste navegador. */
+const PALETTES: { id: Palette; label: string; swatch: string }[] = [
+  { id: 'azul', label: 'Azul', swatch: 'linear-gradient(135deg, #0B0F17 0%, #102A56 55%, #4F8CFF 100%)' },
+  { id: 'preto', label: 'Preto', swatch: 'linear-gradient(135deg, #0a0a0b 0%, #212124 60%, #45454a 100%)' },
+]
+
+function PalettePicker() {
+  const { palette, setPalette } = useTheme()
+  return (
+    <div className="flex items-center gap-2 px-2.5 py-1.5 text-sm text-slate-600">
+      <span className="text-slate-500" aria-hidden="true">
+        <PaletteIcon size={14} />
+      </span>
+      <span id="palette-label" className="flex-1">
+        Tema
+      </span>
+      <div role="radiogroup" aria-labelledby="palette-label" className="flex items-center gap-1 rounded-lg border border-slate-200 p-0.5">
+        {PALETTES.map((p) => {
+          const on = palette === p.id
+          return (
+            <button
+              key={p.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => {
+                setPalette(p.id)
+                toast(`Tema ${p.label.toLowerCase()} aplicado`, { duration: 1800 })
+              }}
+              className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                on ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span aria-hidden="true" className="h-3 w-3 rounded-full ring-1 ring-slate-300" style={{ background: p.swatch }} />
+              {p.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

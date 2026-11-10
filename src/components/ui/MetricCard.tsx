@@ -20,11 +20,11 @@ export function Delta({ value }: { value: number | null }) {
 
 /** Cor de destaque de cada cartão (ícone e brilho do canto). */
 const ACCENTS = {
-  blue: { fg: '#60a5fa', bg: 'rgb(59 130 246 / 0.14)', glow: 'rgb(59 130 246 / 0.16)' },
-  green: { fg: '#4cc38a', bg: 'rgb(16 185 129 / 0.14)', glow: 'rgb(16 185 129 / 0.14)' },
-  amber: { fg: '#fbbf24', bg: 'rgb(245 158 11 / 0.14)', glow: 'rgb(245 158 11 / 0.13)' },
-  violet: { fg: '#a78bfa', bg: 'rgb(139 92 246 / 0.15)', glow: 'rgb(139 92 246 / 0.14)' },
-  sky: { fg: '#38bdf8', bg: 'rgb(14 165 233 / 0.14)', glow: 'rgb(14 165 233 / 0.13)' },
+  blue: { fg: '#4F8CFF', bg: 'rgb(79 140 255 / 0.15)', glow: 'rgb(79 140 255 / 0.18)' },
+  green: { fg: '#2DD4BF', bg: 'rgb(45 212 191 / 0.13)', glow: 'rgb(45 212 191 / 0.15)' },
+  amber: { fg: '#F5B84B', bg: 'rgb(245 184 75 / 0.14)', glow: 'rgb(245 184 75 / 0.13)' },
+  violet: { fg: '#A78BFA', bg: 'rgb(167 139 250 / 0.14)', glow: 'rgb(167 139 250 / 0.15)' },
+  sky: { fg: '#22D3EE', bg: 'rgb(34 211 238 / 0.13)', glow: 'rgb(34 211 238 / 0.13)' },
   pink: { fg: '#f472b6', bg: 'rgb(236 72 153 / 0.14)', glow: 'rgb(236 72 153 / 0.13)' },
 } as const
 
@@ -50,7 +50,7 @@ export function MetricCard({
   const a = ACCENTS[accent]
   const hasDelta = delta !== undefined && delta !== null && Number.isFinite(delta)
   return (
-    <div className="relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+    <div className="relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-colors hover:border-slate-300">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full blur-2xl"

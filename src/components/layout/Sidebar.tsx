@@ -138,7 +138,7 @@ export function Sidebar({
         return `sb-link sb-${kind} ${active ? 'sb-active' : ''} ${linkLayout}`
       }}
     >
-      <Icon size={kind === 'sub' ? 15 : 17} className="sb-icon shrink-0" aria-hidden="true" />
+      <Icon size={kind === 'sub' ? 16 : 21} className="sb-icon shrink-0" aria-hidden="true" />
       <span className={`truncate ${labelCls}`}>{label}</span>
     </NavLink>
   )
@@ -161,12 +161,12 @@ export function Sidebar({
       )}
 
       <aside
-        className={`sb-aside fixed inset-y-0 left-0 z-50 flex w-[236px] shrink-0 flex-col transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0 ${
-          c ? 'md:w-[72px]' : ''
+        className={`sb-aside fixed inset-y-0 left-0 z-50 flex w-[272px] shrink-0 flex-col transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0 ${
+          c ? 'md:w-[76px]' : ''
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className={`relative flex items-center justify-center px-3 pb-2 pt-4 ${c ? 'md:min-h-[72px] md:pt-3' : ''}`}>
-          <img src="/logo-white.png" alt="Arrow Shot" className={`h-12 w-auto ${c ? 'md:hidden' : ''}`} />
+        <div className={`relative flex items-center justify-center px-3 pb-4 pt-5 ${c ? 'md:min-h-[72px] md:pt-3' : ''}`}>
+          <img src="/logo-white.png" alt="Arrow Shot" className={`sb-logo h-[58px] w-auto ${c ? 'md:hidden' : ''}`} />
           <button
             type="button"
             onClick={toggleCollapsed}
@@ -185,8 +185,8 @@ export function Sidebar({
           </button>
         </div>
 
-        <nav aria-label="Menu" className={`sidebar flex-1 overflow-y-auto pb-3 pt-2 ${c ? 'px-3 md:px-3' : 'px-3'}`}>
-          <ul className="space-y-0.5" aria-label="Principal">
+        <nav aria-label="Menu" className="sidebar flex-1 overflow-y-auto px-3.5 pb-3 pt-2">
+          <ul className="space-y-1" aria-label="Principal">
             {visibleMain.map((item) => (
               <li key={item.to}>{renderLink(item, 'main')}</li>
             ))}
@@ -241,7 +241,7 @@ export function Sidebar({
         </nav>
 
         {profile && (
-          <div className="relative border-t border-[#18181a] p-2">
+          <div className="sb-divider relative p-3">
             <button
               ref={accountBtnRef}
               type="button"
@@ -252,12 +252,12 @@ export function Sidebar({
               title={c ? profile.name : undefined}
               className={`sb-profile w-full text-left ${c ? 'md:justify-center md:p-1' : ''}`}
             >
-              <Avatar name={profile.name} photoURL={profile.photoURL} size="sm" />
+              <Avatar name={profile.name} photoURL={profile.photoURL} size="md" />
               <div className={`min-w-0 flex-1 ${labelCls}`}>
                 <p className="sb-profile-name truncate">{profile.name}</p>
                 <p className="sb-profile-role truncate">{myProfileCargo ?? USER_ROLE_LABEL[profile.role]}</p>
               </div>
-              <ChevronsUpDown size={14} aria-hidden="true" className={`shrink-0 text-[#6b6b71] ${labelCls}`} />
+              <ChevronsUpDown size={14} aria-hidden="true" className={`sb-profile-chevron shrink-0 ${labelCls}`} />
             </button>
             {accountOpen && (
               <AccountMenu

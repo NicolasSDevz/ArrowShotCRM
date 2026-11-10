@@ -15,6 +15,8 @@ import {
   X,
   UserPlus,
   Info,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useClients } from '../../hooks/useClients'
@@ -122,10 +124,29 @@ function DeltaChip({ pct }: { pct: number | null }) {
 
 /** Cores do ícone e do brilho do canto (mesmo visual do MetricCard das Métricas). */
 const ICON_ACCENT: Record<string, { fg: string; bg: string; glow: string }> = {
-  'bg-emerald-500': { fg: '#4cc38a', bg: 'rgb(16 185 129 / 0.14)', glow: 'rgb(16 185 129 / 0.14)' },
-  'bg-blue-500': { fg: '#60a5fa', bg: 'rgb(59 130 246 / 0.14)', glow: 'rgb(59 130 246 / 0.16)' },
-  'bg-slate-500': { fg: '#cbd5e1', bg: 'rgb(148 163 184 / 0.14)', glow: 'rgb(148 163 184 / 0.10)' },
-  'bg-violet-500': { fg: '#a78bfa', bg: 'rgb(139 92 246 / 0.15)', glow: 'rgb(139 92 246 / 0.14)' },
+  'bg-emerald-500': { fg: '#2DD4BF', bg: 'rgb(45 212 191 / 0.13)', glow: 'rgb(45 212 191 / 0.16)' },
+  'bg-blue-500': { fg: '#4F8CFF', bg: 'rgb(79 140 255 / 0.15)', glow: 'rgb(79 140 255 / 0.2)' },
+  'bg-slate-500': { fg: '#CBD5E1', bg: 'rgb(148 163 184 / 0.13)', glow: 'rgb(148 163 184 / 0.1)' },
+  'bg-violet-500': { fg: '#A78BFA', bg: 'rgb(167 139 250 / 0.14)', glow: 'rgb(167 139 250 / 0.16)' },
+}
+
+/** Ondas sutis no fundo do card largo (mesma linguagem do topo do Dashboard). */
+function MetricWaves() {
+  return (
+    <svg viewBox="0 0 800 200" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" focusable="false">
+      <path d="M380 200 C 520 150, 600 40, 800 30 L 800 200 Z" fill="#168BFF" fillOpacity="0.14" />
+      <path d="M520 200 C 620 150, 680 90, 800 80 L 800 200 Z" fill="#4F8CFF" fillOpacity="0.1" />
+      <path d="M360 200 C 500 140, 600 20, 800 10" fill="none" stroke="#4F8CFF" strokeOpacity="0.4" strokeWidth="1.2" />
+      <path d="M470 200 C 580 150, 650 60, 800 50" fill="none" stroke="#22D3EE" strokeOpacity="0.18" strokeWidth="1" />
+    </svg>
+  )
+}
+
+/** Variação em % como na referência: "+5%" (uma casa só quando precisa). */
+function pctLabel(pct: number) {
+  const r = Math.round(pct * 10) / 10
+  const txt = (Number.isInteger(r) ? String(Math.abs(r)) : Math.abs(r).toFixed(1)).replace('.', ',')
+  return `${r >= 0 ? '+' : '−'}${txt}%`
 }
 
 function MetricCard({
@@ -138,7 +159,10 @@ function MetricCard({
   delta,
   tip,
   onInfoClick,
+  wide = false,
 }: {
+  /** Único card da linha: vira o card largo (ícone grande, número grande). */
+  wide?: boolean
   icon: ReactNode
   iconBg: string
   label: string
@@ -152,32 +176,76 @@ function MetricCard({
   onInfoClick?: () => void
 }) {
   const a = ICON_ACCENT[iconBg] ?? ICON_ACCENT['bg-blue-500']
+  const info = onInfoClick ? (
+    <button
+      type="button"
+      onClick={onInfoClick}
+      aria-label={`Ver detalhes de ${label}`}
+      className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600"
+    >
+      <Info size={14} />
+    </button>
+  ) : (
+    tip && <InfoTip title={tip.title}>{tip.body}</InfoTip>
+  )
+  if (wide) {
+    const hasDelta = delta != null && Number.isFinite(delta)
+    const up = (delta ?? 0) >= 0
+    return (
+      <div
+        className="relative flex min-w-0 items-center gap-5 overflow-hidden rounded-2xl px-5 py-6 sm:gap-7 sm:px-8"
+        style={{
+          border: `1px solid ${a.fg}`,
+          background: 'var(--metric-wide-bg, linear-gradient(100deg, #0C1730 0%, #0C1838 50%, #0E2559 100%))',
+          boxShadow: `0 18px 44px -26px ${a.fg}, inset 0 1px 0 rgb(255 255 255 / 0.05)`,
+        }}
+      >
+        <MetricWaves />
+        <span
+          className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full sm:h-24 sm:w-24 [&_svg]:h-10 [&_svg]:w-10 sm:[&_svg]:h-11 sm:[&_svg]:w-11"
+          style={{ background: `radial-gradient(circle at 50% 35%, ${a.bg}, rgb(16 42 86 / 0.55))`, color: a.fg, boxShadow: `inset 0 0 0 1px ${a.glow}` }}
+        >
+          {icon}
+        </span>
+        <div className="relative min-w-0 flex-1">
+          <p className="text-[18px] font-medium text-slate-700 sm:text-[21px]">{label}</p>
+          <p
+            className={`mt-1 text-[40px] font-bold leading-none tracking-tight tabular-nums sm:text-[46px] ${valueColor ? '' : 'text-slate-900'}`}
+            style={valueColor ? { color: valueColor } : undefined}
+          >
+            {value}
+          </p>
+          {hasDelta ? (
+            <p className="mt-2.5 flex flex-wrap items-center gap-x-1.5 text-[14.5px] text-slate-600">
+              <span className={`inline-flex items-center gap-1 font-semibold ${up ? 'text-emerald-600' : 'text-red-600'}`}>
+                {up ? <ArrowUp size={16} strokeWidth={2.5} aria-hidden="true" /> : <ArrowDown size={16} strokeWidth={2.5} aria-hidden="true" />}
+                {pctLabel(delta as number)}
+              </span>
+              em relação ao mês anterior
+            </p>
+          ) : (
+            <p className="mt-2.5 text-[14.5px] text-slate-500">{subtitle}</p>
+          )}
+        </div>
+        {info && <div className="absolute right-4 top-4">{info}</div>}
+      </div>
+    )
+  }
   return (
-    <div className="relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-      <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full blur-2xl" style={{ background: a.glow }} />
+    <div className="relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-colors hover:border-slate-300">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full blur-3xl" style={{ background: a.glow }} />
       <div className="relative flex items-center justify-between">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: a.bg, color: a.fg }}>
+        <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ background: a.bg, color: a.fg, boxShadow: `inset 0 0 0 1px ${a.glow}` }}>
           {icon}
         </span>
         <div className="flex items-center gap-2">
           {delta !== undefined && <DeltaChip pct={delta} />}
-          {onInfoClick ? (
-            <button
-              type="button"
-              onClick={onInfoClick}
-              aria-label={`Ver detalhes de ${label}`}
-              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600"
-            >
-              <Info size={14} />
-            </button>
-          ) : (
-            tip && <InfoTip title={tip.title}>{tip.body}</InfoTip>
-          )}
+          {info}
         </div>
       </div>
       <p className="relative mt-3 text-[13px] font-medium text-slate-500">{label}</p>
       <p
-        className={`relative mt-0.5 text-[26px] font-bold leading-tight tracking-tight tabular-nums ${valueColor ? '' : 'text-slate-900'}`}
+        className={`relative mt-0.5 text-[30px] font-bold leading-tight tracking-tight tabular-nums ${valueColor ? '' : 'text-slate-900'}`}
         style={valueColor ? { color: valueColor } : undefined}
       >
         {value}
@@ -460,10 +528,16 @@ export function OverviewDashboard() {
     <div className="flex flex-col gap-4">
       {/* Barra superior */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-400">
-          Números ao vivo{formatWhen(m.calculatedAt) ? ` · comparativo do histórico atualizado ${formatWhen(m.calculatedAt)}` : ''}
+        <p className="flex items-center gap-2.5 text-[14.5px] text-slate-600">
+          <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-40 motion-reduce:hidden" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
+          </span>
+          <span>
+            Números ao vivo{formatWhen(m.calculatedAt) ? ` • comparativo do histórico atualizado ${formatWhen(m.calculatedAt)}` : ''}
+          </span>
         </p>
-        <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />} onClick={handleRefresh} loading={refreshing}>
+        <Button variant="secondary" className="live-refresh" icon={<RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />} onClick={handleRefresh} loading={refreshing}>
           Atualizar agora
         </Button>
       </div>
@@ -483,6 +557,7 @@ export function OverviewDashboard() {
         <div className={`grid gap-4 ${rowCols(metricCount, 4)}`}>
           {show('mrr') && (
             <MetricCard
+              wide={metricCount === 1}
               icon={<DollarSign size={17} />}
               iconBg="bg-emerald-500"
               label="MRR"
@@ -494,6 +569,7 @@ export function OverviewDashboard() {
           )}
           {show('clientes_ativos') && (
             <MetricCard
+              wide={metricCount === 1}
               icon={<Users size={17} />}
               iconBg="bg-blue-500"
               label="Clientes Ativos"
@@ -505,6 +581,7 @@ export function OverviewDashboard() {
           )}
           {show('churn') && (
             <MetricCard
+              wide={metricCount === 1}
               icon={<ActivityIcon size={17} />}
               iconBg="bg-slate-500"
               label="Churn Rate"
@@ -516,6 +593,7 @@ export function OverviewDashboard() {
           )}
           {show('ltv') && (
             <MetricCard
+              wide={metricCount === 1}
               icon={<Gem size={17} />}
               iconBg="bg-violet-500"
               label="LTV Médio"
