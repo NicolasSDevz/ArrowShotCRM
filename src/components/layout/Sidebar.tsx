@@ -144,6 +144,7 @@ export function Sidebar({
       )}
 
       <aside
+        data-collapsed={c ? '' : undefined}
         className={`sb-aside fixed inset-y-0 left-0 z-50 flex w-[272px] shrink-0 flex-col transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0 ${
           c ? 'md:w-[76px]' : ''
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
@@ -168,7 +169,7 @@ export function Sidebar({
           </button>
         </div>
 
-        <nav aria-label="Menu" className="sidebar flex-1 overflow-y-auto px-3.5 pb-3 pt-2">
+        <nav aria-label="Menu" className="sidebar flex-1 overflow-y-auto overflow-x-hidden px-3.5 pb-3 pt-2">
           <ul className="space-y-1" aria-label="Principal">
             {visibleMain.map((item) => (
               <li key={item.to}>{renderLink(item, 'main')}</li>
