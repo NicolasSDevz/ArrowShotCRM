@@ -27,7 +27,7 @@ export function SocialMediaPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">Social Mídia</h1>
+        <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">Social Media</h1>
         <p className="mt-0.5 text-sm text-slate-500">Ciclo do mês seguinte: planejar até o dia 15, produzir até o 22, cliente aprova até o 25, agendar até o 28.</p>
       </div>
 

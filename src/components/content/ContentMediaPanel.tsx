@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { ChevronLeft, ChevronRight, ImagePlus, Trash2, Download } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ImagePlus, Trash2, Download, Maximize2 } from 'lucide-react'
 import { Button } from '../ui/Button'
+import { MediaLightbox } from './MediaLightbox'
 import { deleteContentMedia, sortFilesByName, uploadContentMedia } from '../../services/contentMediaService'
 import type { Content, ContentMedia } from '../../types/content'
 
@@ -21,6 +22,7 @@ export function ContentMediaPanel({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [progress, setProgress] = useState<string | null>(null)
+  const [viewing, setViewing] = useState<number | null>(null)
   const media = content.media ?? []
 
   const handleFiles = async (list: FileList | null) => {
@@ -97,17 +99,25 @@ export function ContentMediaPanel({
         <div className="flex gap-2 overflow-x-auto pb-1">
           {media.map((m, i) => (
             <div key={m.storagePath} className="group relative w-28 shrink-0">
-              <div className="aspect-[4/5] overflow-hidden rounded-md border border-slate-200 bg-black/5">
+              <button
+                type="button"
+                title="Ampliar"
+                onClick={() => setViewing(i)}
+                className="block aspect-[4/5] w-full cursor-zoom-in overflow-hidden rounded-md border border-slate-200 bg-black/5 transition hover:ring-2 hover:ring-brand-400"
+              >
                 {m.kind === 'video' ? (
                   <video src={m.url} className="h-full w-full object-cover" muted preload="metadata" />
                 ) : (
                   <img src={m.url} alt={m.name} className="h-full w-full object-cover" loading="lazy" />
                 )}
-              </div>
+              </button>
               <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 text-[10px] font-semibold text-white">{i + 1}</span>
               <div className="mt-1 flex items-center justify-between text-slate-400">
                 <button type="button" title="Mover para a esquerda" onClick={() => move(i, -1)} disabled={i === 0} className="p-0.5 hover:text-slate-700 disabled:opacity-30">
                   <ChevronLeft size={14} />
+                </button>
+                <button type="button" title="Ampliar" onClick={() => setViewing(i)} className="p-0.5 hover:text-slate-700">
+                  <Maximize2 size={13} />
                 </button>
                 <a href={m.url} target="_blank" rel="noreferrer" title="Abrir / baixar" className="p-0.5 hover:text-slate-700">
                   <Download size={13} />
@@ -122,6 +132,10 @@ export function ContentMediaPanel({
             </div>
           ))}
         </div>
+      )}
+
+      {viewing !== null && media[viewing] && (
+        <MediaLightbox media={media} index={viewing} onIndexChange={setViewing} onClose={() => setViewing(null)} />
       )}
     </div>
   )
