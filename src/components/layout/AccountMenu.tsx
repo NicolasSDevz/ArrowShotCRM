@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { BellRing, Camera, Check, Eye, EyeOff, LogOut, Palette as PaletteIcon, Pencil, X } from 'lucide-react'
+import { BellRing, BookOpenText, CalendarRange, Camera, Check, ChevronDown, Eye, EyeOff, LogOut, Palette as PaletteIcon, Pencil, Settings, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme, type Palette } from '../../context/ThemeContext'
 import { usePrivacy } from '../../context/PrivacyContext'
@@ -11,6 +11,7 @@ import { compressImageToDataUrl } from '../../utils/imageToDataUrl'
 import { updateUserName, updateUserPhoto } from '../../services/userService'
 import { showError } from '../../utils/notifyError'
 import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
+import { temAcessoAoCopiloto } from '../../config/copilotoAccess'
 
 /** Liga/desliga o modo apresentação com o aviso de sempre. */
 export function usePresentationToggle() {
@@ -75,6 +76,16 @@ export function AccountMenu({
   const [savingName, setSavingName] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // Configurações (saíram do menu lateral): cada item só para quem já via antes.
+  const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
+  const settingsLinks = [
+    ...(temAcessoAoCopiloto(profile?.email) ? [{ to: '/configuracoes/base-vendas', label: 'Base de Vendas', icon: BookOpenText }] : []),
+    ...(personKey === 'ciane' || personKey === 'nicolas'
+      ? [{ to: '/otimizacoes/calendario', label: 'Calendário de Otimizações', icon: CalendarRange }]
+      : []),
+  ]
 
   const onCloseRef = useRef(onClose)
   useEffect(() => {
@@ -215,6 +226,39 @@ export function AccountMenu({
           onChange={togglePresentation}
         />
         <PalettePicker />
+        {settingsLinks.length > 0 && (
+          <>
+            <button
+              type="button"
+              role="menuitem"
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((v) => !v)}
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-slate-600 hover:bg-slate-50"
+            >
+              <span className="text-slate-500">
+                <Settings size={14} />
+              </span>
+              <span className="flex-1">Configurações</span>
+              <ChevronDown size={14} aria-hidden="true" className={`text-slate-400 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {settingsOpen && (
+              <div className="mb-1 ml-[22px] border-l border-slate-200 pl-1.5">
+                {settingsLinks.map(({ to, label, icon: Icon }) => (
+                  <MenuItem
+                    key={to}
+                    icon={<Icon size={14} />}
+                    onClick={() => {
+                      onClose()
+                      navigate(to)
+                    }}
+                  >
+                    {label}
+                  </MenuItem>
+                ))}
+              </div>
+            )}
+          </>
+        )}
         <MenuItem
           icon={<BellRing size={14} />}
           onClick={() => {

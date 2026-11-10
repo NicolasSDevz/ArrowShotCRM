@@ -10,13 +10,10 @@ import {
   BarChart3,
   UserCog,
   GraduationCap,
-  BookOpenText,
-  CalendarRange,
   Receipt,
   Package,
   Store,
   Palette,
-  ChevronDown,
   ChevronsUpDown,
   X,
   PanelLeftClose,
@@ -28,8 +25,6 @@ import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { Avatar } from '../ui/Avatar'
 import { AccountMenu } from './AccountMenu'
 import { USER_ROLE_LABEL } from '../../types/user'
-import { resolveRoutinePersonKey } from '../../services/dailyRoutineTemplates'
-import { temAcessoAoCopiloto } from '../../config/copilotoAccess'
 import { STORE_BRAND } from '../../config/storeBrand'
 
 const COLLAPSED_KEY = 'arrowshot-sidebar-collapsed'
@@ -91,7 +86,6 @@ export function Sidebar({
   const { profile } = useAuth()
   const { pathname, search } = useLocation()
   const { data: teamMembers } = useTeamMembers()
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const accountBtnRef = useRef<HTMLButtonElement>(null)
   // Recolhido (só no computador): vira uma faixa fina só com ícones — bom pra
@@ -113,19 +107,12 @@ export function Sidebar({
   const linkLayout = c ? 'md:justify-center md:px-0' : ''
   const canSeeUniversity = profile?.role === 'admin' || profile?.role === 'manager' || profile?.role === 'employee'
   const canManageTokens = profile?.role === 'admin' || profile?.role === 'manager'
-  const canSeeBaseVendas = temAcessoAoCopiloto(profile?.email)
-  const personKey = profile ? resolveRoutinePersonKey(profile.name) : undefined
-  const isGestorTrafego = personKey === 'ciane' || personKey === 'nicolas'
-  const showSettingsSection = canManageTokens || canSeeBaseVendas || isGestorTrafego
   const myProfileCargo = teamMembers.find((m) => m.userId === profile?.id)?.jobTitle
   const perms = { canSeeUniversity, canManageTokens }
   const visibleMain = mainNav.filter((i) => !i.show || i.show(perms))
   const visibleTools = toolsNav.filter((i) => !i.show || i.show(perms))
   // Aba da Loja aberta agora (a página de um produto conta como Produtos).
   const storeAba = pathname.startsWith('/loja/produtos') ? 'produtos' : pathname.startsWith('/loja') ? new URLSearchParams(search).get('aba') || 'geral' : null
-  // Se a pessoa já está numa tela de configuração, a gaveta abre sozinha.
-  const inSettingsRoute = pathname.startsWith('/configuracoes') || pathname.startsWith('/otimizacoes')
-  const showSettings = settingsOpen || inSettingsRoute
 
   const renderLink = ({ to, label, icon: Icon, alsoActive, aba }: NavItem, kind: 'main' | 'tool' | 'sub') => (
     <NavLink
@@ -149,10 +136,6 @@ export function Sidebar({
     </p>
   )
 
-  const settingsLinks: NavItem[] = [
-    ...(canSeeBaseVendas ? [{ to: '/configuracoes/base-vendas', label: 'Base de Vendas', icon: BookOpenText }] : []),
-    ...(isGestorTrafego ? [{ to: '/otimizacoes/calendario', label: 'Calendário de Otimizações', icon: CalendarRange }] : []),
-  ]
 
   return (
     <>
@@ -214,28 +197,6 @@ export function Sidebar({
                   <li key={item.to}>{renderLink(item, 'tool')}</li>
                 ))}
               </ul>
-            </div>
-          )}
-
-          {showSettingsSection && settingsLinks.length > 0 && (
-            <div className={`sb-group ${c ? 'md:hidden' : ''}`}>
-              <button
-                type="button"
-                onClick={() => setSettingsOpen((v) => !v)}
-                aria-expanded={showSettings}
-                className="sb-section sb-section-btn"
-              >
-                Configurações
-                <ChevronDown size={13} aria-hidden="true" className={`ml-auto transition-transform ${showSettings ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showSettings && (
-                <ul className="space-y-0.5">
-                  {settingsLinks.map((item) => (
-                    <li key={item.to}>{renderLink(item, 'sub')}</li>
-                  ))}
-                </ul>
-              )}
             </div>
           )}
         </nav>
