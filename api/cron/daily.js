@@ -142,7 +142,7 @@ async function runAdBalanceCheck() {
       createdAt: new Date(),
     }).catch((e) => console.error('[cron/daily] balance — falha ao criar notificação:', e.message))
   }
-  await sendPushToUsers(ids, { title: 'Saldo acabando', body: message, url: '/metricas', tag: `saldo-${day}` }).catch(() => {})
+  await sendPushToUsers(ids, { title: 'Saldo acabando', body: message, url: '/metricas?aba=meta&alerta=saldo', tag: `saldo-${day}` }).catch(() => {})
   return { checked: active.length, low: low.length }
 }
 

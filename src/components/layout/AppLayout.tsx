@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { PrivacyModeBanner } from './PrivacyModeBanner'
+import { AdBalanceBanner } from './AdBalanceBanner'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { CelebrationOverlay } from '../CelebrationOverlay'
 import { TaskCelebrationOverlay } from '../TaskCelebrationOverlay'
@@ -35,6 +36,7 @@ export function AppLayout() {
         <div className="contents print:hidden">
           <Topbar onOpenMobileNav={() => setMobileNavOpen(true)} />
           <PrivacyModeBanner />
+          <AdBalanceBanner />
         </div>
         {/* pb-28: o fim da página rola pra cima do botão do Archer (fixo no canto) em vez de ficar escondido embaixo dele. */}
         {/* relative: textos sr-only (absolute) da página ficam presos aqui dentro;

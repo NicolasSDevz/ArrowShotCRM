@@ -32,6 +32,8 @@ export interface MetaAgencyRow {
   accountStatus: number | null
   restricted: boolean
   balance: number | null
+  /** Quanto ainda dá pra gastar (pré-pago ou limite da conta). null = cartão sem limite, não acaba. */
+  available?: number | null
   currency: string
   metrics: MetaClientMetrics | null
   graphError: string | null

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -16,6 +16,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { usePrivacy } from '../context/PrivacyContext'
 import { tokenValidity } from '../utils/metaTokenValidity'
 import { findUserIdByName } from '../utils/userLookup'
+import { balanceAlerts } from '../utils/adBalance'
 import {
   fetchMetaAgencyOverview,
   META_PERIOD_LABEL,
@@ -72,7 +73,9 @@ export function MetaAdsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [gestor, setGestor] = useState<'all' | 'ciane' | 'nicolas'>('all')
-  const [alertFilter, setAlertFilter] = useState<AlertKey | null>(null)
+  // ?alerta=saldo (link da faixa vermelha de saldo) já abre filtrado nas contas sem saldo.
+  const [searchParams] = useSearchParams()
+  const [alertFilter, setAlertFilter] = useState<AlertKey | null>(() => (searchParams.get('alerta') === 'saldo' ? 'lowBalance' : null))
 
   const cianeId = useMemo(() => findUserIdByName(users, 'Ciane'), [users])
   const nicolasId = useMemo(() => findUserIdByName(users, 'Nicolas'), [users])
@@ -116,7 +119,14 @@ export function MetaAdsPage() {
     const days = (new Date(r.tokenExpiresAt).getTime() - new Date().getTime()) / 86400000
     return days >= 0 && days <= 7
   }
-  const lowBalance = (r: MetaAgencyRow) => r.balance != null && r.balance < 50
+  // Mesma regra da faixa vermelha do topo (src/utils/adBalance.ts). Antes era
+  // "saldo < R$ 50", e conta de cartão (que não acaba) entrava pelo valor a pagar.
+  const lowIds = useMemo(() => {
+    if (!data) return new Set<string>()
+    const days = Math.round((Date.parse(data.period.until) - Date.parse(data.period.since)) / 86400000) + 1
+    return new Set(balanceAlerts(data.rows, days).map((a) => a.clientId))
+  }, [data])
+  const lowBalance = (r: MetaAgencyRow) => lowIds.has(r.clientId)
 
   const alerts = useMemo(() => {
     const rows = rowsForGestor
@@ -126,7 +136,8 @@ export function MetaAdsPage() {
       noToken: rows.filter((r) => !r.hasToken),
       lowBalance: rows.filter(lowBalance),
     }
-  }, [rowsForGestor])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowsForGestor, lowIds])
 
   const visibleRows = useMemo(() => {
     let rows = rowsForGestor
@@ -302,7 +313,7 @@ export function MetaAdsPage() {
                 )}
                 {alerts.lowBalance.length > 0 && (
                   <AlertChip active={alertFilter === 'lowBalance'} onClick={() => setAlertFilter((f) => (f === 'lowBalance' ? null : 'lowBalance'))}>
-                    {alerts.lowBalance.length} conta(s) com saldo baixo (menos de R$50)
+                    {alerts.lowBalance.length} conta(s) sem saldo ou acabando
                   </AlertChip>
                 )}
               </div>

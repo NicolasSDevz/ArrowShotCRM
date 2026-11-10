@@ -215,13 +215,15 @@ async function loadClient(client, range, periodKey, force) {
     if (snap.exists) {
       const d = snap.data()
       const fetchedAt = d.fetchedAt ? new Date(d.fetchedAt).getTime() : 0
-      if (d.periodKey === periodKey && Date.now() - fetchedAt < CACHE_TTL_MS && d.metrics?.resultKind) {
+      // 'available' in d: snapshot antigo (sem o saldo pré-pago separado) é refeito.
+      if (d.periodKey === periodKey && Date.now() - fetchedAt < CACHE_TTL_MS && d.metrics?.resultKind && 'available' in d) {
         return {
           ...base,
           metrics: d.metrics || EMPTY_METRICS,
           prevMetrics: d.prevMetrics || EMPTY_METRICS,
           daily: d.daily || [],
           balance: d.balance ?? null,
+          available: d.available ?? null,
           currency: d.currency || 'BRL',
           accountStatus: d.accountStatus ?? null,
           disableReason: d.disableReason ?? null,
@@ -260,6 +262,8 @@ async function loadClient(client, range, periodKey, force) {
     metrics, prevMetrics,
     daily: dailySeries,
     balance: account.balance ?? null,
+    // Só conta pré-paga (Pix/boleto) ou com limite de gasto; null = cartão sem limite.
+    available: account.available ?? null,
     currency: account.currency || 'BRL',
     accountStatus: account.accountStatus ?? null,
     disableReason: account.disableReason ?? null,
@@ -273,6 +277,7 @@ async function loadClient(client, range, periodKey, force) {
     metrics, prevMetrics,
     daily: dailySeries,
     balance: result.balance,
+    available: result.available,
     currency: result.currency,
     accountStatus: result.accountStatus,
     disableReason: result.disableReason,
@@ -370,6 +375,7 @@ async function agencyOverviewHandler(req, res, user) {
       accountStatus: r.accountStatus ?? null,
       restricted: isAccountRestricted(r.accountStatus),
       balance: r.balance ?? null,
+      available: r.available ?? null,
       currency: r.currency ?? 'BRL',
       metrics: r.metrics
         ? {
