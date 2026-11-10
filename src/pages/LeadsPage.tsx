@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { WhatsAppLogo } from '../components/ui/BrandLogos'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Upload, Kanban, List, Settings2, Gauge, Search, Megaphone } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -222,7 +223,7 @@ export function LeadsPage() {
         {/* No celular o nome da tela já está no topo: aqui fica só para o leitor de tela. */}
         <div className={`min-w-0 ${mainTab === 'conversas' ? 'sr-only' : 'sr-only md:not-sr-only'}`}>
           <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">Leads</h1>
-          {mainTab !== 'conversas' && <p className="text-sm text-slate-500">Vendas, respostas dos questionários e formulários de captura</p>}
+          {mainTab !== 'conversas' && <p className="text-sm text-slate-500">Pipeline, respostas dos questionários e formulários de captura</p>}
         </div>
         {mainTab === 'pipeline' && (
           <div className="grid w-full grid-cols-[auto_auto_1fr] items-center gap-2 md:flex md:w-auto">
@@ -242,7 +243,7 @@ export function LeadsPage() {
       {/* Abas principais */}
       <div role="tablist" aria-label="Seções de leads" className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-fit">
         {([
-          ['pipeline', 'Vendas', salesLeads.length],
+          ['pipeline', 'Pipeline', salesLeads.length],
           ['conversas', 'Conversas', waUnread],
           ['questionnaires', 'Questionários', newQuestionnaires],
           ['forms', 'Formulários', leadForms.length],
@@ -253,11 +254,19 @@ export function LeadsPage() {
             role="tab"
             aria-selected={mainTab === t}
             onClick={() => setMainTab(t)}
+            title={t === 'conversas' ? 'Conversas do WhatsApp' : undefined}
             className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-semibold sm:gap-2 sm:px-4 sm:text-sm transition-all duration-150 sm:flex-none ${
               mainTab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            {label}
+            {t === 'conversas' ? (
+              <>
+                <WhatsAppLogo size={19} />
+                <span className="sr-only">Conversas do WhatsApp</span>
+              </>
+            ) : (
+              label
+            )}
             {count > 0 && (
               <span
                 className={`rounded-full px-1.5 text-[11px] font-bold ${
