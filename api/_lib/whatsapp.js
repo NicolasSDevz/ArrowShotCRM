@@ -1404,6 +1404,9 @@ async function autoReplyLocked(waId, origin, settings, conv, recent, { force = f
   if (force && turns[turns.length - 1].role === 'assistant') {
     turns.push({ role: 'user', content: '[Instrução interna, não é o contato falando] A equipe passou esta conversa para você agora. Se a última mensagem nossa dizia que ia chamar alguém da equipe, ignore isso e continue a conversa de onde o contato parou, respondendo ao que ele disse. Não peça desculpa nem explique a troca.' })
   }
+  // A última fala já é nossa (ex.: o Bruno respondeu pelo celular): nada a responder.
+  // O modelo também recusa conversa que termina com fala da IA (erro 400 de "prefill").
+  if (turns[turns.length - 1].role === 'assistant') return { skipped: 'última fala é nossa' }
   let system = await conversationPrompt(conv, settings, origin)
   // Respondeu a um disparo em massa: a IA precisa saber o que foi mandado
   // (o histórico dela começa na 1ª fala do contato e cortaria essa mensagem).
