@@ -21,7 +21,9 @@ export async function ensureUserProfile(uid: string, email: string, name: string
     email,
     photoURL: photoURL ?? null,
     role: 'employee' as UserRole,
-    active: true,
+    // Nasce desativada: um admin libera em Equipe (ver firestore.rules, users).
+    active: false,
+    pendingApproval: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
@@ -57,7 +59,7 @@ export async function updateUserRole(uid: string, role: UserRole, actingUserId: 
 }
 
 export async function updateUserActive(uid: string, active: boolean, actingUserId: string) {
-  await base.update(uid, { active }, actingUserId)
+  await base.update(uid, active ? { active, pendingApproval: false } : { active }, actingUserId)
 }
 
 export async function updateUserName(uid: string, name: string) {

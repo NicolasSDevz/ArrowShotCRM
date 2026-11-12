@@ -8,14 +8,30 @@ service firebase.storage {
       return request.auth != null && request.auth.token.get('member', false) != true;
     }
 
-    // NOTE: Storage rules can't read Firestore (firestore.get(...)) on the
-    // Spark (free) plan — that cross-service read requires Blaze billing.
-    // So Storage access here is "any signed-in team member", not role- or
-    // client-scoped like Firestore is. The real access control (who can see
-    // which client's data, admin vs employee, etc.) lives in firestore.rules
-    // and in the app's own queries — this only gates the raw file bytes.
-    // If/when the project moves to Blaze, swap isSignedIn() below for a
-    // firestore.get() role+clientId check mirroring firestore.rules.
+    // SEGURANÇA (12/11/2026): antes bastava "estar logado" — e qualquer um
+    // consegue criar uma conta no Firebase Auth pela API pública. Agora o
+    // Storage consulta o perfil no Firestore (projeto no Blaze, regra entre
+    // serviços) e só deixa passar equipe interna ativa, como o firestore.rules.
+    function profile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isInternal() {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && profile().active == true
+        && profile().role in ['admin', 'manager', 'employee'];
+    }
+
+    // Usuário "client" só lê os arquivos do próprio cliente.
+    function isClientUserFor(clientId) {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && profile().active == true
+        && profile().role == 'client'
+        && profile().clientId == clientId;
+    }
+
     function isAllowedType() {
       return request.resource.contentType.matches('image/.*')
         || request.resource.contentType.matches('video/.*')
@@ -31,11 +47,11 @@ service firebase.storage {
     // category today: social-media | documents. Reserved for future use
     // without any rule change: google-ads | meta-ads | reports.
     match /clients/{clientId}/{category}/{fileName} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn()
+      allow read: if isInternal() || isClientUserFor(clientId);
+      allow write: if isInternal()
         && isAllowedType()
         && request.resource.size < 100 * 1024 * 1024; // 100MB cap
-      allow delete: if isSignedIn();
+      allow delete: if isInternal();
     }
 
     // /leadForms/{formId}/{fileName} — banner/logo do Design do formulário de
@@ -45,20 +61,20 @@ service firebase.storage {
     // "qualquer logado" porque tudo aqui dentro já era só pra uso interno.
     match /leadForms/{formId}/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn()
+      allow write: if isInternal()
         && request.resource.contentType.matches('image/.*')
         && request.resource.size < 5 * 1024 * 1024; // 5MB cap
-      allow delete: if isSignedIn();
+      allow delete: if isInternal();
     }
 
     // /store/{productId}/{fileName} — imagens da Loja (checkout, capas,
     // banners). Leitura pública: o checkout não tem login.
     match /store/{productId}/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn()
+      allow write: if isInternal()
         && request.resource.contentType.matches('image/.*')
         && request.resource.size < 8 * 1024 * 1024;
-      allow delete: if isSignedIn();
+      allow delete: if isInternal();
     }
 
     // Deny everything else by default.

@@ -11,6 +11,8 @@ export interface AppUser {
   /** Client users are scoped to a single client account. */
   clientId?: string
   active: boolean
+  /** Conta criada sozinha no primeiro login, esperando um admin liberar. */
+  pendingApproval?: boolean
   /** Último sinal de "estou com o CRM aberto" (heartbeat, ver usePresenceHeartbeat) — base do "online agora" na Equipe. */
   lastSeenAt?: Timestamp | null
   /** 'away' = a pessoa saiu da aba/ficou ociosa (some da lista de online na hora). */

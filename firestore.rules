@@ -144,11 +144,17 @@ service cloud.firestore {
     // status (ensureUserProfile always writes exactly this). Promotion to
     // admin/manager and (de)activation are admin-only, via update. Bootstrapping
     // the very first admin is a one-time manual edit in the Firebase Console.
+    // SEGURANÇA (12/11/2026): conta nova nasce DESATIVADA (active == false,
+    // pendingApproval == true). Antes nascia ativa, e qualquer pessoa que
+    // criasse uma conta no Firebase Auth pela API pública (a apiKey é
+    // pública) virava "employee" e lia leads, clientes etc. Um admin libera
+    // em Equipe > Membros > "Aguardando liberação". Conta pendente ou
+    // desativada também não lê mais o diretório da equipe.
     match /users/{uid} {
-      allow read: if isSignedIn();
+      allow read: if isActive() || isOwnUser(uid);
       allow create: if isOwnUser(uid)
         && request.resource.data.role == 'employee'
-        && request.resource.data.active == true;
+        && request.resource.data.active == false;
       allow update: if isAdmin() || (isOwnUser(uid) && request.resource.data.role == resource.data.role && request.resource.data.active == resource.data.active);
       allow delete: if isAdmin();
     }

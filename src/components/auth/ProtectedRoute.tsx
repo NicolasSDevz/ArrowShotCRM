@@ -28,10 +28,14 @@ export function ProtectedRoute({
 
   useEffect(() => {
     if (isDeactivated) {
-      toast.error('Sua conta foi desativada. Fale com um admin do CRM.')
+      toast.error(
+        profile?.pendingApproval
+          ? 'Sua conta foi criada e está aguardando um admin liberar o acesso.'
+          : 'Sua conta foi desativada. Fale com um admin do CRM.'
+      )
       signOut()
     }
-  }, [isDeactivated, signOut])
+  }, [isDeactivated, profile?.pendingApproval, signOut])
 
   if (loading) return <FullPageSpinner />
   if (!firebaseUser) return <Navigate to="/login" replace />

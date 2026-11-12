@@ -19,6 +19,8 @@ import { StatCard } from '../components/ui/StatCard'
 import { Tabs } from '../components/ui/Tabs'
 import { TeamSurveyTab } from '../components/team/TeamSurveyTab'
 import { useAuth } from '../context/AuthContext'
+import { updateUserActive } from '../services/userService'
+import toast from 'react-hot-toast'
 import { TEAM_PERMISSION_LABEL, FUTURE_ROLES, type TeamMember, type TeamPermission } from '../types'
 
 const STATUS_BADGE: Record<TeamMember['status'], string> = {
@@ -68,6 +70,17 @@ function TeamMembersContent() {
   const onlineCount = activeMembers.filter((m) => presenceOf(m)?.online).length
   const visibleActive = onlyOnline ? activeMembers.filter((m) => presenceOf(m)?.online) : activeMembers
   const inactiveMembers = members.filter((m) => m.status === 'inactive')
+  const { profile } = useAuth()
+  const pendingUsers = users.filter((u) => u.pendingApproval && !u.active)
+  const approve = async (uid: string) => {
+    if (!profile) return
+    try {
+      await updateUserActive(uid, true, profile.id)
+      toast.success('Acesso liberado.')
+    } catch {
+      toast.error('Não deu para liberar. Tente de novo.')
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -76,6 +89,25 @@ function TeamMembersContent() {
           Novo membro
         </Button>
       </div>
+
+      {pendingUsers.length > 0 && (
+        <section className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4" aria-label="Contas aguardando liberação">
+          <h2 className="text-sm font-semibold text-slate-800">Aguardando liberação</h2>
+          <p className="text-xs text-slate-500">Contas que entraram pela primeira vez. Só libere quem for da equipe.</p>
+          <ul className="flex flex-col gap-2">
+            {pendingUsers.map((u) => (
+              <li key={u.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-slate-700">
+                  {u.name} <span className="text-slate-500">({u.email})</span>
+                </span>
+                <Button size="sm" onClick={() => approve(u.id)} aria-label={`Liberar acesso de ${u.name}`}>
+                  Liberar acesso
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {loading ? (
         <Spinner />
