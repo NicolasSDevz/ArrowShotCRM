@@ -134,7 +134,13 @@ function FileRow({ file }: { file: FileMeta }) {
 
   return (
     <li className="flex items-center gap-2.5 rounded-lg border border-slate-100 px-2.5 py-2">
-      <a href={file.downloadUrl} target="_blank" rel="noreferrer" className="shrink-0" title="Abrir">
+      <button
+        type="button"
+        onClick={() => downloadFile(file.downloadUrl, file.fileName)}
+        className="shrink-0"
+        title="Baixar"
+        aria-label={`Baixar ${file.fileName}`}
+      >
         {isImage ? (
           <img src={file.downloadUrl} alt={file.fileName} className="h-9 w-9 rounded object-cover" />
         ) : isVideo ? (
@@ -144,7 +150,7 @@ function FileRow({ file }: { file: FileMeta }) {
             <FileIcon mimeType={file.mimeType} />
           </div>
         )}
-      </a>
+      </button>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm text-slate-700">{file.fileName}</p>
         <p className="text-[11px] text-slate-400">
