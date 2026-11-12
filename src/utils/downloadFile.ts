@@ -5,7 +5,7 @@
 export async function downloadFile(url: string, fileName?: string): Promise<void> {
   const name = fileName?.trim() || guessName(url)
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const blob = await res.blob()
     const objectUrl = URL.createObjectURL(blob)
