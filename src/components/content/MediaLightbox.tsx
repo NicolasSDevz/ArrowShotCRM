@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Download, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { useDialogA11y } from '../ui/useDialogA11y'
 import type { ContentMedia } from '../../types/content'
+import { downloadFile } from '../../utils/downloadFile'
 
 /** Visualizador em tela cheia das artes do post — pra ler o texto dentro da arte.
  *  Setas (botão ou teclado) passam as telas; clicar na imagem (ou "Z") alterna
@@ -68,9 +69,9 @@ export function MediaLightbox({
               {zoomed ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
             </button>
           )}
-          <a href={item.url} target="_blank" rel="noreferrer" className={btn} title="Abrir / baixar">
+          <button type="button" className={btn} onClick={() => downloadFile(item.url, item.name)} title="Baixar" aria-label="Baixar">
             <Download size={18} />
-          </a>
+          </button>
           <button type="button" className={btn} onClick={onClose} title="Fechar (Esc)">
             <X size={18} />
           </button>

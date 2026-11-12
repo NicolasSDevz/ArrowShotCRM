@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { ChevronLeft, ChevronRight, ImagePlus, Trash2, Download, Maximize2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { MediaLightbox } from './MediaLightbox'
+import { downloadFile } from '../../utils/downloadFile'
 import { deleteContentMedia, sortFilesByName, uploadContentMedia } from '../../services/contentMediaService'
 import type { Content, ContentMedia } from '../../types/content'
 
@@ -119,9 +120,9 @@ export function ContentMediaPanel({
                 <button type="button" title="Ampliar" onClick={() => setViewing(i)} className="p-0.5 hover:text-slate-700">
                   <Maximize2 size={13} />
                 </button>
-                <a href={m.url} target="_blank" rel="noreferrer" title="Abrir / baixar" className="p-0.5 hover:text-slate-700">
+                <button type="button" title="Baixar" aria-label="Baixar" onClick={() => downloadFile(m.url, m.name)} className="p-0.5 hover:text-slate-700">
                   <Download size={13} />
-                </a>
+                </button>
                 <button type="button" title="Tirar do post" onClick={() => remove(i)} className="p-0.5 hover:text-red-500">
                   <Trash2 size={13} />
                 </button>

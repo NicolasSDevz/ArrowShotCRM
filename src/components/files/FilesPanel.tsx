@@ -6,6 +6,7 @@ import { useRelatedFiles } from '../../hooks/useFiles'
 import { uploadFile, deleteFile } from '../../services/fileService'
 import { ACCEPTED_FILE_TYPES, type EntityType, type FileCategory, type FileMeta } from '../../types'
 import { Spinner } from '../ui/FullPageSpinner'
+import { downloadFile } from '../../utils/downloadFile'
 
 function FileIcon({ mimeType }: { mimeType: string }) {
   if (mimeType.startsWith('video/')) return <FileVideo size={20} className="text-brand-400" />
@@ -150,14 +151,15 @@ function FileRow({ file }: { file: FileMeta }) {
           {formatSize(file.size)} · {file.uploadedByName}
         </p>
       </div>
-      <a
-        href={file.downloadUrl}
-        target="_blank"
-        rel="noreferrer"
+      <button
+        type="button"
+        onClick={() => downloadFile(file.downloadUrl, file.fileName)}
+        title="Baixar"
+        aria-label="Baixar"
         className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
       >
         <Download size={14} />
-      </a>
+      </button>
       <button
         onClick={handleDelete}
         disabled={deleting}
