@@ -283,14 +283,16 @@ export function AccountMenu({
   )
 }
 
-/** Tema: Azul (Dark Premium) ou Preto (cinza neutro). Fica salvo neste navegador. */
-const PALETTES: { id: Palette; label: string; swatch: string }[] = [
+/** Tema: Claro (tela branca), Azul (Dark Premium) ou Preto (cinza neutro). Fica salvo neste navegador. */
+const PALETTES: { id: Palette | 'claro'; label: string; swatch: string }[] = [
+  { id: 'claro', label: 'Claro', swatch: 'linear-gradient(135deg, #FFFFFF 0%, #E2E8F0 60%, #2563EB 100%)' },
   { id: 'azul', label: 'Azul', swatch: 'linear-gradient(135deg, #0B0F17 0%, #102A56 55%, #4F8CFF 100%)' },
   { id: 'preto', label: 'Preto', swatch: 'linear-gradient(135deg, #0a0a0b 0%, #212124 60%, #45454a 100%)' },
 ]
 
 function PalettePicker() {
-  const { palette, setPalette } = useTheme()
+  const { theme, setTheme, palette, setPalette } = useTheme()
+  const current = theme === 'light' ? 'claro' : palette
   return (
     <div className="flex items-center gap-2 px-2.5 py-1.5 text-sm text-slate-600">
       <span className="text-slate-500" aria-hidden="true">
@@ -301,7 +303,7 @@ function PalettePicker() {
       </span>
       <div role="radiogroup" aria-labelledby="palette-label" className="flex items-center gap-1 rounded-lg border border-slate-200 p-0.5">
         {PALETTES.map((p) => {
-          const on = palette === p.id
+          const on = current === p.id
           return (
             <button
               key={p.id}
@@ -309,7 +311,12 @@ function PalettePicker() {
               role="radio"
               aria-checked={on}
               onClick={() => {
-                setPalette(p.id)
+                if (p.id === 'claro') {
+                  setTheme('light')
+                } else {
+                  setTheme('dark')
+                  setPalette(p.id)
+                }
                 toast(`Tema ${p.label.toLowerCase()} aplicado`, { duration: 1800 })
               }}
               className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${

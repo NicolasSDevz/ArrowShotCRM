@@ -1027,3 +1027,11 @@ body[data-archer-side='left'] .wa-hub .wa-composer {
   .sb-aside[data-collapsed] .sb-divider { padding-left: 0; padding-right: 0; display: flex; justify-content: center; }
   .sb-aside[data-collapsed] .sb-profile { width: auto; padding: 4px; }
 }
+
+/* ---------- Tema claro (menu da conta → Tema → Claro) ----------
+   Os cartões largos do painel têm fundo escuro fixo como padrão; no claro
+   eles viram brancos com um toque de azul. */
+:root:not([data-theme="dark"]) {
+  --metric-wide-bg: linear-gradient(100deg, #FFFFFF 0%, #F5F8FF 55%, #E3ECFF 100%);
+  --wallet-stat-bg: #FFFFFF;
+}

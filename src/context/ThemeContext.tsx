@@ -21,9 +21,13 @@ function readPalette(): Palette {
 const PUBLIC_PAGE = /^\/(pay|membros|m|captura|aprovar|relatorio|acessos|privacidade|termos)(\/|$)/
 const CHECKOUT_HOST = typeof window !== 'undefined' && /^(pay|checkout|compra|loja)\./i.test(window.location.hostname)
 
-/** O CRM é só escuro: a opção de tela branca saiu (ninguém usava). */
+/** Escuro é o padrão; o claro volta como opção no menu da conta (Tema → Claro). */
 function readStored(): Theme {
-  return 'dark'
+  try {
+    return localStorage.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark'
+  } catch {
+    return 'dark'
+  }
 }
 
 interface ThemeContextValue {
