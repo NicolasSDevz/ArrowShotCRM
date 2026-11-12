@@ -15,6 +15,7 @@ import { notifyAdminsOfAction } from './notificationService'
 import { logActivity } from './activityService'
 import type { Client } from '../types/client'
 import { CONTENT_FORMAT_LABEL, CONTENT_PILLAR_LABEL, CONTENT_TYPE_LABEL, type Content } from '../types/content'
+import { fullCaption } from '../utils/postCaption'
 import { PILLAR_ROTATION, type SocialPlan } from '../types/socialPlan'
 
 /* ------------------------------------------------------------------ */
@@ -134,9 +135,8 @@ export async function generateMonth(
         type: p.type,
         platform: 'instagram',
         pillar: p.pillar,
-        ...(p.caption ? { caption: p.caption } : {}),
+        ...(p.caption || p.hashtags?.length ? { caption: fullCaption(p.caption, p.hashtags) } : {}),
         ...(p.cta ? { cta: p.cta } : {}),
-        ...(p.hashtags?.length ? { hashtags: p.hashtags } : {}),
         ...(p.script ? { script: p.script } : {}),
         ...(p.notes ? { notes: p.notes } : {}),
         scheduledDate: Timestamp.fromDate(p.date),

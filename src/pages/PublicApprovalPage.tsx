@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale'
 import { ThumbsUp, RotateCcw, CalendarClock } from 'lucide-react'
 import { getShareableContent, submitPublicApproval, submitPublicChangeRequest } from '../services/publicApprovalService'
 import { CONTENT_PLATFORM_LABEL, CONTENT_TYPE_LABEL, type Content } from '../types/content'
+import { fullCaption } from '../utils/postCaption'
 import { Spinner } from '../components/ui/FullPageSpinner'
 
 type Phase = 'loading' | 'invalid' | 'ready' | 'requesting' | 'done_approved' | 'done_changes' | 'already_handled'
@@ -119,13 +120,10 @@ export function PublicApprovalPage() {
                   </span>
                 )}
               </div>
-              {content.caption && (
-                <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{content.caption}</p>
+              {fullCaption(content.caption, content.hashtags) && (
+                <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{fullCaption(content.caption, content.hashtags)}</p>
               )}
               {content.cta && <p className="mt-2 text-xs font-medium text-brand-400">CTA: {content.cta}</p>}
-              {content.hashtags && content.hashtags.length > 0 && (
-                <p className="mt-2 text-xs text-slate-500">{content.hashtags.join(' ')}</p>
-              )}
             </div>
 
             {content.media && content.media.length > 0 ? (

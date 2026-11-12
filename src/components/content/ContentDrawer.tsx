@@ -20,6 +20,7 @@ import { approveContent, requestContentChange, generateApprovalLink, revokeAppro
 import { approvalLinkUrl } from '../../services/socialMonthService'
 import type { Approval } from '../../types'
 import { resolveAdminIds } from '../../utils/userLookup'
+import { fullCaption } from '../../utils/postCaption'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import {
   CONTENT_PILLAR_LABEL,
@@ -253,12 +254,31 @@ export function ContentDrawer({ content, onClose }: { content: Content | null; o
           </Field>
         )}
 
-        <Field label="Legenda">
+        <Field label="Legenda com hashtags (pronta para colar no post)">
           <Textarea
-            rows={3}
-            defaultValue={content.caption ?? ''}
-            onBlur={(e) => e.target.value !== (content.caption ?? '') && save({ caption: e.target.value })}
+            id={'legenda-' + content.id}
+            rows={10}
+            placeholder={`Texto da legenda…\n\n#hashtag1 #hashtag2`}
+            defaultValue={fullCaption(content.caption, content.hashtags)}
+            onBlur={(e) => {
+              const v = e.target.value.trim()
+              if (v !== fullCaption(content.caption, content.hashtags) || (content.hashtags?.length ?? 0) > 0) save({ caption: v, hashtags: [] })
+            }}
           />
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('legenda-' + content.id) as HTMLTextAreaElement | null
+              const v = el?.value ?? fullCaption(content.caption, content.hashtags)
+              navigator.clipboard.writeText(v).then(
+                () => toast.success('Legenda copiada'),
+                () => toast.error('Não deu para copiar')
+              )
+            }}
+            className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Copy size={13} /> Copiar legenda
+          </button>
         </Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -266,16 +286,6 @@ export function ContentDrawer({ content, onClose }: { content: Content | null; o
             <Input
               defaultValue={content.cta ?? ''}
               onBlur={(e) => e.target.value !== (content.cta ?? '') && save({ cta: e.target.value })}
-            />
-          </Field>
-          <Field label="Hashtags">
-            <Input
-              defaultValue={(content.hashtags ?? []).join(' ')}
-              placeholder="#marketing #arrowshot"
-              onBlur={(e) => {
-                const tags = e.target.value.split(/\s+/).filter(Boolean)
-                save({ hashtags: tags })
-              }}
             />
           </Field>
           {content.canvaLink && (
