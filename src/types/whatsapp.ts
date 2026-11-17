@@ -74,9 +74,12 @@ export interface WaMessage {
 }
 
 export interface WaTemplate {
+  id?: string
   name: string
   language: string
   status: string
+  /** Motivo da reprovação do Meta (INVALID_FORMAT, TAG_CONTENT_MISMATCH...). */
+  rejectedReason?: string
   category: string
   /** NAMED = variáveis com nome ({{nome}}); POSITIONAL = {{1}}, {{2}}. */
   paramFormat?: 'NAMED' | 'POSITIONAL'

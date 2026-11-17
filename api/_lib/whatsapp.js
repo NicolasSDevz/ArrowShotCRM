@@ -288,7 +288,7 @@ export async function listTemplates({ fresh = false } = {}) {
   const cfg = await getWaConfig()
   if (!cfg?.wabaId) return []
   const rows = []
-  let path = `${cfg.wabaId}/message_templates?fields=name,language,status,category,components,parameter_format&limit=200`
+  let path = `${cfg.wabaId}/message_templates?fields=id,name,language,status,category,components,parameter_format,rejected_reason&limit=200`
   for (let page = 0; path && page < 5; page++) {
     const data = await graph(cfg, path)
     rows.push(...(data.data || []))
@@ -303,9 +303,11 @@ export async function listTemplates({ fresh = false } = {}) {
     const btns = comps.find((c) => c.type === 'BUTTONS')?.buttons || []
     const varNames = varNamesOf(body)
     return {
+      id: t.id || '',
       name: t.name,
       language: t.language,
       status: t.status,
+      rejectedReason: t.rejected_reason && t.rejected_reason !== 'NONE' ? t.rejected_reason : '',
       category: t.category,
       paramFormat: t.parameter_format === 'NAMED' ? 'NAMED' : 'POSITIONAL',
       body,
@@ -326,6 +328,77 @@ export async function listTemplates({ fresh = false } = {}) {
   })
   tplCache = { value, exp: Date.now() + 10 * 60_000 }
   return value
+}
+
+/** Nome de modelo aceito pelo Meta: minúsculas, números e _ ("Lembrete Reunião" → lembrete_reuniao). */
+function templateSlug(v) {
+  return String(v || '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 512)
+}
+
+/** Cria um modelo e manda pro Meta aprovar. Volta com o status (normalmente PENDING). */
+export async function createTemplate(input) {
+  const cfg = await getWaConfig()
+  if (!cfg?.wabaId) throw new WaError(400, 'WhatsApp não conectado (falta o ID da conta do WhatsApp Business).')
+  const name = templateSlug(input.name)
+  if (!name) throw new WaError(400, 'Dê um nome para o modelo.')
+  const category = input.category === 'UTILITY' ? 'UTILITY' : 'MARKETING'
+  const language = String(input.language || 'pt_BR')
+  const body = String(input.body || '').trim()
+  if (!body) throw new WaError(400, 'Escreva o texto da mensagem.')
+  if (body.length > 1024) throw new WaError(400, 'O texto passou de 1024 caracteres.')
+  const vars = varNamesOf(body)
+  if (vars.some((v, i) => v !== String(i + 1))) throw new WaError(400, 'As partes variáveis precisam ser {{1}}, {{2}}, {{3}}... nessa ordem.')
+  if (/^\s*\{\{/.test(body) || /\}\}\s*[.!?]?\s*$/.test(body)) throw new WaError(400, 'O Meta não aceita texto que começa ou termina com uma parte variável. Coloque uma palavra antes/depois.')
+  const examples = (Array.isArray(input.examples) ? input.examples : []).map((x) => String(x || '').trim())
+  if (vars.length && (examples.length < vars.length || examples.slice(0, vars.length).some((x) => !x))) throw new WaError(400, 'Preencha um exemplo para cada parte variável (o Meta pede).')
+  const components = []
+  const header = String(input.header || '').trim()
+  if (header) {
+    if (header.length > 60) throw new WaError(400, 'O título passou de 60 caracteres.')
+    if (/\{\{/.test(header)) throw new WaError(400, 'O título não pode ter parte variável.')
+    components.push({ type: 'HEADER', format: 'TEXT', text: header })
+  }
+  components.push({ type: 'BODY', text: body, ...(vars.length ? { example: { body_text: [examples.slice(0, vars.length)] } } : {}) })
+  const footer = String(input.footer || '').trim()
+  if (footer) {
+    if (footer.length > 60) throw new WaError(400, 'O rodapé passou de 60 caracteres.')
+    components.push({ type: 'FOOTER', text: footer })
+  }
+  const buttons = []
+  for (const b of (Array.isArray(input.buttons) ? input.buttons : []).slice(0, 10)) {
+    const text = String(b?.text || '').trim()
+    if (!text) continue
+    if (text.length > 25) throw new WaError(400, `O botão "${text}" passou de 25 caracteres.`)
+    if (b.type === 'URL') {
+      const url = String(b.url || '').trim()
+      if (!/^https?:\/\/\S+$/.test(url)) throw new WaError(400, `O botão "${text}" precisa de um link começando com https://.`)
+      buttons.push({ type: 'URL', text, url })
+    } else {
+      buttons.push({ type: 'QUICK_REPLY', text })
+    }
+  }
+  if (buttons.filter((b) => b.type === 'URL').length > 2) throw new WaError(400, 'No máximo 2 botões de link.')
+  if (buttons.length) components.push({ type: 'BUTTONS', buttons })
+  const out = await graph(cfg, `${cfg.wabaId}/message_templates`, { method: 'POST', body: { name, language, category, components } })
+  tplCache = null
+  return { id: out.id || '', name, status: out.status || 'PENDING', category: out.category || category }
+}
+
+/** Apaga o modelo (todas as línguas com esse nome). */
+export async function deleteTemplate(name) {
+  const cfg = await getWaConfig()
+  if (!cfg?.wabaId) throw new WaError(400, 'WhatsApp não conectado.')
+  const n = templateSlug(name)
+  if (!n) throw new WaError(400, 'Modelo inválido.')
+  await graph(cfg, `${cfg.wabaId}/message_templates?name=${encodeURIComponent(n)}`, { method: 'DELETE' })
+  tplCache = null
+  return { ok: true }
 }
 
 function renderTemplate(body, params, names) {

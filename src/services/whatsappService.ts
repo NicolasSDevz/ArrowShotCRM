@@ -117,6 +117,19 @@ export interface BroadcastInput {
   scheduledAt?: string | null
 }
 
+export interface WaTemplateDraft {
+  name: string
+  category: 'MARKETING' | 'UTILITY'
+  language: string
+  header: string
+  body: string
+  examples: string[]
+  footer: string
+  buttons: { type: 'QUICK_REPLY' | 'URL'; text: string; url: string }[]
+}
+export const createWaTemplate = (body: WaTemplateDraft) => api<{ id: string; name: string; status: string; category: string }>('template-create', { method: 'POST', body })
+export const deleteWaTemplate = (name: string) => api<{ ok: boolean }>('template-delete', { method: 'POST', body: { name } })
+
 export const createBroadcast = (body: BroadcastInput) => api<{ id: string; total: number; scheduledAt?: string | null }>('broadcast', { method: 'POST', body })
 export const cancelBroadcast = (id: string) => api<{ ok: boolean }>('broadcast-cancel', { method: 'POST', body: { id } })
 export interface GcalStatus {

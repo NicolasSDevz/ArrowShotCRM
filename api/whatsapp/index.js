@@ -10,7 +10,9 @@
 // Equipe logada:
 //   GET  status        conexão (sem segredos) + URL e token do webhook pra copiar no Meta
 //   POST credentials   { token, appSecret, phoneNumberId, wabaId } (admin/gerente)
-//   GET  templates     modelos aprovados
+//   GET  templates     modelos (todos os status)
+//   POST template-create { name, category, language?, header?, body, examples[], footer?, buttons[] }  manda pro Meta aprovar
+//   POST template-delete { name }
 //   POST send          { to, text } ou { to, template: { name, lang, params } }
 //   POST conversation  { waId, aiMode?, followUpStopped?, read?, leadId?, leadMatch?: "client", name? }
 //   POST reply-ai      { waId } faz a IA responder agora (botão "Responder com IA")
@@ -38,6 +40,8 @@ import {
   analyzeConversation,
   runFollowUps,
   runMeetingReminders,
+  createTemplate,
+  deleteTemplate,
   runPendingReplies,
   runCartRecovery,
   waStatus,
@@ -188,6 +192,11 @@ const ADMIN = {
     return saveWaCredentials(await readJson(req), user.uid)
   },
   'GET templates': async (req) => ({ templates: await listTemplates({ fresh: req.query.fresh === '1' }) }),
+  'POST template-create': async (req) => createTemplate(await readJson(req)),
+  'POST template-delete': async (req, user) => {
+    if (user.role !== 'admin' && user.role !== 'manager') throw new WaError(403, 'Só admin ou gerente apaga modelo.')
+    return deleteTemplate((await readJson(req)).name)
+  },
   'POST send': async (req, user) => {
     const b = await readJson(req)
     if (!b.to) throw new WaError(400, 'Informe o número.')
