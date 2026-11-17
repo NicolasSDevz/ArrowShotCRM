@@ -584,6 +584,37 @@ export function ClientFormModal({
         <Field label="Nome da empresa" required>
           <Input autoFocus value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />
         </Field>
+        {client && (
+          <Field label="Status">
+            <Select value={form.status} onChange={(e) => handleStatusChange(e.target.value as ClientStatus)}>
+              {(Object.entries(CLIENT_STATUS_LABEL) as [ClientStatus, string][]).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        {client && form.status === 'churned' && (
+          <div className="flex flex-col gap-3 rounded-xl border border-red-100 bg-red-50/40 p-4 sm:col-span-2">
+            <ChurnTypeField
+              value={form.churnType}
+              counts={form.churnCounts}
+              suggestedEarly={contractDays != null && contractDays < EARLY_CHURN_DAYS}
+              contractDays={contractDays}
+              services={servicesByBilling}
+              onChange={(type) => setForm((f) => ({ ...f, churnType: type, churnCounts: CHURN_TYPE_COUNTS_DEFAULT[type] }))}
+              onCountsChange={(v) => set('churnCounts', v)}
+            />
+            <Field label="Motivo do cancelamento">
+              <Textarea
+                rows={2}
+                value={form.churnReason}
+                onChange={(e) => set('churnReason', e.target.value)}
+                placeholder="Ex: preço, resultado abaixo do esperado, mudou de agência, fechou a empresa..."
+              />
+            </Field>
+            <p className="-mt-1 text-xs text-slate-400">Tipo e motivo aparecem no detalhe do Churn Rate do Dashboard.</p>
+          </div>
+        )}
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 sm:col-span-2">
           <Field label="Observações: o que foi vendido e combinado com o cliente">
             <Textarea
@@ -704,37 +735,6 @@ export function ClientFormModal({
         <Field label="Segmento">
           <Input value={form.segment} onChange={(e) => set('segment', e.target.value)} placeholder="Ex: Limpeza, Estética" />
         </Field>
-        {client && (
-          <Field label="Status">
-            <Select value={form.status} onChange={(e) => handleStatusChange(e.target.value as ClientStatus)}>
-              {(Object.entries(CLIENT_STATUS_LABEL) as [ClientStatus, string][]).map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
-              ))}
-            </Select>
-          </Field>
-        )}
-        {client && form.status === 'churned' && (
-          <div className="flex flex-col gap-3 rounded-xl border border-red-100 bg-red-50/40 p-4 sm:col-span-2">
-            <ChurnTypeField
-              value={form.churnType}
-              counts={form.churnCounts}
-              suggestedEarly={contractDays != null && contractDays < EARLY_CHURN_DAYS}
-              contractDays={contractDays}
-              services={servicesByBilling}
-              onChange={(type) => setForm((f) => ({ ...f, churnType: type, churnCounts: CHURN_TYPE_COUNTS_DEFAULT[type] }))}
-              onCountsChange={(v) => set('churnCounts', v)}
-            />
-            <Field label="Motivo do cancelamento">
-              <Textarea
-                rows={2}
-                value={form.churnReason}
-                onChange={(e) => set('churnReason', e.target.value)}
-                placeholder="Ex: preço, resultado abaixo do esperado, mudou de agência, fechou a empresa..."
-              />
-            </Field>
-            <p className="-mt-1 text-xs text-slate-400">Tipo e motivo aparecem no detalhe do Churn Rate do Dashboard.</p>
-          </div>
-        )}
         <Field label="Categoria">
           <Select value={form.categoria} onChange={(e) => set('categoria', e.target.value as ClientCategory | '')}>
             <option value="">Não classificado</option>
