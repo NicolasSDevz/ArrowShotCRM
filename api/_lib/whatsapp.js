@@ -1649,11 +1649,79 @@ function meetingWhenText(at, now = Date.now()) {
   return { quando: `dia ${d.slice(8, 10)}/${d.slice(5, 7)} às ${hora}`, hora }
 }
 
+/** Hora e minuto de agora em Brasília, em minutos desde a meia-noite. */
+function spMinutesNow(date = new Date()) {
+  const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: SP_TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(date).split(':').map(Number)
+  return (h % 24) * 60 + m
+}
+const spDayStr = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: SP_TZ }).format(new Date(ms))
+
+const NIGHT_DEFAULT_TEXT = 'Oi {nome}! Passando pra lembrar da nossa reunião amanhã às {hora} com o {com}. Conto com a sua presença! Link: {link}'
+
+/** Véspera em horário fixo (ex.: 20:30): todo mundo com reunião marcada para amanhã recebe uma mensagem. */
+async function runNightBeforeReminders(settings) {
+  const r = settings.reminder
+  const nb = r.nightBefore
+  if (!nb?.enabled) return { skipped: 'desligado' }
+  const [hh, mm] = String(nb.time || '20:30').split(':').map(Number)
+  const target = (Number(hh) || 0) * 60 + (Number(mm) || 0)
+  const nowMin = spMinutesNow()
+  // Janela de 90 min: a varredura pode atrasar, mas não manda de madrugada.
+  if (nowMin < target || nowMin > target + 90) return { skipped: 'fora do horário' }
+  const now = Date.now()
+  const tomorrow = spDayStr(now + 86400_000)
+  const convs = await queryDocs('waConversations', [['sdr.meeting.agreed', true]])
+  let sent = 0
+  for (const conv of convs) {
+    const at = conv.sdr?.meeting?.at
+    if (!at || conv.kind === 'cart' || at.slice(0, 10) !== tomorrow || conv.meetingNightFor === at) continue
+    // Trava antes de mandar: duas varreduras juntas não mandam duas vezes.
+    await updateDoc(convPath(conv.waId), { meetingNightFor: at, meetingReminderError: null })
+    const name = firstName(conv.name)
+    const { quando, hora } = meetingWhenText(at, now)
+    const ctx = { name, quando, hora, com: settings.sdr?.meetingWith || 'Bruno', link: conv.sdr?.meeting?.url || r.meetingUrl || '' }
+    let text = String(nb.text || NIGHT_DEFAULT_TEXT)
+    if (!ctx.link) text = text.replace(/\s*(Link pra entrar:|Link:|Entra pelo link:)\s*\{link\}/g, '').replace('{link}', '')
+    text = text
+      .replaceAll('{nome}', name || '')
+      .replaceAll('{quando}', quando)
+      .replaceAll('{hora}', hora)
+      .replaceAll('{com}', ctx.com)
+      .replaceAll('{link}', ctx.link)
+      .replace(/^Oi ([,!])/, 'Oi$1')
+      .trim()
+    try {
+      if (inWindow(conv)) {
+        await sendMessage({ to: conv.waId, text, by: 'reminder', byName: 'Lembrete da véspera' })
+      } else if (nb.templateName) {
+        const keys = Array.isArray(nb.params) ? nb.params : []
+        if (keys.includes('link') && !ctx.link) throw new Error('O modelo do lembrete da véspera pede o link da reunião, mas não tem link cadastrado (Configurar > Lembrete).')
+        await sendMessage({ to: conv.waId, template: { name: nb.templateName, lang: nb.templateLang || 'pt_BR', params: keys.map((k) => reminderParam(k, ctx)) }, by: 'reminder', byName: 'Lembrete da véspera' })
+      } else {
+        throw new Error('Passou de 24h desde a última mensagem do contato e o lembrete da véspera não tem modelo escolhido.')
+      }
+      sent++
+    } catch (e) {
+      console.warn(`[whatsapp] lembrete da véspera ${conv.waId}:`, e.message)
+      await updateDoc(convPath(conv.waId), { meetingReminderError: e.message.slice(0, 200) }).catch(() => {})
+      await notifyTeam(conv, `${conv.name || conv.phone}: o lembrete da véspera (reunião ${quando}) não foi enviado. ${e.message}`).catch(() => {})
+    }
+  }
+  return { sent }
+}
+
 /** Manda o lembrete X minutos antes da reunião marcada pela IA (roda na varredura). */
 export async function runMeetingReminders() {
   const settings = await getWaSettings()
   const r = settings.reminder
   if (!r.enabled) return { skipped: 'desligado' }
+  const night = await runNightBeforeReminders(settings).catch((e) => ({ error: e.message }))
+  const before = await runMeetingRemindersBefore(settings)
+  return { night, ...before }
+}
+
+async function runMeetingRemindersBefore(settings) {
+  const r = settings.reminder
   const steps = Array.isArray(r.steps) ? r.steps.filter((s) => s && s.enabled !== false) : []
   if (steps.length) return runMeetingReminderSteps(settings, steps)
   const before = Math.max(5, Number(r.minutesBefore) || 30) * 60_000
@@ -1976,6 +2044,15 @@ export async function createBroadcast(input, user) {
     sequence.push({ name: sName, lang: sLang, category: sTpl.category || '', vars: sTpl.vars || 0, afterHours })
   }
 
+  // Agendado: começa sozinho na varredura (5 em 5 min) quando chegar a hora.
+  let scheduledAt = null
+  if (input.scheduledAt) {
+    const t = new Date(input.scheduledAt).getTime()
+    if (!Number.isFinite(t)) throw new WaError(400, 'Horário do agendamento inválido.')
+    if (t > Date.now() + 30 * 86400_000) throw new WaError(400, 'Dá pra agendar no máximo 30 dias pra frente.')
+    if (t > Date.now() + 2 * 60_000) scheduledAt = new Date(t).toISOString()
+  }
+
   const id = `bc_${Date.now().toString(36)}${randomBytes(3).toString('hex')}`
   const at = nowIso()
   const flow = cleanFlow(input.flow)
@@ -1986,7 +2063,8 @@ export async function createBroadcast(input, user) {
     template: { name: tplName, lang, category: tpl.category || '' },
     headerMedia: String(input.headerMedia || '').trim().slice(0, 1000),
     aiMode: input.aiMode === 'off' ? 'off' : 'auto',
-    status: 'sending',
+    status: scheduledAt ? 'scheduled' : 'sending',
+    scheduledAt,
     total: recipients.length,
     sent: 0,
     failed: 0,
@@ -1997,7 +2075,7 @@ export async function createBroadcast(input, user) {
     createdBy: user.uid,
     createdByName: user.name || '',
   })
-  return { id, total: recipients.length }
+  return { id, total: recipients.length, scheduledAt }
 }
 
 /** Manda o próximo lote de um disparo. Para quando acaba, quando cancelam ou quando o tempo acaba. */
@@ -2084,6 +2162,13 @@ export async function runBroadcast(id, { budgetMs = 50_000 } = {}) {
 
 /** Sweep: continua os disparos que ficaram no meio. */
 export async function runBroadcasts({ budgetMs = 45_000 } = {}) {
+  // Agendados que chegaram na hora viram "enviando".
+  const scheduled = await queryDocs('waBroadcasts', [['status', 'scheduled']]).catch(() => [])
+  for (const bc of scheduled) {
+    if (bc.scheduledAt && new Date(bc.scheduledAt).getTime() <= Date.now()) {
+      await updateDoc(bcPath(bc.id), { status: 'sending', startedAt: nowIso(), updatedAt: nowIso() }).catch(() => {})
+    }
+  }
   const open = await queryDocs('waBroadcasts', [['status', 'sending']])
   const results = []
   const start = Date.now()
@@ -2191,7 +2276,7 @@ export async function runSequence(id, { budgetMs = 40_000, max = 40 } = {}) {
 export async function cancelBroadcast(id) {
   const snap = await getDoc(bcPath(id))
   if (!snap.exists) throw new WaError(404, 'Disparo não encontrado.')
-  if (!['sending', 'paused', 'sequence'].includes(snap.data().status)) return { ok: true }
+  if (!['scheduled', 'sending', 'paused', 'sequence'].includes(snap.data().status)) return { ok: true }
   await updateDoc(bcPath(id), { status: 'canceled', updatedAt: nowIso(), finishedAt: nowIso() })
   return { ok: true }
 }

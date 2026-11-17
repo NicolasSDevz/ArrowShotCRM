@@ -140,7 +140,9 @@ export interface WaBroadcast {
   name: string
   template: { name: string; lang: string; category: string }
   aiMode: WaAiMode
-  status: 'sending' | 'sequence' | 'paused' | 'done' | 'canceled'
+  status: 'scheduled' | 'sending' | 'sequence' | 'paused' | 'done' | 'canceled'
+  /** Agendado: começa sozinho nessa hora (ISO). */
+  scheduledAt?: string | null
   /** Próximos modelos para quem não responder (passo 2 em diante). */
   sequence?: { name: string; lang: string; category: string; vars: number; afterHours: number }[]
   /** Funil: cada passo leva o lead para uma etapa (api cleanFlow). */
@@ -206,6 +208,19 @@ export interface WaReminderSettings {
   steps?: WaReminderStep[]
   /** Link da sala da reunião (Meet/Zoom), usado em {link} e nos modelos que pedem o link. */
   meetingUrl?: string
+  /** Véspera em horário fixo: na noite anterior, todo mundo com reunião no dia seguinte recebe. */
+  nightBefore?: WaReminderNight
+}
+
+export interface WaReminderNight {
+  enabled: boolean
+  /** "20:30" (Brasília). */
+  time: string
+  /** Texto dentro de 24h. Vazio = padrão. Aceita {nome}, {quando}, {hora}, {link}, {com}. */
+  text: string
+  templateName: string
+  templateLang: string
+  params: WaReminderParam[]
 }
 
 export type WaReminderParam = 'nome' | 'quando' | 'hora' | 'link' | 'com'

@@ -7,7 +7,7 @@ import { Field, Input, Select, Textarea } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
 import { gcalConnect, gcalDisconnect, gcalSync, listenGcalStatus, listenWaSettings, saveWaCredentials, saveWaSettings, type GcalStatus } from '../../services/whatsappService'
 import { TemplatePickerField } from './WaTemplatePicker'
-import { WA_CART_PARAM_LABEL, WA_REMINDER_PARAM_LABEL, type WaCartParam, type WaFollowUpStep, type WaReminderParam, type WaReminderStep, type WaSettings, type WaStatus, type WaTemplate } from '../../types/whatsapp'
+import { WA_CART_PARAM_LABEL, WA_REMINDER_PARAM_LABEL, type WaCartParam, type WaFollowUpStep, type WaReminderNight, type WaReminderParam, type WaReminderStep, type WaSettings, type WaStatus, type WaTemplate } from '../../types/whatsapp'
 
 /* ------------------------------ peças ------------------------------ */
 
@@ -218,6 +218,67 @@ function ReminderStepRow({ step, templates, onChange, onRemove }: { step: WaRemi
         </div>
       </div>
     </li>
+  )
+}
+
+const NIGHT_DEFAULT: WaReminderNight = { enabled: false, time: '20:30', text: '', templateName: '', templateLang: 'pt_BR', params: [] }
+
+/** Lembrete da véspera em horário fixo (ex.: 20:30 da noite anterior). */
+function NightBeforeBox({ value, templates, onChange }: { value?: WaReminderNight; templates: WaTemplate[]; onChange: (v: WaReminderNight) => void }) {
+  const nb = { ...NIGHT_DEFAULT, ...(value || {}) }
+  const tpl = templates.find((t) => t.name === nb.templateName && t.language === (nb.templateLang || 'pt_BR')) || templates.find((t) => t.name === nb.templateName)
+  const vars = tpl?.vars || 0
+  const params = Array.from({ length: vars }, (_, i) => nb.params?.[i] || (i === 0 ? 'nome' : i === 1 ? 'hora' : 'link'))
+  return (
+    <div className="rounded-xl border border-slate-200 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <input type="checkbox" checked={nb.enabled} onChange={(e) => onChange({ ...nb, enabled: e.target.checked })} className="h-4 w-4 accent-emerald-500" />
+          Lembrete na véspera, em horário fixo
+        </label>
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
+          às
+          <input
+            type="time"
+            value={nb.time}
+            onChange={(e) => onChange({ ...nb, time: e.target.value || '20:30' })}
+            className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+            aria-label="Horário do lembrete da véspera (Brasília)"
+          />
+        </label>
+      </div>
+      <p className="mt-1 text-xs text-slate-400">Todo dia nesse horário, quem tem reunião marcada para o dia seguinte recebe uma mensagem pedindo pra comparecer. Se usar junto com o de 24h antes, a pessoa pode receber dois — dá pra desmarcar o de 24h.</p>
+      {nb.enabled && (
+        <div className="mt-2 grid gap-3 md:grid-cols-2">
+          <Field label="Texto (dentro de 24h, grátis)" hint="Vazio = texto padrão. Use {nome}, {hora}, {quando}, {link} e {com}.">
+            <Textarea rows={3} value={nb.text} placeholder="Oi {nome}! Passando pra lembrar da nossa reunião amanhã às {hora} com o {com}. Conto com a sua presença! Link: {link}" onChange={(e) => onChange({ ...nb, text: e.target.value })} />
+          </Field>
+          <div className="flex flex-col gap-2">
+            <TemplateSelect label="Modelo (depois de 24h)" templates={templates} name={nb.templateName} lang={nb.templateLang} onChange={(n, l) => onChange({ ...nb, templateName: n, templateLang: l, params: [] })} />
+            {params.map((k, i) => (
+              <label key={i} className="flex items-center gap-2 text-xs text-slate-500">
+                <span className="w-10 shrink-0 font-semibold text-amber-300">{`{{${i + 1}}}`}</span>
+                <Select
+                  value={k}
+                  onChange={(e) => {
+                    const next = [...params]
+                    next[i] = e.target.value as WaReminderParam
+                    onChange({ ...nb, params: next })
+                  }}
+                  aria-label={`O que entra em {{${i + 1}}} do lembrete da véspera`}
+                >
+                  {(Object.keys(WA_REMINDER_PARAM_LABEL) as WaReminderParam[]).map((p) => (
+                    <option key={p} value={p}>
+                      {WA_REMINDER_PARAM_LABEL[p]}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -693,6 +754,7 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
               <Field label="Link da sala da reunião" hint="Meet, Zoom... Entra no {link} do texto e nos modelos que pedem o link.">
                 <Input value={s.reminder.meetingUrl || ''} placeholder="https://meet.google.com/..." onChange={(e) => edit((c) => ({ ...c, reminder: { ...c.reminder, meetingUrl: e.target.value.trim() } }))} />
               </Field>
+              <NightBeforeBox value={s.reminder.nightBefore} templates={templates} onChange={(nb) => edit((c) => ({ ...c, reminder: { ...c.reminder, nightBefore: nb } }))} />
               {s.reminder.steps?.length ? (
                 <>
                   <ul className="flex flex-col gap-2" aria-label="Tempos do lembrete">

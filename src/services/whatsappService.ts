@@ -113,9 +113,11 @@ export interface BroadcastInput {
   recipients: { to: string; name: string; leadId?: string; params: string[]; headerText?: string; buttonParams?: Record<string, string> }[]
   sequence?: { template: { name: string; lang: string }; afterHours: number }[]
   flow?: NonNullable<WaBroadcast['flow']> | null
+  /** ISO. Vazio = manda agora. */
+  scheduledAt?: string | null
 }
 
-export const createBroadcast = (body: BroadcastInput) => api<{ id: string; total: number }>('broadcast', { method: 'POST', body })
+export const createBroadcast = (body: BroadcastInput) => api<{ id: string; total: number; scheduledAt?: string | null }>('broadcast', { method: 'POST', body })
 export const cancelBroadcast = (id: string) => api<{ ok: boolean }>('broadcast-cancel', { method: 'POST', body: { id } })
 export interface GcalStatus {
   connected: boolean

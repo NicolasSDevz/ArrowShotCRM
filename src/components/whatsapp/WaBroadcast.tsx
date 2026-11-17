@@ -122,6 +122,11 @@ function parsePasted(text: string): Person[] {
   return out;
 }
 
+/** Date → "AAAA-MM-DDTHH:MM" no fuso do navegador (valor do datetime-local). */
+const toLocalInput = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
@@ -346,7 +351,12 @@ function BroadcastCard({ bc }: { bc: WaBroadcast }) {
   const liveFailed = bc.delivery?.failed || 0;
   const problems = bc.failed + liveFailed;
   const status =
-    bc.status === "sending"
+    bc.status === "scheduled"
+      ? {
+          label: `Agendado · ${bc.scheduledAt ? fmtDate(bc.scheduledAt) : ""}`,
+          tone: "bg-amber-500/15 text-amber-300",
+        }
+      : bc.status === "sending"
       ? { label: "Enviando", tone: "bg-sky-500/15 text-sky-300" }
       : bc.status === "sequence"
         ? { label: "Em sequência", tone: "bg-violet-500/15 text-violet-300" }
@@ -447,7 +457,8 @@ function BroadcastCard({ bc }: { bc: WaBroadcast }) {
               Retomar
             </Button>
           )}
-          {(bc.status === "sending" ||
+          {(bc.status === "scheduled" ||
+            bc.status === "sending" ||
             bc.status === "paused" ||
             bc.status === "sequence") && (
             <Button
@@ -456,7 +467,9 @@ function BroadcastCard({ bc }: { bc: WaBroadcast }) {
               onClick={() =>
                 run(
                   () => cancelBroadcast(bc.id),
-                  "Disparo cancelado. O que já saiu não volta.",
+                  bc.status === "scheduled"
+                    ? "Agendamento cancelado. Nada foi enviado."
+                    : "Disparo cancelado. O que já saiu não volta.",
                 )
               }
               loading={busy}
@@ -1015,6 +1028,8 @@ function NewBroadcast({
   const [name, setName] = useState("");
   const [aiMode, setAiMode] = useState<"auto" | "off">("auto");
   const [confirm, setConfirm] = useState(false);
+  const [when, setWhen] = useState<"now" | "later">("now");
+  const [whenAt, setWhenAt] = useState("");
   const [sending, setSending] = useState(false);
   const [seqSteps, setSeqSteps] = useState<SeqStep[]>([]);
   const [flow, setFlow] = useState<FlowDraft>(EMPTY_FLOW);
@@ -1130,8 +1145,14 @@ function NewBroadcast({
     const t = templates.find((x) => tplKey(x) === st.key);
     return t && (!t.vars || t.vars === tpl?.vars);
   });
+  const scheduleIso =
+    when === "later" && whenAt ? new Date(whenAt).toISOString() : null;
+  const scheduleOk = Boolean(
+    scheduleIso && new Date(scheduleIso).getTime() > Date.now() + 60_000,
+  );
   const ready = Boolean(
-    tpl && recipients.length && !missing && !extrasMissing && seqOk && confirm,
+    tpl && recipients.length && !missing && !extrasMissing && seqOk && confirm &&
+      (when === "now" || scheduleOk),
   );
 
   const toggleStage = (id: string) => {
@@ -1190,9 +1211,12 @@ function NewBroadcast({
           mode === "leads" && (flow.pipelineId || flow.repliedStage)
             ? flow
             : null,
+        scheduledAt: scheduleIso,
       });
       toast.success(
-        `Disparo começou: ${out.total} pessoa${out.total === 1 ? "" : "s"}. Acompanhe no histórico.`,
+        out.scheduledAt
+          ? `Disparo agendado para ${fmtDate(out.scheduledAt)}: ${out.total} pessoa${out.total === 1 ? "" : "s"}. Dá pra cancelar no histórico até lá.`
+          : `Disparo começou: ${out.total} pessoa${out.total === 1 ? "" : "s"}. Acompanhe no histórico.`,
       );
       onDone();
     } catch (e) {
@@ -1601,6 +1625,46 @@ function NewBroadcast({
                 250). Quem passar do limite fica com erro no histórico.
               </p>
             </div>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1.5 text-xs font-medium text-slate-500">
+                Quando mandar
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["now", "Agora"],
+                    ["later", "Agendar dia e hora"],
+                  ] as const
+                ).map(([v, label]) => (
+                  <label
+                    key={v}
+                    className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold text-slate-800 ${when === v ? "border-brand-500 bg-brand-500/10" : "border-slate-200"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="bc-when"
+                      checked={when === v}
+                      onChange={() => setWhen(v)}
+                      className="accent-emerald-500"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {when === "later" && (
+                <Field
+                  label="Dia e hora (horário de Brasília)"
+                  hint="Começa sozinho nessa hora (pode atrasar até 5 minutos). Dá pra cancelar no histórico antes."
+                >
+                  <Input
+                    type="datetime-local"
+                    value={whenAt}
+                    min={toLocalInput(new Date(Date.now() + 5 * 60_000))}
+                    onChange={(e) => setWhenAt(e.target.value)}
+                  />
+                </Field>
+              )}
+            </fieldset>
             <label className="flex items-start gap-2.5 text-sm text-slate-700">
               <input
                 type="checkbox"
@@ -1642,7 +1706,9 @@ function NewBroadcast({
                     ? "Complete as partes do modelo."
                     : !seqOk
                       ? "Escolha o modelo de cada passo da sequência."
-                      : "Marque a confirmação."}
+                      : when === "later" && !scheduleOk
+                        ? "Escolha um dia e hora no futuro."
+                        : "Marque a confirmação."}
             </span>
           )}
           <Button
@@ -1651,7 +1717,8 @@ function NewBroadcast({
             disabled={!ready}
             icon={<Send size={15} aria-hidden="true" />}
           >
-            Disparar para {recipients.length} pessoa
+            {when === "later" ? "Agendar para" : "Disparar para"}{" "}
+            {recipients.length} pessoa
             {recipients.length === 1 ? "" : "s"}
           </Button>
         </div>

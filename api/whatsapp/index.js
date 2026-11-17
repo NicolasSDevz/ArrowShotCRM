@@ -15,7 +15,7 @@
 //   POST conversation  { waId, aiMode?, followUpStopped?, read?, leadId?, leadMatch?: "client", name? }
 //   POST reply-ai      { waId } faz a IA responder agora (botão "Responder com IA")
 //   POST sdr-analyze   { waId } refaz a análise do SDR (etapa, temperatura, perfil) sem mandar nada
-//   POST broadcast     { name, template: { name, lang }, headerMedia?, aiMode, recipients: [{ to, name, leadId, params, headerText?, buttonParams? }] }
+//   POST broadcast     { name, template: { name, lang }, headerMedia?, aiMode, scheduledAt?, recipients: [{ to, name, leadId, params, headerText?, buttonParams? }] }
 //   POST broadcast-cancel { id }
 //   POST gcal-auth-url / gcal-connect { url } / gcal-sync / gcal-disconnect   agenda do Google (api/_lib/gcal.js)
 //   POST broadcast-resume { id }   retoma um disparo pausado
@@ -230,6 +230,8 @@ const ADMIN = {
   },
   'POST broadcast': async (req, user) => {
     const out = await createBroadcast(await readJson(req), user)
+    // Agendado: a varredura começa na hora marcada.
+    if (out.scheduledAt) return out
     // Começa a mandar já; o que não couber no tempo o sweep continua (5 em 5 min).
     waitUntil(runBroadcast(out.id, { budgetMs: 90_000 }).catch((e) => console.warn('[whatsapp] disparo falhou:', e.message)))
     return out
