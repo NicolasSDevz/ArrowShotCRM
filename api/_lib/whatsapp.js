@@ -490,6 +490,17 @@ async function crmContextBlock(lead) {
   const since = fmtDate(lead.createdAt)
   if (since) lines.push(`No CRM desde: ${since}${lead.source ? ` (origem: ${lead.source})` : ''}`)
   if (lead.nextAction) lines.push(`Próxima ação anotada: ${lead.nextAction}`)
+  // Respostas do formulário de captura: o Jonas usa pra não perguntar de novo
+  // o que a pessoa já respondeu e pra puxar a conversa pelo que ela contou.
+  const answers = (lead.formAnswers || []).filter((a) => a?.label && a?.value)
+  if (answers.length) {
+    const form = lead.sourceFormId ? await getDoc(`leadForms/${lead.sourceFormId}`).catch(() => null) : null
+    const formName = form?.exists ? form.data().name : ''
+    lines.push(
+      `Respostas que ele deu no formulário${formName ? ` "${formName}"` : ''} (já respondeu, não pergunte de novo):\n` +
+        answers.slice(0, 25).map((a) => `- ${clip(a.label, 120)}: ${clip(a.value, 300)}`).join('\n')
+    )
+  }
   const hist = (lead.contactHistory || []).slice(-4)
   if (hist.length) lines.push(`Contatos que a equipe registrou:\n${hist.map((h) => `- ${fmtDate(h.date) || '?'}: ${clip(h.summary, 200)}`).join('\n')}`)
   return lines.join('\n')
