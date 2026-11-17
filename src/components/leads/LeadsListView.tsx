@@ -23,6 +23,8 @@ function leadServiceLabel(lead: Lead): string {
  *  recente primeiro), já que não há colunas aqui pra separar por status. */
 const PAGE = 50
 
+type SortKey = 'recent' | 'stage' | 'service' | 'owner' | 'value'
+
 function daysLabel(lead: Lead): string {
   const d = differenceInCalendarDays(new Date(), lead.stageChangedAt.toDate())
   return d <= 0 ? 'hoje' : `${d} dia${d === 1 ? '' : 's'}`
@@ -43,7 +45,46 @@ export function LeadsListView({
   onOpenLead: (id: string) => void
 }) {
   const { isPrivacyMode } = usePrivacy()
-  const sorted = [...leads].sort((a, b) => b.stageChangedAt.toMillis() - a.stageChangedAt.toMillis())
+  // Clicar no título da coluna ordena por ela; clicar de novo inverte.
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'recent', dir: 1 })
+  const stageIndex = (lead: Lead) => {
+    const { pipeline, stage } = locateLead(pipelines, lead)
+    return pipeline.stages.findIndex((s) => s.id === stage.id)
+  }
+  const serviceText = (lead: Lead) => formTagOf?.(lead)?.name ?? LEAD_SOURCE_LABEL[lead.source] ?? ''
+  const ownerText = (lead: Lead) => (lead.assignedTo ? userMap[lead.assignedTo]?.name ?? '' : '')
+  const compare = (a: Lead, b: Lead): number => {
+    const recent = b.stageChangedAt.toMillis() - a.stageChangedAt.toMillis()
+    let diff = 0
+    if (sort.key === 'stage') diff = stageIndex(a) - stageIndex(b)
+    else if (sort.key === 'service') diff = serviceText(a).localeCompare(serviceText(b), 'pt-BR')
+    else if (sort.key === 'owner') {
+      // Sem responsável sempre no fim.
+      const oa = ownerText(a)
+      const ob = ownerText(b)
+      if (!oa !== !ob) return oa ? -1 : 1
+      diff = oa.localeCompare(ob, 'pt-BR')
+    } else if (sort.key === 'value') diff = (b.estimatedValue ?? 0) - (a.estimatedValue ?? 0)
+    return diff * sort.dir || recent
+  }
+  const sorted = [...leads].sort(sort.key === 'recent' ? (a, b) => (b.stageChangedAt.toMillis() - a.stageChangedAt.toMillis()) * sort.dir : compare)
+  const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: 1 }))
+  const sortHeader = (key: SortKey, label: string, align: 'left' | 'right' = 'left') => {
+    const active = sort.key === key
+    return (
+      <th className={`px-4 py-3 ${align === 'right' ? 'text-right' : ''}`} aria-sort={active ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-slate-600 ${active ? 'text-brand-600' : ''}`}
+          title={`Ordenar por ${label.toLowerCase()}`}
+        >
+          {label}
+          <span aria-hidden="true">{active ? (sort.dir === 1 ? '↓' : '↑') : '↕'}</span>
+        </button>
+      </th>
+    )
+  }
   // Centenas de linhas de uma vez travavam a tela: mostra de 50 em 50.
   const [limit, setLimit] = useState(PAGE)
   const shown = sorted.slice(0, limit)
@@ -119,13 +160,13 @@ export function LeadsListView({
           <thead className="whitespace-nowrap border-b border-slate-100 bg-slate-50 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
             <tr>
               <th className="px-4 py-3">Contato</th>
-              <th className="px-4 py-3">Etapa</th>
+              {sortHeader('stage', 'Etapa')}
               <th className="px-4 py-3">BANT</th>
-              <th className="px-4 py-3">Serviço</th>
-              <th className="px-4 py-3">Responsável</th>
-              <th className="px-4 py-3 text-right">Valor estimado</th>
+              {sortHeader('service', 'Serviço')}
+              {sortHeader('owner', 'Responsável')}
+              {sortHeader('value', 'Valor estimado', 'right')}
               <th className="px-4 py-3">Próxima ação</th>
-              <th className="px-4 py-3 text-right">Na etapa</th>
+              {sortHeader('recent', 'Na etapa', 'right')}
             </tr>
           </thead>
           <tbody>

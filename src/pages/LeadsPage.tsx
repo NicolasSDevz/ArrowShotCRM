@@ -31,7 +31,7 @@ import { Modal } from '../components/ui/Modal'
 import { Field, Select, Textarea } from '../components/ui/Field'
 import { moveLeadStatus } from '../services/leadService'
 import { ConvertLeadModal } from '../components/leads/ConvertLeadModal'
-import { LEAD_LOST_REASON_LABEL, LEAD_SEGMENT_LABEL, LEAD_TEMPERATURE_LABEL, DEFAULT_PIPELINE_ID, isQuestionnaireLead, leadFormStage, leadPipelineId, leadTemperature, stageOfLead, type Lead, type LeadLostReason, type LeadSegment, type LeadTemperature } from '../types'
+import { LEAD_LOST_REASON_LABEL, LEAD_SEGMENT_LABEL, LEAD_SOURCE_LABEL, LEAD_TEMPERATURE_LABEL, DEFAULT_PIPELINE_ID, isQuestionnaireLead, leadFormStage, leadPipelineId, leadTemperature, stageOfLead, type Lead, type LeadLostReason, type LeadSegment, type LeadSource, type LeadTemperature } from '../types'
 
 export function LeadsPage() {
   const { profile } = useAuth()
@@ -103,6 +103,13 @@ export function LeadsPage() {
   const [tempFilter, setTempFilter] = useState<LeadTemperature | 'none' | ''>('')
   // Filtro por segmento ('' = todos, 'none' = sem segmento definido).
   const [segmentFilter, setSegmentFilter] = useState<LeadSegment | 'none' | ''>('')
+  // Filtros da barra: etapa (id da etapa do pipeline aberto), origem
+  // ('form:<id>' ou 'src:<source>') e responsável (id do usuário ou 'none').
+  const [stageFilter, setStageFilter] = useState('')
+  const [originFilter, setOriginFilter] = useState('')
+  const [ownerFilter, setOwnerFilter] = useState('')
+  // Cada pipeline tem as próprias etapas: trocar de pipeline zera o filtro de etapa.
+  useEffect(() => setStageFilter(''), [activePipeline.id])
 
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
   const formTags: Record<string, LeadFormTag> = Object.fromEntries(leadForms.map((f) => [f.id, { name: f.name, color: leadFormColor(f) }]))
@@ -147,9 +154,31 @@ export function LeadsPage() {
     [l.contactName, l.companyName, l.email, l.cityRegion].some((v) => v?.toLowerCase().includes(needle)) ||
     (digits.length >= 4 && (l.whatsapp ?? '').replace(/\D/g, '').includes(digits))
   const segmentOf = (l: Lead) => l.segment ?? 'none'
+  const originOf = (l: Lead) => (l.sourceFormId ? `form:${l.sourceFormId}` : `src:${l.source}`)
+  const originLabel = (key: string) =>
+    key.startsWith('form:') ? formTags[key.slice(5)]?.name ?? 'Formulário removido' : LEAD_SOURCE_LABEL[key.slice(4) as LeadSource] ?? 'Outro'
+  const ownerOf = (l: Lead) => l.assignedTo || 'none'
+  const stageIdOf = (l: Lead) => stageOfLead(activePipeline, l.status).id
   const pipelineLeads = allPipelineLeads.filter(
-    (l) => (!tempFilter || tempOf(l) === tempFilter) && (!segmentFilter || segmentOf(l) === segmentFilter) && matchesSearch(l)
+    (l) =>
+      (!tempFilter || tempOf(l) === tempFilter) &&
+      (!segmentFilter || segmentOf(l) === segmentFilter) &&
+      (!stageFilter || stageIdOf(l) === stageFilter) &&
+      (!originFilter || originOf(l) === originFilter) &&
+      (!ownerFilter || ownerOf(l) === ownerFilter) &&
+      matchesSearch(l)
   )
+  const countBy = (fn: (l: Lead) => string) => {
+    const out: Record<string, number> = {}
+    for (const l of allPipelineLeads) out[fn(l)] = (out[fn(l)] ?? 0) + 1
+    return out
+  }
+  const originCounts = countBy(originOf)
+  const ownerCounts = countBy(ownerOf)
+  const originOptions = Object.keys(originCounts).sort((a, b) => originLabel(a).localeCompare(originLabel(b), 'pt-BR'))
+  const ownerOptions = Object.keys(ownerCounts)
+    .filter((k) => k !== 'none')
+    .sort((a, b) => (userMap[a]?.name ?? '').localeCompare(userMap[b]?.name ?? '', 'pt-BR'))
   const countBySegment = (s: LeadSegment | 'none') => allPipelineLeads.filter((l) => segmentOf(l) === s).length
   const countByTemp = (t: LeadTemperature | 'none') => allPipelineLeads.filter((l) => tempOf(l) === t).length
   const countByPipeline = (id: string) => salesLeads.filter((l) => leadPipelineId(l) === id).length
@@ -204,10 +233,13 @@ export function LeadsPage() {
     }
   }
 
-  const filtersActive = !!tempFilter || !!segmentFilter || !!needle
+  const filtersActive = !!tempFilter || !!segmentFilter || !!stageFilter || !!originFilter || !!ownerFilter || !!needle
   const clearFilters = () => {
     setTempFilter('')
     setSegmentFilter('')
+    setStageFilter('')
+    setOriginFilter('')
+    setOwnerFilter('')
     setSearch('')
   }
   const hotCount = countByTemp('hot')
@@ -398,6 +430,46 @@ export function LeadsPage() {
                 ))}
                 <option value="none">Sem segmento ({countBySegment('none')})</option>
               </select>
+              <select
+                value={stageFilter}
+                onChange={(e) => setStageFilter(e.target.value)}
+                aria-label="Filtrar por etapa"
+                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${stageFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+              >
+                <option value="">Etapa: todas</option>
+                {activePipeline.stages.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label} ({leadCountByStage[s.id] ?? 0})
+                  </option>
+                ))}
+              </select>
+              <select
+                value={originFilter}
+                onChange={(e) => setOriginFilter(e.target.value)}
+                aria-label="Filtrar por origem do lead (formulário ou canal)"
+                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${originFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+              >
+                <option value="">Origem: todas</option>
+                {originOptions.map((k) => (
+                  <option key={k} value={k}>
+                    {originLabel(k)} ({originCounts[k]})
+                  </option>
+                ))}
+              </select>
+              <select
+                value={ownerFilter}
+                onChange={(e) => setOwnerFilter(e.target.value)}
+                aria-label="Filtrar por responsável"
+                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${ownerFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+              >
+                <option value="">Responsável: todos</option>
+                {ownerOptions.map((id) => (
+                  <option key={id} value={id}>
+                    {userMap[id]?.name ?? 'Usuário removido'} ({ownerCounts[id]})
+                  </option>
+                ))}
+                <option value="none">Sem responsável ({ownerCounts.none ?? 0})</option>
+              </select>
               {filtersActive && (
                 <button type="button" onClick={clearFilters} className="h-9 rounded-lg px-2.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700">
                   Limpar filtros
@@ -450,7 +522,7 @@ export function LeadsPage() {
               />
             </div>
           ) : (
-            <LeadsListView key={`${activePipeline.id}-${tempFilter}-${segmentFilter}-${search}`} leads={pipelineLeads} userMap={userMap} onOpenLead={setOpenLeadId} pipelines={pipelines} formTagOf={formTagOf} />
+            <LeadsListView key={`${activePipeline.id}-${tempFilter}-${segmentFilter}-${stageFilter}-${originFilter}-${ownerFilter}-${search}`} leads={pipelineLeads} userMap={userMap} onOpenLead={setOpenLeadId} pipelines={pipelines} formTagOf={formTagOf} />
           )}
         </>
       )}
