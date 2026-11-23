@@ -20,6 +20,29 @@ import {
 import { CREDENTIAL_SERVICES, type CredentialEntry, type CredentialRequestStatus } from '../../types/clientCredentials'
 import type { Client } from '../../types/client'
 
+/** Copia texto; se o navegador recusar (ex.: aba sem foco), tenta pelo jeito antigo. */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.setAttribute('readonly', '')
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      ta.remove()
+      return ok
+    } catch {
+      return false
+    }
+  }
+}
+
 interface CardDef {
   key: string
   title: string
@@ -70,8 +93,8 @@ export function ClientAccessTab({ client }: { client: Client }) {
   const filled = cards.filter((c) => entries[c.key]?.login || entries[c.key]?.hasPassword).length
 
   const copyLink = async (token: string) => {
-    await navigator.clipboard.writeText(credentialRequestUrl(token))
-    toast.success('Link copiado — mande pro cliente preencher')
+    if (await copyToClipboard(credentialRequestUrl(token))) toast.success('Link copiado — mande pro cliente preencher')
+    else toast.error('Não consegui copiar. Clique na página e tente de novo.')
   }
 
   const createLink = async () => {
@@ -259,8 +282,8 @@ function CredentialCard({
   }
 
   const copy = async (text: string, what: string) => {
-    await navigator.clipboard.writeText(text)
-    toast.success(`${what} copiado`)
+    if (await copyToClipboard(text)) toast.success(`${what} copiado`)
+    else toast.error('Não consegui copiar. Clique na página e tente de novo.')
   }
 
   const save = async () => {

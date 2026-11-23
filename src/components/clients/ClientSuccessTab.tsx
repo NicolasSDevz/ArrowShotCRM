@@ -97,7 +97,7 @@ export function ClientSuccessTab({ clientId, clientName }: { clientId: string; c
               {evaluation.notes && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-2.5 text-sm text-slate-600">{evaluation.notes}</p>}
 
               <p className="mt-2.5 text-xs text-slate-400">
-                Avaliado por {evaluation.evaluatedByName} em {format(evaluation.createdAt.toDate(), 'dd/MM/yyyy', { locale: ptBR })}
+                Avaliado por {evaluation.evaluatedByName} em {evaluation.createdAt ? format(evaluation.createdAt.toDate(), 'dd/MM/yyyy', { locale: ptBR }) : 'agora'}
               </p>
             </div>
           ))}

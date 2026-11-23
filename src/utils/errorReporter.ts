@@ -22,6 +22,8 @@ function isNoise(message: string, stack: string, name = ''): boolean {
   if (/ResizeObserver loop/i.test(message)) return true
   if (message === 'Script error.' || message === 'Script error') return true
   if (/chrome-extension:|moz-extension:|safari-extension:/i.test(stack)) return true
+  // Navegador interno do Instagram/Facebook (iabjs://): erro do app deles, não nosso.
+  if (/iabjs:\/\/|Java object is gone/i.test(stack + message)) return true
   // Arquivo de tela de uma versão antiga (depois de deploy): lazyPage já recarrega.
   if (/dynamically imported module|Importing a module script failed|error loading dynamically/i.test(message)) return true
   if (/Failed to fetch|NetworkError|Load failed|network error/i.test(message)) return true

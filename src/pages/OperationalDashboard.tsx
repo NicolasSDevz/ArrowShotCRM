@@ -169,7 +169,7 @@ export function OperationalDashboard() {
     const inProduction = contents.filter((c) => c.status === 'production') // EM PRODUÇÃO
     const waitingApproval = contents
       .filter((c) => c.status === 'waiting_client') // AGUARDANDO CLIENTE
-      .sort((a, b) => a.updatedAt.toMillis() - b.updatedAt.toMillis())
+      .sort((a, b) => (a.updatedAt?.toMillis?.() ?? Date.now()) - (b.updatedAt?.toMillis?.() ?? Date.now()))
     const approved = contents.filter((c) => c.status === 'approved') // APROVADO
     const nextPublications = contents
       .filter((c) => c.status === 'scheduled' && c.scheduledDate) // AGENDADO
