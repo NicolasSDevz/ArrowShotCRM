@@ -46,6 +46,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   const [phone, setPhone] = useState('')
   const [cpf, setCpf] = useState('')
   const [bumps, setBumps] = useState<string[]>([])
+  const [comboOn, setComboOn] = useState(false)
   const [couponOpen, setCouponOpen] = useState(false)
   const [couponInput, setCouponInput] = useState('')
   const [coupon, setCoupon] = useState<{ code: string; percent: number } | null>(null)
@@ -78,12 +79,22 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
   // "fulano@gmial.com": o acesso iria pro e-mail errado.
   const emailFix = emailTypoSuggestion(email)
 
-  const mainPrice = coupon ? Math.round(data.price * (1 - coupon.percent / 100)) : data.price
-  const bumpTotal = data.bumps.filter((b) => bumps.includes(b.productId)).reduce((s, b) => s + b.price, 0)
+  const withCoupon = (cents: number) => (coupon ? Math.round(cents * (1 - coupon.percent / 100)) : cents)
+  // Combo "Leve tudo": troca o produto principal pelo pacote; quem já está no combo some dos bumps.
+  const combo = data.combo ?? null
+  const comboActive = !!combo && comboOn
+  const comboIds = new Set(comboActive ? combo.products.map((p) => p.productId) : [])
+  const shownBumps = data.bumps.filter((b) => !comboIds.has(b.productId))
+  const chosenBumps = shownBumps.filter((b) => bumps.includes(b.productId))
+  const mainPrice = comboActive ? withCoupon(combo.price) : withCoupon(data.price)
+  const bumpTotal = chosenBumps.reduce((s, b) => s + b.price, 0)
   const subtotal = mainPrice + bumpTotal
   const pixPct = data.pixDiscountPercent || 0
   const pixOff = method === 'pix' && pixPct ? Math.round(subtotal * (pixPct / 100)) : 0
   const total = subtotal - pixOff
+  // Quanto a pessoa deixa de pagar em relação aos preços cheios (combo, bumps, cupom e Pix).
+  const fullTotal = (comboActive ? combo.fullPrice : data.price) + chosenBumps.reduce((s, b) => s + b.fullPrice, 0)
+  const savings = Math.max(0, fullTotal - total)
 
   // Carrinho abandonado: com nome e e-mail válidos, manda o contato (1,5 s depois de parar
   // de digitar). Se a pessoa não pagar, aparece em Loja > Abandonados pra chamar no WhatsApp.
@@ -123,7 +134,8 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
 
   const basePayload = () => ({
     slug: data.slug,
-    bumpIds: bumps,
+    bumpIds: chosenBumps.map((b) => b.productId),
+    combo: comboActive,
     coupon: coupon?.code ?? null,
     buyer: { name, email, phone, cpf },
     utm: readUtms(),
@@ -374,6 +386,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
               {b.fullPrice > b.price && <span className="mr-2 font-normal text-slate-400 line-through">{formatCents(b.fullPrice)}</span>}
               {formatCents(b.price)}
             </p>
+            {b.fullPrice > b.price && <SavingsTag cents={b.fullPrice - b.price} pct={pctOff(b.fullPrice, b.price)} />}
           </div>
         </div>
         <span className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold" style={{ background: bumpCtaBg, color: bumpCtaText }}>
@@ -390,16 +403,59 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
       </label>
     )
   }
+  const comboPos = combo ? (mobile && combo.position === 'side' ? 'button' : combo.position ?? 'payment') : null
+  const renderCombo = () => {
+    if (!combo) return null
+    const on = comboOn
+    const price = withCoupon(combo.price)
+    return (
+      <label
+        key="combo"
+        data-funnel="bump"
+        className={`block cursor-pointer border-2 p-4 ${!on && combo.animation && !['none', 'arrow', 'blink'].includes(combo.animation) ? `ob-anim ob-${combo.animation}` : ''}`}
+        style={{
+          borderColor: bumpColor,
+          background: k.bumpBg || `color-mix(in srgb, ${bumpColor} ${on ? 12 : 5}%, transparent)`,
+          color: k.bumpText ? readableOn(k.bumpText, k.bumpBg || cardBg) : undefined,
+          borderRadius: radius,
+          ['--ob' as string]: bumpColor,
+        }}
+      >
+        <p className={`text-sm font-bold uppercase tracking-wide ${!on && combo.animation === 'blink' ? 'ob-anim ob-blink' : ''}`} style={{ color: bumpColor }}>{combo.headline}</p>
+        {combo.description && <p className="mt-1 text-sm opacity-90">{combo.description}</p>}
+        <ul className="mt-3 space-y-1.5 text-sm" aria-label="O que vem no combo">
+          {combo.products.map((p) => (
+            <li key={p.productId} className="flex items-center gap-2">
+              {p.imageUrl ? <img src={p.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" /> : <Check size={16} className="shrink-0" style={{ color: bumpColor }} aria-hidden="true" />}
+              <span className="min-w-0 flex-1 font-medium">{p.name}</span>
+              <span className="shrink-0 tabular-nums line-through opacity-60" aria-label={`preço normal ${formatCents(p.fullPrice)}`}>{formatCents(p.fullPrice)}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 border-t border-black/10 pt-3 text-sm">
+          <p className="opacity-70">Separados: <span className="line-through">{formatCents(combo.fullPrice)}</span></p>
+          <p className="text-lg font-bold">Tudo por {formatCents(price)}</p>
+          {combo.fullPrice > price && <SavingsTag cents={combo.fullPrice - price} pct={pctOff(combo.fullPrice, price)} big />}
+        </div>
+        <span className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold" style={{ background: bumpCtaBg, color: bumpCtaText }}>
+          {!on && combo.animation === 'arrow' && <ArrowRight size={18} className="ob-anim ob-arrow shrink-0" style={{ color: bumpColor }} aria-hidden="true" />}
+          <input type="checkbox" checked={on} onChange={() => setComboOn(!on)} className="h-5 w-5" style={{ accentColor: bumpColor }} />
+          {combo.cta}
+        </span>
+      </label>
+    )
+  }
   // Dentro do cartão de pagamento os bumps entram soltos; fora dele ganham um cartão próprio.
   const bumpsBlock = (pos: NonNullable<PublicCheckout['bumps'][number]['position']>) => {
-    const list = data.bumps.filter((b) => bumpPos(b) === pos)
-    if (!list.length) return null
+    const list = shownBumps.filter((b) => bumpPos(b) === pos)
+    const comboHere = comboPos === pos
+    if (!list.length && !comboHere) return null
     // Cabeçalho deixa claro que é extra: o cliente já está comprando o produto principal.
     const head = (
       <div id={`${uid}-ofertas-${pos}`}>
         <p className="flex items-center gap-2 text-base font-semibold" style={titleStyle}>
           <Gift size={18} style={{ color: bumpColor }} aria-hidden="true" />
-          {list.length > 1 ? 'Ofertas especiais' : 'Oferta especial'}
+          {list.length + (comboHere ? 1 : 0) > 1 ? 'Ofertas especiais' : 'Oferta especial'}
           <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide" style={{ background: `color-mix(in srgb, ${bumpColor} 14%, transparent)`, color: bumpColor }}>Opcional</span>
         </p>
         <p className="mt-1 text-sm opacity-70">
@@ -411,6 +467,7 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
       return (
         <div role="group" aria-labelledby={`${uid}-ofertas-${pos}`} className={`space-y-3 ${pos === 'payment' ? 'border-b border-black/10 pb-4' : ''}`}>
           {head}
+          {comboHere && renderCombo()}
           {list.map(renderBump)}
         </div>
       )
@@ -418,17 +475,18 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
     return (
       <section className="space-y-3 p-5 shadow-sm" style={cardStyle} aria-labelledby={`${uid}-ofertas-${pos}`}>
         {head}
+        {comboHere && renderCombo()}
         {list.map(renderBump)}
       </section>
     )
   }
-  const bumpsInPayment = data.bumps.some((b) => bumpPos(b) === 'payment')
+  const bumpsInPayment = shownBumps.some((b) => bumpPos(b) === 'payment') || comboPos === 'payment'
 
   // Lateral vazia no computador (ex.: selos só no botão e sem benefícios): o formulário
   // fica sozinho e centralizado, em vez de colado à esquerda com um buraco à direita.
   const showSideImages = !(mobile && mb.hideSideImages) && c.sideImages.length > 0
   const showTestimonials = !(mobile && mb.hideTestimonials) && c.testimonials.length > 0
-  const hasSide = cdPos === 'side' || data.bumps.some((b) => bumpPos(b) === 'side') || showSideImages || c.benefits.length > 0 || ((sealsAt === 'side' || sealsAt === 'both') && seals.length > 0) || showTestimonials || (proofAt === 'side' && !!proofBlock)
+  const hasSide = cdPos === 'side' || shownBumps.some((b) => bumpPos(b) === 'side') || comboPos === 'side' || showSideImages || c.benefits.length > 0 || ((sealsAt === 'side' || sealsAt === 'both') && seals.length > 0) || showTestimonials || (proofAt === 'side' && !!proofBlock)
   const layout = !mobile && !hasSide ? 'single' : side
   const pageWidth = layout === 'single' ? 'max-w-2xl' : width
 
@@ -606,14 +664,26 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
 
               {/* Resumo */}
               <div className="space-y-1 border-t border-black/10 pt-3 text-sm opacity-90">
-                <div className="flex justify-between"><span>{data.name}</span><span>{formatCents(mainPrice)}</span></div>
-                {data.bumps.filter((b) => bumps.includes(b.productId)).map((b) => (
+                {comboActive ? (
+                  <div>
+                    <div className="flex justify-between"><span>Combo: {combo.products.length} produtos</span><span>{formatCents(mainPrice)}</span></div>
+                    <p className="text-xs opacity-60">{combo.products.map((p) => p.name).join(' + ')}</p>
+                  </div>
+                ) : (
+                  <div className="flex justify-between"><span>{data.name}</span><span>{formatCents(mainPrice)}</span></div>
+                )}
+                {chosenBumps.map((b) => (
                   <div key={b.productId} className="flex justify-between"><span>{b.name}</span><span>{formatCents(b.price)}</span></div>
                 ))}
                 {pixOff > 0 && (
                   <div className="flex justify-between text-emerald-600"><span>Desconto no Pix ({pixPct}%)</span><span>-{formatCents(pixOff)}</span></div>
                 )}
                 <div className="flex justify-between pt-1 text-base font-bold"><span>Total</span><span>{formatCents(total)}</span></div>
+                {savings > 0 && (
+                  <p className="rounded-lg bg-emerald-50 px-3 py-2 text-center text-sm font-semibold text-emerald-700" aria-live="polite">
+                    Você está economizando {formatCents(savings)}
+                  </p>
+                )}
               </div>
 
               {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -684,5 +754,19 @@ export function CheckoutView({ data, preview = false, device = 'desktop' }: { da
       )}
 
     </div>
+  )
+}
+
+/** Desconto em % (arredondado) entre o preço cheio e o pago. */
+function pctOff(full: number, paid: number) {
+  return full > 0 ? Math.round(((full - paid) / full) * 100) : 0
+}
+
+/** Etiqueta verde "Você economiza R$ X (N%)". */
+function SavingsTag({ cents, pct, big = false }: { cents: number; pct: number; big?: boolean }) {
+  return (
+    <span className={`mt-1.5 inline-block rounded-full bg-emerald-100 font-semibold text-emerald-700 ${big ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs'}`}>
+      Você economiza {formatCents(cents)}{pct > 0 ? ` (${pct}%)` : ''}
+    </span>
   )
 }

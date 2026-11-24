@@ -231,8 +231,43 @@ export async function resolveBumps(product) {
   return out
 }
 
+/** Combo "Leve tudo" do produto: principal + produtos escolhidos por um preço só.
+ *  null quando desligado, sem produto válido ou sem preço. */
+export async function resolveCombo(product) {
+  const c = product.checkout?.combo
+  if (!c?.enabled || !Number.isInteger(c.price) || c.price <= 0) return null
+  const ids = [...new Set((Array.isArray(c.productIds) ? c.productIds : []).map(String))].filter((id) => id && id !== product.id)
+  const extras = []
+  for (const id of ids) {
+    const p = await getProduct(id)
+    if (!p || p.status === 'archived') continue
+    extras.push({ productId: p.id, name: p.name, imageUrl: p.imageUrl || null, fullPrice: p.price })
+  }
+  if (!extras.length) return null
+  const products = [{ productId: product.id, name: product.name, imageUrl: product.imageUrl || null, fullPrice: product.price }, ...extras]
+  return {
+    headline: c.headline || 'Leve tudo por um preço só',
+    description: c.description || '',
+    cta: c.cta || 'Sim, quero levar tudo!',
+    animation: ['pulse', 'glow', 'shake', 'bounce', 'arrow', 'blink'].includes(c.animation) ? c.animation : 'none',
+    position: ['top', 'beforePayment', 'payment', 'button', 'side'].includes(c.position) ? c.position : 'payment',
+    price: c.price,
+    fullPrice: products.reduce((s, p) => s + p.fullPrice, 0),
+    products,
+  }
+}
+
+/** Divide o valor do combo entre os produtos, na proporção do preço cheio de cada um
+ *  (os centavos que sobram do arredondamento ficam no principal). */
+export function splitComboPrice(combo, total) {
+  const full = combo.fullPrice || 1
+  const shares = combo.products.map((p) => Math.floor((total * p.fullPrice) / full))
+  shares[0] += total - shares.reduce((s, v) => s + v, 0)
+  return shares
+}
+
 /** Dados que o checkout público pode ver (nada de cupons nem config interna). */
-export function publicCheckout(product, bumps, gateway, settings = {}) {
+export function publicCheckout(product, bumps, gateway, settings = {}, combo = null) {
   const c = product.checkout || {}
   return {
     id: product.id,
@@ -281,6 +316,7 @@ export function publicCheckout(product, bumps, gateway, settings = {}) {
       footerText: c.footerText || '',
     },
     bumps,
+    combo,
     gateway: {
       mercadoPago: gateway.mercadoPago,
       publicKey: gateway.publicKey,

@@ -80,6 +80,8 @@ import {
   getProduct,
   getProductBySlug,
   resolveBumps,
+  resolveCombo,
+  splitComboPrice,
   publicCheckout,
   findCoupon,
   ensureMember,
@@ -158,8 +160,8 @@ async function pixSettingsFor(product, gw) {
 async function actionCheckout(req) {
   const product = await loadActiveProduct(String(req.query.slug || ''))
   const gw = await gatewayFor(product)
-  const [bumps, settings, invoice] = await Promise.all([resolveBumps(product), pixSettingsFor(product, gw), getInvoiceSettings()])
-  const data = publicCheckout(product, bumps, gw, settings)
+  const [bumps, settings, invoice, combo] = await Promise.all([resolveBumps(product), pixSettingsFor(product, gw), getInvoiceSettings(), resolveCombo(product)])
+  const data = publicCheckout(product, bumps, gw, settings, combo)
   data.archer = { chat: archerConfig(product).chat }
   // Com nota fiscal ligada, o CPF/CNPJ do comprador vira obrigatório.
   if (invoice.enabled === true) data.checkout.askCpf = true
@@ -266,12 +268,22 @@ async function actionOrder(req) {
     ).length
     if (coupon.uses + holding >= coupon.maxUses) throw new HttpError(400, 'Esse cupom atingiu o limite de usos.')
   }
-  const mainPrice = coupon ? Math.round(product.price * (1 - coupon.percent / 100)) : product.price
-  const items = [{ productId: product.id, name: product.name, price: mainPrice, fullPrice: product.price, bump: false }]
+  const withCoupon = (cents) => (coupon ? Math.round(cents * (1 - coupon.percent / 100)) : cents)
+  // Combo "Leve tudo": o preço vem do servidor (nunca do navegador) e o cupom vale sobre ele.
+  const combo = body.combo === true ? await resolveCombo(product) : null
+  const items = []
+  if (combo) {
+    const shares = splitComboPrice(combo, withCoupon(combo.price))
+    combo.products.forEach((p, i) => items.push({ productId: p.productId, name: p.name, price: shares[i], fullPrice: p.fullPrice, bump: i > 0, combo: true }))
+  } else {
+    items.push({ productId: product.id, name: product.name, price: withCoupon(product.price), fullPrice: product.price, bump: false })
+  }
+  const inCombo = new Set(items.map((i) => i.productId))
   const wantedBumps = new Set(Array.isArray(body.bumpIds) ? body.bumpIds.map(String) : [])
   if (wantedBumps.size) {
     for (const b of await resolveBumps(product)) {
-      if (wantedBumps.has(b.productId)) items.push({ productId: b.productId, name: b.name, price: b.price, fullPrice: b.fullPrice, bump: true })
+      // Produto que já veio no combo não é cobrado de novo como bump.
+      if (wantedBumps.has(b.productId) && !inCombo.has(b.productId)) items.push({ productId: b.productId, name: b.name, price: b.price, fullPrice: b.fullPrice, bump: true })
     }
   }
   const subtotal = items.reduce((s, i) => s + i.price, 0)
@@ -287,6 +299,7 @@ async function actionOrder(req) {
     productName: product.name,
     items,
     productIds: items.map((i) => i.productId),
+    combo: !!combo,
     amount,
     couponCode: coupon?.code || null,
     couponId: coupon?.id || null,

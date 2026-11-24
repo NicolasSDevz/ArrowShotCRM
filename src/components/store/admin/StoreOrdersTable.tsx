@@ -500,7 +500,7 @@ export function StoreOrdersTable({ orders, products }: { orders: StoreOrder[]; p
                         <dd key={i.productId} className="flex justify-between gap-3 text-slate-700">
                           <span>
                             {i.name}
-                            {i.bump && <span className="text-violet-600"> (order bump)</span>}
+                            {i.combo ? <span className="text-emerald-600"> (combo)</span> : i.bump && <span className="text-violet-600"> (order bump)</span>}
                           </span>
                           <span className="tabular-nums text-slate-500">{formatCents(i.price)}</span>
                         </dd>

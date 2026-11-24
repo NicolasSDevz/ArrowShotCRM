@@ -37,6 +37,17 @@ export interface PublicCheckout {
     footerText: string
   }
   bumps: { productId: string; name: string; imageUrl: string | null; headline: string; description: string; cta: string; animation?: import('../types/store').StoreBumpAnimation; position?: import('../types/store').StoreBumpPosition; price: number; fullPrice: number }[]
+  /** Combo "Leve tudo": preço do pacote inteiro e quanto custaria separado (com o principal). */
+  combo?: {
+    headline: string
+    description: string
+    cta: string
+    animation?: import('../types/store').StoreBumpAnimation
+    position?: import('../types/store').StoreBumpPosition
+    price: number
+    fullPrice: number
+    products: { productId: string; name: string; imageUrl: string | null; fullPrice: number }[]
+  } | null
   gateway: { mercadoPago: boolean; publicKey: string | null; pixManual: boolean; testMode: boolean }
   /** Archer no checkout (chat de dúvidas). */
   archer?: { chat: boolean }

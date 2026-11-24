@@ -33,6 +33,20 @@ export const STORE_BUMP_POSITIONS: { value: StoreBumpPosition; label: string }[]
 
 export type StoreBumpAnimation = 'none' | 'pulse' | 'glow' | 'shake' | 'bounce' | 'arrow' | 'blink'
 
+/** "Leve tudo": o produto principal + os escolhidos por um preço só (o checkout mostra a economia). */
+export interface StoreCombo {
+  enabled: boolean
+  /** Outros produtos que entram no combo (o principal sempre entra). */
+  productIds: string[]
+  /** Preço do combo inteiro, com o principal (centavos). */
+  price: number | null
+  headline?: string
+  description?: string
+  cta?: string
+  position?: StoreBumpPosition
+  animation?: StoreBumpAnimation
+}
+
 export interface StoreTestimonial {
   name: string
   text: string
@@ -191,6 +205,8 @@ export interface StoreCheckoutConfig {
   thankYouUrl?: string | null
   footerText?: string
   bumps: StoreOrderBump[]
+  /** Combo "Leve tudo por um preço só". */
+  combo?: StoreCombo
   /** Archer no checkout (recuperador de vendas). Vazio = chat e e-mails ligados. */
   archer?: StoreArcherConfig
 }
@@ -321,6 +337,8 @@ export interface StoreOrderItem {
   price: number
   fullPrice: number
   bump: boolean
+  /** Entrou pelo combo "Leve tudo" (o preço é a parte dele no valor do combo). */
+  combo?: boolean
 }
 
 export interface StoreOrder {

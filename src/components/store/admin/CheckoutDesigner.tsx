@@ -25,6 +25,7 @@ import {
   type StoreSealKey,
   type StoreBumpAnimation,
   type StoreBumpPosition,
+  type StoreCombo,
   STORE_BUMP_POSITIONS,
 } from '../../../types/store'
 import type { PublicCheckout } from '../../../services/storeApi'
@@ -113,7 +114,30 @@ function previewData(product: StoreProduct, all: StoreProduct[]): PublicCheckout
         return { productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, headline: b.headline || `Leve também: ${p.name}`, description: b.description || p.description, cta: b.cta || 'Sim, eu quero!', animation: b.animation ?? 'none', position: b.position ?? 'payment', price: b.price || p.price, fullPrice: p.price }
       })
       .filter((b): b is NonNullable<typeof b> => !!b),
+    combo: previewCombo(product, all),
     gateway: { mercadoPago: true, publicKey: null, pixManual: false, testMode: false },
+  }
+}
+
+/** Combo da prévia: mesma regra do servidor (resolveCombo em api/_lib/store/core.js). */
+function previewCombo(product: StoreProduct, all: StoreProduct[]): PublicCheckout['combo'] {
+  const cb = product.checkout.combo
+  if (!cb?.enabled || !cb.price) return null
+  const extras = cb.productIds
+    .filter((id) => id !== product.id)
+    .map((id) => all.find((x) => x.id === id))
+    .filter((p): p is StoreProduct => !!p && p.status !== 'archived')
+  if (!extras.length) return null
+  const products = [product, ...extras].map((p) => ({ productId: p.id, name: p.name, imageUrl: p.imageUrl ?? null, fullPrice: p.price }))
+  return {
+    headline: cb.headline || 'Leve tudo por um preço só',
+    description: cb.description || '',
+    cta: cb.cta || 'Sim, quero levar tudo!',
+    animation: cb.animation ?? 'none',
+    position: cb.position ?? 'payment',
+    price: cb.price,
+    fullPrice: products.reduce((sum, p) => sum + p.fullPrice, 0),
+    products,
   }
 }
 
@@ -149,6 +173,77 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
   }
   const seals = checkoutSeals(d, c.guaranteeDays)
   const toggleSeal = (k: StoreSealKey, on: boolean) => setDesign({ seals: on ? [...seals, k] : seals.filter((x) => x !== k) })
+
+  // Combo "Leve tudo": principal + produtos marcados por um preço só.
+  const combo: StoreCombo = c.combo ?? { enabled: false, productIds: [], price: null }
+  const setCombo = (patch: Partial<StoreCombo>) => onChange({ combo: { ...combo, ...patch } })
+  const comboExtras = others.filter((p) => combo.productIds.includes(p.id))
+  const comboFull = product.price + comboExtras.reduce((sum, p) => sum + p.price, 0)
+  const comboSaving = combo.price ? comboFull - combo.price : 0
+  const comboSection = (
+    <EditorSection collapsible defaultOpen={openAll} title="Leve tudo (combo por um preço só)" hint="O checkout mostra o preço de tudo separado, o preço do combo e quanto a pessoa economiza.">
+      <Toggle label="Oferecer o combo neste checkout" checked={combo.enabled} onChange={(v) => setCombo({ enabled: v })} />
+      {combo.enabled && (
+        <>
+          {others.length === 0 ? (
+            <p className="text-xs text-slate-400">Crie outro produto para montar o combo.</p>
+          ) : (
+            <fieldset className="space-y-1.5">
+              <legend className="mb-1 text-xs font-medium text-slate-500">Produtos do combo (o {product.name.trim()} já entra)</legend>
+              {others.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={combo.productIds.includes(p.id)}
+                    onChange={(e) => setCombo({ productIds: e.target.checked ? [...combo.productIds, p.id] : combo.productIds.filter((x) => x !== p.id) })}
+                  />
+                  <span className="flex-1">{p.name}</span>
+                  <span className="tabular-nums text-slate-400">{formatCents(p.price)}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+          <Field label="Preço do combo (tudo junto)">
+            <Input
+              placeholder="Ex.: R$ 197,00"
+              value={combo.price ? maskCurrencyInput(String(combo.price)) : ''}
+              onChange={(e) => { const v = parseCurrencyToNumber(e.target.value); setCombo({ price: v ? Math.round(v * 100) : null }) }}
+            />
+          </Field>
+          <p className="text-xs text-slate-500" aria-live="polite">
+            {!comboExtras.length
+              ? 'Marque pelo menos um produto para o combo aparecer.'
+              : !combo.price
+                ? `Separados custam ${formatCents(comboFull)}. Defina o preço do combo.`
+                : comboSaving > 0
+                  ? `Separados: ${formatCents(comboFull)} · combo: ${formatCents(combo.price)} · o cliente economiza ${formatCents(comboSaving)} (${Math.round((comboSaving / comboFull) * 100)}%).`
+                  : `O combo (${formatCents(combo.price)}) não está mais barato que tudo separado (${formatCents(comboFull)}): não vai aparecer economia.`}
+          </p>
+          <Input aria-label="Chamada do combo" placeholder="Chamada (padrão: Leve tudo por um preço só)" value={combo.headline ?? ''} onChange={(e) => setCombo({ headline: e.target.value })} />
+          <Textarea aria-label="Descrição do combo" rows={2} placeholder="Descrição curta (opcional)" value={combo.description ?? ''} onChange={(e) => setCombo({ description: e.target.value })} />
+          <Input aria-label="Texto da caixinha do combo" placeholder="Sim, quero levar tudo!" value={combo.cta ?? ''} onChange={(e) => setCombo({ cta: e.target.value })} />
+          <Field label="Onde aparece no checkout">
+            <Select value={combo.position ?? 'payment'} onChange={(e) => setCombo({ position: e.target.value as StoreBumpPosition })}>
+              {STORE_BUMP_POSITIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
+          </Field>
+          <Field label="Animação pra chamar atenção">
+            <Select value={combo.animation ?? 'none'} onChange={(e) => setCombo({ animation: e.target.value as StoreBumpAnimation })}>
+              <option value="none">Nenhuma (parado)</option>
+              <option value="pulse">Pulsar: borda pulsando na cor principal</option>
+              <option value="glow">Brilho: borda brilhando em volta</option>
+              <option value="shake">Balançar de vez em quando</option>
+              <option value="bounce">Pular de vez em quando</option>
+              <option value="arrow">Seta apontando pra caixinha</option>
+              <option value="blink">Chamada piscando</option>
+            </Select>
+          </Field>
+          <p className="text-[11px] text-slate-400">Cupom vale sobre o preço do combo. Produto que está no combo e também é order bump some dos bumps quando a pessoa marca o combo.</p>
+        </>
+      )}
+    </EditorSection>
+  )
 
   const countdownSection = (
     <EditorSection collapsible defaultOpen={openAll} title="Contador de escassez" hint="Escolha onde ele aparece e em qual tela.">
@@ -339,6 +434,8 @@ export function CheckoutDesigner({ product, allProducts, onChange }: { product: 
         <Toggle label="Pedir CPF ou CNPJ" checked={c.askCpf} onChange={(v) => onChange({ askCpf: v })} />
         <Toggle label="Pedir para confirmar o e-mail" checked={c.confirmEmail} onChange={(v) => onChange({ confirmEmail: v })} />
       </EditorSection>
+
+      {comboSection}
 
       <EditorSection collapsible defaultOpen={openAll} title="Order bumps (ofertas extras no checkout)">
         {c.bumps.map((b, i) => {
