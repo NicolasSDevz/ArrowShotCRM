@@ -16,9 +16,9 @@ export type Speaker = 'Bruno' | 'Cliente'
 export const SAMPLE_RATE = 16_000
 /** Limites do Groq (free tier): fala curta ("sim", "aham") junta com a
  *  próxima em vez de virar uma requisição só pra ela. */
-const MERGE_MIN_SEC = 4
+const MERGE_MIN_SEC = 3
 const MERGE_MAX_SEC = 15
-const MERGE_SILENCE_MS = 2000
+const MERGE_SILENCE_MS = 1000
 
 // Assets do VAD (modelo Silero ONNX + worklet) servidos via CDN — não dá pra
 // importar os arquivos locais do node_modules com o Vite sem copiá-los pro
@@ -80,6 +80,8 @@ export async function criarSpeakerPipeline(
   // (Chrome throttla temporizadores JS, não o grafo de áudio).
   let silenciodesdeUltimaFalaMs = 0
   let pendingFlush: Promise<void> = Promise.resolve()
+  /** Últimas falas deste falante — vão como contexto pro Whisper. */
+  let contexto = ''
 
   const flush = (): Promise<void> => {
     silenciodesdeUltimaFalaMs = 0
@@ -93,10 +95,11 @@ export async function criarSpeakerPipeline(
     onTranscrevendoChange(segmentoId, true)
     const endEpochMs = Date.now()
 
-    const promise = queue.enqueue(audio, durationSec).then(
+    const promise = queue.enqueue(audio, durationSec, contexto).then(
       (texto) => {
         onAtraso?.(Date.now() - endEpochMs)
         if (isHallucination(texto, durationSec)) return
+        contexto = `${contexto} ${texto.trim()}`.slice(-400)
         onBloco({ id: crypto.randomUUID(), speaker, texto: texto.trim(), timestampMs: startMs })
       },
       (err) => {
@@ -117,8 +120,10 @@ export async function criarSpeakerPipeline(
     onnxWASMBasePath,
     model: 'v5',
     minSpeechMs: 150,
-    redemptionMs: 500,
-    preSpeechPadMs: 200,
+    // folga maior: pausa curta no meio da frase não corta, e o começo da
+    // primeira palavra não some
+    redemptionMs: 700,
+    preSpeechPadMs: 400,
     onSpeechStart: () => {
       if (!acumulado) inicioMs = Date.now() - startTimeMs
       silenciodesdeUltimaFalaMs = 0

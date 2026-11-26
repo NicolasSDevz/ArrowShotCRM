@@ -472,13 +472,13 @@ async function handleTranscrever(req, res, user) {
   if (!temAcessoAoCopiloto(user.email)) {
     return res.status(403).json({ error: 'Sem permissão para usar o Copiloto de Vendas' })
   }
-  const { audioBase64, mimeType } = req.body || {}
+  const { audioBase64, mimeType, contexto } = req.body || {}
   if (!audioBase64 || typeof audioBase64 !== 'string') {
     return res.status(400).json({ error: 'audioBase64 é obrigatório' })
   }
   try {
     const buffer = Buffer.from(audioBase64, 'base64')
-    const text = await transcribeWithGroq(buffer, mimeType || 'audio/wav')
+    const text = await transcribeWithGroq(buffer, mimeType || 'audio/wav', 'audio.wav', typeof contexto === 'string' ? contexto : '')
     return res.status(200).json({ text })
   } catch (err) {
     if (err instanceof GroqRateLimitError) {

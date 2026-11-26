@@ -48,6 +48,7 @@ export interface ErroCapturaEvt {
 }
 export interface SemAudioClienteEvt {
   type: 'semAudioCliente'
+  motivo?: string
 }
 export interface SugestaoChunkEvt {
   type: 'sugestaoChunk'

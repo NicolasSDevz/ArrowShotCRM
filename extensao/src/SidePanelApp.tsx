@@ -172,6 +172,7 @@ export function SidePanelApp() {
   const [generating, setGenerating] = useState(false)
   const [erroCaptura, setErroCaptura] = useState<string | null>(null)
   const [semAudioCliente, setSemAudioCliente] = useState(false)
+  const [motivoSemAudio, setMotivoSemAudio] = useState<string | null>(null)
   const [erroSugestao, setErroSugestao] = useState<string | null>(null)
   const [resumoPronto, setResumoPronto] = useState(false)
   const [erroResumo, setErroResumo] = useState<string | null>(null)
@@ -227,6 +228,7 @@ export function SidePanelApp() {
           break
         case 'semAudioCliente':
           setSemAudioCliente(true)
+          if (msg.motivo) setMotivoSemAudio(msg.motivo)
           break
         case 'sugestaoChunk':
           setStreaming(msg.parcial)
@@ -305,12 +307,18 @@ export function SidePanelApp() {
     try {
       tabStreamId = await new Promise<string>((resolve, reject) => {
         chrome.tabCapture.getMediaStreamId({ targetTabId: meetTabId! }, (streamId) => {
-          if (chrome.runtime.lastError || !streamId) reject(chrome.runtime.lastError ?? new Error('sem streamId'))
+          if (chrome.runtime.lastError || !streamId) reject(new Error(chrome.runtime.lastError?.message ?? 'sem streamId'))
           else resolve(streamId)
         })
       })
     } catch (err) {
-      console.warn('[copiloto-ext] falha ao preparar captura da aba do Meet:', err)
+      const m = err instanceof Error ? err.message : String(err)
+      console.warn('[copiloto-ext] falha ao preparar captura da aba do Meet:', m)
+      setMotivoSemAudio(
+        /not been invoked/i.test(m)
+          ? 'Clique no ícone do Copiloto na barra do Chrome (com a aba do Meet aberta) e inicie de novo — abrir o painel por outro caminho não libera o áudio da aba.'
+          : `painel: ${m}`,
+      )
     }
 
     const resp = await chrome.runtime.sendMessage({ type: 'ensureOffscreen' }).catch(() => ({ ok: false }))
@@ -319,7 +327,16 @@ export function SidePanelApp() {
       return
     }
 
-    enviar({ type: 'iniciar', leadId, tabStreamId })
+    // O offscreen recém-criado pode ainda não estar ouvindo — reenvia até ele
+    // confirmar o recebimento (até ~5 s), em vez de perder o comando calado.
+    for (let tentativa = 0; tentativa < 20; tentativa++) {
+      const ack = await chrome.runtime
+        .sendMessage({ type: 'iniciar', leadId, tabStreamId })
+        .catch(() => null)
+      if (ack?.recebido) return
+      await new Promise((r) => setTimeout(r, 250))
+    }
+    setErroCaptura('A captura em segundo plano não respondeu. Feche e abra o painel e tente de novo.')
   }
 
   const abrirResumoNoCrm = () => {
@@ -386,7 +403,11 @@ export function SidePanelApp() {
       )}
       {semAudioCliente && status === 'ativa' && (
         <p className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 text-xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-          <AlertTriangle size={12} /> Áudio do cliente não detectado — só o microfone está sendo transcrito.
+          <AlertTriangle size={12} className="shrink-0" />
+          <span>
+            Áudio do cliente não detectado — só o microfone está sendo transcrito.
+            {motivoSemAudio && <span className="mt-0.5 block font-mono text-[10px] opacity-80">{motivoSemAudio}</span>}
+          </span>
         </p>
       )}
 

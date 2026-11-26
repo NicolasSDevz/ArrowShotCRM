@@ -161,7 +161,7 @@ async function iniciar(leadIdParam: string, tabStreamId: string | null) {
       void playbackEl.play().catch((err) => console.warn('[copiloto-ext] falha ao reproduzir áudio da aba', err))
     } catch (err) {
       console.warn('[copiloto-ext] falha ao capturar áudio da aba do Meet:', err)
-      enviar({ type: 'semAudioCliente' })
+      enviar({ type: 'semAudioCliente', motivo: `offscreen: ${err instanceof Error ? `${err.name} ${err.message}` : String(err)}` })
     }
   } else {
     enviar({ type: 'semAudioCliente' })
@@ -264,10 +264,33 @@ async function gerarESalvarResumo() {
   }
 }
 
-chrome.runtime.onMessage.addListener((raw: unknown) => {
+let iniciando = false
+
+async function iniciarSeguro(leadIdParam: string, tabStreamId: string | null) {
+  if (iniciando || status === 'ativa') return
+  iniciando = true
+  try {
+    // O login do Firebase deste documento é restaurado de forma assíncrona —
+    // sem esperar, auth.currentUser vem null logo depois de criar o offscreen.
+    await auth.authStateReady()
+    await iniciar(leadIdParam, tabStreamId)
+  } catch (err) {
+    console.error('[copiloto-ext] falha ao iniciar:', err)
+    Object.values(streams).forEach((s) => s?.getTracks().forEach((t) => t.stop()))
+    streams = {}
+    enviar({ type: 'erroCaptura', mensagem: `Falha ao iniciar: ${err instanceof Error ? err.message : String(err)}` })
+  } finally {
+    iniciando = false
+  }
+}
+
+chrome.runtime.onMessage.addListener((raw: unknown, _sender, sendResponse) => {
   const msg = raw as Partial<SidePanelParaOffscreenMsg>
-  if (msg.type === 'iniciar' && msg.leadId) void iniciar(msg.leadId, msg.tabStreamId ?? null)
-  else if (msg.type === 'encerrar') void encerrar()
+  if (msg.type === 'iniciar' && msg.leadId) {
+    // confirma o recebimento pro painel (ele reenvia se não vier resposta)
+    sendResponse({ recebido: true })
+    void iniciarSeguro(msg.leadId, msg.tabStreamId ?? null)
+  } else if (msg.type === 'encerrar') void encerrar()
   else if (msg.type === 'pedirAjuda') void gerarSugestao(msg.pergunta?.trim() || undefined, 'manual')
   else if (msg.type === 'gerarResumo') void gerarESalvarResumo()
 })

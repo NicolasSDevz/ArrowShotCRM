@@ -18,7 +18,7 @@ export class GroqRateLimitClientError extends Error {
  *  Chrome, que roda em chrome-extension://... e precisa da URL absoluta do
  *  CRM) — na página normal fica vazio e a requisição é same-origin, igual
  *  sempre foi. */
-export async function transcribeAudio(audio: Float32Array, baseUrl = ''): Promise<string> {
+export async function transcribeAudio(audio: Float32Array, baseUrl = '', contexto = ''): Promise<string> {
   const user = auth.currentUser
   if (!user) throw new Error('Usuário não autenticado')
   const idToken = await user.getIdToken()
@@ -29,7 +29,7 @@ export async function transcribeAudio(audio: Float32Array, baseUrl = ''): Promis
   const res = await fetch(`${baseUrl}/api/ai/transcrever`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ audioBase64, mimeType: 'audio/wav' }),
+    body: JSON.stringify({ audioBase64, mimeType: 'audio/wav', contexto }),
   })
 
   const body = await res.json().catch(() => ({}))

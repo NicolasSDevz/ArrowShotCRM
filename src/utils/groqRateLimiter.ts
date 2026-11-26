@@ -3,6 +3,10 @@ import { transcribeAudio, GroqRateLimitClientError } from '../services/groqTrans
 /** Margem de segurança abaixo do limite real do Groq (20 req/min, conta
  *  toda) — Bruno e Cliente somados passam por essa mesma fila. */
 const MAX_REQUESTS_PER_MINUTE = 15
+/** Trechos transcritos ao mesmo tempo — antes era 1 (a fala do Cliente
+ *  esperava a do Bruno terminar e vice-versa). A ordem na tela vem do
+ *  timestamp de cada bloco, não da ordem de resposta. */
+const MAX_EM_PARALELO = 3
 /** Um retry-after maior que isso não parece "espera um pouco" (throttle de
  *  minuto) — tratamos como limite diário/por hora esgotado e pausamos. */
 const DAILY_LIMIT_RETRY_THRESHOLD_SEC = 60
@@ -53,6 +57,7 @@ export interface GroqQueueStatus {
 interface QueueItem {
   audio: Float32Array
   durationSec: number
+  contexto: string
   resolve: (text: string) => void
   reject: (err: unknown) => void
 }
@@ -68,13 +73,14 @@ export class GroqTranscriptionQueue {
   private processing = false
   private dailyLimitReached = false
   private onStatusChange?: (status: GroqQueueStatus) => void
-  private transcribeFn: (audio: Float32Array) => Promise<string>
+  private emAndamento = 0
+  private transcribeFn: (audio: Float32Array, contexto: string) => Promise<string>
 
   /** `transcribeFn` é opcional — só quem roda fora da página do CRM (ex: o
    *  offscreen document da extensão do Chrome) passa uma versão própria
    *  (URL absoluta do CRM, ver extensao/src/lib/aiApi.ts); na página normal
    *  usa a função padrão (same-origin), igual sempre foi. */
-  constructor(onStatusChange?: (status: GroqQueueStatus) => void, transcribeFn: (audio: Float32Array) => Promise<string> = transcribeAudio) {
+  constructor(onStatusChange?: (status: GroqQueueStatus) => void, transcribeFn: (audio: Float32Array, contexto: string) => Promise<string> = (a, c) => transcribeAudio(a, '', c)) {
     this.onStatusChange = onStatusChange
     this.transcribeFn = transcribeFn
     this.emitStatus()
@@ -84,13 +90,13 @@ export class GroqTranscriptionQueue {
     return this.dailyLimitReached
   }
 
-  enqueue(audio: Float32Array, durationSec: number): Promise<string> {
+  enqueue(audio: Float32Array, durationSec: number, contexto = ''): Promise<string> {
     return new Promise((resolve, reject) => {
       if (this.dailyLimitReached) {
         reject(new Error('Transcrição pausada: limite diário atingido'))
         return
       }
-      this.queue.push({ audio, durationSec, resolve, reject })
+      this.queue.push({ audio, durationSec, contexto, resolve, reject })
       void this.pump()
     })
   }
@@ -120,8 +126,17 @@ export class GroqTranscriptionQueue {
           await sleep(waitMs)
           continue
         }
+        if (this.emAndamento >= MAX_EM_PARALELO) {
+          await sleep(100)
+          continue
+        }
         const item = this.queue.shift()
-        if (item) await this.send(item)
+        if (item) {
+          this.emAndamento++
+          void this.send(item).finally(() => {
+            this.emAndamento--
+          })
+        }
       }
     } finally {
       this.processing = false
@@ -136,7 +151,7 @@ export class GroqTranscriptionQueue {
     this.emitStatus()
 
     try {
-      const text = await this.transcribeFn(item.audio)
+      const text = await this.transcribeFn(item.audio, item.contexto)
       item.resolve(text)
     } catch (err) {
       if (err instanceof GroqRateLimitClientError) {

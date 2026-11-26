@@ -15,8 +15,8 @@ async function idToken(): Promise<string> {
 
 /** Mesma função de utils/groqRateLimiter.ts (web), só que apontada pra URL
  *  absoluta do CRM — passada pro GroqTranscriptionQueue no offscreen.ts. */
-export function transcreverAudioExt(audio: Float32Array): Promise<string> {
-  return transcribeAudio(audio, CRM_BASE_URL)
+export function transcreverAudioExt(audio: Float32Array, contexto = ''): Promise<string> {
+  return transcribeAudio(audio, CRM_BASE_URL, contexto)
 }
 
 export async function streamSugestaoExt(

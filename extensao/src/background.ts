@@ -11,28 +11,34 @@ const MEET_PATTERN = /^https:\/\/meet\.google\.com\//
 // (chrome://extensions → card da extensão → "service worker"), o problema
 // é a pasta errada carregada ou o script travando antes de chegar aqui, não
 // o comportamento do painel em si.
-console.log('[copiloto-ext] background iniciado — v1.0.2')
+console.log('[copiloto-ext] background iniciado — v1.0.5')
 
-// Sem isto, clicar no ícone da extensão na barra não faz nada — por padrão
-// o botão de ação não abre o painel lateral sozinho, mesmo com
-// side_panel.default_path definido no manifest.json. Confirmado por teste
-// manual (usuário rodou isto no console do service worker e funcionou) que
-// a chamada em si está certa — o problema era SÓ no nível raiz do módulo
-// (fora de qualquer listener) ela não pegava. A documentação oficial do
-// Chrome usa o padrão dentro de onInstalled — troquei pra isso, mantendo
-// a chamada solta também como reforço (chamar 2x não tem efeito colateral).
-function habilitarAberturaPeloIcone() {
+// O clique no ícone é tratado AQUI (action.onClicked) em vez de
+// openPanelOnActionClick: com o atalho automático o Chrome abre o painel mas
+// NÃO conta como "extensão acionada na aba", e aí chrome.tabCapture recusa
+// ("Extension has not been invoked for the current page") — o áudio do
+// cliente nunca era capturado. O onClicked conta como acionamento, e o
+// sidePanel.open precisa ser chamado direto nele (gesto do usuário, sem await
+// antes). O valor do setPanelBehavior fica salvo no Chrome, por isso é
+// desligado explicitamente.
+function desligarAtalhoDoPainel() {
   chrome.sidePanel
-    .setPanelBehavior({ openPanelOnActionClick: true })
-    .then(() => console.log('[copiloto-ext] setPanelBehavior ok'))
-    .catch((err) => {
-      console.error('[copiloto-ext] falha ao habilitar abrir o painel pelo ícone:', err)
-    })
+    .setPanelBehavior({ openPanelOnActionClick: false })
+    .catch((err) => console.error('[copiloto-ext] falha no setPanelBehavior:', err))
 }
 
-habilitarAberturaPeloIcone()
-chrome.runtime.onInstalled.addListener(habilitarAberturaPeloIcone)
-chrome.runtime.onStartup.addListener(habilitarAberturaPeloIcone)
+desligarAtalhoDoPainel()
+chrome.runtime.onInstalled.addListener(desligarAtalhoDoPainel)
+chrome.runtime.onStartup.addListener(desligarAtalhoDoPainel)
+
+chrome.action.onClicked.addListener((tab) => {
+  if (!tab.id) return
+  if (!tab.url || !MEET_PATTERN.test(tab.url)) {
+    console.log('[copiloto-ext] ícone clicado fora do Meet — painel só abre em meet.google.com')
+    return
+  }
+  chrome.sidePanel.open({ tabId: tab.id }).catch((err) => console.error('[copiloto-ext] falha ao abrir o painel:', err))
+})
 
 async function atualizarSidePanel(tabId: number, url: string | undefined) {
   const habilitado = !!url && MEET_PATTERN.test(url)

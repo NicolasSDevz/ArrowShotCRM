@@ -10,7 +10,12 @@
 // API e repassa erro/retry-after pro chamador decidir.
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
-const GROQ_MODEL = 'whisper-large-v3-turbo'
+// large-v3 (completo) acerta bem mais português que o turbo; se o Groq
+// recusar o modelo, cai pro turbo (ver transcribeWithGroq).
+const GROQ_MODEL = 'whisper-large-v3'
+const GROQ_MODEL_FALLBACK = 'whisper-large-v3-turbo'
+/** O prompt do Whisper aceita ~224 tokens — corta o contexto pra caber. */
+const MAX_CONTEXTO_CHARS = 400
 
 // Vocabulário do nicho — ajuda o Whisper a acertar termos que confunde
 // (ex: "país-obro" em vez de "pós-obra", "faxinho" em vez de "faxina").
@@ -28,16 +33,30 @@ export class GroqRateLimitError extends Error {
  *  utils.encodeWAV do @ricky0123/vad-web no frontend). Lança
  *  GroqRateLimitError em 429 (com o retry-after, se vier) pro chamador
  *  decidir o que fazer — a pausa/reenvio é controlada no navegador. */
-export async function transcribeWithGroq(audioBuffer, mimeType = 'audio/wav', fileName = 'audio.wav') {
+export async function transcribeWithGroq(audioBuffer, mimeType = 'audio/wav', fileName = 'audio.wav', contexto = '') {
   if (!process.env.GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY não configurada no servidor')
   }
+  try {
+    return await chamarGroq(GROQ_MODEL, audioBuffer, mimeType, fileName, contexto)
+  } catch (err) {
+    if (err instanceof GroqRateLimitError) throw err
+    console.warn(`[groqWhisper] ${GROQ_MODEL} falhou (${err.message}) — tentando ${GROQ_MODEL_FALLBACK}`)
+    return chamarGroq(GROQ_MODEL_FALLBACK, audioBuffer, mimeType, fileName, contexto)
+  }
+}
+
+/** `contexto`: o que foi dito logo antes na chamada — o Whisper usa o prompt
+ *  como "texto anterior" e acerta mais palavras e nomes com ele. */
+async function chamarGroq(model, audioBuffer, mimeType, fileName, contexto) {
+  const ctx = typeof contexto === 'string' ? contexto.trim().slice(-MAX_CONTEXTO_CHARS) : ''
 
   const form = new FormData()
   form.append('file', new Blob([audioBuffer], { type: mimeType }), fileName)
-  form.append('model', GROQ_MODEL)
+  form.append('model', model)
   form.append('language', 'pt')
-  form.append('prompt', NICHE_PROMPT)
+  form.append('prompt', ctx ? `${NICHE_PROMPT}
+${ctx}` : NICHE_PROMPT)
   form.append('response_format', 'json')
   form.append('temperature', '0')
 
