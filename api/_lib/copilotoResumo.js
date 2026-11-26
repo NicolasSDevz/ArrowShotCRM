@@ -4,8 +4,8 @@
 //
 // Diferente da sugestão ao vivo (Haiku, streaming, texto livre curto): aqui
 // é Claude Sonnet, uma resposta só ao final da chamada, com os 7 campos
-// garantidos via tool use forçado (tool_choice) — mais confiável que
-// parsear texto livre pra 7 campos, alguns multi-linha.
+// pedidos via tool use (tool_choice auto: o Sonnet 5.5 não aceita forçado),
+// com JSON em texto como reserva.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { getDoc } from './firebaseAdmin.js'
@@ -100,7 +100,7 @@ export async function runCopilotoResumo({ leadId, blocos, sugestoes }) {
     '\n## Sugestões geradas durante a chamada',
     formatSugestoes(sugestoes),
     '\n## Tarefa',
-    'Preencha o resumo estruturado chamando registrar_resumo. Só use o que está na transcrição acima.',
+    'Preencha o resumo estruturado chamando a ferramenta registrar_resumo (obrigatório — não responda em texto). Só use o que está na transcrição acima.',
   ].join('\n')
 
   const client = new Anthropic({ timeout: 45_000, maxRetries: 1 })
@@ -109,13 +109,24 @@ export async function runCopilotoResumo({ leadId, blocos, sugestoes }) {
     max_tokens: MAX_TOKENS,
     system,
     tools: [RESUMO_TOOL],
-    tool_choice: { type: 'tool', name: 'registrar_resumo' },
+    // Este modelo não aceita tool_choice forçado ("tool"/"any") — a tarefa
+    // manda chamar a ferramenta e, se vier texto, tenta ler o JSON dele.
+    tool_choice: { type: 'auto' },
     messages: [{ role: 'user', content: userContent }],
   })
 
   const toolUse = response.content.find((b) => b.type === 'tool_use')
-  if (!toolUse) throw new Error('O modelo não retornou o resumo estruturado')
-  const input = toolUse.input || {}
+  let input = toolUse?.input
+  if (!input) {
+    const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n')
+    const json = text.match(/\{[\s\S]*\}/)
+    try {
+      input = json ? JSON.parse(json[0]) : null
+    } catch {
+      input = null
+    }
+  }
+  if (!input || typeof input !== 'object') throw new Error('O modelo não retornou o resumo estruturado')
 
   const proximoPassoData = typeof input.proximo_passo_data === 'string' && DATE_RE.test(input.proximo_passo_data) ? input.proximo_passo_data : null
 
