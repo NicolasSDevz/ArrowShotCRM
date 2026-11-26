@@ -15,6 +15,7 @@ export function Tabs({
   variant = 'underline',
   moreLabel = 'Mais',
   compact = false,
+  bare = false,
 }: {
   tabs: {
     label: string
@@ -40,6 +41,8 @@ export function Tabs({
   moreLabel?: string
   /** Só visual (underline): abas juntas à esquerda em vez de espalhadas. Não muda a leitura nem o teclado. */
   compact?: boolean
+  /** Só com pills: sem faixa de fundo nem recuo — pra abas dentro de outra aba. */
+  bare?: boolean
 }) {
   const pills = variant === 'pills'
   const page = variant === 'page'
@@ -149,7 +152,7 @@ export function Tabs({
 
   return (
     <div>
-      <div className={page ? 'flex items-center gap-2 border-b border-slate-200' : pills ? 'flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4' : compact ? 'flex flex-wrap items-center gap-x-1 gap-y-1 border-b border-slate-100 px-3' : 'flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6'}>
+      <div className={page ? 'flex items-center gap-2 border-b border-slate-200' : pills && bare ? 'flex items-center gap-2' : pills ? 'flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 sm:px-4' : compact ? 'flex flex-wrap items-center gap-x-1 gap-y-1 border-b border-slate-100 px-3' : 'flex flex-wrap items-center gap-x-10 gap-y-1 border-b border-slate-100 px-6'}>
         <div
           role="tablist"
           aria-label={label}
@@ -230,7 +233,7 @@ export function Tabs({
           </button>
         )}
       </div>
-      <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className={page ? 'pt-6' : pills ? 'p-5' : compact ? 'p-5 sm:p-6' : 'px-5 py-4'}>
+      <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className={page ? 'pt-6' : pills && bare ? 'pt-5' : pills ? 'p-5' : compact ? 'p-5 sm:p-6' : 'px-5 py-4'}>
         {exitButton('inicio')}
         {tabs[active].content}
         {exitButton('fim')}

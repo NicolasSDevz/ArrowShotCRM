@@ -9,20 +9,27 @@ import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
 import { PrivateMoney } from '../ui/PrivateData'
 import { usePrivacy } from '../../context/PrivacyContext'
-import { LEAD_SEGMENT_BADGE, LEAD_SEGMENT_LABEL, LEAD_SOURCE_LABEL, LEAD_TEMPERATURE_BADGE, LEAD_TEMPERATURE_LABEL, bantTotal, formatFieldValue, leadTemperature, type AppUser, type Lead, type PipelineField } from '../../types'
+import { LEAD_TEMPERATURE_BADGE, LEAD_TEMPERATURE_LABEL, bantTotal, formatFieldValue, leadTemperature, type AppUser, type Lead, type PipelineField } from '../../types'
 import type { LeadFormTag } from './leadFormColors'
 
 function leadServiceLabel(lead: Lead): string {
   const parts: string[] = []
   if (lead.services.paidTraffic) parts.push('Tráfego Pago')
   if (lead.services.socialMedia) parts.push('Social Mídia')
+  if (lead.services.landingPage) parts.push('Landing Page')
   return parts.length > 0 ? parts.join(' + ') : '—'
 }
 
-function daysInStageLabel(stageChangedAt: Lead['stageChangedAt']): string {
-  const days = differenceInCalendarDays(new Date(), stageChangedAt.toDate())
-  if (days <= 0) return 'hoje nesta etapa'
-  return `há ${days} dia${days === 1 ? '' : 's'} nesta etapa`
+/** Lead parado há mais que isso numa etapa aberta fica em destaque. */
+const STALE_DAYS = 3
+
+function daysInStage(stageChangedAt: Lead['stageChangedAt']): number {
+  return Math.max(0, differenceInCalendarDays(new Date(), stageChangedAt.toDate()))
+}
+
+function daysInStageLabel(days: number, stale: boolean): string {
+  if (days <= 0) return 'entrou hoje nesta etapa'
+  return `${stale ? 'parado há' : 'há'} ${days} dia${days === 1 ? '' : 's'} nesta etapa`
 }
 
 export function LeadCard({
@@ -33,6 +40,7 @@ export function LeadCard({
   formTag,
   existingClientName,
   wa,
+  openStage = true,
 }: {
   lead: Lead
   assignee?: AppUser
@@ -44,6 +52,8 @@ export function LeadCard({
   existingClientName?: string
   /** Conversa do WhatsApp desse lead (mostra a última mensagem e as não lidas). */
   wa?: WaConversation
+  /** Etapa aberta (não é ganho nem perdido): só aí "parado há X dias" acende. */
+  openStage?: boolean
 }) {
   // "Novo" nas primeiras 24h depois de chegar pelo formulário.
   const isFresh = !!formTag && !!lead.createdAt && differenceInHours(new Date(), lead.createdAt.toDate()) < 24
@@ -53,6 +63,9 @@ export function LeadCard({
     .filter((f) => f.showOnCard)
     .map((f) => ({ f, text: formatFieldValue(f, lead.customFields?.[f.id]) }))
     .filter((x) => x.text)
+  const days = daysInStage(lead.stageChangedAt)
+  const stale = openStage && days > STALE_DAYS
+  const hasMeta = (lead.estimatedValue ?? 0) > 0 || !!lead.nextActionDate
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id })
 
   return (
@@ -99,22 +112,21 @@ export function LeadCard({
         <Avatar name={assignee?.name ?? '?'} photoURL={assignee?.photoURL} size="xs" />
       </div>
 
-      <div className="flex flex-wrap items-center gap-1">
-        {lead.segment && <Badge className={`${LEAD_SEGMENT_BADGE[lead.segment]} font-semibold`}>{LEAD_SEGMENT_LABEL[lead.segment]}</Badge>}
-        {temperature && (
-          <Badge className={`${LEAD_TEMPERATURE_BADGE[temperature]} font-semibold`} title={`BANT ${bantTotal(lead.bant)} de 12`}>
-            {LEAD_TEMPERATURE_LABEL[temperature]} · {bantTotal(lead.bant)}
-          </Badge>
-        )}
-        {leadServiceLabel(lead) !== '—' && <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>}
-        {lead.services.landingPage && <Badge className="badge-service-landing">Landing Page</Badge>}
-        {!formTag && <Badge className="bg-slate-100 text-[11px] text-slate-500">{LEAD_SOURCE_LABEL[lead.source]}</Badge>}
-        {existingClientName && (
-          <Badge className="bg-amber-50 text-[11px] text-amber-700" title={isPrivacyMode ? undefined : `Já é cliente: ${existingClientName}`}>
-            Já é cliente
-          </Badge>
-        )}
-      </div>
+      {(temperature || leadServiceLabel(lead) !== '—' || existingClientName) && (
+        <div className="flex flex-wrap items-center gap-1">
+          {temperature && (
+            <Badge className={`${LEAD_TEMPERATURE_BADGE[temperature]} font-semibold`} title={`BANT ${bantTotal(lead.bant)} de 12`}>
+              {LEAD_TEMPERATURE_LABEL[temperature]}
+            </Badge>
+          )}
+          {leadServiceLabel(lead) !== '—' && <Badge className="bg-blue-50 text-blue-600">{leadServiceLabel(lead)}</Badge>}
+          {existingClientName && (
+            <Badge className="bg-amber-50 text-[11px] text-amber-700" title={isPrivacyMode ? undefined : `Já é cliente: ${existingClientName}`}>
+              Já é cliente
+            </Badge>
+          )}
+        </div>
+      )}
 
       {cardFields.length > 0 && (
         <div className="flex flex-col gap-0.5">
@@ -126,15 +138,18 @@ export function LeadCard({
         </div>
       )}
 
-      {lead.estimatedValue != null && lead.estimatedValue > 0 && (
-        <p className="text-sm font-semibold text-slate-700">
-          <PrivateMoney value={lead.estimatedValue} />
-        </p>
-      )}
-
-      {lead.nextActionDate && (
-        <p className="text-xs text-slate-500">
-          Próxima ação: {format(lead.nextActionDate.toDate(), 'dd/MM/yyyy', { locale: ptBR })}
+      {hasMeta && (
+        <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-500">
+          {lead.estimatedValue != null && lead.estimatedValue > 0 && (
+            <span className="text-sm font-semibold text-slate-700">
+              <PrivateMoney value={lead.estimatedValue} />
+            </span>
+          )}
+          {lead.nextActionDate && (
+            <span>
+              {lead.estimatedValue ? '· ' : ''}Próxima ação {format(lead.nextActionDate.toDate(), 'dd/MM', { locale: ptBR })}
+            </span>
+          )}
         </p>
       )}
 
@@ -159,7 +174,7 @@ export function LeadCard({
         </div>
       )}
 
-      <p className="text-[11px] text-slate-400">{daysInStageLabel(lead.stageChangedAt)}</p>
+      <p className={`text-[11px] ${stale ? 'font-semibold text-amber-600' : 'text-slate-400'}`}>{daysInStageLabel(days, stale)}</p>
     </div>
   )
 }

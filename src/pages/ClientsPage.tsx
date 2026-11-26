@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, LayoutGrid, List, X } from 'lucide-react'
+import { Plus, Search, LayoutGrid, List, X, SlidersHorizontal } from 'lucide-react'
 import { useClients } from '../hooks/useClients'
 import { useUsers } from '../hooks/useUsers'
 import { useAuth } from '../context/AuthContext'
@@ -13,6 +13,7 @@ import { DeleteClientModal } from '../components/clients/DeleteClientModal'
 import { JornadaMigrationBanner } from '../components/clients/JornadaMigrationBanner'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Field, Select } from '../components/ui/Field'
 import { CLIENT_CATEGORY_LABEL, getClientOwnerIds, type Client, type ClientStatus } from '../types/client'
 
 type ViewMode = 'table' | 'grid'
@@ -91,6 +92,7 @@ export function ClientsPage() {
   const [view, setView] = usePersistedViewMode<ViewMode>('clientsView', 'table')
   const [creating, setCreating] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const managerFilter =
     managerFilterChoice ?? (MANAGER_FILTER_NAMES.includes(profile?.name ?? '') ? (profile?.name ?? '') : '')
@@ -137,6 +139,7 @@ export function ClientsPage() {
     )
   }, [filtered, userMap])
 
+  const extraFilterCount = [categoryFilter, serviceFilter, managerFilter].filter(Boolean).length + (sort !== 'name' ? 1 : 0)
   const hasActiveFilters = !!search || statusFilter !== 'active' || !!categoryFilter || !!serviceFilter || managerFilterChoice !== null
   const clearFilters = () => {
     setSearch('')
@@ -149,109 +152,129 @@ export function ClientsPage() {
   return (
     <div className="flex flex-col gap-4">
       <JornadaMigrationBanner clients={clients} />
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">Clientes</h1>
-          <p className="mt-0.5 text-sm text-slate-500">{filtered.length} cliente(s)</p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">
+          Clientes{' '}
+          <span className="text-base font-normal text-slate-500" aria-live="polite">
+            {filtered.length} {filtered.length === 1 ? 'cliente' : 'clientes'}
+          </span>
+        </h1>
         <Button style={{ height: '40px' }} icon={<Plus size={14} />} onClick={() => setCreating(true)}>
           Novo cliente
         </Button>
       </div>
 
-      <div role="group" aria-label="Status dos clientes" className="flex flex-wrap gap-1.5">
-        {STATUS_TABS.map((t) => {
-          const selected = statusFilter === t.value
-          const count = statusCounts[t.value] ?? 0
-          return (
-            <button
-              key={t.value}
-              onClick={() => setStatusFilter(t.value)}
-              aria-pressed={selected}
-              className={`flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors duration-150 ease-in-out ${
-                selected ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {t.label}
-              <span
-                className={`rounded-full px-1.5 text-xs font-semibold ${selected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}
+      {/* Uma linha só: busca, status, filtros e modo de exibição */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar cliente..."
+            aria-label="Buscar cliente pelo nome"
+            className="h-[38px] w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-sm outline-none transition-all duration-150 ease-in-out focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+          />
+        </div>
+        <div role="group" aria-label="Status dos clientes" className="flex flex-wrap items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+          {STATUS_TABS.map((t) => {
+            const selected = statusFilter === t.value
+            const count = statusCounts[t.value] ?? 0
+            return (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setStatusFilter(t.value)}
+                aria-pressed={selected}
+                className={`flex h-[32px] items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors duration-150 ease-in-out ${
+                  selected ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                }`}
               >
-                {count}
-              </span>
-            </button>
-          )
-        })}
+                {t.label}
+                <span className={`text-xs ${selected ? 'text-white/80' : 'text-slate-400'}`}>{count}</span>
+              </button>
+            )
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          aria-controls="clients-filters"
+          className={`flex h-[38px] items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+            filtersOpen || extraFilterCount > 0 ? 'border-brand-600 bg-brand-50 text-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+          }`}
+        >
+          <SlidersHorizontal size={14} aria-hidden="true" /> Filtros
+          {extraFilterCount > 0 && <span className="rounded-full bg-brand-600 px-1.5 text-[11px] font-bold text-white">{extraFilterCount}</span>}
+        </button>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="flex h-[38px] items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X size={13} aria-hidden="true" /> Limpar
+          </button>
+        )}
+        <div role="group" aria-label="Modo de exibição" className="ml-auto flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+          <button
+            type="button"
+            onClick={() => setView('table')}
+            aria-pressed={view === 'table'}
+            title="Ver em tabela"
+            aria-label="Ver em tabela"
+            className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${view === 'table' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <List size={15} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('grid')}
+            aria-pressed={view === 'grid'}
+            title="Ver em cartões"
+            aria-label="Ver em cartões"
+            className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${view === 'grid' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <LayoutGrid size={15} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar cliente..."
-              className="h-[38px] rounded-lg border border-slate-200 pl-8 pr-3 text-sm outline-none transition-all duration-150 ease-in-out focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
-            />
-          </div>
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
-            <option value="">Todas as categorias</option>
-            {Object.entries(CLIENT_CATEGORY_LABEL).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-          <select value={managerFilter} onChange={(e) => setManagerFilterChoice(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
-            <option value="">Todos os gestores</option>
-            {MANAGER_FILTER_NAMES.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-          <select value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)} className="h-[38px] rounded-lg border border-slate-200 px-3 text-sm transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
-            {SERVICE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="flex h-[38px] items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-            >
-              <X size={13} /> Limpar filtros
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-50 pt-2.5">
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs font-medium text-slate-400">Ordenar por</label>
-            <select value={sort} onChange={(e) => setSort(e.target.value as SortOption)} className="h-8 rounded-lg border border-slate-200 px-2 text-xs transition-all duration-150 ease-in-out focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
+      {filtersOpen && (
+        <div id="clients-filters" className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="Categoria">
+            <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+              <option value="">Todas</option>
+              {Object.entries(CLIENT_CATEGORY_LABEL).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Gestor">
+            <Select value={managerFilter} onChange={(e) => setManagerFilterChoice(e.target.value)}>
+              <option value="">Todos</option>
+              {MANAGER_FILTER_NAMES.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Serviço">
+            <Select value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)}>
+              {SERVICE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Ordenar por">
+            <Select value={sort} onChange={(e) => setSort(e.target.value as SortOption)}>
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
-            <button
-              onClick={() => setView('table')}
-              title="Visualizar em tabela"
-              className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-                view === 'table' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <List size={14} />
-            </button>
-            <button
-              onClick={() => setView('grid')}
-              title="Visualizar em cartões"
-              className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-                view === 'grid' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <LayoutGrid size={14} />
-            </button>
-          </div>
+            </Select>
+          </Field>
         </div>
-      </div>
+      )}
 
       {!loading && filtered.length === 0 ? (
         <EmptyState title="Nenhum cliente encontrado" description="Ajuste os filtros ou cadastre um novo cliente." />
@@ -265,6 +288,7 @@ export function ClientsPage() {
           ownersByClientId={ownersByClientId}
           onRowClick={(c) => navigate(`/clientes/${c.id}`)}
           onDelete={(c) => setDeletingClient(c)}
+          showStatus={statusFilter === 'all'}
         />
       )}
 

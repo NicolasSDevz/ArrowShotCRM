@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { AlertTriangle, ArrowLeft, Pencil, Plus, Globe, Camera, ThumbsUp, Phone, Mail, MapPin, Sparkles, CheckSquare, MoreVertical, Trash2, MessageCircle } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Pencil, Plus, Sparkles, CheckSquare, MoreVertical, Trash2, MessageCircle } from 'lucide-react'
 import { useClients } from '../hooks/useClients'
 import { useTasks } from '../hooks/useTasks'
 import { useContents } from '../hooks/useContents'
@@ -12,12 +12,10 @@ import { ClientFormModal } from '../components/clients/ClientFormModal'
 import { ClientPaidTrafficBriefingPanel } from '../components/clients/ClientPaidTrafficBriefingPanel'
 import { ClientCampaignPlanningPanel } from '../components/clients/ClientCampaignPlanningPanel'
 import { ClientLandingPagePanel } from '../components/clients/ClientLandingPagePanel'
-import { ClientServiceBadges } from '../components/clients/ServiceBadges'
+import { ClientOverviewTab } from '../components/clients/ClientOverviewTab'
 import { ClientLogoUpload } from '../components/clients/ClientLogoUpload'
-import { ClientOnboardingMeetingsSection } from '../components/clients/ClientOnboardingMeetingsSection'
 import { DeleteClientModal } from '../components/clients/DeleteClientModal'
 import { Badge } from '../components/ui/Badge'
-import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { PrivateData } from '../components/ui/PrivateData'
 import { usePrivacy } from '../context/PrivacyContext'
@@ -42,7 +40,28 @@ import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 import { useAuth } from '../context/AuthContext'
 import { resolveRoutinePersonKey } from '../services/dailyRoutineTemplates'
 import { missingFieldsOfClient } from '../utils/clientCompleteness'
-import { formatBRL } from '../utils/pricing'
+
+/** Onde o Jamilson parou na ficha (grupo e sub-aba), pra abrir o próximo
+ *  cliente no mesmo lugar. Só pra ele: os outros sempre abrem na Visão geral. */
+const FICHA_KEY = 'fichaCliente:ultimo'
+type FichaPos = { group: string; sub: Record<string, string> }
+function loadFichaPos(): FichaPos | null {
+  try {
+    const raw = localStorage.getItem(FICHA_KEY)
+    return raw ? (JSON.parse(raw) as FichaPos) : null
+  } catch {
+    return null
+  }
+}
+function saveFichaPos(pos: FichaPos) {
+  try {
+    localStorage.setItem(FICHA_KEY, JSON.stringify(pos))
+  } catch {
+    /* sem storage: só não lembra */
+  }
+}
+
+type SubTab = { label: string; content: ReactNode }
 
 export function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -64,8 +83,15 @@ export function ClientDetailPage() {
   const [whatsappGroupModalOpen, setWhatsappGroupModalOpen] = useState(false)
   const { isPrivacyMode } = usePrivacy()
   const { profile } = useAuth()
-  // Jamilson (CS) usa leitor de tela: Reuniões fica sempre visível, sem passar pelo "Mais".
+  // Jamilson (CS) usa leitor de tela: a ficha abre direto em Relacionamento,
+  // ou onde ele parou da última vez.
   const isJamilson = !!profile && resolveRoutinePersonKey(profile.name) === 'jamilson'
+  const [pos, setPos] = useState<FichaPos | null>(null)
+  const current: FichaPos = pos ?? (isJamilson ? loadFichaPos() : null) ?? { group: isJamilson ? 'Relacionamento' : 'Visão geral', sub: {} }
+  const updatePos = (next: FichaPos) => {
+    setPos(next)
+    if (isJamilson) saveFichaPos(next)
+  }
 
   if (!client) {
     return <EmptyState title="Cliente não encontrado" action={<Button onClick={() => navigate('/clientes')}>Voltar</Button>} />
@@ -77,270 +103,234 @@ export function ClientDetailPage() {
   const openTask = tasks.find((t) => t.id === openTaskId) ?? null
   const openContent = contents.find((c) => c.id === openContentId) ?? null
   const missingInfo = client.status === 'churned' ? [] : missingFieldsOfClient(client)
-  const startDate = client.contractStartDate?.toDate?.()
-  const summary: { label: string; value: ReactNode }[] = [
-    { label: 'Segmento', value: client.segment || '—' },
-    { label: 'Valor mensal', value: client.monthlyValue ? <PrivateData value={formatBRL(client.monthlyValue)} mask="R$ ••••" /> : '—' },
-    { label: 'Início do contrato', value: startDate ? format(startDate, "dd 'de' MMM yyyy", { locale: ptBR }) : '—' },
-    { label: 'Documento', value: client.document ? <PrivateData value={client.document} /> : '—' },
-  ]
 
-  // Abas dependem dos serviços contratados: só Social Mídia esconde
-  // Planejamento de Campanha, Otimizações e Tarefas (o fluxo do conteúdo é
-  // gerido pela aba Conteúdos). Tráfego Pago + Social Mídia mostra tudo.
   const hasPT = !!client.modules?.paidTraffic
   const hasSM = !!client.modules?.socialMedia
   const hasLP = !!client.modules?.landingPage
+  const platforms = [client.modules?.metaAds && 'Meta', client.modules?.googleAds && 'Google'].filter(Boolean).join(' e ')
+  const serviceLine = [hasPT && (platforms ? `Tráfego (${platforms})` : 'Tráfego'), hasSM && 'Social Mídia', hasLP && 'Landing Page']
+    .filter(Boolean)
+    .join(', ')
 
-  const trafficTabs = hasPT
-    ? [
-        { label: 'Planejamento de Campanha', content: <ClientCampaignPlanningPanel client={client} /> },
-        {
-          label: 'Tarefas',
-          secondary: true,
-          content: (
-            <div className="flex flex-col gap-2">
-              <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreatingTask(true)} className="self-end">
-                Nova tarefa
-              </Button>
-              {tasks.length === 0 ? (
-                <EmptyState title="Nenhuma tarefa para este cliente" />
-              ) : (
-                tasks.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setOpenTaskId(t.id)}
-                    className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                  >
-                    <CheckSquare size={14} className="text-slate-300" />
-                    <span className="flex-1 truncate text-slate-700">{t.title}</span>
-                    <span className="text-xs text-slate-400">{TASK_STATUS_LABEL[t.status]}</span>
-                  </button>
-                ))
-              )}
-            </div>
-          ),
-        },
-        { label: 'Otimizações', secondary: true, content: <ClientOptimizationsTab client={client} /> },
-      ]
-    : []
+  const tasksTab = (
+    <div className="flex flex-col gap-2">
+      <Button size="sm" icon={<Plus size={13} />} onClick={() => setCreatingTask(true)} className="self-end">
+        Nova tarefa
+      </Button>
+      {tasks.length === 0 ? (
+        <EmptyState title="Nenhuma tarefa para este cliente" />
+      ) : (
+        tasks.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setOpenTaskId(t.id)}
+            className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50"
+          >
+            <CheckSquare size={14} className="text-slate-300" aria-hidden="true" />
+            <span className="flex-1 truncate text-slate-700">{t.title}</span>
+            <span className="text-xs text-slate-400">{TASK_STATUS_LABEL[t.status]}</span>
+          </button>
+        ))
+      )}
+    </div>
+  )
 
-  const contentTab = hasSM ? [{ label: 'Conteúdos', secondary: true, content: <ClientContentsTab client={client} /> }] : []
+  const calendarTab = (
+    <ScheduleList
+      items={[
+        ...tasks.filter((t) => t.dueDate).map((t) => ({ id: t.id, title: t.title, date: t.dueDate!.toDate(), kind: 'task' as const })),
+        ...contents.filter((c) => c.scheduledDate).map((c) => ({ id: c.id, title: c.title, date: c.scheduledDate!.toDate(), kind: 'content' as const })),
+      ]}
+      onOpenTask={setOpenTaskId}
+      onOpenContent={setOpenContentId}
+    />
+  )
 
-  const landingPageTab = hasLP ? [{ label: 'Landing Page', secondary: true, content: <ClientLandingPagePanel client={client} /> }] : []
+  // Grupos da ficha. Cada grupo tem sub-abas com o mesmo componente acessível
+  // (setas, aviso falado e "Sair de..."). Grupo com uma sub-aba só mostra o
+  // conteúdo direto.
+  const deliveryLabel = hasSM && hasLP ? 'Conteúdo e site' : hasSM ? 'Social Mídia' : 'Landing Page'
+  const groups: { label: string; items: SubTab[] }[] = [
+    {
+      label: 'Visão geral',
+      items: [{ label: 'Visão geral', content: <ClientOverviewTab client={client} owners={owners} tasks={tasks} onOpenTask={setOpenTaskId} /> }],
+    },
+    ...(hasPT
+      ? [
+          {
+            label: 'Tráfego',
+            items: [
+              { label: 'Briefing', content: <ClientPaidTrafficBriefingPanel client={client} /> },
+              { label: 'Planejamento de Campanha', content: <ClientCampaignPlanningPanel client={client} /> },
+              { label: 'Otimizações', content: <ClientOptimizationsTab client={client} /> },
+              { label: 'Tarefas', content: tasksTab },
+            ],
+          },
+        ]
+      : []),
+    ...(hasSM || hasLP
+      ? [
+          {
+            label: deliveryLabel,
+            items: [
+              ...(hasSM ? [{ label: 'Conteúdos', content: <ClientContentsTab client={client} /> }] : []),
+              ...(hasLP ? [{ label: 'Landing Page', content: <ClientLandingPagePanel client={client} /> }] : []),
+            ],
+          },
+        ]
+      : []),
+    {
+      label: 'Relacionamento',
+      items: [
+        { label: 'Reuniões', content: <ClientMeetingsTab client={client} /> },
+        { label: 'Jornada do Cliente', content: <ClientJornadaTab client={client} /> },
+        { label: 'Sucesso do Cliente', content: <ClientSuccessTab clientId={client.id} clientName={client.companyName} /> },
+        { label: 'Calendário', content: calendarTab },
+      ],
+    },
+    {
+      label: 'Acessos e arquivos',
+      items: [
+        { label: 'Acessos', content: <ClientAccessTab client={client} /> },
+        { label: 'Arquivos', content: <FilesPanel clientId={client.id} category="documents" relatedType="client" relatedId={client.id} /> },
+        { label: 'Comentários', content: <CommentsPanel entityType="client" entityId={client.id} clientId={client.id} /> },
+        { label: 'Histórico', content: <ActivityPanel entityType="client" entityId={client.id} /> },
+      ],
+    },
+  ]
+  const groupIdx = Math.max(0, groups.findIndex((g) => g.label === current.group))
+  const subIdxOf = (g: (typeof groups)[number]) => Math.max(0, g.items.findIndex((it) => it.label === current.sub[g.label]))
 
   return (
     <div className="flex flex-col gap-4">
       <button onClick={() => navigate('/clientes')} className="flex w-fit items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-        <ArrowLeft size={13} /> Clientes
+        <ArrowLeft size={13} aria-hidden="true" /> Clientes
       </button>
 
-      <div className="rounded-2xl border border-slate-200 bg-white">
-        <div className="flex flex-wrap items-start justify-between gap-4 p-5">
-          <div className="flex min-w-0 items-center gap-4">
-            <ClientLogoUpload client={client} />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="truncate text-[22px] font-bold leading-tight tracking-tight text-slate-900"><PrivateData value={client.companyName} /></h1>
-                <Badge className={client.status === 'churned' && client.churnType === 'completed' ? 'bg-emerald-50 text-emerald-700' : CLIENT_STATUS_BADGE[client.status]}>{clientStatusLabel(client)}</Badge>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {client.categoria && (
-                  <Badge className={CLIENT_CATEGORY_BADGE[client.categoria]}>{CLIENT_CATEGORY_LABEL[client.categoria]}</Badge>
-                )}
-                {client.socialPlan ? <Badge className="bg-brand-50 text-brand-600">{socialPlanLabel(client.socialPlan)}</Badge> : client.package && <Badge className="bg-brand-50 text-brand-600">{CLIENT_PACKAGE_LABEL[client.package]}</Badge>}
-                {client.styleCatalog && (
-                  <Badge className="bg-slate-100 text-slate-500">{STYLE_CATALOG_LABEL[client.styleCatalog]}</Badge>
-                )}
-                {(hasPT || hasSM || hasLP) && <ClientServiceBadges client={client} />}
-              </div>
-              {client.contactName && (
-                <p className="mt-1.5 text-sm text-slate-500">
-                  <PrivateData value={client.contactName} />
-                </p>
-              )}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <ClientLogoUpload client={client} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-[24px] font-bold leading-tight tracking-tight text-slate-900">
+                <PrivateData value={client.companyName} />
+              </h1>
+              <Badge className={client.status === 'churned' && client.churnType === 'completed' ? 'bg-emerald-50 text-emerald-700' : CLIENT_STATUS_BADGE[client.status]}>
+                {clientStatusLabel(client)}
+              </Badge>
             </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {isPrivacyMode ? (
-              <span
-                title="Grupo do WhatsApp oculto no modo apresentação"
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 text-xs font-medium text-slate-400"
-              >
-                <MessageCircle size={13} /> ••••••
-              </span>
-            ) : client.whatsappGroupLink ? (
-              <a
-                href={client.whatsappGroupLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Abrir grupo do WhatsApp"
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-500 px-2.5 text-xs font-medium text-white transition-colors duration-150 ease-in-out hover:bg-emerald-600"
-              >
-                <MessageCircle size={13} /> Abrir grupo
-              </a>
-            ) : (
-              <button
-                title="Adicionar link do grupo do WhatsApp"
-                onClick={() => setWhatsappGroupModalOpen(true)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 text-xs font-medium text-slate-500 transition-colors duration-150 ease-in-out hover:bg-slate-200"
-              >
-                <MessageCircle size={13} /> Adicionar grupo
-              </button>
-            )}
-            <Button variant="secondary" size="sm" icon={<Pencil size={13} />} onClick={() => setEditing(true)}>
-              Editar
-            </Button>
-            <div className="relative">
-              <button
-                onClick={() => setOptionsOpen((v) => !v)}
-                aria-label="Mais opções do cliente"
-                aria-expanded={optionsOpen}
-                className="rounded-lg p-2 text-slate-400 transition-colors duration-150 ease-in-out hover:bg-slate-100 hover:text-slate-600"
-              >
-                <MoreVertical size={16} />
-              </button>
-              {optionsOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setOptionsOpen(false)} />
-                  <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-slate-100 bg-white p-1 shadow-lg">
-                    <button
-                      onClick={() => {
-                        setOptionsOpen(false)
-                        setDeleting(true)
-                      }}
-                      className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 size={14} /> Excluir cliente
-                    </button>
-                  </div>
-                </>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+              {client.categoria && <Badge className={CLIENT_CATEGORY_BADGE[client.categoria]}>{CLIENT_CATEGORY_LABEL[client.categoria]}</Badge>}
+              {serviceLine && <span>{serviceLine}</span>}
+              {client.segment && <span>· {client.segment}</span>}
+              {client.socialPlan ? (
+                <Badge className="bg-brand-50 text-brand-600">{socialPlanLabel(client.socialPlan)}</Badge>
+              ) : (
+                client.package && <Badge className="bg-brand-50 text-brand-600">{CLIENT_PACKAGE_LABEL[client.package]}</Badge>
               )}
+              {client.styleCatalog && <Badge className="bg-slate-100 text-slate-500">{STYLE_CATALOG_LABEL[client.styleCatalog]}</Badge>}
             </div>
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 px-5 py-3 text-[13px] text-slate-500">
-          {client.whatsapp && (
-            <span className="flex items-center gap-1.5">
-              <Phone size={13} className="text-slate-400" /> <PrivateData value={client.whatsapp} mask="••• •••••-••••" />
+        <div className="flex items-center gap-1.5">
+          {isPrivacyMode ? (
+            <span title="Grupo do WhatsApp oculto no modo apresentação" className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-slate-100 px-3 text-sm font-medium text-slate-400">
+              <MessageCircle size={14} aria-hidden="true" /> ••••••
             </span>
-          )}
-          {(client.contacts ?? []).map((c) => (
-            <span key={c.id} className="flex items-center gap-1.5" title="Pessoa do cliente: o WhatsApp dela é reconhecido como cliente">
-              <Phone size={13} className="text-slate-400" /> <PrivateData value={c.name} />
-              {c.role && <span className="text-slate-400">({c.role})</span>}
-              {c.whatsapp && <PrivateData value={c.whatsapp} mask="••• •••••-••••" />}
-            </span>
-          ))}
-          {client.email && (
-            <span className="flex items-center gap-1.5">
-              <Mail size={13} className="text-slate-400" /> <PrivateData value={client.email} mask="••••••@••••••.com" />
-            </span>
-          )}
-          {client.city && (
-            <span className="flex items-center gap-1.5">
-              <MapPin size={13} className="text-slate-400" /> <PrivateData value={client.city} />
-            </span>
-          )}
-          {client.instagram && <span className="flex items-center gap-1.5"><Camera size={13} className="text-slate-400" /> {client.instagram}</span>}
-          {client.facebook && <span className="flex items-center gap-1.5"><ThumbsUp size={13} className="text-slate-400" /> {client.facebook}</span>}
-          {client.website && <span className="flex items-center gap-1.5"><Globe size={13} className="text-slate-400" /> {client.website}</span>}
-          {owners.length > 0 && (
-            <span className="ml-auto flex items-center gap-2">
-              Responsáveis:
-              {owners.map((o) => (
-                <span key={o.id} className="flex items-center gap-1 text-slate-700">
-                  <Avatar name={o.name} photoURL={o.photoURL} size="xs" /> {o.name}
-                </span>
-              ))}
-            </span>
-          )}
-        </div>
-
-        <dl className="grid grid-cols-2 gap-px border-t border-slate-100 bg-slate-100 sm:grid-cols-4">
-          {summary.map((s) => (
-            <div key={s.label} className="bg-white px-5 py-3">
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{s.label}</dt>
-              <dd className="mt-0.5 truncate text-sm font-semibold text-slate-800">{s.value}</dd>
-            </div>
-          ))}
-        </dl>
-
-        {missingInfo.length > 0 && (
-          <div role="status" className="mx-5 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
-            <AlertTriangle size={18} className="shrink-0 text-amber-500" aria-hidden="true" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-800">Cadastro incompleto</p>
-              <p className="text-xs text-slate-600">Falta: {missingInfo.join(', ')}</p>
-            </div>
-            <Button size="sm" icon={<Pencil size={13} />} onClick={() => setEditing(true)}>
-              Completar cadastro
-            </Button>
-          </div>
-        )}
-
-        <section aria-labelledby="client-notes-title" className="mx-5 mb-5 mt-4 rounded-xl border-l-[3px] border-amber-400 bg-slate-50 px-4 py-3">
-          <h2 id="client-notes-title" className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-            Observações: o que foi vendido e combinado
-          </h2>
-          {client.notes?.trim() ? (
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{client.notes}</p>
+          ) : client.whatsappGroupLink ? (
+            <a
+              href={client.whatsappGroupLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-500 px-3 text-sm font-medium text-white transition-colors duration-150 ease-in-out hover:bg-emerald-600"
+            >
+              <MessageCircle size={14} aria-hidden="true" /> Grupo do WhatsApp
+            </a>
           ) : (
-            <p className="mt-1 text-sm text-slate-500">
-              Nenhuma observação. Clique em Editar e escreva o que foi vendido ou prometido a este cliente.
-            </p>
+            <button
+              onClick={() => setWhatsappGroupModalOpen(true)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-slate-100 px-3 text-sm font-medium text-slate-500 transition-colors duration-150 ease-in-out hover:bg-slate-200"
+            >
+              <MessageCircle size={14} aria-hidden="true" /> Adicionar grupo
+            </button>
           )}
-        </section>
+          <Button icon={<Pencil size={14} />} onClick={() => setEditing(true)}>
+            Editar
+          </Button>
+          <div className="relative">
+            <button
+              onClick={() => setOptionsOpen((v) => !v)}
+              aria-label="Mais opções do cliente"
+              aria-expanded={optionsOpen}
+              className="rounded-lg p-2 text-slate-400 transition-colors duration-150 ease-in-out hover:bg-slate-100 hover:text-slate-600"
+            >
+              <MoreVertical size={16} aria-hidden="true" />
+            </button>
+            {optionsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setOptionsOpen(false)} />
+                <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-slate-100 bg-white p-1 shadow-lg">
+                  <button
+                    onClick={() => {
+                      setOptionsOpen(false)
+                      setDeleting(true)
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 size={14} aria-hidden="true" /> Excluir cliente
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      <ClientOnboardingMeetingsSection client={client} />
+      {missingInfo.length > 0 && (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <AlertTriangle size={18} className="shrink-0 text-amber-500" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-800">Cadastro incompleto</p>
+            <p className="text-xs text-slate-600">Falta: {missingInfo.join(', ')}</p>
+          </div>
+          <Button size="sm" variant="secondary" icon={<Pencil size={13} />} onClick={() => setEditing(true)}>
+            Completar cadastro
+          </Button>
+        </div>
+      )}
 
       <section aria-labelledby="client-sections-title" className="rounded-2xl border border-slate-200 bg-white">
         <h2 id="client-sections-title" className="sr-only">
-          Seções da ficha de {client.companyName}
+          Ficha de {client.companyName}
         </h2>
         <Tabs
           compact
-          label={`Seções da ficha de ${client.companyName}`}
-          tabs={[
-            // Briefing é só de Tráfego Pago: o de Social Mídia saiu em 22/10/2026 (ninguém usava).
-            ...(hasPT ? [{ label: 'Briefing', content: <ClientPaidTrafficBriefingPanel client={client} /> }] : []),
-            { label: 'Acessos', content: <ClientAccessTab client={client} /> },
-            ...trafficTabs,
-            ...contentTab,
-            ...landingPageTab,
-            {
-              label: 'Calendário',
-              secondary: true,
-              content: (
-                <ScheduleList
-                  items={[
-                    ...tasks.filter((t) => t.dueDate).map((t) => ({ id: t.id, title: t.title, date: t.dueDate!.toDate(), kind: 'task' as const })),
-                    ...contents.filter((c) => c.scheduledDate).map((c) => ({ id: c.id, title: c.title, date: c.scheduledDate!.toDate(), kind: 'content' as const })),
-                  ]}
-                  onOpenTask={setOpenTaskId}
-                  onOpenContent={setOpenContentId}
+          label={`Ficha de ${client.companyName}`}
+          active={groupIdx}
+          onChange={(i) => updatePos({ ...current, group: groups[i].label })}
+          tabs={groups.map((g) => ({
+            label: g.label,
+            content:
+              g.items.length === 1 ? (
+                g.items[0].content
+              ) : (
+                <Tabs
+                  key={g.label}
+                  variant="pills"
+                  bare
+                  label={g.label}
+                  active={subIdxOf(g)}
+                  onChange={(i) => updatePos({ group: g.label, sub: { ...current.sub, [g.label]: g.items[i].label } })}
+                  tabs={g.items}
                 />
               ),
-            },
-            { label: 'Reuniões', secondary: !isJamilson, content: <ClientMeetingsTab client={client} /> },
-            { label: 'Jornada do Cliente', content: <ClientJornadaTab client={client} /> },
-            { label: 'Sucesso do Cliente', content: <ClientSuccessTab clientId={client.id} clientName={client.companyName} /> },
-            { label: 'Arquivos', secondary: true, content: <FilesPanel clientId={client.id} category="documents" relatedType="client" relatedId={client.id} /> },
-            { label: 'Comentários', secondary: true, content: <CommentsPanel entityType="client" entityId={client.id} clientId={client.id} /> },
-            { label: 'Histórico', secondary: true, content: <ActivityPanel entityType="client" entityId={client.id} /> },
-          ]}
+          }))}
         />
       </section>
 
       <ClientFormModal open={editing} onClose={() => setEditing(false)} client={client} />
       <WhatsappGroupLinkModal open={whatsappGroupModalOpen} onClose={() => setWhatsappGroupModalOpen(false)} client={client} />
-      <DeleteClientModal
-        client={deleting ? client : null}
-        onClose={() => setDeleting(false)}
-        onDeleted={() => navigate('/clientes')}
-      />
+      <DeleteClientModal client={deleting ? client : null} onClose={() => setDeleting(false)} onDeleted={() => navigate('/clientes')} />
       <TaskFormModal open={creatingTask} onClose={() => setCreatingTask(false)} defaultClientId={client.id} />
       <TaskDrawer key={`task-${openTaskId ?? 'none'}`} task={openTask} onClose={() => setOpenTaskId(null)} />
       <ContentDrawer key={`content-${openContentId ?? 'none'}`} content={openContent} onClose={() => setOpenContentId(null)} />
@@ -368,7 +358,7 @@ function ScheduleList({
           onClick={() => (item.kind === 'task' ? onOpenTask(item.id) : onOpenContent(item.id))}
           className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50"
         >
-          {item.kind === 'content' ? <Sparkles size={14} className="text-brand-300" /> : <CheckSquare size={14} className="text-blue-300" />}
+          {item.kind === 'content' ? <Sparkles size={14} className="text-brand-300" aria-hidden="true" /> : <CheckSquare size={14} className="text-blue-300" aria-hidden="true" />}
           <span className="flex-1 truncate text-slate-700">{item.title}</span>
           <span className="text-xs text-slate-400">{format(item.date, 'dd MMM yyyy', { locale: ptBR })}</span>
         </button>

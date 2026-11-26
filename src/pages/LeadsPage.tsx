@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { WhatsAppLogo } from '../components/ui/BrandLogos'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Upload, Kanban, List, Settings2, Gauge, Search, Megaphone } from 'lucide-react'
+import { Plus, Upload, Kanban, List, Settings2, Gauge, Search, Megaphone, SlidersHorizontal, History, ClipboardList } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ACTIVE_LEADS_DAYS, useAllLeads, useLeads } from '../hooks/useLeads'
 import { useUsers } from '../hooks/useUsers'
@@ -26,6 +26,7 @@ import { WhatsappHub } from '../components/whatsapp/WhatsappHub'
 import { buildLeadConversationMap, useWaConversations, useWaTemplates } from '../hooks/useWaConversations'
 import { BroadcastModal } from '../components/whatsapp/WaBroadcast'
 import { Button } from '../components/ui/Button'
+import { ActionsMenu } from '../components/ui/ActionsMenu'
 import { PrivateMoney } from '../components/ui/PrivateData'
 import { Modal } from '../components/ui/Modal'
 import { Field, Select, Textarea } from '../components/ui/Field'
@@ -99,6 +100,7 @@ export function LeadsPage() {
   // Filtro por faixa do BANT ('' = todos, 'none' = ainda não avaliados).
   const [bantOpen, setBantOpen] = useState(false)
   const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [tempFilter, setTempFilter] = useState<LeadTemperature | 'none' | ''>('')
   // Filtro por segmento ('' = todos, 'none' = sem segmento definido).
@@ -233,6 +235,7 @@ export function LeadsPage() {
     }
   }
 
+  const activeFilterCount = [tempFilter, segmentFilter, stageFilter, originFilter, ownerFilter].filter(Boolean).length
   const filtersActive = !!tempFilter || !!segmentFilter || !!stageFilter || !!originFilter || !!ownerFilter || !!needle
   const clearFilters = () => {
     setTempFilter('')
@@ -250,24 +253,66 @@ export function LeadsPage() {
 
   return (
     <div className={`flex flex-col ${mainTab === 'conversas' ? 'gap-3' : 'gap-4'}`}>
-      {/* Cabeçalho: título à esquerda, ações principais à direita */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        {/* No celular o nome da tela já está no topo: aqui fica só para o leitor de tela. */}
-        <div className={`min-w-0 ${mainTab === 'conversas' ? 'sr-only' : 'sr-only md:not-sr-only'}`}>
-          <h1 className="text-[26px] font-bold leading-tight tracking-tight text-slate-900">Leads</h1>
-          {mainTab !== 'conversas' && <p className="text-sm text-slate-500">Pipeline, respostas dos questionários e formulários de captura</p>}
+      {/* Cabeçalho: título e funil à esquerda; busca, Novo lead e o menu ⋮ à direita */}
+      <div className={mainTab === 'conversas' ? 'sr-only' : 'flex flex-wrap items-center justify-between gap-3'}>
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          {/* No celular o nome da tela já está no topo: aqui fica só para o leitor de tela. */}
+          <h1 className={`text-[26px] font-bold leading-tight tracking-tight text-slate-900 ${mainTab === 'conversas' ? '' : 'sr-only md:not-sr-only'}`}>Leads</h1>
+          {mainTab === 'pipeline' && pipelines.length > 1 && (
+            <label className="flex items-center gap-2 text-sm text-slate-500">
+              Funil
+              <select
+                value={activePipeline.id}
+                onChange={(e) => choosePipeline(e.target.value)}
+                className="h-[38px] rounded-lg border border-slate-200 bg-white pl-3 pr-8 text-sm font-semibold text-slate-800 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+              >
+                {pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({countByPipeline(p.id)})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
-        {mainTab === 'pipeline' && (
-          <div className="grid w-full grid-cols-[auto_auto_1fr] items-center gap-2 md:flex md:w-auto">
-            <Button variant="secondary" icon={<Gauge size={14} />} onClick={() => setBantOpen(true)} aria-label="Métricas BANT">
-              <span className="hidden sm:inline">Métricas BANT</span>
-            </Button>
-            <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setImporting(true)} aria-label="Importar leads">
-              <span className="hidden sm:inline">Importar</span>
-            </Button>
-            <Button icon={<Plus size={14} />} onClick={() => setCreating(true)} className="justify-center">
+        {mainTab !== 'conversas' && (
+          <div className="flex w-full items-center gap-2 md:w-auto">
+            {mainTab === 'pipeline' && (
+              <div className="relative min-w-0 flex-1 md:w-64 md:flex-none">
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar nome, empresa, WhatsApp..."
+                  aria-label="Buscar leads por nome, empresa ou WhatsApp"
+                  className="h-[38px] w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-sm outline-none transition-colors focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                />
+              </div>
+            )}
+            <Button icon={<Plus size={14} />} onClick={() => setCreating(true)} className="h-[38px] justify-center">
               Novo lead
             </Button>
+            <ActionsMenu
+              label="Mais ações de leads"
+              items={[
+                ...(mainTab === 'pipeline'
+                  ? [
+                      { label: 'Disparar WhatsApp', hint: 'Mensagem para vários leads deste funil', icon: <Megaphone size={15} />, onSelect: () => setBroadcastOpen(true) },
+                      { label: 'Importar leads', hint: 'Planilha ou lista', icon: <Upload size={15} />, onSelect: () => setImporting(true) },
+                      { label: 'Métricas BANT', icon: <Gauge size={15} />, onSelect: () => setBantOpen(true) },
+                      { label: 'Etapas e campos deste funil', icon: <Settings2 size={15} />, onSelect: () => setPipelineModal('edit') },
+                      { label: 'Novo funil', icon: <Plus size={15} />, onSelect: () => setPipelineModal('new') },
+                      {
+                        label: showOld ? 'Ocultar ganhos e perdidos antigos' : 'Mostrar ganhos e perdidos antigos',
+                        hint: `Mais de ${ACTIVE_LEADS_DAYS} dias`,
+                        icon: <History size={15} />,
+                        onSelect: () => setShowOld((v) => !v),
+                      },
+                    ]
+                  : []),
+                { label: 'Formulários de captura', hint: `${leadForms.length} formulário${leadForms.length === 1 ? '' : 's'}`, icon: <ClipboardList size={15} />, onSelect: () => setMainTab('forms') },
+              ]}
+            />
           </div>
         )}
       </div>
@@ -279,7 +324,7 @@ export function LeadsPage() {
           ['conversas', 'Conversas', waUnread],
           ['questionnaires', 'Questionários', newQuestionnaires],
           ['forms', 'Formulários', leadForms.length],
-        ] as const).map(([t, label, count]) => (
+        ] as const).filter(([t]) => t !== 'forms' || mainTab === 'forms').map(([t, label, count]) => (
           <button
             key={t}
             type="button"
@@ -321,92 +366,73 @@ export function LeadsPage() {
         <QuestionnairePanel leads={leads} forms={leadForms} pipelines={pipelines} onOpenLead={setOpenLeadId} />
       ) : (
         <>
-          {/* Barra do pipeline: qual quadro, filtros e modo de exibição num cartão só */}
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="group" aria-label="Pipelines">
-                {pipelines.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => choosePipeline(p.id)}
-                    aria-pressed={p.id === activePipeline.id}
-                    className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
-                      p.id === activePipeline.id ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    {p.name}
-                    <span className={`rounded-full px-1.5 text-[11px] font-bold ${p.id === activePipeline.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{countByPipeline(p.id)}</span>
-                  </button>
-                ))}
+          {/* Linha de resumo: total, filtros e modo de exibição */}
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="mr-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500" aria-live="polite">
+              <span>
+                <strong className="font-semibold text-slate-800">{pipelineLeads.length}</strong> {filtersActive ? `de ${allPipelineLeads.length} ` : ''}lead{pipelineLeads.length === 1 ? '' : 's'}
+              </span>
+              {hotCount > 0 && (
+                <span>
+                  <strong className="font-semibold text-slate-800">{hotCount}</strong> quente{hotCount === 1 ? '' : 's'}
+                </span>
+              )}
+              {pipelineValue > 0 && (
+                <span title="Soma do valor estimado dos leads em etapas abertas">
+                  Em aberto:{' '}
+                  <strong className="font-semibold text-slate-800">
+                    <PrivateMoney value={pipelineValue} />
+                  </strong>
+                </span>
+              )}
+              {showOld && <span className="text-xs">{loadingAll ? 'Carregando antigos...' : 'Mostrando antigos'}</span>}
+            </p>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((v) => !v)}
+              aria-expanded={filtersOpen}
+              aria-controls="leads-filters"
+              className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+                filtersOpen || activeFilterCount > 0 ? 'border-brand-600 bg-brand-50 text-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+              }`}
+            >
+              <SlidersHorizontal size={14} aria-hidden="true" /> Filtros
+              {activeFilterCount > 0 && <span className="rounded-full bg-brand-600 px-1.5 text-[11px] font-bold text-white">{activeFilterCount}</span>}
+            </button>
+            {filtersActive && (
+              <button type="button" onClick={clearFilters} className="h-9 rounded-lg px-2.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+                Limpar
+              </button>
+            )}
+            <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5" role="group" aria-label="Modo de exibição">
+              {([
+                ['kanban', <Kanban key="k" size={15} aria-hidden="true" />, 'Quadro'],
+                ['list', <List key="l" size={15} aria-hidden="true" />, 'Lista'],
+              ] as const).map(([v, icon, label]) => (
                 <button
+                  key={v}
                   type="button"
-                  onClick={() => setPipelineModal('new')}
-                  title="Criar outro pipeline"
-                  aria-label="Novo pipeline"
-                  className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+                  onClick={() => setView(v)}
+                  aria-pressed={view === v}
+                  title={`Ver em ${label.toLowerCase()}`}
+                  className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors ${
+                    view === v ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
                 >
-                  <Plus size={14} /> <span className="hidden lg:inline">Novo pipeline</span>
+                  {icon}
+                  <span className="hidden sm:inline">{label}</span>
                 </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBroadcastOpen(true)}
-                  title="Mandar uma mensagem de WhatsApp para várias pessoas deste funil"
-                  aria-label="Disparar WhatsApp para leads deste funil"
-                  className="flex h-9 items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20"
-                >
-                  <Megaphone size={15} aria-hidden="true" /> <span className="hidden md:inline">Disparar WhatsApp</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPipelineModal('edit')}
-                  title="Configurar este pipeline (etapas e campos)"
-                  aria-label="Editar etapas e campos deste pipeline"
-                  className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                >
-                  <Settings2 size={15} /> <span className="hidden xl:inline">Etapas e campos</span>
-                </button>
-                <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5" role="group" aria-label="Modo de exibição">
-                  {([
-                    ['kanban', <Kanban key="k" size={15} />, 'Quadro'],
-                    ['list', <List key="l" size={15} />, 'Lista'],
-                  ] as const).map(([v, icon, label]) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setView(v)}
-                      aria-pressed={view === v}
-                      title={`Ver em ${label.toLowerCase()}`}
-                      className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors ${
-                        view === v ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      {icon}
-                      <span className="hidden sm:inline">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-              <div className="relative w-full min-w-[200px] sm:w-auto sm:flex-1 sm:max-w-xs">
-                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar nome, empresa, WhatsApp..."
-                  aria-label="Buscar leads por nome, empresa ou WhatsApp"
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm outline-none transition-colors focus:border-brand-600 focus:bg-white focus:ring-2 focus:ring-brand-100"
-                />
-              </div>
+          {filtersOpen && (
+            <div id="leads-filters" className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-5">
               <select
                 value={tempFilter}
                 onChange={(e) => setTempFilter(e.target.value as LeadTemperature | 'none' | '')}
                 aria-label="Filtrar por temperatura do BANT"
-                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${tempFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+                className={`${filterSelect} ${tempFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
               >
                 <option value="">Temperatura: todas ({allPipelineLeads.length})</option>
                 {(['hot', 'warm', 'cold', 'disqualified'] as const).map((t) => (
@@ -420,7 +446,7 @@ export function LeadsPage() {
                 value={segmentFilter}
                 onChange={(e) => setSegmentFilter(e.target.value as LeadSegment | 'none' | '')}
                 aria-label="Filtrar por segmento"
-                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${segmentFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+                className={`${filterSelect} ${segmentFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
               >
                 <option value="">Segmento: todos</option>
                 {(['cleaning_services', 'cleaning_products'] as const).map((sg) => (
@@ -434,12 +460,12 @@ export function LeadsPage() {
                 value={stageFilter}
                 onChange={(e) => setStageFilter(e.target.value)}
                 aria-label="Filtrar por etapa"
-                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${stageFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+                className={`${filterSelect} ${stageFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
               >
                 <option value="">Etapa: todas</option>
-                {activePipeline.stages.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label} ({leadCountByStage[s.id] ?? 0})
+                {activePipeline.stages.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.label} ({leadCountByStage[st.id] ?? 0})
                   </option>
                 ))}
               </select>
@@ -447,7 +473,7 @@ export function LeadsPage() {
                 value={originFilter}
                 onChange={(e) => setOriginFilter(e.target.value)}
                 aria-label="Filtrar por origem do lead (formulário ou canal)"
-                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${originFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+                className={`${filterSelect} ${originFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
               >
                 <option value="">Origem: todas</option>
                 {originOptions.map((k) => (
@@ -460,50 +486,18 @@ export function LeadsPage() {
                 value={ownerFilter}
                 onChange={(e) => setOwnerFilter(e.target.value)}
                 aria-label="Filtrar por responsável"
-                className={`${filterSelect} min-w-0 flex-1 sm:flex-none ${ownerFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
+                className={`${filterSelect} ${ownerFilter ? 'border-brand-300 bg-brand-50 text-brand-700' : ''}`}
               >
                 <option value="">Responsável: todos</option>
-                {ownerOptions.map((id) => (
-                  <option key={id} value={id}>
-                    {userMap[id]?.name ?? 'Usuário removido'} ({ownerCounts[id]})
+                {ownerOptions.map((oid) => (
+                  <option key={oid} value={oid}>
+                    {userMap[oid]?.name ?? 'Usuário removido'} ({ownerCounts[oid]})
                   </option>
                 ))}
                 <option value="none">Sem responsável ({ownerCounts.none ?? 0})</option>
               </select>
-              {filtersActive && (
-                <button type="button" onClick={clearFilters} className="h-9 rounded-lg px-2.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700">
-                  Limpar filtros
-                </button>
-              )}
-              <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 sm:ml-auto sm:w-auto" aria-live="polite">
-                <span>
-                  <strong className="font-semibold text-slate-800">{pipelineLeads.length}</strong> {filtersActive ? `de ${allPipelineLeads.length} ` : ''}lead{pipelineLeads.length === 1 ? '' : 's'}
-                </span>
-                {hotCount > 0 && (
-                  <span>
-                    <strong className="font-semibold text-slate-800">{hotCount}</strong> quente{hotCount === 1 ? '' : 's'}
-                  </span>
-                )}
-                {pipelineValue > 0 && (
-                  <span title="Soma do valor estimado dos leads em etapas abertas">
-                    Em aberto:{' '}
-                    <strong className="font-semibold text-slate-800">
-                      <PrivateMoney value={pipelineValue} />
-                    </strong>
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowOld((v) => !v)}
-                  aria-pressed={showOld}
-                  title={`Ganhos e perdidos de mais de ${ACTIVE_LEADS_DAYS} dias ficam ocultos para economizar leituras`}
-                  className={`rounded-lg px-2 py-1 text-xs font-semibold transition-colors ${showOld ? 'bg-slate-800 text-white' : 'text-brand-600 hover:bg-brand-50'}`}
-                >
-                  {showOld ? (loadingAll ? 'Carregando antigos...' : 'Ocultar antigos') : 'Mostrar antigos'}
-                </button>
-              </div>
             </div>
-          </div>
+          )}
 
           {view === 'kanban' ? (
             // Altura da tela: cada coluna rola por dentro.
@@ -514,7 +508,7 @@ export function LeadsPage() {
                 items={pipelineLeads}
                 getStatus={(l) => stageOfLead(activePipeline, l.status).id}
                 renderCard={(l) => (
-                  <LeadCard lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} formTag={formTagOf(l)} existingClientName={existingClientOf(l)} wa={convByLead.get(l.id)} />
+                  <LeadCard openStage={stageKind(stageOfLead(activePipeline, l.status).id) === 'open'} lead={l} assignee={l.assignedTo ? userMap[l.assignedTo] : undefined} onClick={() => setOpenLeadId(l.id)} fields={activePipeline.fields} formTag={formTagOf(l)} existingClientName={existingClientOf(l)} wa={convByLead.get(l.id)} />
                 )}
                 onMove={handleMove}
                 pageSize={30}
