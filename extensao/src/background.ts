@@ -11,7 +11,7 @@ const MEET_PATTERN = /^https:\/\/meet\.google\.com\//
 // (chrome://extensions → card da extensão → "service worker"), o problema
 // é a pasta errada carregada ou o script travando antes de chegar aqui, não
 // o comportamento do painel em si.
-console.log('[copiloto-ext] background iniciado — v1.0.5')
+console.log('[copiloto-ext] background iniciado — v1.0.7')
 
 // O clique no ícone é tratado AQUI (action.onClicked) em vez de
 // openPanelOnActionClick: com o atalho automático o Chrome abre o painel mas

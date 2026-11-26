@@ -220,6 +220,9 @@ export function SidePanelApp() {
         case 'bloco':
           setBlocos((prev) => [...prev, msg.bloco].sort((a, b) => a.timestampMs - b.timestampMs))
           break
+        case 'removerBloco':
+          setBlocos((prev) => prev.filter((b) => b.id !== msg.id))
+          break
         case 'chamadaId':
           setChamadaId(msg.chamadaId)
           break

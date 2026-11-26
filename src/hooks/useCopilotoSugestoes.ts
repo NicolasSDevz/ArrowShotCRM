@@ -26,15 +26,29 @@ export interface SugestaoParcial {
 /** Parser tolerante a texto incompleto (chega em pedaços durante o stream) —
  *  formato esperado em SUGESTAO_FORMAT_INSTRUCTIONS (api/_lib/copilotoSugestao.js). */
 export function parseSugestaoRaw(raw: string): SugestaoParcial {
-  const tipoMatch = raw.match(/TIPO:\s*(.+)/i)
-  const resumoMatch = raw.match(/RESUMO:\s*(.+)/i)
-  const frases = [...raw.matchAll(/FRASE:\s*(.+)/gi)].map((m) => m[1].trim()).filter(Boolean)
+  // O modelo às vezes enfeita com markdown (**TIPO:**, - FRASE 1:, aspas) —
+  // limpa antes de procurar os rótulos.
+  const limpo = raw
+    .replace(/\[\[ERRO\]\]/g, '')
+    .replace(/[*_#`>]/g, '')
+    .replace(/^\s*[-•]\s*/gm, '')
+  const tipoMatch = limpo.match(/TIPO\s*:\s*(.+)/i)
+  const resumoMatch = limpo.match(/RESUMO\s*:\s*(.+)/i)
+  const frases = [...limpo.matchAll(/FRASE\s*\d*\s*:\s*(.+)/gi)]
+    .map((m) => m[1].trim().replace(/^["“”']+|["“”']+$/g, '').trim())
+    .filter(Boolean)
   const tipoRaw = (tipoMatch?.[1] ?? '').trim().toLowerCase()
-  return {
+  const parsed: SugestaoParcial = {
     tipo: TIPO_LABEL_TO_KEY[tipoRaw] ?? 'geral',
     resumo: (resumoMatch?.[1] ?? '').trim(),
     frases,
   }
+  // Resposta fora do formato: mostra o texto como veio em vez de "(sem resumo)".
+  const texto = limpo.trim()
+  if (!parsed.resumo && parsed.frases.length === 0 && texto && !/^(TIPO|RESUMO|FRASE)/i.test(texto)) {
+    parsed.frases = [texto]
+  }
+  return parsed
 }
 
 function blocosParaTexto(blocos: BlocoTranscricao[]): string {

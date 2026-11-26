@@ -38,6 +38,10 @@ export interface BlocoEvt {
   type: 'bloco'
   bloco: BlocoTranscricao
 }
+export interface RemoverBlocoEvt {
+  type: 'removerBloco'
+  id: string
+}
 export interface ChamadaIdEvt {
   type: 'chamadaId'
   chamadaId: string
@@ -78,6 +82,7 @@ export type OffscreenParaSidePanelMsg =
   | StatusEvt
   | OuvindoEvt
   | BlocoEvt
+  | RemoverBlocoEvt
   | ChamadaIdEvt
   | ErroCapturaEvt
   | SemAudioClienteEvt

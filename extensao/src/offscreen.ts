@@ -50,9 +50,63 @@ async function obterNomeUsuario(): Promise<string> {
   return nomeUsuarioCache
 }
 
+// ─── Eco: voz do cliente vazando no microfone do Bruno ─────────────────────
+// Sem fone, o som do Meet sai na caixa e o microfone capta — e fechar o
+// microfone no Meet NÃO fecha o do Copiloto (ele lê o mic direto). Resultado:
+// a fala do cliente aparece duas vezes, uma como "Bruno". A aba do Meet é a
+// fonte confiável do cliente, então a cópia do lado do Bruno é descartada.
+const ECO_JANELA_MS = 20_000
+const ECO_SEMELHANCA_MIN = 0.6
+const ECO_MIN_PALAVRAS = 3
+
+function palavras(texto: string): string[] {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((p) => p.length >= 2)
+}
+
+/** Fração das palavras do bloco do Bruno que aparecem nas falas do Cliente
+ *  ditas na mesma janela de tempo. */
+function ehEcoDoCliente(blocoBruno: BlocoTranscricao, todos: BlocoTranscricao[]): boolean {
+  const pb = palavras(blocoBruno.texto)
+  if (pb.length < ECO_MIN_PALAVRAS) return false
+  const doCliente = new Set(
+    todos
+      .filter((b) => b.speaker === 'Cliente' && Math.abs(b.timestampMs - blocoBruno.timestampMs) <= ECO_JANELA_MS)
+      .flatMap((b) => palavras(b.texto))
+  )
+  if (doCliente.size === 0) return false
+  const iguais = pb.filter((p) => doCliente.has(p)).length
+  return iguais / pb.length >= ECO_SEMELHANCA_MIN
+}
+
 function inserirBlocoOrdenado(novo: BlocoTranscricao) {
+  if (novo.speaker === 'Bruno' && ehEcoDoCliente(novo, blocos)) {
+    console.log('[copiloto-ext] eco descartado (Bruno ≈ Cliente):', novo.texto)
+    return
+  }
   blocos = [...blocos, novo].sort((a, b) => a.timestampMs - b.timestampMs)
   enviar({ type: 'bloco', bloco: novo })
+
+  // O bloco do Bruno pode ter chegado ANTES do bloco do Cliente de que ele é
+  // eco — confere de novo os do Bruno quando chega fala do Cliente.
+  if (novo.speaker === 'Cliente') {
+    const ecos = blocos.filter(
+      (b) => b.speaker === 'Bruno' && Math.abs(b.timestampMs - novo.timestampMs) <= ECO_JANELA_MS && ehEcoDoCliente(b, blocos)
+    )
+    if (ecos.length > 0) {
+      const ids = new Set(ecos.map((b) => b.id))
+      blocos = blocos.filter((b) => !ids.has(b.id))
+      ecos.forEach((b) => {
+        console.log('[copiloto-ext] eco removido (Bruno ≈ Cliente):', b.texto)
+        enviar({ type: 'removerBloco', id: b.id })
+      })
+    }
+  }
   verificarGatilhoAutomatico(novo)
 }
 
@@ -76,6 +130,8 @@ async function gerarSugestao(pergunta: string | undefined, origem: 'auto' | 'man
     const raw = await streamSugestaoExt({ leadId, pergunta, transcricaoRecente, resumoAnterior }, (textoAteAgora) =>
       enviar({ type: 'sugestaoChunk', parcial: parseSugestaoRaw(textoAteAgora) })
     )
+    console.log('[copiloto-ext] resposta crua da sugestão:', JSON.stringify(raw))
+    if (!raw.trim()) throw new Error('A IA respondeu vazio')
     const parsed = parseSugestaoRaw(raw)
     const sugestao: Sugestao = {
       id: crypto.randomUUID(),
@@ -92,7 +148,10 @@ async function gerarSugestao(pergunta: string | undefined, origem: 'auto' | 'man
     if (uid && chamadaId) salvarSugestoes(leadId, chamadaId, sugestoes, uid).catch((err) => console.warn('[copiloto-ext] falha ao salvar sugestão', err))
   } catch (err) {
     console.error('[copiloto-ext] falha ao gerar sugestão', err)
-    enviar({ type: 'sugestaoErro', mensagem: 'Sugestões pausadas — a transcrição continua normal.' })
+    enviar({
+      type: 'sugestaoErro',
+      mensagem: `Sugestões pausadas — a transcrição continua normal. (${err instanceof Error ? err.message : String(err)})`,
+    })
   } finally {
     enviar({ type: 'sugestaoChunk', parcial: null })
     generating = false
