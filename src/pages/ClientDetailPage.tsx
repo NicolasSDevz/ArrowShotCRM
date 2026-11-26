@@ -43,7 +43,7 @@ import { missingFieldsOfClient } from '../utils/clientCompleteness'
 
 /** Onde o Jamilson parou na ficha (grupo e sub-aba), pra abrir o próximo
  *  cliente no mesmo lugar. Só pra ele: os outros sempre abrem na Visão geral. */
-const FICHA_KEY = 'fichaCliente:ultimo'
+const FICHA_KEY = 'fichaCliente:ultimo:v2'
 type FichaPos = { group: string; sub: Record<string, string> }
 function loadFichaPos(): FichaPos | null {
   try {
@@ -83,11 +83,11 @@ export function ClientDetailPage() {
   const [whatsappGroupModalOpen, setWhatsappGroupModalOpen] = useState(false)
   const { isPrivacyMode } = usePrivacy()
   const { profile } = useAuth()
-  // Jamilson (CS) usa leitor de tela: a ficha abre direto em Relacionamento,
+  // Jamilson (CS) usa leitor de tela: a ficha abre direto no Briefing,
   // ou onde ele parou da última vez.
   const isJamilson = !!profile && resolveRoutinePersonKey(profile.name) === 'jamilson'
   const [pos, setPos] = useState<FichaPos | null>(null)
-  const current: FichaPos = pos ?? (isJamilson ? loadFichaPos() : null) ?? { group: isJamilson ? 'Relacionamento' : 'Visão geral', sub: {} }
+  const current: FichaPos = pos ?? (isJamilson ? loadFichaPos() : null) ?? { group: isJamilson ? '__padrao' : 'Visão geral', sub: {} }
   const updatePos = (next: FichaPos) => {
     setPos(next)
     if (isJamilson) saveFichaPos(next)
@@ -155,12 +155,13 @@ export function ClientDetailPage() {
       label: 'Visão geral',
       items: [{ label: 'Visão geral', content: <ClientOverviewTab client={client} owners={owners} tasks={tasks} onOpenTask={setOpenTaskId} /> }],
     },
+    // Briefing é aba própria (não sub-aba de Tráfego): é o que o Jamilson mais usa.
+    ...(hasPT ? [{ label: 'Briefing', items: [{ label: 'Briefing', content: <ClientPaidTrafficBriefingPanel client={client} /> }] }] : []),
     ...(hasPT
       ? [
           {
             label: 'Tráfego',
             items: [
-              { label: 'Briefing', content: <ClientPaidTrafficBriefingPanel client={client} /> },
               { label: 'Planejamento de Campanha', content: <ClientCampaignPlanningPanel client={client} /> },
               { label: 'Otimizações', content: <ClientOptimizationsTab client={client} /> },
               { label: 'Tarefas', content: tasksTab },
@@ -198,7 +199,10 @@ export function ClientDetailPage() {
       ],
     },
   ]
-  const groupIdx = Math.max(0, groups.findIndex((g) => g.label === current.group))
+  // Jamilson sem posição salva: abre no Briefing (ou em Relacionamento, se o cliente não tem tráfego).
+  const fallbackGroup = isJamilson ? (hasPT ? 'Briefing' : 'Relacionamento') : 'Visão geral'
+  const foundIdx = groups.findIndex((g) => g.label === current.group)
+  const groupIdx = foundIdx >= 0 ? foundIdx : Math.max(0, groups.findIndex((g) => g.label === fallbackGroup))
   const subIdxOf = (g: (typeof groups)[number]) => Math.max(0, g.items.findIndex((it) => it.label === current.sub[g.label]))
 
   return (
