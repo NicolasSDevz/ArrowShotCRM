@@ -2,6 +2,7 @@ import { differenceInCalendarDays, differenceInHours, format } from 'date-fns'
 import { ClipboardList, MessageCircle } from 'lucide-react'
 import type { WaConversation } from '../../types/whatsapp'
 import { SdrChip } from '../whatsapp/SdrChip'
+import { callbackDayLabel } from '../whatsapp/WaCallback'
 import { ptBR } from 'date-fns/locale'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -171,6 +172,9 @@ export function LeadCard({
         <div className="flex flex-wrap items-center gap-1">
           <SdrChip sdr={(wa?.sdr ?? lead.whatsSdr) as WaConversation['sdr']} size="xs" />
           {(wa?.sdr ?? lead.whatsSdr)?.meeting?.agreed && <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-400">Reunião combinada</span>}
+          {(wa ? wa.callback : lead.whatsCallback)?.status === 'pending' && (
+            <span className="rounded-md bg-sky-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-sky-400">Retomar {callbackDayLabel((wa ? wa.callback : lead.whatsCallback)!.date)}</span>
+          )}
         </div>
       )}
 

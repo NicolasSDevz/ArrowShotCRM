@@ -41,6 +41,7 @@ import {
   analyzeConversation,
   runFollowUps,
   runMeetingReminders,
+  runCallbacks,
   createTemplate,
   draftTemplate,
   deleteTemplate,
@@ -153,14 +154,15 @@ async function sweep(req, res) {
   const work = async () => {
     // Agenda primeiro: reunião marcada pelo link já entra a tempo do lembrete.
     const calendar = await runCalendarSync({ notify: notifyCalendar }).catch((e) => ({ error: e.message }))
-    const [followUps, carts, reminders, pending, broadcasts] = await Promise.all([
+    const [followUps, carts, reminders, pending, broadcasts, callbacks] = await Promise.all([
       runFollowUps(origin).catch((e) => ({ error: e.message })),
       runCartRecovery(origin).catch((e) => ({ error: e.message })),
       runMeetingReminders().catch((e) => ({ error: e.message })),
       runPendingReplies(origin).catch((e) => ({ error: e.message })),
       runBroadcasts().catch((e) => ({ error: e.message })),
+      runCallbacks().catch((e) => ({ error: e.message })),
     ])
-    return { calendar, followUps, carts, reminders, pending, broadcasts }
+    return { calendar, followUps, carts, reminders, pending, broadcasts, callbacks }
   }
   // ?wait=1 espera e devolve o resultado (teste manual). Sem isso responde na hora e trabalha por trás:
   // o cron-job.org desiste em 30 s e acusava "Timeout" quando a agenda demorava.

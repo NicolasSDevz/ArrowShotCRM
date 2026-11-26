@@ -217,6 +217,18 @@ export const DEFAULT_SETTINGS = {
     templateName: '',
     templateLang: 'pt_BR',
   },
+  /** Retorno combinado ("me chama mês que vem"): no dia, manda mensagem e avisa a equipe. */
+  callback: {
+    enabled: true,
+    /** Hora (Brasília) em que a mensagem sai no dia combinado. */
+    hour: 9,
+    /** Texto dentro de 24h. Vazio = padrão. Aceita {nome} e {com}. */
+    text: '',
+    /** Modelo (depois de 24h, o normal num retorno de semanas). */
+    templateName: '',
+    templateLang: 'pt_BR',
+    params: ['nome'],
+  },
   cart: {
     enabled: false,
     afterMinutes: 40,
@@ -236,6 +248,7 @@ export async function getWaSettings() {
     cart: { ...DEFAULT_SETTINGS.cart, ...(d.cart || {}) },
     sdr: { ...DEFAULT_SETTINGS.sdr, ...(d.sdr || {}) },
     reminder: { ...DEFAULT_SETTINGS.reminder, ...(d.reminder || {}) },
+    callback: { ...DEFAULT_SETTINGS.callback, ...(d.callback || {}) },
   }
 }
 
@@ -1182,6 +1195,15 @@ function sdrStateBlock(sdr) {
     .join('\n')
 }
 
+/** Retorno combinado, no texto que a IA lê. */
+function callbackLine(cb) {
+  if (!cb?.date) return ''
+  const dia = cb.date.split('-').reverse().join('/')
+  if (cb.status === 'pending') return `\nRetorno combinado: vamos chamar a pessoa em ${dia}${cb.why ? ` (${cb.why})` : ''}. Se ela voltou antes, siga a conversa normalmente; só mude callback.date se ela pedir outra data.`
+  if (cb.status === 'sent') return `\nNo dia ${dia} chamamos a pessoa para retomar, como ela tinha pedido${cb.why ? ` (${cb.why})` : ''}. Retome de onde parou, sem recomeçar a apresentação.`
+  return ''
+}
+
 const SDR_JSON = `Responda APENAS com JSON válido, neste formato:
 {
   "messages": ["balão 1", "balão 2"],
@@ -1193,18 +1215,20 @@ const SDR_JSON = `Responda APENAS com JSON válido, neste formato:
   "profile": {"nome": "", "empresa": "", "cidade": "", "servico": "", "tamanho": "", "anuncia": "", "investimento": "", "objetivo": "", "decisor": "", "prazo": ""},
   "summary": "1 ou 2 frases sobre quem é o lead e o que ele quer",
   "next_step": "o que acontece agora (ex.: esperar ele mandar a cidade; reunião quinta 15h)",
-  "meeting": {"agreed": false, "when": "", "at": ""}
+  "meeting": {"agreed": false, "when": "", "at": ""},
+  "callback": {"date": "", "why": ""}
 }
 - "messages": 1 a 3 balões curtos. Vazio só se não houver nada a dizer.
 - "profile": preencha só o que a pessoa disse (ou o que já sabíamos). Não invente. Deixe "" o que não sabe.
 - "score": 0 a 100 = chance de virar cliente bom (perfil + dor + verba + decisor + urgência).
-- "meeting.agreed": true só quando a pessoa topou um dia e horário (ou disse que já marcou pelo link). "when" = o dia e horário em texto. "at" = data e hora exatas no formato AAAA-MM-DDTHH:MM (horário de Brasília), só quando dia E hora estão definidos; senão "". Se remarcar, atualize "at".`
+- "meeting.agreed": true só quando a pessoa topou um dia e horário (ou disse que já marcou pelo link). "when" = o dia e horário em texto. "at" = data e hora exatas no formato AAAA-MM-DDTHH:MM (horário de Brasília), só quando dia E hora estão definidos; senão "". Se remarcar, atualize "at".
+- "callback": só quando a pessoa pediu para ser chamada mais pra frente (ver "Retorno combinado"). "date" = AAAA-MM-DD; senão "".`
 
 /** Mesmo formato do SDR_JSON, cobrado pela API: a IA não consegue devolver nada fora dele. */
 const SDR_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['messages', 'handoff', 'handoff_reason', 'stage', 'temperature', 'score', 'profile', 'summary', 'next_step', 'meeting'],
+  required: ['messages', 'handoff', 'handoff_reason', 'stage', 'temperature', 'score', 'profile', 'summary', 'next_step', 'meeting', 'callback'],
   properties: {
     messages: { type: 'array', items: { type: 'string' } },
     handoff: { type: 'boolean' },
@@ -1225,6 +1249,12 @@ const SDR_SCHEMA = {
       additionalProperties: false,
       required: ['agreed', 'when', 'at'],
       properties: { agreed: { type: 'boolean' }, when: { type: 'string' }, at: { type: 'string' } },
+    },
+    callback: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['date', 'why'],
+      properties: { date: { type: 'string' }, why: { type: 'string' } },
     },
   },
 }
@@ -1277,6 +1307,7 @@ Transformar quem chama em uma reunião de diagnóstico (${sdr.meetingLength || '
   * "manda uma proposta por aqui": explique que a proposta é montada para a região dela e que na reunião o ${meetWith} mostra tudo; ${sdr.meetingLink ? 'mande o link da agenda.' : 'ofereça horário.'}
   * "vou pensar": pergunte o que falta para decidir; se for momento, vá para nutricao.
 - Se a pessoa sumir e voltar, retome de onde parou, sem recomeçar.
+- Retorno combinado: se a pessoa pedir para falar depois ("me chama mês que vem", "volta depois do Natal", "em janeiro", "daqui 15 dias", "agora não, mais pra frente"), combine uma data com ela de forma leve (ex.: "Combinado! Te chamo dia 26/12 então, pode ser?") e preencha callback.date (AAAA-MM-DD) e callback.why (o motivo em poucas palavras, ex.: "sem verba até dezembro"). Conte a partir de hoje: "mês que vem" = mesmo dia do próximo mês; "daqui X dias/semanas" = hoje + X; "depois do fim do ano"/"em janeiro" = primeiro dia útil depois de 05/01; "mais pra frente" sem data = pergunte quando é melhor, e se ela não disser use daqui 30 dias. Domingo ou feriado vira o próximo dia útil. Use stage "nutricao". Nós mandamos a mensagem nesse dia sozinhos: não diga que "a equipe vai lembrar". Sem pedido de retorno, deixe callback.date "" (isso não apaga um retorno já combinado).
 - Mensagens no histórico que começam com "[Fulano escreveu:]" foram escritas por uma pessoa da equipe (ex.: o ${meetWith}), não por você. Respeite tudo o que ela disse ou combinou (preço, horário, condição, próximos passos): não contradiga, não repita a apresentação nem refaça perguntas que ela já fez. Se a equipe já está negociando ou tratando de algo que você não sabe, passe para a equipe (handoff = true). Nunca escreva esse marcador nas suas mensagens.
 - Se for cliente atual da Arrow Shot (pelo CRM ou pelo que ela diz), não qualifique: entenda o pedido e passe para a equipe.
 - Conversa antiga: este WhatsApp é o mesmo número que o ${meetWith} e a equipe usam no celular há muito tempo, e as conversas de antes você NÃO vê. Se a pessoa falar como quem já conhece a equipe, é cliente ou conversa em andamento, não lead novo. Sinais: cita o ${meetWith} ou outra pessoa da equipe pelo nome; fala de reunião, proposta, contrato, pagamento, boleto, nota, acesso, campanha ou serviço; avisa que não vai conseguir participar, que vai atrasar ou que "logo te dá atenção"; pede desculpa; responde algo que ninguém perguntou; manda algo que só faz sentido como continuação. Nesses casos: NÃO se apresente como SDR, NÃO pergunte da empresa, NÃO ofereça nada nem tente marcar reunião. Responda 1 balão curto e natural (ex.: "Tranquilo, sem pressa! Já aviso o ${meetWith} aqui.") e passe para a equipe (handoff = true, motivo "parece conversa antiga com a equipe"). Na dúvida entre lead novo e conversa antiga, trate como conversa antiga.
@@ -1297,7 +1328,7 @@ ${settings.aiInstructions ? `\n# Instruções extras da equipe (têm prioridade)
 ${SAFETY_RULES}
 
 # O que já sabemos desta conversa
-${sdrStateBlock(conv?.sdr)}
+${sdrStateBlock(conv?.sdr)}${callbackLine(conv?.callback)}
 
 ${SDR_JSON}`
 }
@@ -1376,6 +1407,7 @@ function parseAiJson(text) {
         summary: clip(j.summary, 400),
         nextStep: clip(j.next_step, 200),
         meeting: { agreed: j.meeting?.agreed === true, when: clip(j.meeting?.when, 120), at: validMeetingAt(j.meeting?.at) },
+        callback: { date: validCallbackDay(j.callback?.date), why: clip(j.callback?.why, 160) },
       }
     }
     return { messages, reply: messages.join('\n\n'), handoff: j.handoff === true, reason: clip(j.handoff_reason, 200), sdr, broken }
@@ -1407,6 +1439,20 @@ function validMeetingAt(v) {
   const s = String(v || '').trim().slice(0, 16)
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) && !Number.isNaN(meetingTime(s)) ? s : ''
 }
+/** "2026-12-26" entre amanhã e daqui 1 ano, ou "". */
+function validCallbackDay(v) {
+  const s = String(v || '').trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(new Date(`${s}T12:00:00-03:00`).getTime())) return ''
+  const today = spDayStr(Date.now())
+  return s > today && s <= spDayStr(Date.now() + 366 * 86400_000) ? s : ''
+}
+
+/** Grava o retorno na conversa e no lead (o cartão do funil mostra a data). */
+async function writeCallback(conv, cb) {
+  await updateDoc(convPath(conv.waId), { callback: cb })
+  if (conv.leadId && conv.kind !== 'cart') await updateDoc(`leads/${conv.leadId}`, { whatsCallback: cb }).catch(() => {})
+}
+
 /** Horário de Brasília (sem horário de verão) em milissegundos. */
 const meetingTime = (at) => new Date(`${at}:00-03:00`).getTime()
 
@@ -1437,6 +1483,14 @@ async function saveSdr(conv, analysis) {
   const sdr = mergeSdr(conv.sdr, analysis)
   if (!sdr) return null
   await updateDoc(convPath(conv.waId), { sdr }).catch(() => {})
+  // Retorno combinado: data nova da IA vale; reunião marcada cancela o que estava pendente.
+  const cur = conv.callback
+  const day = analysis?.callback?.date
+  if (day && !(cur?.status === 'pending' && cur.date === day)) {
+    await writeCallback(conv, { date: day, why: analysis.callback.why || '', status: 'pending', source: 'ai', setAt: nowIso() }).catch(() => {})
+  } else if (cur?.status === 'pending' && sdr.meeting?.agreed && !conv.sdr?.meeting?.agreed) {
+    await writeCallback(conv, { ...cur, status: 'canceled', note: 'Reunião marcada antes da data', canceledAt: nowIso() }).catch(() => {})
+  }
   if (conv.leadId && conv.kind !== 'cart') {
     const snap = await getDoc(`leads/${conv.leadId}`).catch(() => null)
     if (snap?.exists) {
@@ -1795,6 +1849,8 @@ export async function runFollowUps(origin, { max = 12 } = {}) {
     const m = conv.sdr?.meeting
     if (m?.agreed && (!m.at || meetingTime(m.at) > Date.now() - 2 * 3600_000)) continue
     if (conv.sdr?.stage === 'desqualificado') continue
+    // Pediu pra falar mais pra frente: não cutuca antes da data combinada.
+    if (conv.callback?.status === 'pending') continue
     const step = Number(conv.followUpStep || 0)
     const cfg = f.steps[step]
     if (!cfg) continue
@@ -2067,6 +2123,70 @@ function cartParam(key, { cart, product, link }) {
 }
 
 /** Uma mensagem de modelo por carrinho abandonado com telefone. */
+const CALLBACK_DEFAULT_TEXT = 'Oi {nome}, tudo bem? Combinamos de retomar nossa conversa por agora. Ainda faz sentido a gente bater um papo sobre como trazer mais clientes pra sua empresa?'
+
+/** No dia do retorno combinado, manda a mensagem (modelo, se passou de 24h) e avisa a equipe. Roda na varredura. */
+export async function runCallbacks({ max = 15 } = {}) {
+  const settings = await getWaSettings()
+  const c = settings.callback
+  if (!c.enabled) return { skipped: 'desligado' }
+  const h = spHour()
+  if (spWeekday() === 'Sun' || h < (Number(c.hour) || 9) || h >= 19) return { skipped: 'fora do horário' }
+  const today = spDayStr(Date.now())
+  const convs = await queryDocs('waConversations', [['callback.status', 'pending']])
+  let sent = 0
+  for (const conv of convs) {
+    if (sent >= max) break
+    const cb = conv.callback
+    if (!cb?.date || cb.date > today || conv.kind === 'cart') continue
+    const who = conv.name || conv.phone
+    const why = cb.why ? ` (${cb.why})` : ''
+    const cancel = (note) => writeCallback(conv, { ...cb, status: 'canceled', note, canceledAt: nowIso() })
+    if (conv.optOut) {
+      await cancel('Pediu para não receber mensagens')
+      continue
+    }
+    const m = conv.sdr?.meeting
+    if (m?.agreed && m.at && meetingTime(m.at) > Date.now()) {
+      await cancel('Já tem reunião marcada')
+      continue
+    }
+    if (conv.leadId) {
+      const lead = await getDoc(`leads/${conv.leadId}`).catch(() => null)
+      const st = lead?.exists ? lead.data().status : null
+      if (st === 'closed' || st === 'lost') {
+        await cancel(st === 'closed' ? 'Lead já fechado' : 'Lead marcado como perdido')
+        continue
+      }
+    }
+    // Trava antes de mandar: duas varreduras juntas não mandam duas vezes.
+    await writeCallback(conv, { ...cb, status: 'sending' })
+    const name = firstName(conv.name)
+    const com = settings.sdr?.meetingWith || 'Bruno'
+    try {
+      if (inWindow(conv)) {
+        const text = String(c.text || CALLBACK_DEFAULT_TEXT).replaceAll('{nome}', name).replaceAll('{com}', com).replace(/^Oi ([,!])/, 'Oi$1').trim()
+        await sendMessage({ to: conv.waId, text, by: 'followup', byName: 'Retorno combinado' })
+      } else if (c.templateName) {
+        const keys = Array.isArray(c.params) ? c.params : ['nome']
+        const params = keys.map((k) => (k === 'com' ? com : name || 'tudo bem'))
+        await sendMessage({ to: conv.waId, template: { name: c.templateName, lang: c.templateLang || 'pt_BR', params }, by: 'followup', byName: 'Retorno combinado' })
+      } else {
+        throw new Error('Passou de 24h desde a última mensagem e o retorno não tem modelo escolhido (Leads > Conversas > Configurar > Retorno).')
+      }
+      await writeCallback(conv, { ...cb, status: 'sent', sentAt: nowIso(), error: null })
+      sent++
+      const next = conv.aiMode === 'off' ? 'a conversa está com a equipe, respondam por lá' : 'se responder, a IA continua'
+      await notifyTeam(conv, `Hoje é dia de retomar com ${who}${why}. A mensagem de retorno já foi enviada; ${next}.`).catch(() => {})
+    } catch (e) {
+      console.warn(`[whatsapp] retorno ${conv.waId}:`, e.message)
+      await writeCallback(conv, { ...cb, status: 'failed', error: e.message.slice(0, 200), failedAt: nowIso() }).catch(() => {})
+      await notifyTeam(conv, `Hoje é dia de retomar com ${who}${why}, mas a mensagem não saiu: ${e.message} Chamem pelo celular.`).catch(() => {})
+    }
+  }
+  return { sent }
+}
+
 export async function runCartRecovery(origin, { max = 8 } = {}) {
   const settings = await getWaSettings()
   const c = settings.cart
@@ -2138,10 +2258,23 @@ export async function updateConversation(waId, input, by = null) {
     patch.teamNotesBy = by?.name ? String(by.name).slice(0, 80) : null
     patch.teamNotesAt = nowIso()
   }
-  if (!Object.keys(patch).length) throw new WaError(400, 'Nada para atualizar.')
+  const wantsCallback = input.callback !== undefined
+  if (!Object.keys(patch).length && !wantsCallback) throw new WaError(400, 'Nada para atualizar.')
   const snap = await getDoc(convPath(waId))
   if (!snap.exists) throw new WaError(404, 'Conversa não encontrada.')
-  await updateDoc(convPath(waId), { ...patch, updatedAt: nowIso() })
+  if (Object.keys(patch).length) await updateDoc(convPath(waId), { ...patch, updatedAt: nowIso() })
+  // Retorno combinado mexido pela equipe: { date, why } marca/muda; null cancela.
+  if (wantsCallback) {
+    const conv = { waId, ...snap.data() }
+    const who = by?.name ? String(by.name).slice(0, 80) : null
+    if (input.callback === null) {
+      if (conv.callback?.status === 'pending') await writeCallback(conv, { ...conv.callback, status: 'canceled', note: who ? `Cancelado por ${who}` : 'Cancelado pela equipe', canceledAt: nowIso() })
+    } else {
+      const date = validCallbackDay(input.callback?.date)
+      if (!date) throw new WaError(400, 'Escolha uma data a partir de amanhã (até 1 ano).')
+      await writeCallback(conv, { date, why: String(input.callback?.why ?? conv.callback?.why ?? '').trim().slice(0, 160), status: 'pending', source: 'team', setBy: who, setAt: nowIso() })
+    }
+  }
   return { ok: true }
 }
 

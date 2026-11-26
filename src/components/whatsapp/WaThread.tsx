@@ -5,6 +5,7 @@ import { Avatar } from '../ui/Avatar'
 import { Composer, DayDivider, MessageBubble, Switch, authorLabel, displayName } from './WaParts'
 import { SDR_FIELDS, SDR_FIELD_LABEL, SDR_FLOW, SDR_STAGE, SDR_TEMP } from './waSdr'
 import { SdrChip } from './SdrChip'
+import { CallbackBox } from './WaCallback'
 import { analyzeWaConversation, listenMessages, updateWaConversation } from '../../services/whatsappService'
 import type { WaConversation, WaMessage, WaTemplate } from '../../types/whatsapp'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
@@ -112,6 +113,7 @@ export function SdrPanel({ conv, onClose }: { conv: WaConversation; onClose?: ()
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {notesBox}
+        {conv.kind !== 'cart' && <CallbackBox conv={conv} />}
         {!sdr || !t ? (
           <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center">
             <p className="text-sm font-medium text-slate-600">Sem raio-x ainda</p>

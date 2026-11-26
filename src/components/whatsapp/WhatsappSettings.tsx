@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import toast from 'react-hot-toast'
-import { BellRing, Bot, CalendarDays, ChevronDown, Copy, Link2, Maximize2, Plus, RefreshCw, ShoppingCart, Timer, Trash2 } from 'lucide-react'
+import { BellRing, Bot, CalendarClock, CalendarDays, ChevronDown, Copy, Link2, Maximize2, Plus, RefreshCw, ShoppingCart, Timer, Trash2 } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { useAuth } from '../../context/AuthContext'
 import { gcalConnect, gcalDisconnect, gcalSync, listenGcalStatus, listenWaSettings, saveWaCredentials, saveWaSettings, type GcalStatus } from '../../services/whatsappService'
 import { TemplatePickerField } from './WaTemplatePicker'
-import { WA_CART_PARAM_LABEL, WA_REMINDER_PARAM_LABEL, type WaCartParam, type WaFollowUpStep, type WaReminderNight, type WaReminderParam, type WaReminderStep, type WaSettings, type WaStatus, type WaTemplate } from '../../types/whatsapp'
+import { WA_CALLBACK_PARAM_LABEL, WA_CART_PARAM_LABEL, WA_REMINDER_PARAM_LABEL, type WaCallbackParam, type WaCartParam, type WaFollowUpStep, type WaReminderNight, type WaReminderParam, type WaReminderStep, type WaSettings, type WaStatus, type WaTemplate } from '../../types/whatsapp'
 
 /* ------------------------------ peças ------------------------------ */
 
@@ -545,7 +545,7 @@ function StepRow({ step, i, templates, freeOnly, onChange, onRemove }: { step: W
 
 /* ------------------------------ configurações ------------------------------ */
 
-type SettingsTab = 'ia' | 'followup' | 'lembrete' | 'carrinho' | 'conexao'
+type SettingsTab = 'ia' | 'followup' | 'lembrete' | 'retorno' | 'carrinho' | 'conexao'
 
 /** Grupo de campos dentro de uma aba, com título pequeno. */
 function Group({ title, children }: { title: string; children: ReactNode }) {
@@ -594,11 +594,13 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
   const [tab, setTab] = useState<SettingsTab>('ia')
 
   const cartTpl = s ? templates.find((t) => t.name === s.cart.templateName && t.language === s.cart.templateLang) : undefined
+  const cbTpl = s ? templates.find((t) => t.name === s.callback.templateName && t.language === (s.callback.templateLang || 'pt_BR')) || templates.find((t) => t.name === s.callback.templateName) : undefined
 
   const TABS: { id: SettingsTab; label: string; on: boolean | null }[] = [
     { id: 'ia', label: 'IA', on: s ? s.aiEnabled : null },
     { id: 'followup', label: 'Follow-up', on: s ? s.followUp.enabled : null },
     { id: 'lembrete', label: 'Lembrete', on: s ? s.reminder.enabled : null },
+    { id: 'retorno', label: 'Retorno', on: s ? s.callback.enabled && Boolean(s.callback.templateName) : null },
     { id: 'carrinho', label: 'Carrinho', on: s ? s.cart.enabled : null },
     { id: 'conexao', label: 'Conexão', on: Boolean(status?.connected) },
   ]
@@ -824,6 +826,78 @@ export function WhatsappSettings({ status, templates, onReloadStatus, onReloadTe
               )}
             </Card>
             </>
+          )}
+          {tab === 'retorno' && (
+            <Card
+              icon={<CalendarClock size={19} />}
+              tone="bg-sky-500/15 text-sky-400"
+              title="Retorno combinado"
+              description="Quando a pessoa pede pra falar mais pra frente (“me chama mês que vem”), a IA combina a data. No dia, a mensagem sai sozinha e o Bruno recebe um aviso. Até lá o follow-up fica parado nessa conversa."
+              badge={<Badge on={s.callback.enabled && Boolean(s.callback.templateName)} offText={s.callback.enabled ? 'Falta o modelo' : 'Desligado'} />}
+            >
+              <Toggle checked={s.callback.enabled} onChange={(v) => edit((c) => ({ ...c, callback: { ...c.callback, enabled: v } }))} label="Mandar mensagem no dia combinado" hint="Desligado: a data continua anotada na conversa, mas nada é enviado nem avisado." />
+              <label className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <span>Mandar às</span>
+                <input
+                  type="number"
+                  min={8}
+                  max={18}
+                  value={s.callback.hour}
+                  onChange={(e) => edit((c) => ({ ...c, callback: { ...c.callback, hour: Math.min(18, Math.max(8, Number(e.target.value) || 9)) } }))}
+                  className="h-8 w-16 rounded-lg border border-slate-200 bg-white px-2 text-center text-sm font-semibold text-slate-800"
+                  aria-label="Hora do envio (Brasília)"
+                />
+                <span>horas, de segunda a sábado (domingo passa pra segunda)</span>
+              </label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <TemplateSelect
+                    label="Modelo (o normal: depois de semanas a janela de 24h já fechou)"
+                    templates={templates}
+                    name={s.callback.templateName}
+                    lang={s.callback.templateLang}
+                    onChange={(n, l) => edit((c) => ({ ...c, callback: { ...c.callback, templateName: n, templateLang: l, params: ['nome'] } }))}
+                  />
+                  {Array.from({ length: cbTpl?.vars || 0 }, (_, i) => (
+                    <label key={i} className="flex items-center gap-2 text-xs text-slate-500">
+                      <span className="w-10 shrink-0 font-semibold text-amber-300">{`{{${i + 1}}}`}</span>
+                      <Select
+                        value={s.callback.params[i] || 'nome'}
+                        onChange={(e) =>
+                          edit((c) => {
+                            const params = Array.from({ length: cbTpl?.vars || 0 }, (_, k) => c.callback.params[k] || 'nome') as WaCallbackParam[]
+                            params[i] = e.target.value as WaCallbackParam
+                            return { ...c, callback: { ...c.callback, params } }
+                          })
+                        }
+                        aria-label={`O que entra em {{${i + 1}}}`}
+                      >
+                        {(Object.keys(WA_CALLBACK_PARAM_LABEL) as WaCallbackParam[]).map((k) => (
+                          <option key={k} value={k}>
+                            {WA_CALLBACK_PARAM_LABEL[k]}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                  ))}
+                  {cbTpl && <p className="whitespace-pre-wrap rounded-2xl rounded-br-md bg-brand-600 px-3 py-2 text-sm text-white">{cbTpl.body}</p>}
+                </div>
+                <Field label="Texto (se a pessoa falou nas últimas 24h, grátis)" hint="Vazio = texto padrão. Use {nome} e {com}.">
+                  <Textarea
+                    rows={4}
+                    value={s.callback.text}
+                    placeholder="Oi {nome}, tudo bem? Combinamos de retomar nossa conversa por agora. Ainda faz sentido a gente bater um papo sobre como trazer mais clientes pra sua empresa?"
+                    onChange={(e) => edit((c) => ({ ...c, callback: { ...c.callback, text: e.target.value } }))}
+                  />
+                </Field>
+              </div>
+              {!s.callback.templateName && (
+                <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-500" role="status">
+                  Sem modelo, no dia só chega o aviso pro Bruno (a mensagem não sai). Crie um em Modelos, por exemplo: “Oi {'{{1}}'}, tudo bem? Combinamos de retomar nossa conversa por agora. Ainda faz sentido conversarmos?” (Marketing, botões “Sim, vamos conversar” e “Agora não”).
+                </p>
+              )}
+              <p className="text-xs text-slate-400">A data aparece no Raio-x da conversa, na ficha e no cartão do lead (“Retomar 26/12”), e dá pra mudar ou cancelar por lá. Lead fechado, perdido, com reunião marcada ou que pediu pra não receber não recebe.</p>
+            </Card>
           )}
           {tab === 'carrinho' && (
             <>

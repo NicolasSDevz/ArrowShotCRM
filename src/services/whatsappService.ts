@@ -62,6 +62,7 @@ export function listenWaSettings(cb: (s: WaSettings) => void): Unsubscribe {
         cart: { ...WA_DEFAULT_SETTINGS.cart, ...(d.cart || {}) },
         sdr: { ...WA_DEFAULT_SETTINGS.sdr, ...(d.sdr || {}) },
         reminder: { ...WA_DEFAULT_SETTINGS.reminder, ...(d.reminder || {}) },
+        callback: { ...WA_DEFAULT_SETTINGS.callback, ...(d.callback || {}) },
       })
     },
     () => cb(WA_DEFAULT_SETTINGS)
@@ -86,7 +87,7 @@ export const sendWaTemplate = (to: string, template: { name: string; lang: strin
 
 export const updateWaConversation = (
   waId: string,
-  patch: { aiMode?: 'auto' | 'off'; followUpStopped?: boolean; read?: boolean; leadId?: string | null; leadMatch?: 'client'; name?: string; handover?: boolean; teamNotes?: string }
+  patch: { aiMode?: 'auto' | 'off'; followUpStopped?: boolean; read?: boolean; leadId?: string | null; leadMatch?: 'client'; name?: string; handover?: boolean; teamNotes?: string; callback?: { date: string; why?: string } | null }
 ) => api<{ ok: true }>('conversation', { method: 'POST', body: { waId, ...patch } })
 
 export const sendStageMessage = (body: { leadId: string; pipelineId: string; stageId: string }) =>

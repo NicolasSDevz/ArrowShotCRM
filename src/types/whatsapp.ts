@@ -54,10 +54,27 @@ export interface WaConversation {
   lastBroadcastAt?: string | null
   /** Análise do SDR, atualizada a cada resposta da IA. */
   sdr?: WaSdr | null
+  /** Retorno combinado ("me chama mês que vem"): no dia a mensagem sai sozinha. */
+  callback?: WaCallback | null
+  /** Pediu para não receber mensagens. */
+  optOut?: boolean
   /** Observação da equipe no Raio-x: a IA lê antes de responder. */
   teamNotes?: string | null
   teamNotesBy?: string | null
   teamNotesAt?: string | null
+}
+
+export interface WaCallback {
+  /** AAAA-MM-DD (Brasília). */
+  date: string
+  why: string
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'canceled'
+  source?: 'ai' | 'team'
+  setBy?: string | null
+  setAt?: string
+  sentAt?: string
+  error?: string | null
+  note?: string
 }
 
 export interface WaMessage {
@@ -196,6 +213,26 @@ export interface WaSettings {
   cart: { enabled: boolean; afterMinutes: number; templateName: string; templateLang: string; params: WaCartParam[] }
   sdr: WaSdrSettings
   reminder: WaReminderSettings
+  callback: WaCallbackSettings
+}
+
+export type WaCallbackParam = 'nome' | 'com'
+
+/** Retorno combinado: no dia, mensagem pro contato + aviso pra equipe. */
+export interface WaCallbackSettings {
+  enabled: boolean
+  /** Hora (Brasília) em que sai no dia combinado. */
+  hour: number
+  /** Texto dentro de 24h. Vazio = padrão. Aceita {nome} e {com}. */
+  text: string
+  templateName: string
+  templateLang: string
+  params: WaCallbackParam[]
+}
+
+export const WA_CALLBACK_PARAM_LABEL: Record<WaCallbackParam, string> = {
+  nome: 'Primeiro nome',
+  com: 'Com quem (ex.: Bruno)',
 }
 
 /** Lembrete pro contato antes da reunião marcada pela IA. */
@@ -279,6 +316,7 @@ export const WA_DEFAULT_SETTINGS: WaSettings = {
   cart: { enabled: false, afterMinutes: 40, templateName: '', templateLang: 'pt_BR', params: ['nome', 'produto', 'link'] },
   sdr: { name: '', meetingWith: 'Bruno', meetingLength: '30 minutos', meetingLink: '', meetingHours: 'segunda a sexta, das 9h às 18h' },
   reminder: { enabled: true, minutesBefore: 30, text: '', templateName: '', templateLang: 'pt_BR' },
+  callback: { enabled: true, hour: 9, text: '', templateName: '', templateLang: 'pt_BR', params: ['nome'] },
 }
 
 export const WA_CART_PARAM_LABEL: Record<WaCartParam, string> = {

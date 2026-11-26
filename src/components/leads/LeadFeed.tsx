@@ -8,6 +8,7 @@ import { Select } from '../ui/Field'
 import { FormAnswersList } from './FormAnswerValue'
 import { Composer, MessageBubble, Switch, TemplateComposer, authorLabel, dayLabel, hhmm } from '../whatsapp/WaParts'
 import { SdrChip } from '../whatsapp/SdrChip'
+import { CallbackLine } from '../whatsapp/WaCallback'
 import { SDR_STAGE } from '../whatsapp/waSdr'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
@@ -310,6 +311,7 @@ export function LeadFeed({ lead, active = true }: { lead: Lead; active?: boolean
                 {conv.sdr.meeting?.agreed ? `Reunião combinada${conv.sdr.meeting.when ? `: ${conv.sdr.meeting.when}` : ''}` : <span className="text-slate-500">Próximo passo: {conv.sdr.nextStep}</span>}
               </p>
             )}
+            <CallbackLine cb={conv.callback} />
           </div>
         </div>
       )}

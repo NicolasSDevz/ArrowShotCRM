@@ -2,7 +2,7 @@ import type { Timestamp } from 'firebase/firestore'
 import type { BaseDoc } from './common'
 import type { LeadFormAnswer } from './leadForm'
 import type { ChamadaTemperatura } from './chamada'
-import type { WaSdr } from './whatsapp'
+import type { WaCallback, WaSdr } from './whatsapp'
 
 export type LeadStatus =
   | 'new'
@@ -195,6 +195,8 @@ export interface Lead extends BaseDoc {
    *  justificativa, direto da transcrição. Ver types/chamada.ts (ResumoChamada). */
   /** Resumo do SDR do WhatsApp (a IA grava a cada resposta). Ver types/whatsapp.ts. */
   whatsSdr?: Pick<WaSdr, 'stage' | 'temperature' | 'score' | 'summary' | 'nextStep' | 'meeting' | 'updatedAt'> | null
+  /** Retorno combinado no WhatsApp (cópia de waConversations.callback). */
+  whatsCallback?: WaCallback | null
   temperaturaChamada?: {
     valor: ChamadaTemperatura
     justificativa: string
