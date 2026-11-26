@@ -101,6 +101,9 @@ export interface ReportMetaSnapshot {
   actionsSummary: ReportActionSummary[]
   /** Série diária para o gráfico de evolução (ver ReportDailyPoint). */
   dailySeries?: ReportDailyPoint[]
+  /** Imposto já somado nos valores em R$ (0,1215 = 12,15%). Ausente em
+   *  relatório antigo, gerado antes dos valores virem com imposto. */
+  taxRate?: number
 }
 
 /** Métricas de campanhas do Google Ads — nomes de campo próprios (não reusa

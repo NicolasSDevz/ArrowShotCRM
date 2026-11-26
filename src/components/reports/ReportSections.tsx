@@ -10,6 +10,7 @@ import { buildExecutiveSummary, buildFunnelSentence, buildGoogleExecutiveSummary
 import { usePrivacy } from '../../context/PrivacyContext'
 import type { ReportMetaSnapshot, ReportEntitySummary, ReportLandingPageSnapshot, ReportGoogleSnapshot, ReportGoogleCampaignSummary } from '../../types'
 import { LANDING_PAGE_STATUS_LABEL } from '../../types/landingPage'
+import { taxPart } from '../../config/adTax'
 
 /** Variante "com dados" do snapshot do Google Ads — depois de checar
  *  `available`, os componentes recebem só esse formato (sem repetir a
@@ -80,6 +81,7 @@ function MetricCard({
   curr,
   prev,
   goodWhen = 'up',
+  note,
 }: {
   icon: ReactNode
   name: string
@@ -88,6 +90,8 @@ function MetricCard({
   curr?: number
   prev?: number
   goodWhen?: 'up' | 'down'
+  /** Texto entre parênteses depois do valor, ex.: "(R$ 121,71 de imposto)". */
+  note?: string
 }) {
   return (
     <Card>
@@ -95,6 +99,7 @@ function MetricCard({
       <p className="text-[12px] font-medium text-[#64748B]">{name}</p>
       <div className="mt-0.5 flex flex-wrap items-baseline gap-2">
         <p className="text-[28px] font-bold leading-tight text-[#0F172A]">{value}</p>
+        {note && <span className="text-[12px] font-medium text-[#64748B]">{note}</span>}
         <Delta curr={curr} prev={prev} goodWhen={goodWhen} />
       </div>
       <p className="mt-1 text-[11px] leading-snug text-[#94A3B8]">{explanation}</p>
@@ -108,11 +113,16 @@ export function OverviewSection({ meta }: { meta: ReportMetaSnapshot }) {
   const p = meta.metrics.previous
   const costPerConv = (v?: { spend?: number; conversations?: number }) =>
     v?.spend && v?.conversations ? v.spend / v.conversations : undefined
+  // Só relatório novo (com taxRate) tem o imposto dentro do valor.
+  const taxNote = (v?: number) => {
+    const t = taxPart(v, meta.taxRate)
+    return t == null || m ? undefined : `(${fmtBRL(t)} de imposto)`
+  }
 
   return (
     <Section title="Meta Ads — Visão Geral">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.spend, m)} curr={c.spend} prev={p?.spend} goodWhen="down" explanation="Total gasto em anúncios no período" />
+        <MetricCard icon={<Wallet size={18} />} name="Valor Investido" value={fmtBRL(c.spend, m)} note={taxNote(c.spend)} curr={c.spend} prev={p?.spend} goodWhen="down" explanation="Total gasto em anúncios no período" />
         <MetricCard icon={<Eye size={18} />} name="Impressões" value={fmtInt(c.impressions, m)} curr={c.impressions} prev={p?.impressions} explanation="Quantas vezes seus anúncios foram exibidos" />
         <MetricCard icon={<Users size={18} />} name="Alcance" value={fmtInt(c.reach, m)} curr={c.reach} prev={p?.reach} explanation="Pessoas únicas que viram seus anúncios" />
         <MetricCard icon={<MousePointerClick size={18} />} name="Cliques" value={fmtInt(c.clicks, m)} curr={c.clicks} prev={p?.clicks} explanation="Pessoas que clicaram nos anúncios" />
@@ -122,12 +132,12 @@ export function OverviewSection({ meta }: { meta: ReportMetaSnapshot }) {
         {c.resultKind === 'leads' ? (
           <>
             <MetricCard icon={<MessageCircle size={18} />} name="Leads (formulário)" value={fmtInt(c.conversations, m)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que preencheram o formulário do anúncio" />
-            <MetricCard icon={<DollarSign size={18} />} name="Custo por lead" value={fmtBRL(costPerConv(c), m)} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada lead" />
+            <MetricCard icon={<DollarSign size={18} />} name="Custo por lead" value={fmtBRL(costPerConv(c), m)} note={taxNote(costPerConv(c))} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada lead" />
           </>
         ) : (
           <>
             <MetricCard icon={<MessageCircle size={18} />} name="Conversas iniciadas" value={fmtInt(c.conversations, m)} curr={c.conversations} prev={p?.conversations} explanation="Pessoas que mandaram mensagem pelo anúncio" />
-            <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c), m)} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada nova conversa" />
+            <MetricCard icon={<DollarSign size={18} />} name="Custo por conversa" value={fmtBRL(costPerConv(c), m)} note={taxNote(costPerConv(c))} curr={costPerConv(c)} prev={costPerConv(p)} goodWhen="down" explanation="Quanto custou cada nova conversa" />
           </>
         )}
       </div>

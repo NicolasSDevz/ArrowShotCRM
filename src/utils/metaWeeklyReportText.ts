@@ -1,6 +1,7 @@
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { ReportGoogleSnapshot, ReportMetaSnapshot } from '../types'
+import { taxPart } from '../config/adTax'
 
 function fmtInt(v?: number): string {
   if (v == null) return '—'
@@ -42,6 +43,10 @@ export function buildWeeklyReportText(params: {
 
   if (meta) {
     const c = meta.metrics.current
+    const tax = taxPart(c.spend, meta.taxRate)
+    const cpl = c.spend && c.conversations ? c.spend / c.conversations : undefined
+    const cplTax = taxPart(cpl, meta.taxRate)
+    const withTax = (v: number | undefined, t: number | undefined) => `R$ ${fmtBRL(v)}${t != null ? ` (R$ ${fmtBRL(t)} de imposto)` : ''}`
     lines.push(
       '',
       'Campanhas no Meta Ads',
@@ -51,7 +56,8 @@ export function buildWeeklyReportText(params: {
       `CTR: ${fmtPct(c.ctr)}%`,
       `Alcance: ${fmtInt(c.reach)}`,
       `${c.resultKind === 'leads' ? 'Leads (formulário)' : 'Conversas iniciadas'}: ${fmtInt(c.conversations)}`,
-      `Valor investido (com impostos): R$ ${fmtBRL(c.spend)}`,
+      `Valor investido: ${withTax(c.spend, tax)}`,
+      `${c.resultKind === 'leads' ? 'Custo por lead' : 'Custo por conversa'}: ${cpl != null ? withTax(cpl, cplTax) : '—'}`,
       `Saldo Atual: R$ ${fmtBRL(meta.balance)}`
     )
   }

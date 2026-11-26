@@ -1,5 +1,6 @@
 import { format, subDays, differenceInCalendarDays } from 'date-fns'
 import { getMetaCampaigns, getMetaInsightsRange, getMetaAccountInfo } from '../services/metaApi'
+import { META_TAX_RATE } from '../config/adTax'
 import type {
   ReportActionSummary,
   ReportDailyPoint,
@@ -351,6 +352,8 @@ export async function fetchMetaReportSnapshot(
     platformBreakdown,
     actionsSummary,
     dailySeries: dailySeries.length > 0 ? dailySeries : undefined,
+    // /api/meta/insights já devolve os valores com o imposto da Meta.
+    taxRate: META_TAX_RATE,
   }
   console.log('[metaReport] snapshot final:', snapshot)
   return snapshot
