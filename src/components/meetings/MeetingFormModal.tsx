@@ -6,11 +6,11 @@ import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
 import { useClients } from '../../hooks/useClients'
 import { createMeeting } from '../../services/meetingService'
-import { requestAccessToken, createMeetingEvent, enableMeetAutoRecording, MEET_SETTINGS_SCOPE } from '../../services/googleCalendarService'
+import { syncMeetingToGoogle } from './googleMeeting'
 import { showError } from '../../utils/notifyError'
 import { MeetingForm } from './MeetingForm'
 import { buildDefaultMeetingForm, formMeetingHasEnded, formStateToMeetingInput, type MeetingFormState } from './meetingFormState'
-import { isClientMeetingType, MEETING_TYPE_LABEL, type MeetingInput, type MeetingType } from '../../types'
+import { isClientMeetingType, type MeetingType } from '../../types'
 
 export function MeetingFormModal({
   open,
@@ -51,7 +51,9 @@ export function MeetingFormModal({
       toast.error('Selecione o cliente vinculado a esta reunião.')
       return
     }
-    if (form.createMeet && !form.time) {
+    // Reunião que já passou (só registro) não vai pro Google Agenda.
+    const toGoogle = form.createMeet && !formMeetingHasEnded(form)
+    if (toGoogle && !form.time) {
       toast.error('Preencha o horário de início para criar a sala do Meet.')
       return
     }
@@ -59,66 +61,24 @@ export function MeetingFormModal({
     try {
       const input = formStateToMeetingInput(form)
       let recordingWarning = ''
-      if (form.createMeet) {
-        const meet = await createGoogleMeet(input)
+      if (toGoogle) {
+        const meet = await syncMeetingToGoogle(input, { users, clients, myEmail: profile.email, inviteClient: form.inviteClient, wantsRecording: form.autoRecording })
         input.meetLink = meet.meetLink
         input.googleEventId = meet.eventId
         input.autoRecording = meet.autoRecording
         recordingWarning = meet.warning
       }
       await createMeeting(input, profile.id, profile.name)
-      if (!form.createMeet) toast.success(formMeetingHasEnded(form) ? 'Reunião registrada' : 'Reunião agendada')
+      if (!toGoogle) toast.success(formMeetingHasEnded(form) ? 'Reunião registrada' : 'Reunião agendada')
       else if (recordingWarning) toast(recordingWarning, { duration: 12000, icon: '⚠️' })
-      else toast.success(form.autoRecording ? 'Reunião criada no Google Meet com gravação automática' : 'Reunião criada no Google Meet')
+      else toast.success(form.autoRecording ? 'Reunião no Google Agenda, com Meet e gravação automática' : 'Reunião no Google Agenda, com link do Meet')
       handleClose()
     } catch (err) {
       console.error(err)
-      showError(err, form.createMeet ? 'Erro ao criar a reunião no Google Meet' : 'Erro ao registrar reunião')
+      showError(err, toGoogle ? 'Erro ao colocar a reunião no Google Agenda' : 'Erro ao registrar reunião')
     } finally {
       setSaving(false)
     }
-  }
-
-  /** Cria o evento no Google Agenda de quem está logado, com sala do Meet e
-   *  convite para os participantes (e o cliente, se marcado), e tenta ligar a
-   *  gravação automática. Se a gravação falhar, a reunião sai mesmo assim. */
-  const createGoogleMeet = async (input: MeetingInput) => {
-    const wantsRecording = form.autoRecording
-    const token = await requestAccessToken(false, wantsRecording ? [MEET_SETTINGS_SCOPE] : [])
-    const client = input.clientId ? clients.find((c) => c.id === input.clientId) : undefined
-    const [h, m] = (input.time ?? '09:00').split(':').map(Number)
-    const start = new Date(input.date.toDate())
-    start.setHours(h, m, 0, 0)
-    const end = new Date(start.getTime() + (input.durationMin ?? 60) * 60_000)
-    const attendeeEmails = users
-      .filter((u) => input.participantIds.includes(u.id) && u.email && u.email !== profile?.email)
-      .map((u) => u.email)
-    if (form.inviteClient && client?.email) attendeeEmails.push(client.email)
-
-    const event = await createMeetingEvent(token, {
-      summary: client ? `${MEETING_TYPE_LABEL[input.type]} - ${client.companyName}` : MEETING_TYPE_LABEL[input.type],
-      description: input.agenda,
-      startDateTime: start.toISOString(),
-      endDateTime: end.toISOString(),
-      attendeeEmails,
-    })
-
-    let warning = ''
-    let autoRecording = false
-    if (!event.hangoutLink) {
-      warning = 'Reunião criada no Google Agenda, mas o link do Meet ainda não apareceu. Abra o evento no Google Agenda para pegar o link.'
-    } else if (wantsRecording) {
-      try {
-        await enableMeetAutoRecording(token, event.hangoutLink)
-        autoRecording = true
-      } catch (err) {
-        console.error(err)
-        warning =
-          'Sala do Meet criada, mas a gravação automática não foi ligada. Quando a reunião começar, clique em Atividades e depois em Gravação. ' +
-          'Para ligar sozinho, a conta precisa ser Google Workspace com gravação e a Meet API ativada no Google Cloud.'
-      }
-    }
-    return { meetLink: event.hangoutLink, eventId: event.id, autoRecording, warning }
   }
 
   return (

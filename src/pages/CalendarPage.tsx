@@ -71,7 +71,9 @@ export function CalendarPage() {
         date: t.dueDate!.toDate(),
         clientName: t.clientId ? clientMap[t.clientId]?.companyName : undefined,
       }))
-    const fromMeetings: CalItem[] = google.events.map((ev) => ({
+    // Evento do Google que já é uma reunião do CRM aparece só uma vez (a do CRM, que abre a ficha).
+    const crmEventIds = new Set(meetings.map((m) => m.googleEventId).filter(Boolean))
+    const fromMeetings: CalItem[] = google.events.filter((ev) => !crmEventIds.has(ev.id)).map((ev) => ({
       id: ev.id,
       title: ev.summary,
       kind: 'meeting',

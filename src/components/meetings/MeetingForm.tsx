@@ -112,7 +112,7 @@ export function MeetingForm({
       {allowMeet && (
         <fieldset className="rounded-lg border border-slate-200 p-3">
           <legend className="flex items-center gap-1.5 px-1 text-sm font-semibold text-slate-700">
-            <Video size={14} aria-hidden="true" /> Google Meet
+            <Video size={14} aria-hidden="true" /> Google Agenda e Meet
           </legend>
           <label className="flex items-start gap-2 text-sm text-slate-700">
             <input
@@ -122,7 +122,7 @@ export function MeetingForm({
               className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
             />
             <span>
-              Criar sala no Google Meet e mandar o convite no Google Agenda para os participantes
+              Colocar no Google Agenda, com sala do Meet e convite para os participantes
             </span>
           </label>
           {value.createMeet && (

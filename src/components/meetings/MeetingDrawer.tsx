@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
-import { Pencil, Trash2, ExternalLink, CheckSquare, Square, Video, Clock } from 'lucide-react'
+import { Pencil, Trash2, ExternalLink, CheckSquare, Square, Video, Clock, CalendarPlus } from 'lucide-react'
 import { Drawer } from '../ui/Drawer'
 import { Badge } from '../ui/Badge'
 import { Avatar } from '../ui/Avatar'
@@ -12,6 +12,8 @@ import { useClients } from '../../hooks/useClients'
 import { useAllTasks } from '../../hooks/useTasks'
 import { updateMeeting, deleteMeeting } from '../../services/meetingService'
 import { MeetingForm } from './MeetingForm'
+import { syncMeetingToGoogle } from './googleMeeting'
+import { showError } from '../../utils/notifyError'
 import { meetingToFormState, formStateToMeetingInput, type MeetingFormState } from './meetingFormState'
 import { MEETING_TYPE_LABEL, MEETING_TYPE_BADGE, isClientMeetingType, meetingHasEnded, meetingMissingRecord, meetingTimeLabel, type Meeting } from '../../types'
 import { meetingDayLabel } from './MeetingRow'
@@ -24,6 +26,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<MeetingFormState | null>(null)
   const [saving, setSaving] = useState(false)
+  const [sendingGoogle, setSendingGoogle] = useState(false)
 
   if (!meeting || !profile) return null
 
@@ -56,8 +59,19 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
     }
     setSaving(true)
     try {
-      await updateMeeting(meeting.id, formStateToMeetingInput(form), profile.id, profile.name)
+      const input = formStateToMeetingInput(form)
+      await updateMeeting(meeting.id, input, profile.id, profile.name)
       toast.success('Reunião atualizada')
+      // Já está no Google Agenda: leva a mudança de data/hora/participantes pra lá também.
+      // (Reunião de lead é remarcada pela aba Reunião do lead, que tem o próprio título.)
+      if (input.googleEventId && input.time && !input.leadId && !meetingHasEnded(input)) {
+        try {
+          await syncMeetingToGoogle(input, { users, clients, myEmail: profile.email })
+        } catch (err) {
+          console.error(err)
+          toast.error('Salvo no CRM, mas não deu pra atualizar no Google Agenda. Ajuste lá direto se precisar.')
+        }
+      }
       setEditing(false)
       setForm(null)
     } catch (err) {
@@ -65,6 +79,27 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
       toast.error('Erro ao atualizar reunião')
     } finally {
       setSaving(false)
+    }
+  }
+
+  /** Reunião criada sem ir pro Google Agenda: manda agora (com Meet e convite). */
+  const sendToGoogle = async () => {
+    if (!meeting.time) {
+      toast.error('Coloque o horário da reunião (Editar) antes de mandar pro Google Agenda.')
+      return
+    }
+    setSendingGoogle(true)
+    try {
+      const out = await syncMeetingToGoogle(meeting, { users, clients, myEmail: profile.email })
+      const { id: _id, createdAt: _c, updatedAt: _u, createdBy: _cb, updatedBy: _ub, ...rest } = meeting
+      await updateMeeting(meeting.id, { ...rest, meetLink: out.meetLink, googleEventId: out.eventId }, profile.id, profile.name)
+      if (out.warning) toast(out.warning, { duration: 10000, icon: '⚠️' })
+      else toast.success('Reunião colocada no Google Agenda, com link do Meet.')
+    } catch (err) {
+      console.error(err)
+      showError(err, 'Erro ao colocar a reunião no Google Agenda')
+    } finally {
+      setSendingGoogle(false)
     }
   }
 
@@ -188,6 +223,15 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting | null; o
                     )
                   })}
                 </div>
+              </div>
+            )}
+
+            {!meeting.googleEventId && !ended && (
+              <div className="flex flex-col gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm text-slate-700">Esta reunião ainda não está no Google Agenda.</p>
+                <Button size="sm" className="w-fit" icon={<CalendarPlus size={14} aria-hidden="true" />} loading={sendingGoogle} onClick={sendToGoogle}>
+                  Colocar no Google Agenda
+                </Button>
               </div>
             )}
 

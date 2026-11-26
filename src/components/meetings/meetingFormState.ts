@@ -60,7 +60,7 @@ export function buildDefaultMeetingForm(overrides?: Partial<MeetingFormState>): 
     actionItems: [],
     recordingLink: '',
     notes: '',
-    createMeet: false,
+    createMeet: true,
     autoRecording: true,
     inviteClient: false,
     ...overrides,
