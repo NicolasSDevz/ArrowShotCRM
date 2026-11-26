@@ -11,7 +11,10 @@ export const META_PERIOD_LABEL: Record<Exclude<MetaPeriodPreset, 'custom'>, stri
 }
 
 export interface MetaClientMetrics {
+  /** Com imposto (12,15% da Meta) — o que o cliente pagou. */
   spend: number
+  /** Sem imposto, como no Gerenciador — só para a previsão de saldo. */
+  spendNet?: number
   conversations: number
   /** 'leads' = conta de formulário (o número acima são leads). */
   resultKind?: 'conversas' | 'leads'

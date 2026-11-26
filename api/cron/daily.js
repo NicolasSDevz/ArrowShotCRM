@@ -110,7 +110,8 @@ async function runAdBalanceCheck() {
       const info = await fetchAccountInfo(resolved.token, accountId)
       if (info.available == null) continue // cartão sem limite: não acaba
       const { totals } = await fetchAccountInsights(resolved.token, accountId, since, until)
-      const perDay = (totals.spend || 0) / 7
+      // Saldo da Meta é líquido: compara com o gasto sem imposto.
+      const perDay = (totals.spendNet || 0) / 7
       if (perDay <= 0) continue // não está gastando
       const limit = Math.max(BALANCE_MIN, perDay * BALANCE_DAYS)
       if (info.available < limit) low.push({ name: c.companyName || 'cliente', clientId: c.id, available: info.available, days: info.available / perDay })

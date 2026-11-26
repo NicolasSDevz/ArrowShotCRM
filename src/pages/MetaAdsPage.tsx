@@ -34,7 +34,7 @@ const PRESETS: Exclude<MetaPeriodPreset, 'custom'>[] = ['last_7d', 'last_14d', '
 /** Explicações do ícone "i" de cada card — mesmo padrão do painel Visão
  *  Geral (ver TIPS em OverviewDashboard.tsx). */
 const TIPS = {
-  spend: 'Soma do valor gasto em anúncios no período, em todas as contas Meta Ads da agência.',
+  spend: 'Soma do valor gasto em anúncios no período, em todas as contas Meta Ads da agência, já com os 12,15% de imposto da Meta (o que o cliente paga). O Gerenciador mostra uns 12% a menos.',
   conversations: 'Pessoas que iniciaram uma conversa pelo WhatsApp/Messenger/Instagram Direct a partir do anúncio. Em conta de formulário (ex.: Meinecke) conta os leads.',
   costPerConversation: 'Total investido dividido pelo número de conversas iniciadas — quanto menor, melhor.',
   reach: 'Pessoas únicas que viram os anúncios no período (não conta a mesma pessoa duas vezes).',

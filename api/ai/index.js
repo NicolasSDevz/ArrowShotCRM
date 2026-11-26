@@ -284,10 +284,15 @@ async function toolMetaAds(dir, input) {
   if (!resolved) throw new Error('Nenhum token do Meta Ads disponível pra esse cliente.')
 
   const { dateFrom, dateTo } = resolvePeriod(input)
-  const base = { cliente: c.companyName, periodo: { de: dateFrom, ate: dateTo } }
+  const base = {
+    cliente: c.companyName,
+    periodo: { de: dateFrom, ate: dateTo },
+    observacao: 'Valores em R$ (investido, CPC, CPM, custo por resultado) já incluem os 12,15% de imposto da Meta — é o que o cliente paga. Fale sempre esses valores com o cliente; o Gerenciador mostra uns 12% a menos.',
+  }
   if (input.nivel === 'conta') {
     const { totals } = await fetchAccountInsights(resolved.token, accountId, dateFrom, dateTo)
-    return { ...base, totais: { ...totals, resultados: totals.conversations, tipoResultado: totals.resultKind, custoPorResultado: totals.conversations > 0 ? totals.spend / totals.conversations : null } }
+    const { spendNet: _net, ...semLiquido } = totals
+    return { ...base, totais: { ...semLiquido, resultados: totals.conversations, tipoResultado: totals.resultKind, custoPorResultado: totals.conversations > 0 ? totals.spend / totals.conversations : null } }
   }
   const level = input.nivel === 'conjuntos' ? 'adset' : input.nivel === 'anuncios' ? 'ad' : 'campaign'
   return { ...base, [input.nivel]: await fetchLevelInsights(resolved.token, accountId, dateFrom, dateTo, level) }

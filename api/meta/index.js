@@ -216,7 +216,8 @@ async function loadClient(client, range, periodKey, force) {
       const d = snap.data()
       const fetchedAt = d.fetchedAt ? new Date(d.fetchedAt).getTime() : 0
       // 'available' in d: snapshot antigo (sem o saldo pré-pago separado) é refeito.
-      if (d.periodKey === periodKey && Date.now() - fetchedAt < CACHE_TTL_MS && d.metrics?.resultKind && 'available' in d) {
+      // 'spendNet' in metrics: snapshot de antes do imposto entrar no gasto é refeito.
+      if (d.periodKey === periodKey && Date.now() - fetchedAt < CACHE_TTL_MS && d.metrics?.resultKind && 'available' in d && 'spendNet' in (d.metrics || {})) {
         return {
           ...base,
           metrics: d.metrics || EMPTY_METRICS,
@@ -380,6 +381,7 @@ async function agencyOverviewHandler(req, res, user) {
       metrics: r.metrics
         ? {
             spend: r.metrics.spend || 0,
+            spendNet: r.metrics.spendNet || 0,
             conversations: r.metrics.conversations || 0,
             resultKind: r.metrics.resultKind || 'conversas',
             reach: r.metrics.reach || 0,

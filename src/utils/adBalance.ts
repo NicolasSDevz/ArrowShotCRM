@@ -24,7 +24,8 @@ export function balanceAlerts(rows: MetaAgencyRow[], periodDays = 7): BalanceAle
   const out: BalanceAlert[] = []
   for (const r of rows) {
     if (r.available == null || r.restricted) continue
-    const perDay = (r.metrics?.spend ?? 0) / span
+    // Saldo da Meta é líquido: usa o gasto sem imposto.
+    const perDay = (r.metrics?.spendNet ?? r.metrics?.spend ?? 0) / span
     const empty = r.available < 1
     // Sem gasto na semana e com saldo: conta parada de propósito, não avisa.
     if (!empty && perDay <= 0) continue

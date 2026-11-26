@@ -3,6 +3,7 @@
 // ao frontend.
 
 import { resolveMetaToken } from './metaTokenStore.js'
+import { withMetaTax, applyMetaTaxToRow } from './adTax.js'
 
 const GRAPH_VERSION = 'v19.0'
 
@@ -80,7 +81,7 @@ export async function fetchAccountInsights(token, accountId, since, until, { dai
     return {
       daily: rows
         .filter((r) => r.date_start)
-        .map((r) => ({ date: r.date_start, spend: num(r.spend) }))
+        .map((r) => ({ date: r.date_start, spend: withMetaTax(num(r.spend)) }))
         .sort((a, b) => a.date.localeCompare(b.date)),
     }
   }
@@ -89,7 +90,10 @@ export async function fetchAccountInsights(token, accountId, since, until, { dai
   const r = rows[0] || {}
   return {
     totals: {
-      spend: num(r.spend),
+      // spend = com imposto (relatórios/análises); spendNet = como no
+      // Gerenciador, só para prever quanto o saldo (líquido) ainda dura.
+      spend: withMetaTax(num(r.spend)),
+      spendNet: num(r.spend),
       impressions: num(r.impressions),
       reach: num(r.reach),
       clicks: num(r.clicks),
@@ -190,6 +194,10 @@ export async function respondMetaGraphRequest(req, res, { label, path, params })
   }
 
   console.log(`[meta] ${label} OK — linhas: ${Array.isArray(data?.data) ? data.data.length : '(sem data[])'}`)
+  // Insights saem com imposto (ver adTax.js); saldo/contas/campanhas não mexe.
+  if (/\/insights$/.test(path) && Array.isArray(data?.data)) {
+    data.data = data.data.map(applyMetaTaxToRow)
+  }
   return res.status(200).json(data)
 }
 
@@ -222,7 +230,7 @@ export async function fetchLevelInsights(token, accountId, since, until, level =
   return (Array.isArray(body.data) ? body.data : []).map((r) => {
     const res = resultsFrom(r.actions)
     const conversas = res.value
-    const spend = num(r.spend)
+    const spend = withMetaTax(num(r.spend))
     return {
       nome: r[nameField] ?? '—',
       ...(level !== 'campaign' ? { campanha: r.campaign_name ?? '—' } : {}),
@@ -233,8 +241,8 @@ export async function fetchLevelInsights(token, accountId, since, until, level =
       frequencia: num(r.frequency),
       cliques: num(r.clicks),
       ctr: num(r.ctr),
-      cpc: num(r.cpc),
-      cpm: num(r.cpm),
+      cpc: withMetaTax(num(r.cpc)),
+      cpm: withMetaTax(num(r.cpm)),
       tipoResultado: res.kind,
       resultados: conversas,
       conversasIniciadas: res.kind === 'conversas' ? conversas : 0,

@@ -200,7 +200,7 @@ const CHART_METRICS = {
   clicks: { label: 'Cliques', color: '#7C3AED', fmt: fmtInt },
   reach: { label: 'Alcance', color: '#0891B2', fmt: fmtInt },
   conversations: { label: 'Conversas', color: '#10B981', fmt: fmtInt },
-  spend: { label: 'Investimento', color: '#F59E0B', fmt: (v: number) => fmtBRL(v) },
+  spend: { label: 'Investimento (c/ impostos)', color: '#F59E0B', fmt: (v: number) => fmtBRL(v) },
 } as const
 type ChartMetricKey = keyof typeof CHART_METRICS
 

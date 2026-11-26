@@ -5,6 +5,8 @@
 // GOOGLE_ADS_CLIENT_ID/CLIENT_SECRET/REFRESH_TOKEN/DEVELOPER_TOKEN (e
 // GOOGLE_ADS_LOGIN_CUSTOMER_ID pra contas por baixo da MCC).
 
+import { withGoogleTax } from './adTax.js'
+
 const GOOGLE_ADS_API_VERSION = 'v25'
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 export const VALID_LEVELS = new Set(['campaign', 'keywords', 'search_terms'])
@@ -114,7 +116,7 @@ export function buildQuery(dateFrom, dateTo, level, { limit = 30, detailed = fal
 function rowMetrics(row) {
   const impressions = num(row.metrics?.impressions)
   const clicks = num(row.metrics?.clicks)
-  const costMicros = num(row.metrics?.costMicros)
+  const costMicros = withGoogleTax(num(row.metrics?.costMicros))
   const conversions = num(row.metrics?.conversions)
   return {
     impressoes: impressions,
@@ -242,7 +244,7 @@ export function aggregateResults(rows) {
     const date = row.segments?.date
     const impressions = num(row.metrics?.impressions)
     const clicks = num(row.metrics?.clicks)
-    const costMicros = num(row.metrics?.costMicros)
+    const costMicros = withGoogleTax(num(row.metrics?.costMicros))
     const conversions = num(row.metrics?.conversions)
 
     totals.impressions += impressions
