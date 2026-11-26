@@ -1,16 +1,15 @@
 import { SocialPlanEditor } from '../socialMedia/SocialPlanEditor'
 import type { SocialPlan } from '../../types/socialPlan'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Megaphone, Camera, LayoutTemplate, ChevronDown, AlertTriangle, CheckCircle2, FileText } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { ChurnTypeField } from './ChurnTypeField'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
-import { useProducts } from '../../hooks/useProducts'
 import { createClient, updateClient } from '../../services/clientService'
 import { createInitialWorkflowTasks, createLandingPageWorkflowTasks } from '../../services/clientWorkflowTemplates'
 import { logActivity } from '../../services/activityService'
@@ -18,12 +17,11 @@ import { notifyAdminsOfAction } from '../../services/notificationService'
 import { removeClientBirthdays } from '../../services/birthdayService'
 import { uploadClientLogo, removeClientLogo } from '../../services/clientLogoService'
 import { ClientLogoField } from './ClientLogoField'
-import { computedPrice, discountLabel, formatBRL } from '../../utils/pricing'
-import { modulesFromProducts, productBilling, productModules, resolveServices, PRODUCT_MODULE_SHORT } from '../../utils/productModules'
 import { maskPhone, isPhoneComplete, maskDocument, maskCurrencyInput, parseCurrencyToNumber, maskCep, isCepComplete } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import { fetchAddressByCep } from '../../services/viaCepService'
 import { BRAZIL_STATES } from '../../utils/brazilStates'
+import { MIN_NOTES_LENGTH, NOTES_TEMPLATE, missingClientFields, notesContent } from '../../utils/clientCompleteness'
 import {
   CLIENT_STATUS_LABEL,
   CLIENT_CATEGORY_LABEL,
@@ -36,44 +34,21 @@ import {
   type ClientCategory,
   type ClientContact,
   type ClientPackage,
-  type ClientServiceContract,
   type ClientStatus,
   type ChurnType,
   type StyleCatalog,
 } from '../../types/client'
-import type { DiscountType, Product } from '../../types/product'
 import { LANDING_PAGE_TYPE_LABEL, type LandingPageType } from '../../types/landingPage'
 import { showError } from '../../utils/notifyError'
 
 const WHATSAPP_GROUP_PREFIX = 'https://chat.whatsapp.com/'
 
-/** Preço de um serviço contratado, em edição (valores em texto). */
-type ContractDraft = { tierId: string; discountId: string; customType: DiscountType; customValue: string; price: string; priceTouched: boolean }
-const CUSTOM_DISCOUNT = '__custom'
-
-function draftContract(d: ContractDraft): Pick<ClientServiceContract, 'tierId' | 'discountId' | 'customDiscount'> {
-  const custom = d.discountId === CUSTOM_DISCOUNT && Number(d.customValue) > 0
-  return {
-    tierId: d.tierId || null,
-    discountId: d.discountId && d.discountId !== CUSTOM_DISCOUNT ? d.discountId : null,
-    customDiscount: custom ? { type: d.customType, value: Number(d.customValue) } : null,
-  }
-}
-
-/** Valor calculado (tabela − desconto) já no formato da máscara de R$, ou ''. */
-function calcPriceMask(product: Product, d: ContractDraft): string {
-  const v = computedPrice(product, draftContract(d))
-  return v == null ? '' : maskCurrencyInput(String(Math.round(v * 100)))
-}
-
-function newDraft(product: Product): ContractDraft {
-  const d: ContractDraft = { tierId: product.tiers?.[0]?.id ?? '', discountId: '', customType: 'percent', customValue: '', price: '', priceTouched: false }
-  return { ...d, price: calcPriceMask(product, d) }
-}
-
 const EMPTY = {
   companyName: '',
   whatsapp: '',
+  email: '',
+  instagram: '',
+  website: '',
   contacts: [] as ClientContact[],
   city: '',
   segment: '',
@@ -102,8 +77,6 @@ const EMPTY = {
   googleAds: false,
   landingPage: false,
   landingPageType: '' as LandingPageType | '',
-  contractedProductIds: [] as string[],
-  contracts: {} as Record<string, ContractDraft>,
   participaJornada: true,
   dataInicioJornada: '',
 }
@@ -169,6 +142,86 @@ function isNewClient(client: Pick<Client, 'contractStartDate' | 'createdAt'>): b
   return !!start && Date.now() - start.getTime() < 30 * 24 * 60 * 60 * 1000
 }
 
+/** Bloco numerado do formulário. */
+function Section({ n, title, hint, children, tone = 'default' }: { n: number; title: string; hint?: string; children: ReactNode; tone?: 'default' | 'notes' }) {
+  const id = `client-form-section-${n}`
+  return (
+    <section
+      aria-labelledby={id}
+      className={`rounded-xl border p-4 ${tone === 'notes' ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-slate-50/60'}`}
+    >
+      <div className="mb-3 flex items-start gap-2.5">
+        <span
+          aria-hidden="true"
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${tone === 'notes' ? 'bg-amber-400 text-white' : 'bg-brand-600 text-white'}`}
+        >
+          {n}
+        </span>
+        <div className="min-w-0">
+          <h3 id={id} className="text-sm font-semibold text-slate-800">{title}</h3>
+          {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/** Cartão de serviço clicável (checkbox de verdade, pra leitor de tela). */
+function ServiceCard({
+  checked,
+  onChange,
+  icon,
+  title,
+  description,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  icon: ReactNode
+  title: string
+  description: string
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors duration-150 ${
+        checked ? 'border-brand-600 bg-brand-50' : 'border-slate-200 bg-white hover:border-slate-300'
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+      />
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+          <span aria-hidden="true" className={checked ? 'text-brand-600' : 'text-slate-400'}>{icon}</span>
+          {title}
+        </span>
+        <span className="mt-0.5 block text-xs text-slate-500">{description}</span>
+      </span>
+    </label>
+  )
+}
+
+function PlatformChip({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <label
+      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+        checked ? 'border-brand-600 bg-brand-50 text-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+      />
+      {label}
+    </label>
+  )
+}
+
 export function ClientFormModal({
   open,
   onClose,
@@ -180,79 +233,38 @@ export function ClientFormModal({
 }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
-  const { data: products, loading: productsLoading } = useProducts()
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [createTasks, setCreateTasks] = useState(true)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoRemoved, setLogoRemoved] = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
-  // Enquanto a pessoa não digitar o valor mensal, ele acompanha a soma dos serviços.
-  const [monthlyTouched, setMonthlyTouched] = useState(false)
+  const [addressOpen, setAddressOpen] = useState(false)
+  // Só mostra o "falta preencher" em vermelho depois da primeira tentativa de salvar.
+  const [triedSubmit, setTriedSubmit] = useState(false)
 
-  // ---- Serviços: a fonte é o catálogo do Dashboard ----
-  // Cada produto diz o que liga no CRM (Social, Meta, Google, Landing Page).
-  // As flags antigas do form (socialMedia/paidTraffic/…) só valem pra serviços
-  // que o cliente já tinha SEM produto do catálogo (cadastro antigo) ou quando
-  // o catálogo está vazio — aí o cadastro cai no modo manual de antes.
-  const catalogEmpty = !productsLoading && products.length === 0
-  const selectableProducts = products.filter((p) => p.active || form.contractedProductIds.includes(p.id))
-  const origCovered = useMemo(
-    () => modulesFromProducts(products.filter((p) => (client?.contractedProductIds ?? []).includes(p.id))),
-    [products, client]
-  )
-  const { derived, socialMedia, landingPage, paidTraffic, metaAds, googleAds, showPlatformPicker, platformMissing } = resolveServices(
-    products,
-    form.contractedProductIds,
-    form,
-    origCovered
-  )
-  const selectedContracts = products
-    .filter((p) => form.contractedProductIds.includes(p.id))
-    .map((p) => {
-      const draft = form.contracts[p.id]
-      const calc = draft ? computedPrice(p, draftContract(draft)) : computedPrice(p, {})
-      const final = draft?.price ? parseCurrencyToNumber(draft.price) : calc
-      return { product: p, draft, calc, final }
-    })
-  /** Serviços do cliente separados por cobrança — decide se encerrar é churn
-   *  ou "Concluído" (só projetos únicos). Áreas ligadas sem produto do
-   *  catálogo contam pelo tipo: Social Mídia e Tráfego são mensais, Landing
-   *  Page é pontual. */
-  const servicesByBilling = (() => {
-    const recurring: string[] = []
-    const oneTime: string[] = []
-    for (const { product } of selectedContracts) (productBilling(product) === 'one_time' ? oneTime : recurring).push(product.name)
-    if (socialMedia && !derived.socialMedia) recurring.push('Social Mídia')
-    if (paidTraffic && !derived.paidTraffic) recurring.push('Tráfego Pago')
-    if (landingPage && !derived.landingPage) oneTime.push('Landing Page')
-    return { recurring, oneTime }
-  })()
+  const { socialMedia, landingPage, paidTraffic } = form
+  // Plataforma só vale com tráfego pago ligado.
+  const metaAds = paidTraffic && form.metaAds
+  const googleAds = paidTraffic && form.googleAds
+  const platformMissing = paidTraffic && !metaAds && !googleAds
+
+  /** Serviços separados por cobrança — decide se encerrar é churn ou
+   *  "Concluído" (só projetos únicos, como Landing Page). */
+  const servicesByBilling = {
+    recurring: [paidTraffic && 'Tráfego Pago', socialMedia && 'Social Mídia'].filter(Boolean) as string[],
+    oneTime: landingPage ? ['Landing Page'] : [],
+  }
   const onlyOneTime = servicesByBilling.oneTime.length > 0 && servicesByBilling.recurring.length === 0
-
-  const servicesTotal = selectedContracts.reduce((sum, c) => sum + (c.final ?? 0), 0)
-  const showLegacyRow = (k: 'socialMedia' | 'landingPage' | 'paidTraffic') => !catalogEmpty && !!client?.modules?.[k] && !origCovered[k] && !derived[k]
-    useEffect(() => {
-    if (monthlyTouched || servicesTotal <= 0) return
-    setForm((f) => {
-      const masked = maskCurrencyInput(String(Math.round(servicesTotal * 100)))
-      return f.monthlyValue === masked ? f : { ...f, monthlyValue: masked }
-    })
-  }, [servicesTotal, monthlyTouched])
-  const anyService = socialMedia || paidTraffic || landingPage || form.contractedProductIds.length > 0
-  const unmappedProducts = products.filter((p) => form.contractedProductIds.includes(p.id) && productModules(p).keys.length === 0)
-  const willActivate = [
-    socialMedia && 'Social Mídia',
-    metaAds && 'Meta Ads',
-    googleAds && 'Google Ads',
-    landingPage && 'Landing Page',
-  ].filter(Boolean) as string[]
 
   useEffect(() => {
     if (client) {
       setForm({
         companyName: client.companyName,
         whatsapp: client.whatsapp ? maskPhone(client.whatsapp) : '',
+        email: client.email ?? '',
+        instagram: client.instagram ?? '',
+        website: client.website ?? '',
         contacts: (client.contacts ?? []).map((c) => ({ ...c, whatsapp: c.whatsapp ? maskPhone(c.whatsapp) : '' })),
         city: client.city ?? '',
         segment: client.segment ?? '',
@@ -283,27 +295,14 @@ export function ClientFormModal({
         landingPageType: client.landingPageType ?? '',
         participaJornada: client.participaJornada !== false,
         dataInicioJornada: toDateInputValue(client.dataInicioJornada),
-        contractedProductIds: client.contractedProductIds ?? [],
-        contracts: Object.fromEntries(
-          (client.contractedServices ?? []).map((c) => [
-            c.productId,
-            {
-              tierId: c.tierId ?? '',
-              discountId: c.customDiscount ? CUSTOM_DISCOUNT : (c.discountId ?? ''),
-              customType: c.customDiscount?.type ?? 'percent',
-              customValue: c.customDiscount ? String(c.customDiscount.value) : '',
-              price: c.finalPrice != null ? maskCurrencyInput(String(Math.round(c.finalPrice * 100))) : '',
-              priceTouched: c.finalPrice != null,
-            } satisfies ContractDraft,
-          ])
-        ),
       })
-      setMonthlyTouched(client.monthlyValue != null)
+      setAddressOpen(!!(client.address?.street || client.address?.zip || client.address?.city))
     } else {
       setForm(EMPTY)
-      setMonthlyTouched(false)
       setCreateTasks(true)
+      setAddressOpen(false)
     }
+    setTriedSubmit(false)
     setLogoFile(null)
     setLogoRemoved(false)
   }, [client, open])
@@ -316,27 +315,6 @@ export function ClientFormModal({
       ...f,
       ownerIds: f.ownerIds.includes(uid) ? f.ownerIds.filter((id) => id !== uid) : [...f.ownerIds, uid],
     }))
-
-  const toggleContractedProduct = (id: string) =>
-    setForm((f) => {
-      const on = f.contractedProductIds.includes(id)
-      const product = products.find((x) => x.id === id)
-      return {
-        ...f,
-        contractedProductIds: on ? f.contractedProductIds.filter((pid) => pid !== id) : [...f.contractedProductIds, id],
-        contracts: !on && product && !f.contracts[id] ? { ...f.contracts, [id]: newDraft(product) } : f.contracts,
-      }
-    })
-
-  /** Edita nível/desconto/valor de um serviço; enquanto o valor não foi
-   *  digitado na mão, ele se recalcula (tabela − desconto). */
-  const updateContract = (product: Product, patch: Partial<ContractDraft>) =>
-    setForm((f) => {
-      const cur = f.contracts[product.id] ?? newDraft(product)
-      const next: ContractDraft = { ...cur, ...patch }
-      if (!('price' in patch) && !next.priceTouched) next.price = calcPriceMask(product, next)
-      return { ...f, contracts: { ...f.contracts, [product.id]: next } }
-    })
 
   /** Dias de contrato até hoje — sugere Early Churn quando é pouco. */
   const contractDays = (() => {
@@ -381,18 +359,45 @@ export function ClientFormModal({
   }
 
   const autoTaskSummary = [
-    paidTraffic && 'Tráfego Pago: cria "Onboarding" — as próximas etapas aparecem sozinhas conforme cada uma for concluída',
-    socialMedia && 'Social Mídia: cria "Ativação de Social Mídia" — as próximas etapas aparecem sozinhas conforme cada uma for concluída',
-    landingPage && 'Landing Page: cria "Briefing de Landing Page" e "Desenvolvimento da Landing Page"',
+    paidTraffic && 'Tráfego Pago: "Onboarding"',
+    socialMedia && 'Social Mídia: "Ativação de Social Mídia"',
+    landingPage && 'Landing Page: briefing e desenvolvimento',
   ]
     .filter(Boolean)
-    .join('; ')
+    .join(' · ')
 
-  // Cliente novo precisa de pelo menos um serviço e, se tem tráfego pago, de uma plataforma.
-  const canSubmit = form.companyName.trim() !== '' && !whatsappIncomplete && !contactsInvalid && !whatsappGroupLinkInvalid && !platformMissing && (!!client || anyService)
+  const notesLength = notesContent(form.notes).length
+  const missing = missingClientFields({
+    companyName: form.companyName,
+    whatsapp: form.whatsapp,
+    segment: form.segment,
+    city: form.city,
+    notes: form.notes,
+    monthlyValue: parseCurrencyToNumber(form.monthlyValue),
+    hasStartDate: !!form.contractStartDate,
+    ownerCount: form.ownerIds.length,
+    paidTraffic,
+    socialMedia,
+    landingPage,
+    metaAds,
+    googleAds,
+  })
+  const formatInvalid = whatsappIncomplete || contactsInvalid || whatsappGroupLinkInvalid
+  // Cadastro novo: tudo obrigatório. Edição: só nome, serviço e plataforma
+  // (cliente antigo não fica travado), mas a lista do que falta aparece.
+  const blocking = client
+    ? missing.filter((m) => m === 'Nome da empresa' || m === 'Serviços contratados' || m.startsWith('Plataforma'))
+    : missing
+  const canSubmit = !formatInvalid && blocking.length === 0
+  const isMissing = (label: string) => triedSubmit && missing.includes(label)
 
   const handleSubmit = async () => {
-    if (!canSubmit || !profile) return
+    if (!profile) return
+    if (!canSubmit) {
+      setTriedSubmit(true)
+      toast.error(formatInvalid ? 'Confira os campos em vermelho.' : `Falta preencher: ${blocking.join(', ')}`)
+      return
+    }
     if (client && form.status === 'churned' && !form.churnType) {
       toast.error('Escolha o tipo de churn antes de salvar.')
       return
@@ -402,6 +407,9 @@ export function ClientFormModal({
       const basePayload = {
         companyName: form.companyName.trim(),
         whatsapp: form.whatsapp || undefined,
+        email: form.email.trim() || undefined,
+        instagram: form.instagram.trim() || undefined,
+        website: form.website.trim() || undefined,
         // Pessoas sem nome nem WhatsApp são descartadas; campos vazios não vão pro banco.
         contacts: form.contacts
           .filter((c) => c.name.trim() || c.whatsapp?.trim())
@@ -412,8 +420,8 @@ export function ClientFormModal({
             ...(c.whatsapp?.trim() ? { whatsapp: c.whatsapp.trim() } : {}),
             ...(c.email?.trim() ? { email: c.email.trim() } : {}),
           })),
-        city: form.city || undefined,
-        segment: form.segment || undefined,
+        city: form.city.trim() || undefined,
+        segment: form.segment.trim() || undefined,
         document: form.document || undefined,
         address:
           form.addressStreet || form.addressComplement || form.addressCity || form.addressState || form.addressZip
@@ -434,7 +442,7 @@ export function ClientFormModal({
         categoria: form.categoria || undefined,
         monthlyValue: parseCurrencyToNumber(form.monthlyValue),
         contractStartDate: dateInputToTimestamp(form.contractStartDate),
-        notes: form.notes || undefined,
+        notes: form.notes.trim() || undefined,
         churnReason: form.status === 'churned' ? form.churnReason.trim() || undefined : undefined,
         churnType: form.status === 'churned' ? form.churnType || undefined : undefined,
         churnCounts: form.status === 'churned' ? form.churnCounts : undefined,
@@ -444,12 +452,6 @@ export function ClientFormModal({
           : client
             ? undefined
             : dateInputToTimestamp(form.contractStartDate) ?? Timestamp.now(),
-        contractedProductIds: form.contractedProductIds.length > 0 ? form.contractedProductIds : undefined,
-        contractedServices: selectedContracts.map(({ product, draft }): ClientServiceContract => {
-          const c = draft ? draftContract(draft) : {}
-          const price = draft?.price ? (parseCurrencyToNumber(draft.price) ?? null) : null
-          return { productId: product.id, ...c, finalPrice: price }
-        }),
         modules: {
           ...client?.modules,
           socialMedia,
@@ -562,358 +564,270 @@ export function ClientFormModal({
     }
   }
 
-  return (
-    <Modal open={open} onClose={onClose} title={client ? 'Editar cliente' : 'Novo cliente'} width="max-w-2xl">
-      <div className="mb-3">
-        <ClientLogoField
-          companyName={form.companyName}
-          logoUrl={logoRemoved ? null : client?.logoUrl}
-          pendingFile={logoFile}
-          onPick={(f) => {
-            setLogoFile(f)
-            setLogoRemoved(false)
-          }}
-          onRemove={() => {
-            setLogoFile(null)
-            setLogoRemoved(true)
-          }}
-          busy={saving}
-        />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Nome da empresa" required>
-          <Input autoFocus value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />
-        </Field>
-        {client && (
-          <Field label="Status">
-            <Select value={form.status} onChange={(e) => handleStatusChange(e.target.value as ClientStatus)}>
-              {(Object.entries(CLIENT_STATUS_LABEL) as [ClientStatus, string][]).map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
-              ))}
-            </Select>
-          </Field>
-        )}
-        {client && form.status === 'churned' && (
-          <div className="flex flex-col gap-3 rounded-xl border border-red-100 bg-red-50/40 p-4 sm:col-span-2">
-            <ChurnTypeField
-              value={form.churnType}
-              counts={form.churnCounts}
-              suggestedEarly={contractDays != null && contractDays < EARLY_CHURN_DAYS}
-              contractDays={contractDays}
-              services={servicesByBilling}
-              onChange={(type) => setForm((f) => ({ ...f, churnType: type, churnCounts: CHURN_TYPE_COUNTS_DEFAULT[type] }))}
-              onCountsChange={(v) => set('churnCounts', v)}
-            />
-            <Field label="Motivo do cancelamento">
-              <Textarea
-                rows={2}
-                value={form.churnReason}
-                onChange={(e) => set('churnReason', e.target.value)}
-                placeholder="Ex: preço, resultado abaixo do esperado, mudou de agência, fechou a empresa..."
-              />
-            </Field>
-            <p className="-mt-1 text-xs text-slate-400">Tipo e motivo aparecem no detalhe do Churn Rate do Dashboard.</p>
-          </div>
-        )}
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 sm:col-span-2">
-          <Field label="Observações: o que foi vendido e combinado com o cliente">
-            <Textarea
-              rows={3}
-              value={form.notes}
-              onChange={(e) => set('notes', e.target.value)}
-              placeholder="Ex: fechou tráfego no Google + 4 artes por mês, prometido site novo até dia 10, desconto de 20% nos 3 primeiros meses..."
-            />
-          </Field>
-          <p className="mt-1 text-xs text-amber-700">
-            Escreva tudo o que foi vendido ou prometido. A equipe vê isso no topo da ficha do cliente e no aviso de cliente novo.
-          </p>
-        </div>
-        <Field label="WhatsApp">
-          <Input
-            value={form.whatsapp}
-            onChange={(e) => set('whatsapp', maskPhone(e.target.value))}
-            placeholder="(00) 00000-0000"
-          />
-          {whatsappIncomplete && <p className="mt-1 text-xs text-red-500">Número incompleto — informe DDD + número completo.</p>}
-        </Field>
-        <Field label="CNPJ ou CPF">
-          <Input
-            value={form.document}
-            onChange={(e) => set('document', maskDocument(e.target.value))}
-            placeholder="000.000.000-00"
-          />
-        </Field>
-        <Field label="Link do grupo WhatsApp">
-          <Input
-            value={form.whatsappGroupLink}
-            onChange={(e) => set('whatsappGroupLink', e.target.value)}
-            placeholder="https://chat.whatsapp.com/..."
-          />
-          {whatsappGroupLinkInvalid && (
-            <p className="mt-1 text-xs text-red-500">O link precisa começar com {WHATSAPP_GROUP_PREFIX}</p>
-          )}
-        </Field>
+  const missingMsg = (label: string) =>
+    isMissing(label) ? <p className="mt-1 text-xs font-medium text-red-500">Obrigatório.</p> : null
+  const totalChecks = 10
+  const done = totalChecks - missing.length
 
-        <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pessoas do cliente</p>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Dona, sócio, gerente... Todo WhatsApp daqui é reconhecido como cliente: quem chamar não vira lead nem conta como venda.
+  return (
+    <Modal open={open} onClose={onClose} title={client ? `Editar cliente${client.companyName ? ` — ${client.companyName}` : ''}` : 'Novo cliente'} width="max-w-3xl">
+      <div className="flex flex-col gap-4">
+        {/* Progresso do cadastro */}
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+          {missing.length === 0 ? (
+            <CheckCircle2 size={20} className="shrink-0 text-emerald-500" aria-hidden="true" />
+          ) : (
+            <AlertTriangle size={20} className="shrink-0 text-amber-500" aria-hidden="true" />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-800">
+              {missing.length === 0 ? 'Cadastro completo' : `Cadastro ${done} de ${totalChecks} — falta ${missing.length === 1 ? '1 item' : `${missing.length} itens`}`}
             </p>
-          </div>
-          {form.contacts.map((c) => (
-            <div key={c.id} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_0.8fr_1fr_auto] sm:items-start">
-              <Input value={c.name} onChange={(e) => setContact(c.id, { name: e.target.value })} placeholder="Nome" aria-label="Nome da pessoa" />
-              <Input value={c.role ?? ''} onChange={(e) => setContact(c.id, { role: e.target.value })} placeholder="Cargo (ex: proprietária)" aria-label="Cargo" />
-              <div>
-                <Input
-                  value={c.whatsapp ?? ''}
-                  onChange={(e) => setContact(c.id, { whatsapp: maskPhone(e.target.value) })}
-                  placeholder="(00) 00000-0000"
-                  aria-label="WhatsApp da pessoa"
-                />
-                {contactPhoneIncomplete(c) && <p className="mt-1 text-xs text-red-500">Número incompleto.</p>}
-              </div>
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, contacts: f.contacts.filter((x) => x.id !== c.id) }))}
-                aria-label="Remover pessoa"
-                className="h-9 rounded-lg px-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
-              >
-                <Trash2 size={15} />
-              </button>
+            {missing.length > 0 && <p className="truncate text-xs text-slate-500">{missing.join(' · ')}</p>}
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${missing.length === 0 ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                style={{ width: `${Math.max(0, (done / totalChecks) * 100)}%` }}
+              />
             </div>
-          ))}
-          <div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setForm((f) => ({ ...f, contacts: [...f.contacts, { id: crypto.randomUUID(), name: '', role: '', whatsapp: '' }] }))}
-            >
-              + Adicionar pessoa
-            </Button>
           </div>
         </div>
-        <div className="flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Endereço completo</p>
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <Field label="CEP">
-              <Input
-                value={form.addressZip}
-                onChange={(e) => handleCepChange(e.target.value)}
-                placeholder="00000-000"
-              />
-              {cepLoading && <p className="mt-1 text-xs text-slate-400">Buscando endereço...</p>}
-            </Field>
-            <Field label="Estado">
-              <Select value={form.addressState} onChange={(e) => set('addressState', e.target.value)}>
-                <option value="">Selecione</option>
-                {BRAZIL_STATES.map((s) => (
-                  <option key={s.uf} value={s.uf}>
-                    {s.uf} — {s.name}
-                  </option>
+
+        {client && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Status">
+              <Select value={form.status} onChange={(e) => handleStatusChange(e.target.value as ClientStatus)}>
+                {(Object.entries(CLIENT_STATUS_LABEL) as [ClientStatus, string][]).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
                 ))}
               </Select>
             </Field>
-            <Field label="Cidade">
-              <Input value={form.addressCity} onChange={(e) => set('addressCity', e.target.value)} />
+            {form.status === 'churned' && (
+              <div className="flex flex-col gap-3 rounded-xl border border-red-100 bg-red-50/40 p-4 sm:col-span-2">
+                <ChurnTypeField
+                  value={form.churnType}
+                  counts={form.churnCounts}
+                  suggestedEarly={contractDays != null && contractDays < EARLY_CHURN_DAYS}
+                  contractDays={contractDays}
+                  services={servicesByBilling}
+                  onChange={(type) => setForm((f) => ({ ...f, churnType: type, churnCounts: CHURN_TYPE_COUNTS_DEFAULT[type] }))}
+                  onCountsChange={(v) => set('churnCounts', v)}
+                />
+                <Field label="Motivo do cancelamento">
+                  <Textarea
+                    rows={2}
+                    value={form.churnReason}
+                    onChange={(e) => set('churnReason', e.target.value)}
+                    placeholder="Ex: preço, resultado abaixo do esperado, mudou de agência, fechou a empresa..."
+                  />
+                </Field>
+                <p className="-mt-1 text-xs text-slate-400">Tipo e motivo aparecem no detalhe do Churn Rate do Dashboard.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 1. Empresa */}
+        <Section n={1} title="Empresa" hint="Quem é o cliente e onde ele atua.">
+          <div className="mb-3">
+            <ClientLogoField
+              companyName={form.companyName}
+              logoUrl={logoRemoved ? null : client?.logoUrl}
+              pendingFile={logoFile}
+              onPick={(f) => {
+                setLogoFile(f)
+                setLogoRemoved(false)
+              }}
+              onRemove={() => {
+                setLogoFile(null)
+                setLogoRemoved(true)
+              }}
+              busy={saving}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Field label="Nome da empresa" required>
+                <Input autoFocus value={form.companyName} onChange={(e) => set('companyName', e.target.value)} placeholder="Ex: SOS Limpeza & Restauração" />
+              </Field>
+              {missingMsg('Nome da empresa')}
+            </div>
+            <div>
+              <Field label="Segmento" required>
+                <Input value={form.segment} onChange={(e) => set('segment', e.target.value)} placeholder="Ex: Limpeza pós-obra, estofados" />
+              </Field>
+              {missingMsg('Segmento')}
+            </div>
+            <div>
+              <Field label="Cidade/região onde atende" required>
+                <Input value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="Ex: Zona Sul de SP" />
+              </Field>
+              {missingMsg('Cidade/região')}
+            </div>
+            <Field label="Instagram">
+              <Input value={form.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="@perfil" />
             </Field>
-            <Field label="Rua e número">
-              <Input value={form.addressStreet} onChange={(e) => set('addressStreet', e.target.value)} />
+            <Field label="Site">
+              <Input value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="www.site.com.br" />
+            </Field>
+            <Field label="CNPJ ou CPF">
+              <Input value={form.document} onChange={(e) => set('document', maskDocument(e.target.value))} placeholder="000.000.000-00" />
+            </Field>
+            <Field label="Categoria">
+              <Select value={form.categoria} onChange={(e) => set('categoria', e.target.value as ClientCategory | '')}>
+                <option value="">Não classificado</option>
+                {(Object.entries(CLIENT_CATEGORY_LABEL) as [ClientCategory, string][]).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-slate-200 bg-white">
+            <button
+              type="button"
+              onClick={() => setAddressOpen((v) => !v)}
+              aria-expanded={addressOpen}
+              className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm font-medium text-slate-600"
+            >
+              Endereço completo (opcional)
+              <ChevronDown size={16} aria-hidden="true" className={`transition-transform ${addressOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {addressOpen && (
+              <div className="grid grid-cols-1 gap-2.5 border-t border-slate-100 p-3 sm:grid-cols-2">
+                <Field label="CEP">
+                  <Input value={form.addressZip} onChange={(e) => handleCepChange(e.target.value)} placeholder="00000-000" />
+                  {cepLoading && <p className="mt-1 text-xs text-slate-400">Buscando endereço...</p>}
+                </Field>
+                <Field label="Estado">
+                  <Select value={form.addressState} onChange={(e) => set('addressState', e.target.value)}>
+                    <option value="">Selecione</option>
+                    {BRAZIL_STATES.map((s) => (
+                      <option key={s.uf} value={s.uf}>
+                        {s.uf} — {s.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Cidade">
+                  <Input value={form.addressCity} onChange={(e) => set('addressCity', e.target.value)} />
+                </Field>
+                <Field label="Rua e número">
+                  <Input value={form.addressStreet} onChange={(e) => set('addressStreet', e.target.value)} />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Complemento">
+                    <Input value={form.addressComplement} onChange={(e) => set('addressComplement', e.target.value)} />
+                  </Field>
+                </div>
+              </div>
+            )}
+          </div>
+        </Section>
+
+        {/* 2. Contato */}
+        <Section n={2} title="Contato" hint="Todo WhatsApp daqui é reconhecido como cliente: quem chamar não vira lead nem conta como venda.">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Field label="WhatsApp principal" required>
+                <Input value={form.whatsapp} onChange={(e) => set('whatsapp', maskPhone(e.target.value))} placeholder="(00) 00000-0000" />
+              </Field>
+              {whatsappIncomplete ? <p className="mt-1 text-xs text-red-500">Número incompleto — informe DDD + número completo.</p> : missingMsg('WhatsApp')}
+            </div>
+            <Field label="E-mail">
+              <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="contato@empresa.com.br" />
             </Field>
             <div className="sm:col-span-2">
-              <Field label="Complemento">
-                <Input value={form.addressComplement} onChange={(e) => set('addressComplement', e.target.value)} />
+              <Field label="Link do grupo do WhatsApp">
+                <Input value={form.whatsappGroupLink} onChange={(e) => set('whatsappGroupLink', e.target.value)} placeholder="https://chat.whatsapp.com/..." />
               </Field>
+              {whatsappGroupLinkInvalid && <p className="mt-1 text-xs text-red-500">O link precisa começar com {WHATSAPP_GROUP_PREFIX}</p>}
             </div>
           </div>
-        </div>
 
-        <Field label="Cidade/Região">
-          <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
-        </Field>
-        <Field label="Segmento">
-          <Input value={form.segment} onChange={(e) => set('segment', e.target.value)} placeholder="Ex: Limpeza, Estética" />
-        </Field>
-        <Field label="Categoria">
-          <Select value={form.categoria} onChange={(e) => set('categoria', e.target.value as ClientCategory | '')}>
-            <option value="">Não classificado</option>
-            {(Object.entries(CLIENT_CATEGORY_LABEL) as [ClientCategory, string][]).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </Select>
-        </Field>
-
-        <div className="flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Serviços contratados</p>
-
-          {catalogEmpty ? (
-            <>
-              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
-                O catálogo de serviços do Dashboard está vazio — marque abaixo à mão. Cadastre os serviços em Dashboard → Produtos e Serviços pra eles
-                aparecerem aqui.
-              </p>
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <input type="checkbox" checked={form.paidTraffic} onChange={(e) => set('paidTraffic', e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400" />
-                Tráfego Pago
-              </label>
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <input type="checkbox" checked={form.socialMedia} onChange={(e) => set('socialMedia', e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400" />
-                Social Mídia
-              </label>
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <input type="checkbox" checked={form.landingPage} onChange={(e) => set('landingPage', e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400" />
-                Landing Page
-              </label>
-            </>
-          ) : (
-            <>
-              <p className="text-xs text-slate-400">
-                Os serviços vêm do catálogo do Dashboard (Produtos e Serviços). Marque o que este cliente contratou — as abas e as tarefas de cada área
-                são liberadas sozinhas.
-              </p>
-              <div className="flex flex-col gap-1.5">
-                {selectableProducts.map((p) => {
-                  const { keys, inferred } = productModules(p)
-                  const checked = form.contractedProductIds.includes(p.id)
-                  // Cliente antigo com o serviço marcado mas sem preço salvo: abre um rascunho na hora.
-                  const draft = form.contracts[p.id] ?? (checked ? newDraft(p) : undefined)
-                  const calc = draft ? computedPrice(p, draftContract(draft)) : undefined
-                  const basePriceText = draft ? computedPrice(p, { tierId: draft.tierId || null }) : undefined
-                  return (
-                    <div key={p.id} className="flex flex-col">
-                      <label className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleContractedProduct(p.id)}
-                          className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-                        />
-                        <span className="font-medium">{p.name}</span>
-                        {!p.active && <span className="text-[11px] text-slate-400">(inativo)</span>}
-                        {keys.map((k) => (
-                          <span key={k} className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
-                            {PRODUCT_MODULE_SHORT[k]}
-                            {inferred && '?'}
-                          </span>
-                        ))}
-                      </label>
-
-                      {checked && draft && (
-                        <div className="ml-6 mt-1.5 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-white p-2.5 sm:grid-cols-2">
-                          {(p.tiers?.length ?? 0) > 0 && (
-                            <Field label="Nível do serviço">
-                              <Select value={draft.tierId} onChange={(e) => updateContract(p, { tierId: e.target.value })}>
-                                {p.tiers!.map((t) => (
-                                  <option key={t.id} value={t.id}>
-                                    {t.name}
-                                    {t.price != null ? ` — ${formatBRL(t.price)}` : ''}
-                                  </option>
-                                ))}
-                              </Select>
-                            </Field>
-                          )}
-                          <Field label="Desconto">
-                            <Select value={draft.discountId} onChange={(e) => updateContract(p, { discountId: e.target.value })}>
-                              <option value="">Sem desconto</option>
-                              {(p.discounts ?? []).map((d) => (
-                                <option key={d.id} value={d.id}>
-                                  {d.name} (−{discountLabel(d)})
-                                </option>
-                              ))}
-                              <option value={CUSTOM_DISCOUNT}>Personalizado…</option>
-                            </Select>
-                          </Field>
-                          {draft.discountId === CUSTOM_DISCOUNT && (
-                            <Field label="Desconto personalizado">
-                              <div className="flex gap-1.5">
-                                <Select value={draft.customType} onChange={(e) => updateContract(p, { customType: e.target.value as DiscountType })} className="max-w-[80px]">
-                                  <option value="percent">%</option>
-                                  <option value="fixed">R$</option>
-                                </Select>
-                                <Input type="number" min="0" step="0.01" value={draft.customValue} onChange={(e) => updateContract(p, { customValue: e.target.value })} placeholder="0" />
-                              </div>
-                            </Field>
-                          )}
-                          <Field label="Valor mensal deste cliente (R$)">
-                            <Input
-                              value={draft.price}
-                              onChange={(e) => updateContract(p, { price: maskCurrencyInput(e.target.value), priceTouched: true })}
-                              placeholder="R$ 0,00"
-                            />
-                          </Field>
-                          <p className="text-xs text-slate-400 sm:col-span-2">
-                            {basePriceText != null && <>Tabela: {formatBRL(basePriceText)}. </>}
-                            {calc != null && calc !== basePriceText && <>Com desconto: {formatBRL(calc)}. </>}
-                            O valor acima é o que este cliente paga — pode ser diferente da tabela.
-                            {draft.priceTouched && calc != null && (
-                              <button type="button" onClick={() => updateContract(p, { price: maskCurrencyInput(String(Math.round(calc * 100))), priceTouched: false })} className="ml-1 font-medium text-brand-600 underline">
-                                Voltar ao valor calculado
-                              </button>
-                            )}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              {(['paidTraffic', 'socialMedia', 'landingPage'] as const).some(showLegacyRow) && (
-                <div className="flex flex-col gap-1.5 border-t border-slate-200 pt-2.5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Já ativos neste cliente (cadastro antigo)</p>
-                  {showLegacyRow('paidTraffic') && (
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input type="checkbox" checked={form.paidTraffic} onChange={(e) => set('paidTraffic', e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400" />
-                      Tráfego Pago
-                    </label>
-                  )}
-                  {showLegacyRow('socialMedia') && (
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input type="checkbox" checked={form.socialMedia} onChange={(e) => set('socialMedia', e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400" />
-                      Social Mídia
-                    </label>
-                  )}
-                  {showLegacyRow('landingPage') && (
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input type="checkbox" checked={form.landingPage} onChange={(e) => set('landingPage', e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400" />
-                      Landing Page
-                    </label>
-                  )}
-                  <p className="text-xs text-slate-400">Esses serviços foram marcados antes do catálogo. Marque o serviço correspondente acima pra passar a usar o catálogo.</p>
+          <div className="mt-3 flex flex-col gap-2">
+            <p className="text-xs font-medium text-slate-500">Outras pessoas do cliente (dona, sócio, gerente...)</p>
+            {form.contacts.map((c) => (
+              <div key={c.id} className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-[1fr_0.8fr_1fr_auto] sm:items-start">
+                <Input value={c.name} onChange={(e) => setContact(c.id, { name: e.target.value })} placeholder="Nome" aria-label="Nome da pessoa" />
+                <Input value={c.role ?? ''} onChange={(e) => setContact(c.id, { role: e.target.value })} placeholder="Cargo (ex: proprietária)" aria-label="Cargo" />
+                <div>
+                  <Input
+                    value={c.whatsapp ?? ''}
+                    onChange={(e) => setContact(c.id, { whatsapp: maskPhone(e.target.value) })}
+                    placeholder="(00) 00000-0000"
+                    aria-label="WhatsApp da pessoa"
+                  />
+                  {contactPhoneIncomplete(c) && <p className="mt-1 text-xs text-red-500">Número incompleto.</p>}
                 </div>
-              )}
-            </>
-          )}
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, contacts: f.contacts.filter((x) => x.id !== c.id) }))}
+                  aria-label={`Remover ${c.name || 'pessoa'}`}
+                  className="h-9 rounded-lg px-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+            <div>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setForm((f) => ({ ...f, contacts: [...f.contacts, { id: crypto.randomUUID(), name: '', role: '', whatsapp: '' }] }))}
+              >
+                + Adicionar pessoa
+              </Button>
+            </div>
+          </div>
+        </Section>
 
-          {showPlatformPicker && (
-            <div className={`flex flex-col gap-1.5 rounded-md border p-2.5 ${platformMissing ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
-              <p className="text-xs font-semibold text-slate-700">Em qual plataforma o tráfego pago deste cliente roda?</p>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={form.metaAds} onChange={(e) => set('metaAds', e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400" />
-                Meta Ads (Facebook / Instagram)
-              </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={form.googleAds} onChange={(e) => set('googleAds', e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400" />
-                Google Ads
-              </label>
-              <p className={`text-xs ${platformMissing ? 'font-medium text-amber-700' : 'text-slate-400'}`}>
+        {/* 3. Serviços */}
+        <Section n={3} title="Serviços contratados" hint="Marque tudo o que o cliente fechou. As abas e as tarefas de cada área são liberadas sozinhas.">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            <ServiceCard
+              checked={paidTraffic}
+              onChange={(v) => set('paidTraffic', v)}
+              icon={<Megaphone size={15} />}
+              title="Tráfego Pago"
+              description="Anúncios no Meta (Facebook/Instagram) e/ou Google"
+            />
+            <ServiceCard
+              checked={socialMedia}
+              onChange={(v) => set('socialMedia', v)}
+              icon={<Camera size={15} />}
+              title="Social Mídia"
+              description="Posts e gestão do Instagram"
+            />
+            <ServiceCard
+              checked={landingPage}
+              onChange={(v) => set('landingPage', v)}
+              icon={<LayoutTemplate size={15} />}
+              title="Landing Page / Site"
+              description="Página de vendas ou site do cliente"
+            />
+          </div>
+          {isMissing('Serviços contratados') && <p className="mt-2 text-xs font-medium text-red-500">Marque pelo menos um serviço.</p>}
+
+          {paidTraffic && (
+            <fieldset
+              className={`mt-3 rounded-lg border p-3 ${platformMissing ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}
+            >
+              <legend className="px-1 text-xs font-semibold text-slate-700">Onde o tráfego pago roda? *</legend>
+              <div className="flex flex-wrap gap-2">
+                <PlatformChip checked={form.metaAds} onChange={(v) => set('metaAds', v)} label="Meta Ads (Facebook / Instagram)" />
+                <PlatformChip checked={form.googleAds} onChange={(v) => set('googleAds', v)} label="Google Ads" />
+              </div>
+              <p className={`mt-2 text-xs ${platformMissing ? 'font-medium text-amber-700' : 'text-slate-400'}`}>
                 {platformMissing
-                  ? 'Escolha pelo menos uma — é isso que define o Planejamento de Campanha, as otimizações e os relatórios deste cliente.'
+                  ? 'Escolha pelo menos uma — define o Planejamento de Campanha, as otimizações e os relatórios.'
                   : 'Define o Planejamento de Campanha, as otimizações e os relatórios deste cliente.'}
               </p>
-            </div>
-          )}
-
-          {unmappedProducts.length > 0 && (
-            <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
-              {unmappedProducts.map((p) => p.name).join(', ')}: este serviço ainda não liga nenhuma área do CRM (nada de abas nem tarefas
-              automáticas). Peça pro Bruno configurar em Dashboard → Produtos e Serviços.
-            </p>
+            </fieldset>
           )}
 
           {socialMedia && (
-            <div className="flex flex-col gap-2.5 border-t border-slate-200 pt-2.5">
+            <div className="mt-3 flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-white p-3">
               <Field label="Plano (Social Mídia)">
                 <SocialPlanEditor value={form.socialPlan} onChange={(plan) => set('socialPlan', plan)} />
               </Field>
@@ -935,7 +849,7 @@ export function ClientFormModal({
           )}
 
           {landingPage && (
-            <div className="flex flex-col gap-2.5 border-t border-slate-200 pt-2.5">
+            <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
               <Field label="Tipo de Landing Page">
                 <Select value={form.landingPageType} onChange={(e) => set('landingPageType', e.target.value as LandingPageType)}>
                   <option value="">Selecione...</option>
@@ -946,68 +860,75 @@ export function ClientFormModal({
               </Field>
             </div>
           )}
+        </Section>
 
-          {willActivate.length > 0 ? (
-            <p className="text-xs font-medium text-emerald-700">Vai ativar no CRM: {willActivate.join(' · ')}</p>
-          ) : (
-            !client && <p className="text-xs font-medium text-amber-700">Selecione pelo menos um serviço pra cadastrar o cliente.</p>
-          )}
-        </div>
-
-        <Field label="Valor mensal do contrato (R$)">
-          <Input
-            value={form.monthlyValue}
-            onChange={(e) => {
-              setMonthlyTouched(true)
-              set('monthlyValue', maskCurrencyInput(e.target.value))
-            }}
-            placeholder="R$ 0,00"
-          />
-          {servicesTotal > 0 && (
-            <p className="mt-1 text-xs text-slate-400">
-              Soma dos serviços: {formatBRL(servicesTotal)}
-              {maskCurrencyInput(String(Math.round(servicesTotal * 100))) !== form.monthlyValue && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMonthlyTouched(false)
-                    set('monthlyValue', maskCurrencyInput(String(Math.round(servicesTotal * 100))))
-                  }}
-                  className="ml-1 font-medium text-brand-600 underline"
-                >
-                  usar
-                </button>
-              )}
-            </p>
-          )}
-        </Field>
-        <Field label="Data de início">
-          <Input type="date" value={form.contractStartDate} onChange={(e) => set('contractStartDate', e.target.value)} />
-        </Field>
-
-        <div className="sm:col-span-2">
-          <span className="mb-1 block text-xs font-medium text-slate-500">Responsável interno</span>
-          <div className="flex flex-col gap-1.5 rounded-lg border border-slate-200 p-2.5">
-            {users.length === 0 && <p className="text-xs text-slate-400">Nenhum usuário cadastrado.</p>}
-            {users.map((u) => (
-              <label key={u.id} className="flex items-center gap-2 text-sm text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={form.ownerIds.includes(u.id)}
-                  onChange={() => toggleOwner(u.id)}
-                  className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-                />
-                {u.name}
-              </label>
-            ))}
+        {/* 4. Contrato */}
+        <Section n={4} title="Contrato" hint="Valor que o cliente paga por mês pra agência (sem a verba de anúncio).">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Field label="Valor mensal (R$)" required>
+                <Input value={form.monthlyValue} onChange={(e) => set('monthlyValue', maskCurrencyInput(e.target.value))} placeholder="R$ 0,00" inputMode="numeric" />
+              </Field>
+              {missingMsg('Valor mensal')}
+            </div>
+            <div>
+              <Field label="Data de início" required>
+                <Input type="date" value={form.contractStartDate} onChange={(e) => set('contractStartDate', e.target.value)} />
+              </Field>
+              {missingMsg('Data de início')}
+            </div>
           </div>
-          <p className="mt-1 text-xs text-slate-400">Selecione um ou mais responsáveis (ex: co-gestão de Tráfego Pago).</p>
-        </div>
+
+          <fieldset className="mt-3">
+            <legend className="mb-1.5 text-xs font-medium text-slate-500">
+              Responsáveis na equipe <span className="text-red-400">*</span>
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {users.length === 0 && <p className="text-xs text-slate-400">Nenhum usuário cadastrado.</p>}
+              {users.map((u) => (
+                <PlatformChip key={u.id} checked={form.ownerIds.includes(u.id)} onChange={() => toggleOwner(u.id)} label={u.name} />
+              ))}
+            </div>
+            {isMissing('Responsável') && <p className="mt-1 text-xs font-medium text-red-500">Escolha pelo menos um responsável.</p>}
+          </fieldset>
+        </Section>
+
+        {/* 5. Observações */}
+        <Section
+          n={5}
+          tone="notes"
+          title="Observações: o que foi vendido e combinado"
+          hint="A equipe lê isso no topo da ficha e no aviso de cliente novo. Escreva tudo: serviços, verba, prazos, promessas e condições."
+        >
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<FileText size={13} />}
+              onClick={() => set('notes', form.notes.trim() ? `${form.notes.trimEnd()}\n\n${NOTES_TEMPLATE}` : NOTES_TEMPLATE)}
+            >
+              Usar roteiro
+            </Button>
+            <span className="text-xs text-slate-500">Coloca as perguntas no texto pra você só completar.</span>
+          </div>
+          <Textarea
+            rows={8}
+            aria-label="Observações: o que foi vendido e combinado"
+            value={form.notes}
+            onChange={(e) => set('notes', e.target.value)}
+            placeholder={'Ex: fechou tráfego no Meta e no Google, verba de R$ 30/dia, foco em limpeza pós-obra na Zona Sul.\nPrometido 2 criativos novos por mês e relatório toda segunda.\nDesconto de 20% nos 3 primeiros meses.'}
+          />
+          <p className={`mt-1 text-xs ${notesLength < MIN_NOTES_LENGTH ? (isMissing('Observações completas') ? 'font-medium text-red-500' : 'text-amber-700') : 'text-emerald-700'}`}>
+            {notesLength < MIN_NOTES_LENGTH
+              ? `Escreva pelo menos ${MIN_NOTES_LENGTH} caracteres (faltam ${MIN_NOTES_LENGTH - notesLength}).`
+              : 'Ok — quanto mais detalhe, melhor pra equipe.'}
+          </p>
+        </Section>
 
         {(profile?.role === 'admin' || profile?.role === 'manager') && (
-          <div className="flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Jornada do Cliente (CS)</p>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <p className="text-sm font-semibold text-slate-800">Jornada do Cliente (CS)</p>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
                 checked={form.participaJornada}
@@ -1017,37 +938,41 @@ export function ClientFormModal({
               Participa da Jornada do Cliente
             </label>
             {form.participaJornada && (
-              <Field label="Início da jornada">
-                <Input
-                  type="date"
-                  value={form.dataInicioJornada}
-                  onChange={(e) => set('dataInicioJornada', e.target.value)}
-                />
-              </Field>
+              <div className="max-w-xs">
+                <Field label="Início da jornada">
+                  <Input type="date" value={form.dataInicioJornada} onChange={(e) => set('dataInicioJornada', e.target.value)} />
+                </Field>
+              </div>
             )}
           </div>
         )}
-      </div>
 
-      {!client && (socialMedia || paidTraffic || landingPage) && (
-        <label className="mt-3 flex items-start gap-2 text-xs text-slate-500">
-          <input
-            type="checkbox"
-            checked={createTasks}
-            onChange={(e) => setCreateTasks(e.target.checked)}
-            className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-          />
-          Criar automaticamente as tarefas padrão dos serviços marcados acima ({autoTaskSummary})
-        </label>
-      )}
+        {!client && (socialMedia || paidTraffic || landingPage) && (
+          <label className="flex items-start gap-2 text-xs text-slate-500">
+            <input
+              type="checkbox"
+              checked={createTasks}
+              onChange={(e) => setCreateTasks(e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+            />
+            Criar as tarefas padrão dos serviços marcados ({autoTaskSummary})
+          </label>
+        )}
 
-      <div className="mt-4 flex justify-end gap-2">
-        <Button variant="secondary" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button onClick={handleSubmit} loading={saving} disabled={!canSubmit}>
-          {client ? 'Salvar' : 'Cadastrar'}
-        </Button>
+        {/* Rodapé fixo */}
+        <div className="sticky bottom-0 -mx-5 -mb-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
+          {triedSubmit && blocking.length > 0 && (
+            <p role="alert" className="mr-auto text-xs font-medium text-red-500">
+              Falta: {blocking.join(', ')}
+            </p>
+          )}
+          <Button variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit} loading={saving} aria-disabled={!canSubmit}>
+            {client ? 'Salvar' : 'Cadastrar cliente'}
+          </Button>
+        </div>
       </div>
     </Modal>
   )

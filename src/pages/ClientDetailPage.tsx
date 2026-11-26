@@ -1,9 +1,9 @@
 import { socialPlanLabel } from '../types/socialPlan'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ArrowLeft, Pencil, Plus, Globe, Camera, ThumbsUp, Phone, Mail, MapPin, Sparkles, CheckSquare, MoreVertical, Trash2, MessageCircle } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Pencil, Plus, Globe, Camera, ThumbsUp, Phone, Mail, MapPin, Sparkles, CheckSquare, MoreVertical, Trash2, MessageCircle } from 'lucide-react'
 import { useClients } from '../hooks/useClients'
 import { useTasks } from '../hooks/useTasks'
 import { useContents } from '../hooks/useContents'
@@ -41,6 +41,8 @@ import { TASK_STATUS_LABEL } from '../types/task'
 import { useTaskVisibility, filterVisibleTasks } from '../utils/taskVisibility'
 import { useAuth } from '../context/AuthContext'
 import { resolveRoutinePersonKey } from '../services/dailyRoutineTemplates'
+import { missingFieldsOfClient } from '../utils/clientCompleteness'
+import { formatBRL } from '../utils/pricing'
 
 export function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -74,6 +76,14 @@ export function ClientDetailPage() {
     .filter((u): u is (typeof users)[number] => !!u)
   const openTask = tasks.find((t) => t.id === openTaskId) ?? null
   const openContent = contents.find((c) => c.id === openContentId) ?? null
+  const missingInfo = client.status === 'churned' ? [] : missingFieldsOfClient(client)
+  const startDate = client.contractStartDate?.toDate?.()
+  const summary: { label: string; value: ReactNode }[] = [
+    { label: 'Segmento', value: client.segment || '—' },
+    { label: 'Valor mensal', value: client.monthlyValue ? <PrivateData value={formatBRL(client.monthlyValue)} mask="R$ ••••" /> : '—' },
+    { label: 'Início do contrato', value: startDate ? format(startDate, "dd 'de' MMM yyyy", { locale: ptBR }) : '—' },
+    { label: 'Documento', value: client.document ? <PrivateData value={client.document} /> : '—' },
+  ]
 
   // Abas dependem dos serviços contratados: só Social Mídia esconde
   // Planejamento de Campanha, Otimizações e Tarefas (o fluxo do conteúdo é
@@ -248,7 +258,29 @@ export function ClientDetailPage() {
           )}
         </div>
 
-        <section aria-labelledby="client-notes-title" className="mx-5 mb-5 rounded-xl border-l-[3px] border-amber-400 bg-slate-50 px-4 py-3">
+        <dl className="grid grid-cols-2 gap-px border-t border-slate-100 bg-slate-100 sm:grid-cols-4">
+          {summary.map((s) => (
+            <div key={s.label} className="bg-white px-5 py-3">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{s.label}</dt>
+              <dd className="mt-0.5 truncate text-sm font-semibold text-slate-800">{s.value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {missingInfo.length > 0 && (
+          <div role="status" className="mx-5 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+            <AlertTriangle size={18} className="shrink-0 text-amber-500" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-800">Cadastro incompleto</p>
+              <p className="text-xs text-slate-600">Falta: {missingInfo.join(', ')}</p>
+            </div>
+            <Button size="sm" icon={<Pencil size={13} />} onClick={() => setEditing(true)}>
+              Completar cadastro
+            </Button>
+          </div>
+        )}
+
+        <section aria-labelledby="client-notes-title" className="mx-5 mb-5 mt-4 rounded-xl border-l-[3px] border-amber-400 bg-slate-50 px-4 py-3">
           <h2 id="client-notes-title" className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
             Observações: o que foi vendido e combinado
           </h2>
