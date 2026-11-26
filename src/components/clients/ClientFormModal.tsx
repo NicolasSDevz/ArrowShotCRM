@@ -3,7 +3,7 @@ import type { SocialPlan } from '../../types/socialPlan'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
-import { Trash2, Megaphone, Camera, LayoutTemplate, ChevronDown, AlertTriangle, CheckCircle2, FileText } from 'lucide-react'
+import { Trash2, ChevronDown, AlertTriangle, CheckCircle2, FileText } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Field, Input, Select, Textarea } from '../ui/Field'
 import { ChurnTypeField } from './ChurnTypeField'
@@ -17,6 +17,7 @@ import { notifyAdminsOfAction } from '../../services/notificationService'
 import { removeClientBirthdays } from '../../services/birthdayService'
 import { uploadClientLogo, removeClientLogo } from '../../services/clientLogoService'
 import { ClientLogoField } from './ClientLogoField'
+import { ChoiceChip, ServicePicker } from './ServicePicker'
 import { maskPhone, isPhoneComplete, maskDocument, maskCurrencyInput, parseCurrencyToNumber, maskCep, isCepComplete } from '../../utils/masks'
 import { dateInputToTimestamp, timestampToDateInput } from '../../utils/dateInput'
 import { fetchAddressByCep } from '../../services/viaCepService'
@@ -167,61 +168,6 @@ function Section({ n, title, hint, children, tone = 'default' }: { n: number; ti
   )
 }
 
-/** Cartão de serviço clicável (checkbox de verdade, pra leitor de tela). */
-function ServiceCard({
-  checked,
-  onChange,
-  icon,
-  title,
-  description,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  icon: ReactNode
-  title: string
-  description: string
-}) {
-  return (
-    <label
-      className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors duration-150 ${
-        checked ? 'border-brand-600 bg-brand-50' : 'border-slate-200 bg-white hover:border-slate-300'
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-      />
-      <span className="min-w-0">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-          <span aria-hidden="true" className={checked ? 'text-brand-600' : 'text-slate-400'}>{icon}</span>
-          {title}
-        </span>
-        <span className="mt-0.5 block text-xs text-slate-500">{description}</span>
-      </span>
-    </label>
-  )
-}
-
-function PlatformChip({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <label
-      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors duration-150 ${
-        checked ? 'border-brand-600 bg-brand-50 text-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-      />
-      {label}
-    </label>
-  )
-}
-
 export function ClientFormModal({
   open,
   onClose,
@@ -247,7 +193,6 @@ export function ClientFormModal({
   // Plataforma só vale com tráfego pago ligado.
   const metaAds = paidTraffic && form.metaAds
   const googleAds = paidTraffic && form.googleAds
-  const platformMissing = paidTraffic && !metaAds && !googleAds
 
   /** Serviços separados por cobrança — decide se encerrar é churn ou
    *  "Concluído" (só projetos únicos, como Landing Page). */
@@ -784,47 +729,11 @@ export function ClientFormModal({
 
         {/* 3. Serviços */}
         <Section n={3} title="Serviços contratados" hint="Marque tudo o que o cliente fechou. As abas e as tarefas de cada área são liberadas sozinhas.">
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-            <ServiceCard
-              checked={paidTraffic}
-              onChange={(v) => set('paidTraffic', v)}
-              icon={<Megaphone size={15} />}
-              title="Tráfego Pago"
-              description="Anúncios no Meta (Facebook/Instagram) e/ou Google"
-            />
-            <ServiceCard
-              checked={socialMedia}
-              onChange={(v) => set('socialMedia', v)}
-              icon={<Camera size={15} />}
-              title="Social Mídia"
-              description="Posts e gestão do Instagram"
-            />
-            <ServiceCard
-              checked={landingPage}
-              onChange={(v) => set('landingPage', v)}
-              icon={<LayoutTemplate size={15} />}
-              title="Landing Page / Site"
-              description="Página de vendas ou site do cliente"
-            />
-          </div>
-          {isMissing('Serviços contratados') && <p className="mt-2 text-xs font-medium text-red-500">Marque pelo menos um serviço.</p>}
-
-          {paidTraffic && (
-            <fieldset
-              className={`mt-3 rounded-lg border p-3 ${platformMissing ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}
-            >
-              <legend className="px-1 text-xs font-semibold text-slate-700">Onde o tráfego pago roda? *</legend>
-              <div className="flex flex-wrap gap-2">
-                <PlatformChip checked={form.metaAds} onChange={(v) => set('metaAds', v)} label="Meta Ads (Facebook / Instagram)" />
-                <PlatformChip checked={form.googleAds} onChange={(v) => set('googleAds', v)} label="Google Ads" />
-              </div>
-              <p className={`mt-2 text-xs ${platformMissing ? 'font-medium text-amber-700' : 'text-slate-400'}`}>
-                {platformMissing
-                  ? 'Escolha pelo menos uma — define o Planejamento de Campanha, as otimizações e os relatórios.'
-                  : 'Define o Planejamento de Campanha, as otimizações e os relatórios deste cliente.'}
-              </p>
-            </fieldset>
-          )}
+          <ServicePicker
+            value={{ paidTraffic, metaAds: form.metaAds, googleAds: form.googleAds, socialMedia, landingPage }}
+            onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+            showMissing={isMissing('Serviços contratados')}
+          />
 
           {socialMedia && (
             <div className="mt-3 flex flex-col gap-2.5 rounded-lg border border-slate-200 bg-white p-3">
@@ -886,7 +795,7 @@ export function ClientFormModal({
             <div className="flex flex-wrap gap-2">
               {users.length === 0 && <p className="text-xs text-slate-400">Nenhum usuário cadastrado.</p>}
               {users.map((u) => (
-                <PlatformChip key={u.id} checked={form.ownerIds.includes(u.id)} onChange={() => toggleOwner(u.id)} label={u.name} />
+                <ChoiceChip key={u.id} checked={form.ownerIds.includes(u.id)} onChange={() => toggleOwner(u.id)} label={u.name} />
               ))}
             </div>
             {isMissing('Responsável') && <p className="mt-1 text-xs font-medium text-red-500">Escolha pelo menos um responsável.</p>}

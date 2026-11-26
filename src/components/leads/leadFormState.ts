@@ -1,7 +1,6 @@
 import { Timestamp } from 'firebase/firestore'
 import { maskCurrencyInput, parseCurrencyToNumber } from '../../utils/masks'
-import { modulesFromProducts, resolveServices } from '../../utils/productModules'
-import type { Lead, LeadInput, LeadSegment, LeadSource, Product } from '../../types'
+import type { Lead, LeadInput, LeadSegment, LeadSource } from '../../types'
 
 export interface LeadFormState {
   contactName: string
@@ -94,12 +93,17 @@ export function leadToFormState(lead: Lead): LeadFormState {
   }
 }
 
-/** `catalog` = catálogo do Dashboard; `originalProductIds` = produtos que o
- *  lead já tinha salvos (pra desmarcar um produto desligar o serviço dele).
- *  Os serviços do lead (services.*) são derivados do que os produtos ligam. */
-export function formStateToLeadFields(state: LeadFormState, catalog: Product[] = [], originalProductIds: string[] = []): LeadEditableFields {
-  const origCovered = modulesFromProducts(catalog.filter((p) => originalProductIds.includes(p.id)))
-  const svc = resolveServices(catalog, state.contractedProductIds, state, origCovered)
+/** Serviços vêm direto das caixinhas do formulário (Tráfego → Meta/Google,
+ *  Social Mídia, Landing Page). O catálogo de produtos saiu do lead em
+ *  26/11/2026; `contractedProductIds` antigos são mantidos como estavam. */
+export function formStateToLeadFields(state: LeadFormState): LeadEditableFields {
+  const svc = {
+    paidTraffic: state.paidTraffic,
+    metaAds: state.paidTraffic && state.metaAds,
+    googleAds: state.paidTraffic && state.googleAds,
+    socialMedia: state.socialMedia,
+    landingPage: state.landingPage,
+  }
   return {
     contactName: state.contactName.trim(),
     companyName: state.companyName.trim() || undefined,

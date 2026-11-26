@@ -23,7 +23,6 @@ import { useClients } from '../../hooks/useClients'
 import { useLeads } from '../../hooks/useLeads'
 import { findClientMatch, findDuplicateLeads, MATCH_REASON_LABEL } from '../../utils/leadDuplicates'
 import { LeadForm } from './LeadForm'
-import { useProducts } from '../../hooks/useProducts'
 import { contactError } from '../../utils/validation'
 import { useLeadPipelines } from '../../hooks/useLeadPipelines'
 import { leadToFormState, formStateToLeadFields, type LeadFormState } from './leadFormState'
@@ -151,7 +150,6 @@ function LeadMoveControl({
 function InfoTab({ lead }: { lead: Lead }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
-  const { data: products } = useProducts()
   const { pipelines } = useLeadPipelines()
   const { isPrivacyMode } = usePrivacy()
   const { data: leadForms } = useLeadForms()
@@ -168,7 +166,7 @@ function InfoTab({ lead }: { lead: Lead }) {
     }
     setSaving(true)
     try {
-      await updateLead(lead.id, formStateToLeadFields(form, products, lead.contractedProductIds ?? []), profile.id, profile.name)
+      await updateLead(lead.id, formStateToLeadFields(form), profile.id, profile.name)
       toast.success('Lead atualizado')
     } catch (err) {
       console.error(err)
@@ -195,7 +193,7 @@ function InfoTab({ lead }: { lead: Lead }) {
           <FormAnswersList answers={lead.formAnswers} questions={sourceForm?.questions} hidden={isPrivacyMode} />
         </section>
       )}
-      <LeadForm value={form} onChange={setForm} users={users} originalProductIds={lead.contractedProductIds ?? []} pipelineFields={locateLead(pipelines, lead).pipeline.fields} />
+      <LeadForm value={form} onChange={setForm} users={users} pipelineFields={locateLead(pipelines, lead).pipeline.fields} />
       <Button onClick={handleSave} loading={saving} className="self-start">
         Salvar alterações
       </Button>

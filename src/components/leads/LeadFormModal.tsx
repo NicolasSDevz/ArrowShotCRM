@@ -4,7 +4,6 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useUsers } from '../../hooks/useUsers'
-import { useProducts } from '../../hooks/useProducts'
 import { createLead } from '../../services/leadService'
 import { findUserIdByName } from '../../utils/userLookup'
 import { isPhoneComplete } from '../../utils/masks'
@@ -18,7 +17,6 @@ import { buildDefaultLeadForm, formStateToLeadFields, type LeadFormState } from 
 export function LeadFormModal({ open, onClose, pipeline }: { open: boolean; onClose: () => void; pipeline: ResolvedPipeline }) {
   const { profile } = useAuth()
   const { data: users } = useUsers()
-  const { data: products } = useProducts()
   const [form, setForm] = useState<LeadFormState>(() => buildDefaultLeadForm())
   const [saving, setSaving] = useState(false)
   const { pipelines } = useLeadPipelines()
@@ -75,7 +73,7 @@ export function LeadFormModal({ open, onClose, pipeline }: { open: boolean; onCl
     try {
       await createLead(
         {
-          ...formStateToLeadFields(form, products),
+          ...formStateToLeadFields(form),
           status: targetStage.id,
           pipelineId: target.isDefault ? undefined : target.id,
           // Negativo: lead novo entra no topo da coluna.
