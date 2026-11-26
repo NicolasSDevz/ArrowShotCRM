@@ -875,16 +875,6 @@ body {
   background-position: 0 0, 11px 11px;
 }
 
-/* Conversas do WhatsApp: a caixa de escrever deixa espaço pro botão flutuante do Archer. */
-.wa-hub .wa-composer {
-  padding-right: 4.75rem;
-}
-/* Archer arrastado para a esquerda: o espaço passa para o outro lado. */
-body[data-archer-side='left'] .wa-hub .wa-composer {
-  padding-right: revert-layer;
-  padding-left: 4.75rem;
-}
-
 /* ==========================================================================
    DARK PREMIUM — componentes compartilhados
    ========================================================================== */

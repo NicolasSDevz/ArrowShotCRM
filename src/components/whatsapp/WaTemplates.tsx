@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Link2, MessageSquareReply, Plus, RefreshCw, Search, Send, Trash2, X } from 'lucide-react'
+import { Link2, MessageSquareReply, Plus, RefreshCw, Search, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Field, Input, Textarea } from '../ui/Field'
-import { createWaTemplate, deleteWaTemplate } from '../../services/whatsappService'
+import { createWaTemplate, deleteWaTemplate, draftWaTemplate } from '../../services/whatsappService'
 import type { WaTemplate } from '../../types/whatsapp'
 import { TemplateBubble, prettyTemplateName } from './WaTemplatePicker'
 
@@ -62,6 +62,29 @@ function NewTemplateForm({ existing, onCreated, onCancel }: { existing: WaTempla
   const [d, setD] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const set = (patch: Partial<typeof EMPTY>) => setD((cur) => ({ ...cur, ...patch }))
+  const [brief, setBrief] = useState('')
+  const [change, setChange] = useState('')
+  const [why, setWhy] = useState('')
+  const [drafting, setDrafting] = useState<'' | 'new' | 'change' | 'other'>('')
+  const hasDraft = Boolean(d.body.trim())
+
+  const askAi = async (mode: 'new' | 'change' | 'other') => {
+    if (mode === 'new' && !brief.trim()) return
+    if (mode === 'change' && !change.trim()) return
+    setDrafting(mode)
+    try {
+      const current = mode === 'new' ? undefined : { name: d.name, category: d.category, header: d.header, body: d.body, examples: d.examples, footer: d.footer, buttons: d.buttons }
+      const out = await draftWaTemplate({ brief: brief.trim(), category: mode === 'new' ? d.category : undefined, current, change: mode === 'change' ? change.trim() : undefined })
+      setD({ name: out.name.replace(/_/g, ' '), category: out.category, header: out.header, body: out.body, examples: out.examples, footer: out.footer, buttons: out.buttons })
+      setWhy(out.why)
+      setChange('')
+      toast.success('Pronto! Confira o texto e, se gostar, mande pro Meta.')
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setDrafting('')
+    }
+  }
 
   const name = slug(d.name)
   const vars = varsOf(d.body)
@@ -132,6 +155,58 @@ function NewTemplateForm({ existing, onCreated, onCancel }: { existing: WaTempla
         <button type="button" onClick={onCancel} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Fechar o novo modelo">
           <X size={16} aria-hidden="true" />
         </button>
+      </div>
+      <div className="mb-4 flex flex-col gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 p-3">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-violet-200">
+          <Sparkles size={15} aria-hidden="true" /> Escrever com IA
+        </span>
+        <Field label="O que a mensagem precisa fazer?" hint="Conte pra quem é, o objetivo e o que oferecer. A IA usa a Base de Vendas e segue as regras do Meta. Nada é enviado antes de você clicar em Enviar.">
+          <Textarea
+            rows={3}
+            maxLength={2000}
+            value={brief}
+            onChange={(e) => setBrief(e.target.value)}
+            placeholder="Ex.: chamar de volta quem respondeu o questionário mas sumiu há mais de 1 semana, oferecendo o diagnóstico gratuito da empresa"
+          />
+        </Field>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" icon={<Sparkles size={14} aria-hidden="true" />} loading={drafting === 'new'} disabled={!brief.trim() || Boolean(drafting)} onClick={() => askAi('new')}>
+            {hasDraft ? 'Escrever de novo do zero' : 'Escrever a mensagem'}
+          </Button>
+          {hasDraft && (
+            <Button size="sm" variant="secondary" loading={drafting === 'other'} disabled={Boolean(drafting)} onClick={() => askAi('other')}>
+              Outra versão
+            </Button>
+          )}
+        </div>
+        {hasDraft && (
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[220px] flex-1">
+              <Field label="Quer mudar algo? Peça pra IA">
+                <Input
+                  value={change}
+                  maxLength={1000}
+                  onChange={(e) => setChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void askAi('change')
+                    }
+                  }}
+                  placeholder="Ex.: mais curta, sem emoji, com botão Quero saber mais"
+                />
+              </Field>
+            </div>
+            <Button size="sm" variant="secondary" loading={drafting === 'change'} disabled={!change.trim() || Boolean(drafting)} onClick={() => askAi('change')}>
+              Ajustar
+            </Button>
+          </div>
+        )}
+        {why && (
+          <p className="text-xs text-violet-200/80" role="status">
+            Ideia da IA: {why}
+          </p>
+        )}
       </div>
       <div className="grid gap-4 md:grid-cols-[1fr_280px]">
         <div className="flex flex-col gap-3">

@@ -128,6 +128,12 @@ export interface WaTemplateDraft {
   buttons: { type: 'QUICK_REPLY' | 'URL'; text: string; url: string }[]
 }
 export const createWaTemplate = (body: WaTemplateDraft) => api<{ id: string; name: string; status: string; category: string }>('template-create', { method: 'POST', body })
+/** A IA escreve o modelo (nada vai pro Meta). Com current + change, ajusta o rascunho. */
+export interface WaTemplateAiDraft extends Omit<WaTemplateDraft, 'language'> {
+  why: string
+}
+export const draftWaTemplate = (body: { brief: string; category?: 'MARKETING' | 'UTILITY'; current?: Omit<WaTemplateDraft, 'language'>; change?: string }) =>
+  api<WaTemplateAiDraft>('template-draft', { method: 'POST', body })
 export const deleteWaTemplate = (name: string) => api<{ ok: boolean }>('template-delete', { method: 'POST', body: { name } })
 
 export const createBroadcast = (body: BroadcastInput) => api<{ id: string; total: number; scheduledAt?: string | null }>('broadcast', { method: 'POST', body })

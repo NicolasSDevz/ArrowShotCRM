@@ -13,6 +13,7 @@
 //   GET  templates     modelos (todos os status)
 //   POST template-create { name, category, language?, header?, body, examples[], footer?, buttons[] }  manda pro Meta aprovar
 //   POST template-delete { name }
+//   POST template-draft  { brief, category?, current?, change? }  a IA escreve o modelo (não manda pro Meta)
 //   POST send          { to, text } ou { to, template: { name, lang, params } }
 //   POST conversation  { waId, aiMode?, followUpStopped?, read?, leadId?, leadMatch?: "client", name? }
 //   POST reply-ai      { waId } faz a IA responder agora (botão "Responder com IA")
@@ -41,6 +42,7 @@ import {
   runFollowUps,
   runMeetingReminders,
   createTemplate,
+  draftTemplate,
   deleteTemplate,
   runPendingReplies,
   runCartRecovery,
@@ -193,6 +195,7 @@ const ADMIN = {
   },
   'GET templates': async (req) => ({ templates: await listTemplates({ fresh: req.query.fresh === '1' }) }),
   'POST template-create': async (req) => createTemplate(await readJson(req)),
+  'POST template-draft': async (req) => draftTemplate(await readJson(req)),
   'POST template-delete': async (req, user) => {
     if (user.role !== 'admin' && user.role !== 'manager') throw new WaError(403, 'Só admin ou gerente apaga modelo.')
     return deleteTemplate((await readJson(req)).name)

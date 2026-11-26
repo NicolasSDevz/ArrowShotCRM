@@ -401,6 +401,130 @@ export async function deleteTemplate(name) {
   return { ok: true }
 }
 
+const DRAFT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'category', 'header', 'body', 'examples', 'footer', 'buttons', 'why'],
+  properties: {
+    name: { type: 'string' },
+    category: { type: 'string', enum: ['MARKETING', 'UTILITY'] },
+    header: { type: 'string' },
+    body: { type: 'string' },
+    examples: { type: 'array', items: { type: 'string' } },
+    footer: { type: 'string' },
+    buttons: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['type', 'text', 'url'],
+        properties: { type: { type: 'string', enum: ['QUICK_REPLY', 'URL'] }, text: { type: 'string' }, url: { type: 'string' } },
+      },
+    },
+    why: { type: 'string' },
+  },
+}
+
+/**
+ * A IA escreve um modelo pronto pra revisar e mandar pro Meta.
+ * input = { brief, category?, current?: { name, category, header, body, examples, footer, buttons }, change? }
+ * Com current + change, ajusta o rascunho em vez de começar do zero. Não manda nada pro Meta.
+ */
+export async function draftTemplate(input) {
+  const ai = anthropic()
+  if (!ai) throw new WaError(500, 'A IA não está configurada (falta ANTHROPIC_API_KEY na Vercel).')
+  const brief = String(input?.brief || '').trim().slice(0, 2000)
+  const change = String(input?.change || '').trim().slice(0, 1000)
+  const current = input?.current && String(input.current.body || '').trim() ? input.current : null
+  if (!brief && !change) throw new WaError(400, 'Conte pra IA o que a mensagem precisa fazer.')
+  const wanted = input?.category === 'UTILITY' || input?.category === 'MARKETING' ? input.category : ''
+
+  let base = ''
+  try {
+    base = formatBaseVendasForPrompt(await getBaseVendas())
+  } catch {
+    /* sem base: escreve só com o pedido */
+  }
+  let approved = []
+  try {
+    approved = (await listTemplates()).filter((t) => t.status === 'APPROVED' && t.language === 'pt_BR').slice(0, 8)
+  } catch {
+    /* sem lista: segue sem exemplos */
+  }
+  const examplesBlock = approved.length ? approved.map((t) => `- ${t.name} (${t.category}): ${String(t.body || '').replace(/\s+/g, ' ').slice(0, 300)}`).join('\n') : '(nenhum)'
+
+  const system = `Você escreve modelos de mensagem (templates) do WhatsApp Business da Arrow Shot para o Meta aprovar. O Bruno, do comercial, vai revisar antes de enviar.
+
+Regras do Meta que o modelo precisa seguir:
+- Corpo até 1024 caracteres (ideal: 200 a 450). Partes variáveis são {{1}}, {{2}}, {{3}}... em ordem, sem pular. O corpo NUNCA começa nem termina com {{n}}; nunca duas variáveis coladas; não mais que 1 variável a cada ~8 palavras.
+- "examples": um exemplo realista para cada variável, na mesma ordem (ex.: "Maria", "Limpeza Brilho"). Lista vazia se não houver variável.
+- Título (header) e rodapé (footer): opcionais, até 60 caracteres, sem variável, sem emoji no título. Deixe "" se não ajudar.
+- Botões: opcional, até 3. QUICK_REPLY (texto até 25 caracteres, url "") ou URL (texto até 25 e url começando com https://; só use link que esteja nas informações abaixo ou no pedido; nunca invente link).
+- Categoria: UTILITY só para algo que a pessoa já combinou ou pediu (lembrete, confirmação, aviso de atendimento), sem nada de venda. Convite, oferta, reativação, chamar pra conversar = MARKETING. Na dúvida, MARKETING (se marcar errado o Meta reprova).
+- Nada de promessa de resultado garantido, nada de pressão falsa ("últimas vagas" sem ser verdade), nada de pedir senha/dados sensíveis, no máximo 2 emojis, sem CAIXA ALTA gritando, sem links encurtados.
+- "name": em minúsculas, só letras sem acento, números e _ (ex.: convite_diagnostico_gratis). Curto e que diga o uso.
+
+Estilo: português do Brasil, tom humano e direto, como o Bruno escreveria no WhatsApp, tratando por "você". Termine com uma pergunta ou chamada simples que dê vontade de responder. Use o primeiro nome como {{1}} quando fizer sentido.
+
+"why": 1 ou 2 frases curtas para o Bruno explicando a ideia da mensagem e a categoria escolhida.
+
+Informações da Arrow Shot (use só o que for verdade aqui; não invente preço, prazo ou garantia):
+${base || '(sem base de vendas cadastrada)'}
+
+Modelos que o Meta já aprovou (para pegar o tom, não copie):
+${examplesBlock}`
+
+  const parts = []
+  if (brief) parts.push(`O que a mensagem precisa fazer:\n${brief}`)
+  if (wanted) parts.push(`Categoria pedida: ${wanted === 'UTILITY' ? 'Utilidade' : 'Marketing'} (respeite, a não ser que o texto obrigue a outra; explique no "why").`)
+  if (current) {
+    const cur = {
+      name: String(current.name || ''),
+      category: String(current.category || ''),
+      header: String(current.header || ''),
+      body: String(current.body || ''),
+      examples: Array.isArray(current.examples) ? current.examples.map(String) : [],
+      footer: String(current.footer || ''),
+      buttons: Array.isArray(current.buttons) ? current.buttons : [],
+    }
+    parts.push(`Rascunho atual:\n${JSON.stringify(cur, null, 2)}`)
+    parts.push(change ? `O Bruno pediu esta mudança: ${change}\nAjuste o rascunho mantendo o que ele não pediu pra mudar.` : 'Escreva uma versão diferente desse rascunho (outro jeito de abrir e de chamar pra resposta).')
+  }
+  parts.push('Responda só com o JSON do modelo.')
+
+  const params = { model: MODEL, max_tokens: 1500, system, messages: [{ role: 'user', content: parts.join('\n\n') }] }
+  let res
+  try {
+    res = await ai.messages.create({ ...params, output_config: { format: { type: 'json_schema', schema: DRAFT_SCHEMA } } })
+  } catch (e) {
+    if (!(e instanceof Anthropic.BadRequestError)) throw new WaError(502, `A IA não respondeu: ${e.message}`)
+    res = await ai.messages.create(params)
+  }
+  const raw = textOf(res)
+  let d
+  try {
+    d = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1))
+  } catch {
+    throw new WaError(502, 'A IA devolveu um texto que não deu pra ler. Tente de novo.')
+  }
+  const body = String(d.body || '').trim().slice(0, 1024)
+  const vars = varNamesOf(body)
+  const examples = Array.isArray(d.examples) ? d.examples.map((x) => String(x || '').trim()) : []
+  return {
+    name: templateSlug(d.name || '').slice(0, 60),
+    category: d.category === 'UTILITY' ? 'UTILITY' : 'MARKETING',
+    header: String(d.header || '').replace(/\{\{[^}]*\}\}/g, '').trim().slice(0, 60),
+    body,
+    examples: vars.map((_, i) => examples[i] || (i === 0 ? 'Maria' : 'exemplo')),
+    footer: String(d.footer || '').trim().slice(0, 60),
+    buttons: (Array.isArray(d.buttons) ? d.buttons : [])
+      .slice(0, 3)
+      .map((b) => ({ type: b?.type === 'URL' ? 'URL' : 'QUICK_REPLY', text: String(b?.text || '').trim().slice(0, 25), url: b?.type === 'URL' ? String(b?.url || '').trim() : '' }))
+      .filter((b) => b.text && (b.type === 'QUICK_REPLY' || /^https?:\/\/\S+$/.test(b.url))),
+    why: String(d.why || '').trim().slice(0, 400),
+  }
+}
+
 function renderTemplate(body, params, names) {
   return String(body || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_, n) => {
     const i = /^\d+$/.test(n) ? Number(n) - 1 : (names || []).indexOf(n)
